@@ -14,7 +14,7 @@
     "dev:web": "turbo -F web dev",
     "dev:server": "turbo -F @spendly/backend dev",
     "dev:setup": "turbo -F @spendly/backend dev:setup",
-    "prepare": "husky"
+    "prepare": "node ./scripts/prepare.mjs"
   },
   "dependencies": {
     "@spendly/env": "workspace:*",

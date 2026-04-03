@@ -378,6 +378,9 @@ importers:
       '@spendly/config':
         specifier: workspace:*
         version: link:../config
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.10.9
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
