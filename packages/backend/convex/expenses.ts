@@ -33,14 +33,17 @@ export const list = query({
 			expenses = expenses.filter((e) => e.categoryId === args.categoryId);
 		}
 		if (args.startDate) {
-			expenses = expenses.filter((e) => e.date >= args.startDate);
+			const { startDate } = args;
+			expenses = expenses.filter((e) => e.date >= startDate);
 		}
 		if (args.endDate) {
-			expenses = expenses.filter((e) => e.date < args.endDate);
+			const { endDate } = args;
+			expenses = expenses.filter((e) => e.date < endDate);
 		}
 		if (args.tagIds && args.tagIds.length > 0) {
+			const { tagIds } = args;
 			expenses = expenses.filter((e) =>
-				args.tagIds.every((tid) => e.tagIds?.includes(tid))
+				tagIds.every((tid) => e.tagIds?.includes(tid))
 			);
 		}
 
