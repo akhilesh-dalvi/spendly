@@ -51,6 +51,3 @@ temp
 
 # Local tooling artifacts
 chrome-devtools/
-
-# Convex generated files
-packages/backend/convex/_generated/
