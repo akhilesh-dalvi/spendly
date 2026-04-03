@@ -1,0 +1,22 @@
+// Better-T-Stack configuration file
+// safe to delete
+
+{
+  "$schema": "https://r2.better-t-stack.dev/schema.json",
+  "version": "3.16.0",
+  "createdAt": "2026-01-16T18:23:51.263Z",
+  "database": "none",
+  "orm": "none",
+  "backend": "convex",
+  "runtime": "none",
+  "frontend": ["next", "native-uniwind"],
+  "addons": ["biome", "husky", "pwa", "turborepo", "ultracite"],
+  "examples": [],
+  "auth": "clerk",
+  "payments": "none",
+  "packageManager": "pnpm",
+  "dbSetup": "none",
+  "api": "none",
+  "webDeploy": "none",
+  "serverDeploy": "none",
+}
