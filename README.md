@@ -109,12 +109,6 @@ Typecheck the workspaces:
 pnpm check-types
 ```
 
-Git hooks are installed through:
-
-```bash
-pnpm prepare
-```
-
 ## Current Project Focus
 
 - `apps/web` and `packages/backend` are the primary active surfaces

@@ -10,7 +10,7 @@
   "backend": "convex",
   "runtime": "none",
   "frontend": ["next", "native-uniwind"],
-  "addons": ["biome", "husky", "pwa", "turborepo", "ultracite"],
+  "addons": ["biome", "pwa", "turborepo", "ultracite"],
   "examples": [],
   "auth": "clerk",
   "payments": "none",
