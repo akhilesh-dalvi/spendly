@@ -63,7 +63,7 @@ export default function PricingPage() {
 
 	return (
 		<>
-			<main className="flex-1">
+			<main className="flex-1" id="main-content">
 				<section className="border-b">
 					<div className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-16 md:py-24">
 						<div className="flex max-w-4xl flex-col gap-6">

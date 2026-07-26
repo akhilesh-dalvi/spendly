@@ -17,6 +17,8 @@ interface StorySection {
 	screenshot: string;
 	lightScreenshot: string;
 	screenshotAlt: string;
+	width: number;
+	height: number;
 }
 
 const storySections = [
@@ -29,6 +31,8 @@ const storySections = [
 		lightScreenshot: "/images/marketing/app-screenshots/add-expense-light.png",
 		screenshotAlt:
 			"Spendly expense entry form showing quick capture with category, date, tags, and notes fields",
+		width: 2938,
+		height: 1548,
 	},
 	{
 		eyebrow: "Expense history",
@@ -39,6 +43,8 @@ const storySections = [
 		lightScreenshot: "/images/marketing/app-screenshots/expenses-light.png",
 		screenshotAlt:
 			"Spendly expenses view showing a clear list of transactions with categories, dates, and amounts",
+		width: 2938,
+		height: 1956,
 	},
 	{
 		eyebrow: "Cycle clarity",
@@ -50,6 +56,8 @@ const storySections = [
 			"/images/marketing/app-screenshots/compare-cycles-light.png",
 		screenshotAlt:
 			"Spendly cycle comparison view showing spending across multiple custom time periods",
+		width: 2938,
+		height: 4296,
 	},
 	{
 		eyebrow: "Dashboard insight",
@@ -61,6 +69,8 @@ const storySections = [
 			"/images/marketing/app-screenshots/dashboard-overview-mar-light.png",
 		screenshotAlt:
 			"Spendly dashboard overview showing totals, cycle comparisons, charts, and recent activity",
+		width: 2938,
+		height: 2712,
 	},
 ] as const satisfies readonly StorySection[];
 
@@ -112,16 +122,18 @@ export default function LandingDemoStrip() {
 												<Image
 													alt={section.screenshotAlt}
 													className="hidden h-auto w-full cursor-zoom-in dark:block"
-													height={720}
+													height={section.height}
+													sizes="(min-width: 1024px) 748px, calc(100vw - 3rem)"
 													src={section.screenshot}
-													width={1080}
+													width={section.width}
 												/>
 												<Image
 													alt={section.screenshotAlt}
 													className="h-auto w-full cursor-zoom-in dark:hidden"
-													height={720}
+													height={section.height}
+													sizes="(min-width: 1024px) 748px, calc(100vw - 3rem)"
 													src={section.lightScreenshot}
-													width={1080}
+													width={section.width}
 												/>
 											</button>
 										</DialogTrigger>
@@ -136,16 +148,18 @@ export default function LandingDemoStrip() {
 												<Image
 													alt={section.screenshotAlt}
 													className="hidden h-auto w-full rounded-xl dark:block"
-													height={1440}
+													height={section.height}
+													sizes="(min-width: 1280px) 1280px, 96vw"
 													src={section.screenshot}
-													width={2160}
+													width={section.width}
 												/>
 												<Image
 													alt={section.screenshotAlt}
 													className="h-auto w-full rounded-xl dark:hidden"
-													height={1440}
+													height={section.height}
+													sizes="(min-width: 1280px) 1280px, 96vw"
 													src={section.lightScreenshot}
-													width={2160}
+													width={section.width}
 												/>
 											</div>
 										</DialogContent>

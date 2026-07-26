@@ -1,5 +1,3 @@
-"use client";
-
 import { SignedIn, SignedOut } from "@clerk/nextjs";
 import type { Route } from "next";
 import Link from "next/link";
