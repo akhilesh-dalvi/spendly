@@ -127,7 +127,7 @@ export default function FeaturesPage() {
 
 	return (
 		<>
-			<main className="flex-1">
+			<main className="flex-1" id="main-content">
 				<section className="relative overflow-hidden border-b">
 					<div
 						aria-hidden

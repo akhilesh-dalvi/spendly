@@ -4,7 +4,7 @@ import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
 import { Menu, X } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Logo } from "@/components/logo";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,21 @@ const menuItems = [
 
 export function MarketingHeader() {
 	const [menuState, setMenuState] = useState(false);
+
+	useEffect(() => {
+		if (!menuState) {
+			return;
+		}
+
+		const closeOnEscape = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				setMenuState(false);
+			}
+		};
+
+		document.addEventListener("keydown", closeOnEscape);
+		return () => document.removeEventListener("keydown", closeOnEscape);
+	}, [menuState]);
 
 	return (
 		<header>
@@ -52,6 +67,8 @@ export function MarketingHeader() {
 								</SignedIn>
 
 								<button
+									aria-controls="marketing-navigation"
+									aria-expanded={menuState}
 									aria-label={menuState ? "Close Menu" : "Open Menu"}
 									className="relative z-20 -m-2.5 -mr-4 block cursor-pointer p-2.5"
 									onClick={() => setMenuState((currentState) => !currentState)}
@@ -63,7 +80,10 @@ export function MarketingHeader() {
 							</div>
 						</div>
 
-						<div className="mb-6 in-data-[state=active]:block hidden w-full flex-wrap items-center justify-end space-y-8 rounded-3xl border bg-background p-6 shadow-2xl shadow-zinc-300/20 md:flex-nowrap lg:m-0 lg:flex lg:w-fit lg:gap-6 lg:space-y-0 lg:border-transparent lg:bg-transparent lg:p-0 lg:shadow-none dark:shadow-none dark:lg:bg-transparent">
+						<div
+							className="mb-6 in-data-[state=active]:block hidden w-full flex-wrap items-center justify-end space-y-8 rounded-3xl border bg-background p-6 shadow-2xl shadow-zinc-300/20 md:flex-nowrap lg:m-0 lg:flex lg:w-fit lg:gap-6 lg:space-y-0 lg:border-transparent lg:bg-transparent lg:p-0 lg:shadow-none dark:shadow-none dark:lg:bg-transparent"
+							id="marketing-navigation"
+						>
 							<div className="lg:pr-4">
 								<ul className="space-y-6 text-base lg:flex lg:gap-8 lg:space-y-0 lg:text-sm">
 									{menuItems.map((item) => (

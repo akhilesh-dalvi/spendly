@@ -186,45 +186,36 @@ export default function LandingDifferentiation() {
 					))}
 				</div>
 
-				<div className="mt-10 grid gap-4 lg:hidden">
-					{comparisonColumns.map((column) => (
-						<Card
-							className={
-								column.highlighted
-									? "border-primary/30 bg-primary/[0.03] shadow-lg shadow-primary/5"
-									: ""
-							}
-							key={column.key}
-						>
-							<CardHeader>
-								<div className="flex items-center gap-2">
-									<CardTitle className="text-xl">{column.title}</CardTitle>
-									{column.highlighted ? (
-										<Badge
-											className="rounded-full bg-primary/10 px-2 py-0.5 text-primary text-xs"
-											variant="outline"
-										>
-											Our approach
-										</Badge>
-									) : null}
+				<div className="mt-10 lg:hidden">
+					<Card className="border-primary/30 bg-primary/[0.03] shadow-lg shadow-primary/5">
+						<CardHeader>
+							<div className="flex items-center gap-2">
+								<CardTitle className="text-xl">
+									What you get with Spendly
+								</CardTitle>
+								<Badge
+									className="rounded-full bg-primary/10 px-2 py-0.5 text-primary text-xs"
+									variant="outline"
+								>
+									Our approach
+								</Badge>
+							</div>
+							<p className="text-muted-foreground text-sm">
+								Flexible expense tracking without enforcement.
+							</p>
+						</CardHeader>
+						<CardContent className="space-y-3">
+							{comparisonRows.map((row) => (
+								<div
+									className="flex items-center justify-between gap-4 rounded-2xl bg-muted/30 px-4 py-3"
+									key={row.label}
+								>
+									<span className="text-sm">{row.label}</span>
+									<ValueCell value />
 								</div>
-								<p className="text-muted-foreground text-sm">
-									{column.description}
-								</p>
-							</CardHeader>
-							<CardContent className="space-y-3">
-								{comparisonRows.map((row) => (
-									<div
-										className="flex items-center justify-between gap-4 rounded-2xl bg-muted/30 px-4 py-3"
-										key={`${column.key}-${row.label}`}
-									>
-										<span className="text-sm">{row.label}</span>
-										<ValueCell value={row.values[column.key]} />
-									</div>
-								))}
-							</CardContent>
-						</Card>
-					))}
+							))}
+						</CardContent>
+					</Card>
 				</div>
 
 				<div className="mt-10 rounded-2xl border border-border/70 bg-background p-6">

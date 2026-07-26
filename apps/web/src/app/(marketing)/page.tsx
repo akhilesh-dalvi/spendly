@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import AudienceSection from "@/components/audience-section";
 import CallToAction from "@/components/call-to-action";
 import FaqSection from "@/components/faq-section";
 import FooterSection from "@/components/footer";
@@ -6,7 +7,6 @@ import HeroSection from "@/components/hero-section";
 import LandingDemoStrip from "@/components/landing-demo-strip";
 import LandingDifferentiation from "@/components/landing-differentiation";
 import LandingProof from "@/components/landing-proof";
-import LandingTrust from "@/components/landing-trust";
 import Pricing from "@/components/pricing";
 import {
 	createMarketingMetadata,
@@ -36,20 +36,20 @@ const homeStructuredData = createSoftwareApplicationJsonLd({
 export default function LandingPage() {
 	return (
 		<>
-			<main>
+			<main id="main-content">
 				<HeroSection />
-				<LandingProof />
 				<LandingDemoStrip />
+				<LandingProof />
+				<AudienceSection />
 				<LandingDifferentiation />
 				<Pricing />
-				<LandingTrust />
 				<FaqSection
 					description="Quick answers to the common questions people ask before they start using Spendly."
 					title="Common questions"
 				/>
 				<CallToAction />
-				<FooterSection />
 			</main>
+			<FooterSection />
 			<script type="application/ld+json">
 				{JSON.stringify(homeStructuredData)}
 			</script>
