@@ -16,6 +16,7 @@ const APP_ROUTES = [
 	"/expenses",
 	"/cycles",
 	"/compare",
+	"/data",
 	"/settings",
 	"/onboarding",
 ];

@@ -23,17 +23,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-
-const CURRENCIES = [
-	{ label: "US Dollar (USD)", value: "USD" },
-	{ label: "Euro (EUR)", value: "EUR" },
-	{ label: "British Pound (GBP)", value: "GBP" },
-	{ label: "Indian Rupee (INR)", value: "INR" },
-	{ label: "Canadian Dollar (CAD)", value: "CAD" },
-	{ label: "Australian Dollar (AUD)", value: "AUD" },
-	{ label: "Japanese Yen (JPY)", value: "JPY" },
-	{ label: "UAE Dirham (AED)", value: "AED" },
-];
+import { isSupportedCurrency, SUPPORTED_CURRENCIES } from "@/lib/currencies";
 
 export default function SettingsPage() {
 	const { user: clerkUser } = useUser();
@@ -43,6 +33,10 @@ export default function SettingsPage() {
 	const { openUserProfile } = useClerk();
 
 	const handleCurrencyChange = async (value: string) => {
+		if (!isSupportedCurrency(value)) {
+			toast.error("Unsupported currency");
+			return;
+		}
 		try {
 			await updateCurrency({ currency: value });
 			toast.success(`Currency updated to ${value}`);
@@ -126,9 +120,9 @@ export default function SettingsPage() {
 										<SelectValue placeholder="Select currency" />
 									</SelectTrigger>
 									<SelectContent>
-										{CURRENCIES.map((c) => (
+										{SUPPORTED_CURRENCIES.map((c) => (
 											<SelectItem key={c.value} value={c.value}>
-												{c.label}
+												{c.label} ({c.value})
 											</SelectItem>
 										))}
 									</SelectContent>

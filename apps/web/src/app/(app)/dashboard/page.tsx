@@ -5,14 +5,18 @@ import { useQuery } from "convex/react";
 import { format, parseISO } from "date-fns";
 import { Calendar, Check, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import Link from "next/link";
+import type { ComponentProps } from "react";
 import { useMemo, useState } from "react";
+import { AccountOnboardingNudge } from "@/components/account-onboarding-nudge";
 import { CategorySpendingChart } from "@/components/category-spending-chart";
 import { CategoryTypeChart } from "@/components/category-type-chart";
 import { CategoryTypeModal } from "@/components/category-type-modal";
 import { CycleForm } from "@/components/cycle-form";
+import { DashboardAccountsSummary } from "@/components/dashboard-accounts-summary";
 import { DashboardSection } from "@/components/dashboard-section";
 import { DashboardSummary } from "@/components/dashboard-summary";
 import { Loader } from "@/components/loader";
+import { OnboardingResumeCard } from "@/components/onboarding-resume-card";
 import { RecentActivity } from "@/components/recent-activity";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -32,6 +36,32 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
+
+type AccountsOnboardingStatus = "completed" | "pending" | "skipped" | undefined;
+
+const shouldShowAccountOnboarding = (
+	accountCount: number,
+	status: AccountsOnboardingStatus
+) => accountCount === 0 && status !== "skipped" && status !== "completed";
+
+function DashboardOverview({
+	accountSummary,
+	showAccountOnboarding,
+	summary,
+}: {
+	accountSummary: ComponentProps<typeof DashboardSummary>["accountSummary"];
+	showAccountOnboarding: boolean;
+	summary: ComponentProps<typeof DashboardSummary>["summary"] | undefined;
+}) {
+	return (
+		<div className="overflow-hidden rounded-2xl border bg-card/50 shadow-sm">
+			{summary ? (
+				<DashboardSummary accountSummary={accountSummary} summary={summary} />
+			) : null}
+			{showAccountOnboarding ? <AccountOnboardingNudge /> : null}
+		</div>
+	);
+}
 
 export default function DashboardPage() {
 	const allCycles = useQuery(api.cycles.list);
@@ -54,6 +84,7 @@ export default function DashboardPage() {
 		api.aggregations.getCycleSummary,
 		activeCycle?._id ? { cycleId: activeCycle._id } : "skip"
 	);
+	const accountSummary = useQuery(api.accounts.getSummary);
 	const recentExpenses = useQuery(api.expenses.listRecent, { limit: 5 });
 
 	const cycleIndex = useMemo(() => {
@@ -85,15 +116,25 @@ export default function DashboardPage() {
 	if (
 		allCycles === undefined ||
 		currentCycleFromApi === undefined ||
+		accountSummary === undefined ||
 		recentExpenses === undefined ||
 		(activeCycle !== null && summary === undefined)
 	) {
 		return <Loader />;
 	}
 
+	const showAccountOnboarding = shouldShowAccountOnboarding(
+		accountSummary.accounts.length,
+		accountSummary.accountsOnboardingStatus
+	);
+
 	if (!activeCycle) {
 		return (
-			<div className="flex flex-1 items-center justify-center">
+			<div className="flex flex-col gap-8 py-3">
+				<DashboardAccountsSummary
+					showAccountOnboarding={showAccountOnboarding}
+					summary={accountSummary}
+				/>
 				<EmptyState
 					action={
 						<Dialog
@@ -282,9 +323,13 @@ export default function DashboardPage() {
 				</ButtonGroup>
 			</div>
 
-			<div className="overflow-hidden rounded-2xl border bg-card/50 shadow-sm">
-				{summary && <DashboardSummary summary={summary} />}
-			</div>
+			<OnboardingResumeCard />
+
+			<DashboardOverview
+				accountSummary={accountSummary}
+				showAccountOnboarding={showAccountOnboarding}
+				summary={summary}
+			/>
 
 			<div className="grid gap-8 lg:grid-cols-3">
 				<DashboardSection

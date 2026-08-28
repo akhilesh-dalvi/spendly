@@ -33,6 +33,10 @@ app/
 │   │   └── (.)expenses/
 │   │       └── new/page.tsx # Intercepting route
 │   ├── dashboard/page.tsx
+│   ├── accounts/
+│   │   ├── page.tsx # Account list and currency totals
+│   │   ├── new/page.tsx # Create account
+│   │   └── [id]/page.tsx # Detail, activity, and account actions
 │   ├── expenses/
 │   │   ├── page.tsx # List view
 │   │   ├── new/page.tsx # Full page (fallback)
@@ -44,16 +48,17 @@ app/
 │   │       ├── page.tsx # Detail (tabs via ?tab=)
 │   │       └── edit/page.tsx # Edit metadata
 │   ├── compare/page.tsx
-│   └── settings/
-│       ├── page.tsx # Profile
-│       └── data/
-│           ├── types/page.tsx # Category Types
-│           └── tags/page.tsx # Tags
+│   ├── data/
+│   │   ├── types/page.tsx # Category Types
+│   │   ├── account-types/page.tsx # Account Types
+│   │   └── tags/page.tsx # Tags
+│   └── settings/page.tsx # Profile
 └── onboarding/
     ├── layout.tsx # Wizard container
     ├── start/page.tsx
     ├── cycle/page.tsx
-    └── categories/page.tsx
+    ├── categories/page.tsx
+    └── accounts/page.tsx # Optional first-account setup
 ```
 
 ---
@@ -218,7 +223,7 @@ const onSubmit = async (data) => {
     if (searchParams.get("mode") === "plan") {
       router.push(`/onboarding/categories?cycleId=${cycle._id}`);
     } else {
-      router.push("/dashboard");
+      router.push("/onboarding/accounts");
     }
   } catch (error) {
     if (error.message === "CYCLE_OVERLAP") {
@@ -242,7 +247,7 @@ const onSubmit = async (data) => {
 
 **Next:**
 
-- Simple mode: `/dashboard`
+- Simple mode: `/onboarding/accounts`
 - Plan mode: `/onboarding/categories?cycleId={id}`
 
 ---
@@ -300,7 +305,7 @@ const [categories, setCategories] = useState([]);
 
   <Button onClick={addCategory}>+ Add Category</Button>
   <Button onClick={completeOnboarding}>Done</Button>
-  <Button variant="ghost" onClick={() => router.push("/dashboard")}>
+  <Button variant="ghost" onClick={() => router.push("/onboarding/accounts")}>
     Skip for now
   </Button>
 </div>;
@@ -324,9 +329,27 @@ const completeOnboarding = async () => {
     ),
   );
 
-  router.push("/dashboard");
+  router.push("/onboarding/accounts");
 };
 ```
+
+**Next:** `/onboarding/accounts`
+
+---
+
+### 3.4 Account Setup (`/onboarding/accounts`)
+
+**Purpose:** Optionally connect expenses to a first cash, bank, wallet, or
+credit account.
+
+**Behavior:**
+
+- Reuses the standard account form and seeded account types.
+- Creating an account marks `accountsOnboardingStatus` as `completed` and makes
+  the first account the default.
+- “Skip for now” marks the status as `skipped` and continues to the dashboard.
+- Users with no accounts and a pending status see one dismissible dashboard
+  nudge; expenses remain valid without an account.
 
 **Next:** `/dashboard`
 
@@ -388,15 +411,18 @@ export default function AppLayout({ children, modal }) {
 export function OnboardingGuard({ children }) {
   const pathname = usePathname();
   const router = useRouter();
-  const cycles = useQuery(api.cycles.list);
+  const { isLoaded, isSignedIn } = useAuth();
+  const cycles = useQuery(
+    api.cycles.list,
+    isLoaded && isSignedIn ? {} : "skip",
+  );
 
-  // Don't guard onboarding routes
-  if (pathname.startsWith("/onboarding")) {
-    return children;
+  if (isLoaded && !isSignedIn) {
+    router.push("/sign-in");
+    return null;
   }
 
-  // Loading state
-  if (cycles === undefined) {
+  if (!isLoaded || cycles === undefined) {
     return <LoadingSpinner />;
   }
 
@@ -562,6 +588,22 @@ _CategoryList with Progressive Disclosure:_
 - Optimistic updates for mutations
 
 ---
+
+### 4.2.1 Accounts and Account Types
+
+**Routes:**
+
+- `/accounts` lists active and archived accounts with currency-aware totals.
+- `/accounts/new` creates an account from an active user-owned account type.
+- `/accounts/[id]` shows resolved type metadata, current balance, paginated
+  ledger activity, and edit/archive/reactivate/adjust/transfer actions.
+- `/data/account-types` manages account classifications independently from
+  Category Types and Tags.
+
+Account selectors query active `account_types` records and submit
+`accountTypeId`. Historical account and expense views continue resolving archived
+type metadata. Dashboard account totals remain separate from active-cycle
+spending metrics.
 
 ### 4.3 Add Expense (`/expenses/new`)
 
@@ -1512,15 +1554,17 @@ const allCycles = useQuery(api.cycles.list);
 
 ---
 
-### 4.11 Settings (`/settings`)
+### 4.11 Settings and Data
 
-**Purpose:** User preferences and data management
+**Purpose:** User preferences plus independently addressable Category Type,
+Account Type, and Tag management
 
-**Nested Routes:**
+**Routes:**
 
-- `/settings` → Profile (default)
-- `/settings/data/types` → Category Types
-- `/settings/data/tags` → Tags
+- `/settings` → Profile and preferences
+- `/data/types` → Category Types
+- `/data/account-types` → Account Types
+- `/data/tags` → Tags
 
 **Layout:**
 
@@ -1579,7 +1623,7 @@ const updateCurrency = useMutation(api.users.updateCurrency);
 </Card>
 ```
 
-**Category Types (`/settings/data/types/page.tsx`):**
+**Category Types (`/data/types/page.tsx`):**
 
 ```typescript
 const types = useQuery(api.categories.listTypes);
@@ -1607,6 +1651,15 @@ const deleteType = useMutation(api.categories.deleteType);
   </SortableContext>
 </DndContext>
 ```
+
+**Account Types (`/data/account-types/page.tsx`):**
+
+- Displays total, active, and liability counts plus the account type list.
+- Supports create, rename, icon/color updates,
+  archive/reactivate, and permanent deletion when unused.
+- Restores the six default templates idempotently.
+- Explains balance nature and usage protection before destructive actions.
+- Uses keyboard-accessible dialogs, selects, and menus on mobile and desktop.
 
 ---
 

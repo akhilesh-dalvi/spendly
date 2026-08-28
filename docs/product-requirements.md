@@ -161,7 +161,57 @@ Optional metadata for additional context.
 - Filterable in expense history
 - Not shown in comparison mode (too granular for MVP)
 
-### 5.5 Expense
+### 5.5 Account Type
+
+A user-owned classification that defines how accounts are named and presented.
+
+**Fields**
+
+- `id`
+- `name` and normalized name for case-insensitive uniqueness
+- Optional icon and color
+- `balanceNature` (`asset` or `liability`)
+- Stable default and creation order
+- Archived state
+
+**Rules**
+
+- New users receive six editable templates: Cash, Checking, Savings, Credit
+  Card, Wallet, and Other.
+- Templates become ordinary user-owned records and seeding is idempotent.
+- Users can create, rename, recolor, and re-icon types.
+- Manual ordering is not exposed; types keep a stable default and creation
+  order.
+- Archived types remain visible on historical accounts and expenses but cannot
+  be assigned to new accounts.
+- Types in use cannot be deleted or have their balance nature changed.
+- Names are unique per user, ignoring case and surrounding whitespace.
+
+### 5.6 Account
+
+A user-owned place where money is held or owed.
+
+**Fields**
+
+- `id`
+- `name`
+- `accountTypeId` (required)
+- Starting balance and current balance
+- Currency
+- Archived state
+- Created and updated timestamps
+
+**Rules**
+
+- Account reads resolve the current type name, icon, color, and balance nature.
+- Starting balances are immutable ledger snapshots; adjustments append ledger
+  entries instead of rewriting history.
+- Zero and negative balances are supported.
+- Archived accounts remain available in history but cannot receive new expenses
+  or transfers.
+- Transfers require two active accounts with the same currency.
+
+### 5.7 Expense
 
 Atomic spending record.
 
@@ -170,6 +220,7 @@ Atomic spending record.
 - `id`
 - `amount` (decimal, can be negative for refunds/returns)
 - `categoryId` (nullable - null = uncategorized)
+- `accountId` (optional account used for payment)
 - `cycleId` (derived from date, denormalized for performance)
 - `date` (ISO date string, YYYY-MM-DD)
 - `spentOn` (optional description/note)
@@ -181,6 +232,8 @@ Atomic spending record.
 - Expense cycle is derived from date (automatically assigned based on which cycle contains the date)
 - Expenses are fully editable in any cycle (past, present, future)
 - Editing date may move expense across cycles (`cycleId` updates automatically)
+- Creating, updating, moving, or deleting an expense synchronizes the referenced
+  account balance and appends ledger entries.
 - Amount validation:
   - Maximum 2 decimal places (auto-round if more entered)
   - Can be $0 (free items, reimbursements)
@@ -215,6 +268,7 @@ Atomic spending record.
 - `date` (default: today)
 - `spentOn` (note/description)
 - `tags`
+- account
 
 **Smart Defaults**
 
@@ -297,6 +351,17 @@ Atomic spending record.
 
 - See deletion rules in 5.1
 
+### 6.5 Manage Accounts and Account Types
+
+- Create accounts from an active user-owned account type, opening balance, and
+  currency.
+- Edit account name, type, and currency without rewriting its ledger.
+- Archive or reactivate accounts while preserving activity history.
+- Adjust balances and transfer between compatible active accounts.
+- Manage classifications independently at `/data/account-types`.
+- Archive a classification when it should remain historical; permanently delete
+  it only when no account references it.
+
 ---
 
 ## 7. Onboarding (MVP)
@@ -369,6 +434,9 @@ User selects one option:
   - List of all expenses across all time
   - Search and filter capabilities (by cycle, category, date range, tags)
   - Sortable columns
+- `/accounts` — Account balances and activity
+  - Currency-aware totals and account cards
+  - Create, edit, archive, reactivate, adjust, and transfer actions
 - `/cycles` — Cycle List
   - Grid/list of all historical and future cycles
   - Summary cards showing spent vs planned
@@ -377,7 +445,9 @@ User selects one option:
   - User profile & preferences
   - Currency selection
   - Theme preference
-  - `/settings/data` — Manage Category Types & Tags
+- `/data/types` — Manage Category Types
+- `/data/account-types` — Manage user-owned Account Types
+- `/data/tags` — Manage Tags
 
 ### 8.3 Contextual Views
 
@@ -414,6 +484,7 @@ User selects one option:
   - `/onboarding/start` — Choice screen
   - `/onboarding/cycle` — First cycle creation
   - `/onboarding/categories` — Initial category setup (if Plan & Track chosen)
+  - `/onboarding/accounts` — Optional first-account setup or persisted skip
 - _Resume Logic:_ Returning users drop back into their last incomplete step
 - _Guard Logic:_ Users with no cycles redirect from `/dashboard` to `/onboarding`
 

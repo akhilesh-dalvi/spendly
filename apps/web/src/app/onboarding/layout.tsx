@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { OnboardingGuard } from "@/components/onboarding-guard";
+import { OnboardingShell } from "@/components/onboarding-shell";
 import { noIndexRobots } from "@/lib/seo";
 
 export const metadata: Metadata = {
@@ -12,10 +14,10 @@ export default function OnboardingLayout({
 	children: React.ReactNode;
 }) {
 	return (
-		<OnboardingGuard>
-			<div className="flex min-h-screen flex-col items-center justify-center p-4">
-				<div className="w-full space-y-4">{children}</div>
-			</div>
-		</OnboardingGuard>
+		<Suspense fallback={<div className="min-h-screen bg-background" />}>
+			<OnboardingGuard>
+				<OnboardingShell>{children}</OnboardingShell>
+			</OnboardingGuard>
+		</Suspense>
 	);
 }

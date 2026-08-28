@@ -67,6 +67,7 @@ export function DatePickerWithRange({
 	placeholder = "Pick a date",
 	disabled,
 	captionLayout,
+	numberOfMonths = 2,
 }: {
 	className?: string;
 	date: DateRange | undefined;
@@ -74,6 +75,7 @@ export function DatePickerWithRange({
 	placeholder?: string;
 	disabled?: boolean;
 	captionLayout?: React.ComponentProps<typeof Calendar>["captionLayout"];
+	numberOfMonths?: number;
 }) {
 	return (
 		<div className={cn("grid gap-2", className)}>
@@ -101,12 +103,15 @@ export function DatePickerWithRange({
 						)}
 					</Button>
 				</PopoverTrigger>
-				<PopoverContent align="start" className="w-auto p-0">
+				<PopoverContent
+					align="start"
+					className="w-auto max-w-[calc(100vw-2rem)] overflow-x-auto p-0"
+				>
 					<Calendar
 						captionLayout={captionLayout}
 						defaultMonth={date?.from}
 						mode="range"
-						numberOfMonths={2}
+						numberOfMonths={numberOfMonths}
 						onSelect={onDateChange}
 						selected={date}
 					/>

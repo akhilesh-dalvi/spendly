@@ -78,6 +78,74 @@ export const create = mutation({
 	},
 });
 
+export const saveOnboardingCycle = mutation({
+	args: {
+		cycleId: v.optional(v.id("expense_cycles")),
+		name: v.string(),
+		startDate: v.string(),
+		endDate: v.string(),
+	},
+	returns: v.id("expense_cycles"),
+	handler: async (ctx, args) => {
+		const user = await getCurrentUser(ctx);
+		if (args.startDate >= args.endDate) {
+			throw new ConvexError("INVALID_DATE_RANGE");
+		}
+
+		const savedCycleId = args.cycleId ?? user.onboardingCycleId;
+		if (savedCycleId) {
+			const existingCycle = await validateCycleOwnership(
+				ctx,
+				savedCycleId,
+				user._id
+			);
+			const overlapping = await checkCycleOverlap(
+				ctx,
+				user._id,
+				args.startDate,
+				args.endDate,
+				existingCycle._id
+			);
+			if (overlapping) {
+				throw new ConvexError("CYCLE_OVERLAP");
+			}
+			await ctx.db.patch(existingCycle._id, {
+				endDate: args.endDate,
+				name: args.name.trim(),
+				startDate: args.startDate,
+			});
+			await ctx.db.patch(user._id, {
+				onboardingCycleId: existingCycle._id,
+				onboardingStep:
+					user.onboardingPath === "plan" ? "categories" : "account",
+			});
+			return existingCycle._id;
+		}
+
+		const overlapping = await checkCycleOverlap(
+			ctx,
+			user._id,
+			args.startDate,
+			args.endDate
+		);
+		if (overlapping) {
+			throw new ConvexError("CYCLE_OVERLAP");
+		}
+		const cycleId = await ctx.db.insert("expense_cycles", {
+			createdAt: Date.now(),
+			endDate: args.endDate,
+			name: args.name.trim(),
+			startDate: args.startDate,
+			userId: user._id,
+		});
+		await ctx.db.patch(user._id, {
+			onboardingCycleId: cycleId,
+			onboardingStep: user.onboardingPath === "plan" ? "categories" : "account",
+		});
+		return cycleId;
+	},
+});
+
 export const update = mutation({
 	args: {
 		id: v.id("expense_cycles"),

@@ -1,10 +1,14 @@
 import {
 	ArrowLeftRight,
 	Calendar,
+	CircleDollarSign,
 	CreditCard,
+	Layers,
 	LayoutDashboard,
 	type LucideIcon,
 	Settings,
+	Tag,
+	WalletCards,
 } from "lucide-react";
 
 export type NavMatchMode = "exact" | "prefix";
@@ -23,24 +27,6 @@ export interface NavItem {
 	items?: readonly NavSubItem[];
 }
 
-export const SETTINGS_SUB_ITEMS = [
-	{
-		title: "Profile",
-		url: "/settings",
-		match: "exact",
-	},
-	{
-		title: "Category Types",
-		url: "/settings/data/types",
-		match: "prefix",
-	},
-	{
-		title: "Tags",
-		url: "/settings/data/tags",
-		match: "prefix",
-	},
-] as const satisfies readonly NavSubItem[];
-
 export const PRIMARY_NAV_ITEMS = [
 	{
 		title: "Dashboard",
@@ -52,6 +38,12 @@ export const PRIMARY_NAV_ITEMS = [
 		title: "Expenses",
 		url: "/expenses",
 		icon: CreditCard,
+		match: "prefix",
+	},
+	{
+		title: "Accounts",
+		url: "/accounts",
+		icon: WalletCards,
 		match: "prefix",
 	},
 	{
@@ -67,11 +59,28 @@ export const PRIMARY_NAV_ITEMS = [
 		match: "exact",
 	},
 	{
+		title: "Category Types",
+		url: "/data/types",
+		icon: Layers,
+		match: "prefix",
+	},
+	{
+		title: "Account Types",
+		url: "/data/account-types",
+		icon: CircleDollarSign,
+		match: "prefix",
+	},
+	{
+		title: "Tags",
+		url: "/data/tags",
+		icon: Tag,
+		match: "prefix",
+	},
+	{
 		title: "Settings",
 		url: "/settings",
 		icon: Settings,
 		match: "exact",
-		items: SETTINGS_SUB_ITEMS,
 	},
 ] as const satisfies readonly NavItem[];
 

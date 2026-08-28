@@ -86,6 +86,7 @@ export default function ExpenseDetailModal({
 						<ExpenseForm
 							defaultValues={{
 								amount: expense.amount,
+								accountId: expense.accountId ?? "",
 								categoryId: expense.categoryId ?? "",
 								date: parseISO(expense.date),
 								spentOn: expense.spentOn ?? "",
