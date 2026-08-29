@@ -9,11 +9,13 @@ import { useMemo } from "react";
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
 import {
+	CORE_NAV_ITEMS,
 	isNavItemActive,
 	isSubNavItemActive,
+	MANAGEMENT_NAV_ITEMS,
 	type NavItem,
 	type NavSubItem,
-	PRIMARY_NAV_ITEMS,
+	SETTINGS_NAV_ITEM,
 } from "@/components/navigation-config";
 import {
 	Sidebar,
@@ -25,6 +27,17 @@ import {
 	SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { Logo } from "./logo";
+
+const addActiveState = (pathname: string, items: readonly NavItem[]) => {
+	return items.map((item: NavItem) => ({
+		...item,
+		isActive: isNavItemActive(pathname, item),
+		items: item.items?.map((subItem: NavSubItem) => ({
+			...subItem,
+			isActive: isSubNavItemActive(pathname, subItem),
+		})),
+	}));
+};
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 	const convexUser = useQuery(api.users.get);
@@ -40,15 +53,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 		};
 	}, [convexUser, clerkUser]);
 
-	const navItems = useMemo(() => {
-		return PRIMARY_NAV_ITEMS.map((item: NavItem) => ({
-			...item,
-			isActive: isNavItemActive(pathname, item),
-			items: item.items?.map((subItem: NavSubItem) => ({
-				...subItem,
-				isActive: isSubNavItemActive(pathname, subItem),
-			})),
-		}));
+	const navigation = useMemo(() => {
+		return {
+			core: addActiveState(pathname, CORE_NAV_ITEMS),
+			management: addActiveState(pathname, MANAGEMENT_NAV_ITEMS),
+			settings: addActiveState(pathname, [SETTINGS_NAV_ITEM]),
+		};
 	}, [pathname]);
 
 	return (
@@ -67,9 +77,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 				</SidebarMenu>
 			</SidebarHeader>
 			<SidebarContent>
-				<NavMain items={navItems} />
+				<NavMain items={navigation.core} />
+				<NavMain items={navigation.management} label="Manage" />
 			</SidebarContent>
 			<SidebarFooter>
+				<NavMain className="p-0" items={navigation.settings} />
 				<NavUser user={user} />
 			</SidebarFooter>
 		</Sidebar>

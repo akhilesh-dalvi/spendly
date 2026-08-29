@@ -27,7 +27,7 @@ export interface NavItem {
 	items?: readonly NavSubItem[];
 }
 
-export const PRIMARY_NAV_ITEMS = [
+export const CORE_NAV_ITEMS = [
 	{
 		title: "Dashboard",
 		url: "/dashboard",
@@ -41,15 +41,15 @@ export const PRIMARY_NAV_ITEMS = [
 		match: "prefix",
 	},
 	{
-		title: "Accounts",
-		url: "/accounts",
-		icon: WalletCards,
-		match: "prefix",
-	},
-	{
 		title: "Cycles",
 		url: "/cycles",
 		icon: Calendar,
+		match: "prefix",
+	},
+	{
+		title: "Accounts",
+		url: "/accounts",
+		icon: WalletCards,
 		match: "prefix",
 	},
 	{
@@ -57,6 +57,15 @@ export const PRIMARY_NAV_ITEMS = [
 		url: "/compare",
 		icon: ArrowLeftRight,
 		match: "exact",
+	},
+] as const satisfies readonly NavItem[];
+
+export const MANAGEMENT_NAV_ITEMS = [
+	{
+		title: "Tags",
+		url: "/data/tags",
+		icon: Tag,
+		match: "prefix",
 	},
 	{
 		title: "Category Types",
@@ -70,18 +79,26 @@ export const PRIMARY_NAV_ITEMS = [
 		icon: CircleDollarSign,
 		match: "prefix",
 	},
-	{
-		title: "Tags",
-		url: "/data/tags",
-		icon: Tag,
-		match: "prefix",
-	},
-	{
-		title: "Settings",
-		url: "/settings",
-		icon: Settings,
-		match: "exact",
-	},
+] as const satisfies readonly NavItem[];
+
+export const SETTINGS_NAV_ITEM = {
+	title: "Settings",
+	url: "/settings",
+	icon: Settings,
+	match: "exact",
+} as const satisfies NavItem;
+
+export const MOBILE_PRIMARY_NAV_ITEMS = [
+	CORE_NAV_ITEMS[0],
+	CORE_NAV_ITEMS[1],
+	CORE_NAV_ITEMS[2],
+	CORE_NAV_ITEMS[3],
+] as const satisfies readonly NavItem[];
+
+export const MOBILE_MORE_NAV_ITEMS = [
+	CORE_NAV_ITEMS[4],
+	...MANAGEMENT_NAV_ITEMS,
+	SETTINGS_NAV_ITEM,
 ] as const satisfies readonly NavItem[];
 
 const normalizePathname = (pathname: string): string => {
