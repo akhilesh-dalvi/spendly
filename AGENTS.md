@@ -103,6 +103,22 @@ Write code that is **accessible, performant, type-safe, and maintainable**. Focu
 
 ---
 
+## Branching and worktrees
+
+Use one short-lived branch per feature, branched from `master`. Keep `master` deployable; do not do long-running feature work directly on it.
+
+When doing **major feature work** that will run across multiple sessions, use a **git worktree per active branch** instead of switching branches in a single checkout. Each worktree gets its own working directory, branch, `node_modules`, and env files.
+
+- Keep the main repo checkout on `master` for merges, reviews, and small fixes
+- Create a sibling worktree when starting a feature: `git worktree add ../<name> -b feature/<name> master`
+- Run `pnpm install` in each new worktree
+- Open one PR per feature branch; rebase or merge `master` into feature branches regularly
+- For in-flight feature notes, use `docs/features/<name>.md` and delete it when the feature ships
+
+Branch switching alone is fine for small or short-lived changes. Prefer worktrees for major features so you are not stashing, reinstalling, or juggling env state every time you switch context.
+
+---
+
 ## Testing
 
 - Write assertions inside `it()` or `test()` blocks
