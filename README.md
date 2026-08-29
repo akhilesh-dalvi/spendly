@@ -1,6 +1,15 @@
 # Spendly
 
-Spendly is a personal expense tracking monorepo built around custom expense cycles, categories, tags, and comparison views. The web app and Convex backend are the main active parts of the project today, with the native Expo app present in the repo for later work.
+Spendly is a personal expense tracking monorepo built around custom expense cycles, categories, accounts, tags, and comparison views. The web app and Convex backend are the main active parts of the project today, with the native Expo app present in the repo for later work.
+
+## Product principles
+
+- No income tracking — observe spending, not earnings
+- Cycles over calendar months — user-defined time buckets (e.g. pay period to pay period)
+- Planning is optional — track freely or add planned amounts when ready
+- No enforcement — overspending is data, not an error
+- Historical data is editable — mistakes are part of the process
+- Comparison is observational, not judgmental
 
 ## Stack
 
@@ -23,6 +32,7 @@ spendly/
 │   ├── backend/             # Convex workspace
 │   │   └── convex/          # Convex schema, queries, and mutations
 │   └── env/                 # Shared env validation/helpers
+├── docs/features/           # Ephemeral specs for in-flight work (delete when shipped)
 ├── README.md
 └── turbo.json
 ```
@@ -113,13 +123,8 @@ pnpm check-types
 
 - `apps/web` and `packages/backend` are the primary active surfaces
 - `apps/native` exists in the monorepo but is intentionally a later phase
-- The current backend schema includes:
-  - `users`
-  - `expense_cycles`
-  - `category_types`
-  - `categories`
-  - `tags`
-  - `expenses`
+- For in-flight feature specs, use `docs/features/` (see `docs/README.md`)
+- Schema and API details live in `packages/backend/convex/schema.ts` and the Convex function files
 
 ## Notes
 

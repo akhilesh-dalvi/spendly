@@ -5,10 +5,12 @@ This directory contains the Convex schema, queries, mutations, and backend helpe
 ## What Lives Here
 
 - [`schema.ts`](./schema.ts): Convex table definitions
-- [`users.ts`](./users.ts): user profile setup and preferences
+- [`users.ts`](./users.ts): user profile, onboarding, and preferences
 - [`cycles.ts`](./cycles.ts): expense cycle CRUD and cycle-specific lookups
 - [`categories.ts`](./categories.ts): category and category type logic
 - [`expenses.ts`](./expenses.ts): expense CRUD and filtering
+- [`accounts.ts`](./accounts.ts): accounts, balances, transfers, and ledger transactions
+- [`accountTypes.ts`](./accountTypes.ts): user-managed account type CRUD
 - [`tags.ts`](./tags.ts): tag management
 - [`aggregations.ts`](./aggregations.ts): derived totals and summary-style queries
 - [`helpers.ts`](./helpers.ts): shared backend utilities
@@ -17,13 +19,17 @@ This directory contains the Convex schema, queries, mutations, and backend helpe
 
 ## Current Tables
 
-The Spendly app currently defines these tables:
+See [`schema.ts`](./schema.ts) for the full definition. Tables:
 
 - `users`
 - `expense_cycles`
 - `category_types`
 - `categories`
 - `tags`
+- `account_types`
+- `accounts`
+- `account_transfers`
+- `account_transactions`
 - `expenses`
 
 ## Running The Backend
