@@ -8,67 +8,75 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Loader } from "./loader";
 
-const PENDING_PLAN_SETUP_KEY = "spendly:pending-plan-setup";
+interface GuardOnboardingState {
+	cycle: { _id: string } | null;
+	path: "free" | "plan" | null;
+	step: "start" | "cycle" | "categories" | "account" | "complete";
+}
+
+const getMissingSetupRedirect = (
+	pathname: string,
+	state: GuardOnboardingState
+): Route | null => {
+	if (pathname === "/onboarding/cycle" && !state.path) {
+		return "/onboarding/start";
+	}
+	if (
+		pathname === "/onboarding/categories" &&
+		!(state.path === "plan" && state.cycle)
+	) {
+		return state.path ? "/onboarding/cycle" : "/onboarding/start";
+	}
+	if (pathname === "/onboarding/accounts" && !state.cycle) {
+		return state.path ? "/onboarding/cycle" : "/onboarding/start";
+	}
+	return null;
+};
+
+const getOnboardingRedirect = (
+	pathname: string,
+	state: GuardOnboardingState
+): Route | null => {
+	const isOnboardingRoute = pathname.startsWith("/onboarding");
+	if (!(isOnboardingRoute || state.cycle) && state.step !== "complete") {
+		return state.path ? "/onboarding/cycle" : "/onboarding/start";
+	}
+	if (!isOnboardingRoute) {
+		return null;
+	}
+	if (state.step === "complete" && pathname !== "/onboarding/accounts") {
+		return "/dashboard";
+	}
+	return getMissingSetupRedirect(pathname, state);
+};
 
 export function OnboardingGuard({ children }: { children: React.ReactNode }) {
 	const router = useRouter();
 	const pathname = usePathname();
 	const { isSignedIn, isLoaded } = useAuth();
-	const cycles = useQuery(api.cycles.list);
-	const isOnboardingCategoriesRoute =
-		pathname === "/onboarding/categories" ||
-		pathname.startsWith("/onboarding/categories/");
+	const onboardingState = useQuery(
+		api.users.getOnboardingState,
+		isSignedIn ? {} : "skip"
+	);
 
 	useEffect(() => {
-		const hasPendingPlanSetup =
-			typeof window !== "undefined" &&
-			window.sessionStorage.getItem(PENDING_PLAN_SETUP_KEY) === "true";
-
-		// If Clerk has loaded and the user is not signed in, redirect to sign-in page
 		if (isLoaded && !isSignedIn) {
-			router.push("/sign-in" as Route);
+			router.replace("/sign-in" as Route);
+			return;
+		}
+		if (!(isLoaded && isSignedIn && onboardingState)) {
 			return;
 		}
 
-		// If Clerk has loaded, the user is signed in, and we've loaded the cycles
-		// and there are none, and we're not already on the onboarding pages
-		if (
-			isLoaded &&
-			isSignedIn &&
-			cycles !== undefined &&
-			cycles.length === 0 &&
-			!pathname.startsWith("/onboarding")
-		) {
-			router.push("/onboarding/start" as Route);
-			return;
+		const destination = getOnboardingRedirect(pathname, onboardingState);
+		if (destination) {
+			router.replace(destination);
 		}
+	}, [isLoaded, isSignedIn, onboardingState, pathname, router]);
 
-		// If user has cycles, prevent them from accessing onboarding pages
-		if (
-			isLoaded &&
-			isSignedIn &&
-			cycles !== undefined &&
-			cycles.length > 0 &&
-			pathname.startsWith("/onboarding") &&
-			!isOnboardingCategoriesRoute &&
-			!(pathname === "/onboarding/cycle" && hasPendingPlanSetup)
-		) {
-			router.push("/dashboard" as Route);
-			return;
-		}
-	}, [
-		cycles,
-		isLoaded,
-		isOnboardingCategoriesRoute,
-		isSignedIn,
-		pathname,
-		router,
-	]);
-
-	// Show loader while Clerk is loading or cycles are loading
-	if (!isLoaded || cycles === undefined) {
+	if (!isLoaded || onboardingState == null) {
 		return (
-			<div className="flex h-screen w-full items-center justify-center">
+			<div className="flex min-h-screen w-full items-center justify-center">
 				<Loader />
 			</div>
 		);

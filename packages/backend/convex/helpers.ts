@@ -1,5 +1,5 @@
 import { ConvexError } from "convex/values";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 
 /**
@@ -84,6 +84,65 @@ export async function validateCategoryOwnership(
 		throw new ConvexError("UNAUTHORIZED");
 	}
 	return category;
+}
+
+/**
+ * Checks if account belongs to user, throws if not.
+ */
+export async function validateAccountOwnership(
+	ctx: QueryCtx | MutationCtx,
+	accountId: Id<"accounts">,
+	userId: Id<"users">
+) {
+	const account = await ctx.db.get(accountId);
+	if (!account || account.userId !== userId) {
+		throw new ConvexError("UNAUTHORIZED");
+	}
+	return account;
+}
+
+export async function applyAccountBalanceChange(
+	ctx: MutationCtx,
+	args: {
+		userId: Id<"users">;
+		accountId: Id<"accounts">;
+		type: Doc<"account_transactions">["type"];
+		amount: number;
+		date: string;
+		note?: string;
+		expenseId?: Id<"expenses">;
+		transferId?: Id<"account_transfers">;
+		allowArchived?: boolean;
+	}
+) {
+	const account = await validateAccountOwnership(
+		ctx,
+		args.accountId,
+		args.userId
+	);
+
+	if (account.isArchived && !args.allowArchived) {
+		throw new ConvexError("ACCOUNT_ARCHIVED");
+	}
+
+	const balanceAfter = account.currentBalance + args.amount;
+	await ctx.db.patch(args.accountId, {
+		currentBalance: balanceAfter,
+		updatedAt: Date.now(),
+	});
+
+	return await ctx.db.insert("account_transactions", {
+		userId: args.userId,
+		accountId: args.accountId,
+		type: args.type,
+		amount: args.amount,
+		balanceAfter,
+		date: args.date,
+		note: args.note,
+		expenseId: args.expenseId,
+		transferId: args.transferId,
+		createdAt: Date.now(),
+	});
 }
 
 /**

@@ -21,6 +21,7 @@ import {
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { DataSummaryStrip } from "@/components/data-summary-strip";
 import {
 	ColorPicker,
 	ColorPickerFormat,
@@ -40,7 +41,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import {
 	Dialog,
@@ -150,52 +150,26 @@ interface TypesSummaryStripProps {
 }
 
 function TypesSummaryStrip({ total, inUse, unused }: TypesSummaryStripProps) {
+	const summaryItems = [
+		{
+			description: "Available category groups",
+			label: "Total Types",
+			value: total,
+		},
+		{
+			description: "Assigned to at least one category",
+			label: "In Use",
+			value: inUse,
+		},
+		{
+			description: "Ready to be assigned or cleaned up",
+			label: "Unused",
+			value: unused,
+		},
+	] as const;
+
 	return (
-		<Card className="overflow-hidden rounded-2xl border-border/70 bg-card/50 shadow-sm">
-			<CardContent className="grid gap-0 p-0 md:grid-cols-3">
-				<div className="space-y-3 p-5">
-					<p className="text-muted-foreground text-xs uppercase tracking-[0.2em]">
-						Total Types
-					</p>
-					<div className="space-y-1">
-						<p className="font-semibold text-4xl tabular-nums leading-none">
-							{total}
-						</p>
-						<p className="text-muted-foreground text-sm">
-							Available category groups
-						</p>
-					</div>
-				</div>
-
-				<div className="space-y-3 border-border/70 border-t p-5 md:border-t-0 md:border-l">
-					<p className="text-muted-foreground text-xs uppercase tracking-[0.2em]">
-						In Use
-					</p>
-					<div className="space-y-1">
-						<p className="font-semibold text-4xl tabular-nums leading-none">
-							{inUse}
-						</p>
-						<p className="text-muted-foreground text-sm">
-							Assigned to at least one category
-						</p>
-					</div>
-				</div>
-
-				<div className="space-y-3 border-border/70 border-t p-5 md:border-t-0 md:border-l">
-					<p className="text-muted-foreground text-xs uppercase tracking-[0.2em]">
-						Unused
-					</p>
-					<div className="space-y-1">
-						<p className="font-semibold text-4xl tabular-nums leading-none">
-							{unused}
-						</p>
-						<p className="text-muted-foreground text-sm">
-							Ready to be assigned or cleaned up
-						</p>
-					</div>
-				</div>
-			</CardContent>
-		</Card>
+		<DataSummaryStrip ariaLabel="Category type overview" items={summaryItems} />
 	);
 }
 
@@ -740,7 +714,7 @@ export default function CategoryTypesPage() {
 			<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 				<div className="flex items-center gap-4">
 					<Button asChild size="icon" variant="ghost">
-						<Link href="/settings">
+						<Link aria-label="Back to dashboard" href="/dashboard">
 							<ChevronLeft className="h-5 w-5" />
 						</Link>
 					</Button>

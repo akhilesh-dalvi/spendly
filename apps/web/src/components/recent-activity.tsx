@@ -11,6 +11,7 @@ import {
 import { ArrowRight, Plus, Receipt } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
+import { AccountTypeIcon } from "@/components/account-type-icon";
 import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/hooks/use-currency";
 import { EmptyState } from "./ui/empty-state";
@@ -24,10 +25,96 @@ interface ExpenseWithDetails {
 	categoryName: string | null;
 	categoryIcon?: string | null;
 	categoryTypeColor?: string | null;
+	accountName?: string | null;
+	accountTypeColor?: string | null;
+	accountTypeIcon?: string | null;
+	accountTypeName?: string | null;
 }
 
 interface RecentActivityProps {
 	expenses: ExpenseWithDetails[];
+}
+
+function RecentActivityItem({
+	expense,
+	formatAmount,
+}: {
+	expense: ExpenseWithDetails;
+	formatAmount: (amount: number) => string;
+}) {
+	return (
+		<li>
+			<Link
+				className="group -mx-3 flex cursor-pointer items-center gap-4 rounded-xl p-3 transition-all hover:bg-accent/40"
+				href={`/expenses/${expense._id}`}
+			>
+				<div
+					className="flex size-10 shrink-0 items-center justify-center rounded-xl border bg-background text-xl shadow-sm transition-colors group-hover:border-primary/20 group-hover:bg-primary/5"
+					style={{
+						backgroundColor: expense.categoryTypeColor
+							? `${expense.categoryTypeColor}15`
+							: undefined,
+						borderColor: expense.categoryTypeColor
+							? `${expense.categoryTypeColor}30`
+							: undefined,
+					}}
+				>
+					{expense.categoryId ? expense.categoryIcon || "📦" : "❓"}
+				</div>
+				<div className="flex flex-1 flex-col overflow-hidden">
+					<div className="mr-2 flex items-center justify-between gap-2">
+						<p className="truncate font-medium text-sm">
+							{expense.spentOn || (
+								<span className="text-muted-foreground/50 italic">
+									No description
+								</span>
+							)}
+						</p>
+						<div className="min-w-[4rem] text-right font-bold text-sm tabular-nums">
+							{formatAmount(expense.amount)}
+						</div>
+					</div>
+					<div className="flex items-center justify-between gap-2 text-xs">
+						<div className="flex items-center gap-1.5 truncate text-muted-foreground">
+							<span>{expense.categoryName || "Uncategorized"}</span>
+							{expense.accountName ? (
+								<>
+									<span>•</span>
+									<span className="inline-flex items-center gap-1">
+										<span
+											className="inline-flex size-4 items-center justify-center"
+											style={
+												expense.accountTypeColor
+													? { color: expense.accountTypeColor }
+													: undefined
+											}
+										>
+											<AccountTypeIcon iconKey={expense.accountTypeIcon} />
+										</span>
+										<span>
+											{expense.accountName}
+											{expense.accountTypeName
+												? ` · ${expense.accountTypeName}`
+												: ""}
+										</span>
+									</span>
+								</>
+							) : null}
+							<span>•</span>
+							<time
+								dateTime={expense.date}
+								title={formatDate(parseISO(expense.date), "PPpp")}
+							>
+								{formatDistanceToNow(parseISO(expense.date), {
+									addSuffix: true,
+								})}
+							</time>
+						</div>
+					</div>
+				</div>
+			</Link>
+		</li>
+	);
 }
 
 export function RecentActivity({ expenses }: RecentActivityProps) {
@@ -52,15 +139,16 @@ export function RecentActivity({ expenses }: RecentActivityProps) {
 				title = formatDate(date, "MMM d, yyyy");
 			}
 
-			if (title !== currentTitle) {
-				if (currentGroup.length > 0) {
-					groups.push({ title: currentTitle, items: currentGroup });
-				}
-				currentTitle = title;
-				currentGroup = [expense];
-			} else {
+			if (title === currentTitle) {
 				currentGroup.push(expense);
+				continue;
 			}
+
+			if (currentGroup.length > 0) {
+				groups.push({ title: currentTitle, items: currentGroup });
+			}
+			currentTitle = title;
+			currentGroup = [expense];
 		}
 
 		if (currentGroup.length > 0) {
@@ -95,54 +183,11 @@ export function RecentActivity({ expenses }: RecentActivityProps) {
 					</h3>
 					<ul className="space-y-1">
 						{group.items.map((expense) => (
-							<li key={expense._id}>
-								<Link
-									className="group -mx-3 flex cursor-pointer items-center gap-4 rounded-xl p-3 transition-all hover:bg-accent/40"
-									href={`/expenses/${expense._id}`}
-								>
-									<div
-										className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-background text-xl shadow-sm transition-colors group-hover:border-primary/20 group-hover:bg-primary/5"
-										style={{
-											backgroundColor: expense.categoryTypeColor
-												? `${expense.categoryTypeColor}15`
-												: undefined,
-											borderColor: expense.categoryTypeColor
-												? `${expense.categoryTypeColor}30`
-												: undefined,
-										}}
-									>
-										{expense.categoryId ? expense.categoryIcon || "📦" : "❓"}
-									</div>{" "}
-									<div className="flex flex-1 flex-col overflow-hidden">
-										<div className="mr-2 flex items-center justify-between gap-2">
-											<p className="truncate font-medium text-sm">
-												{expense.spentOn || (
-													<span className="text-muted-foreground/50 italic">
-														No description
-													</span>
-												)}
-											</p>
-											<div className="min-w-[4rem] text-right font-bold text-sm tabular-nums">
-												{format(expense.amount)}
-											</div>
-										</div>
-										<div className="flex items-center justify-between gap-2 text-xs">
-											<div className="flex items-center gap-1.5 truncate text-muted-foreground">
-												<span>{expense.categoryName || "Uncategorized"}</span>
-												<span>•</span>
-												<time
-													dateTime={expense.date}
-													title={formatDate(parseISO(expense.date), "PPpp")}
-												>
-													{formatDistanceToNow(parseISO(expense.date), {
-														addSuffix: true,
-													})}
-												</time>
-											</div>
-										</div>
-									</div>
-								</Link>
-							</li>
+							<RecentActivityItem
+								expense={expense}
+								formatAmount={format}
+								key={expense._id}
+							/>
 						))}
 					</ul>
 				</div>

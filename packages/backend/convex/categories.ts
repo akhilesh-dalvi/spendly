@@ -1,11 +1,106 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import {
 	getCurrentUser,
 	validateCategoryOwnership,
 	validateCycleOwnership,
 } from "./helpers";
+
+const MAX_ONBOARDING_CATEGORIES = 100;
+
+interface OnboardingCategoryInput {
+	categoryId?: Id<"categories">;
+	categoryTypeId?: Id<"category_types">;
+	icon?: string;
+	name: string;
+	plannedAmount?: number;
+}
+
+const validateOnboardingCategory = async (
+	ctx: MutationCtx,
+	category: OnboardingCategoryInput,
+	userId: Id<"users">
+): Promise<void> => {
+	if (
+		category.plannedAmount !== undefined &&
+		(!Number.isFinite(category.plannedAmount) || category.plannedAmount < 0)
+	) {
+		throw new ConvexError("INVALID_PLANNED_AMOUNT");
+	}
+	if (!category.categoryTypeId) {
+		return;
+	}
+	const categoryType = await ctx.db.get(category.categoryTypeId);
+	if (!categoryType || categoryType.userId !== userId) {
+		throw new ConvexError("UNAUTHORIZED");
+	}
+};
+
+const persistOnboardingCategory = async (
+	ctx: MutationCtx,
+	category: OnboardingCategoryInput,
+	cycleId: Id<"expense_cycles">,
+	existingCategoryIds: Set<Id<"categories">>,
+	order: number,
+	userId: Id<"users">
+): Promise<Id<"categories"> | undefined> => {
+	const normalizedName = category.name.trim();
+	if (!normalizedName) {
+		return undefined;
+	}
+	await validateOnboardingCategory(ctx, category, userId);
+	if (category.categoryId) {
+		if (!existingCategoryIds.has(category.categoryId)) {
+			throw new ConvexError("UNAUTHORIZED");
+		}
+		await ctx.db.patch(category.categoryId, {
+			categoryTypeId: category.categoryTypeId,
+			icon: category.icon,
+			isHidden: false,
+			name: normalizedName,
+			order,
+			plannedAmount: category.plannedAmount,
+		});
+		return category.categoryId;
+	}
+	await ctx.db.insert("categories", {
+		categoryTypeId: category.categoryTypeId,
+		createdAt: Date.now(),
+		cycleId,
+		icon: category.icon,
+		isHidden: false,
+		name: normalizedName,
+		order,
+		plannedAmount: category.plannedAmount,
+		userId,
+	});
+	return undefined;
+};
+
+const removeUnretainedOnboardingCategories = async (
+	ctx: MutationCtx,
+	existingCategories: Doc<"categories">[],
+	retainedCategoryIds: Set<Id<"categories">>
+): Promise<void> => {
+	for (const category of existingCategories) {
+		if (retainedCategoryIds.has(category._id)) {
+			continue;
+		}
+		const linkedExpense = await ctx.db
+			.query("expenses")
+			.withIndex("by_categoryId", (queryBuilder) =>
+				queryBuilder.eq("categoryId", category._id)
+			)
+			.first();
+		if (linkedExpense) {
+			await ctx.db.patch(category._id, { isHidden: true });
+		} else {
+			await ctx.db.delete(category._id);
+		}
+	}
+};
 
 // --- Category Types ---
 
@@ -303,6 +398,65 @@ export const create = mutation({
 			createdAt: Date.now(),
 		});
 		return await ctx.db.get(id);
+	},
+});
+
+export const saveOnboardingCategories = mutation({
+	args: {
+		categories: v.array(
+			v.object({
+				categoryId: v.optional(v.id("categories")),
+				categoryTypeId: v.optional(v.id("category_types")),
+				icon: v.optional(v.string()),
+				name: v.string(),
+				plannedAmount: v.optional(v.number()),
+			})
+		),
+		cycleId: v.id("expense_cycles"),
+	},
+	returns: v.null(),
+	handler: async (ctx, args) => {
+		const user = await getCurrentUser(ctx);
+		await validateCycleOwnership(ctx, args.cycleId, user._id);
+		if (user.onboardingCycleId !== args.cycleId) {
+			throw new ConvexError("UNAUTHORIZED");
+		}
+		if (args.categories.length > MAX_ONBOARDING_CATEGORIES) {
+			throw new ConvexError("TOO_MANY_CATEGORIES");
+		}
+
+		const existingCategories = await ctx.db
+			.query("categories")
+			.withIndex("by_cycleId", (queryBuilder) =>
+				queryBuilder.eq("cycleId", args.cycleId)
+			)
+			.collect();
+		const existingCategoryIds = new Set(
+			existingCategories.map((category) => category._id)
+		);
+		const retainedCategoryIds = new Set<Id<"categories">>();
+
+		for (const [order, category] of args.categories.entries()) {
+			const retainedCategoryId = await persistOnboardingCategory(
+				ctx,
+				category,
+				args.cycleId,
+				existingCategoryIds,
+				order,
+				user._id
+			);
+			if (retainedCategoryId) {
+				retainedCategoryIds.add(retainedCategoryId);
+			}
+		}
+
+		await removeUnretainedOnboardingCategories(
+			ctx,
+			existingCategories,
+			retainedCategoryIds
+		);
+		await ctx.db.patch(user._id, { onboardingStep: "account" });
+		return null;
 	},
 });
 

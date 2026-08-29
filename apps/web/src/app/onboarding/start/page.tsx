@@ -2,181 +2,198 @@
 
 import { api } from "@spendly/backend/convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
-import { Check, ChevronsUpDown, Target, Zap } from "lucide-react";
-import Link from "next/link";
+import {
+	ArrowRight,
+	Check,
+	Clock3,
+	LoaderCircle,
+	ShieldCheck,
+	Target,
+	Zap,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { OnboardingStepControls } from "@/components/onboarding-shell";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import {
-	Card,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import {
-	Command,
-	CommandEmpty,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandList,
-} from "@/components/ui/command";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
+	isSupportedCurrency,
+	SUPPORTED_CURRENCIES,
+	type SupportedCurrency,
+} from "@/lib/currencies";
 import { cn } from "@/lib/utils";
 
-const currencies = [
-	{ label: "US Dollar ($)", value: "USD" },
-	{ label: "Euro (€)", value: "EUR" },
-	{ label: "British Pound (£)", value: "GBP" },
-	{ label: "Indian Rupee (₹)", value: "INR" },
-	{ label: "Japanese Yen (¥)", value: "JPY" },
-	{ label: "Canadian Dollar ($)", value: "CAD" },
-	{ label: "Australian Dollar ($)", value: "AUD" },
-];
+type SetupPath = "free" | "plan";
+
+const PATH_OPTIONS = [
+	{
+		description: "Create one tracking period, then start adding expenses.",
+		effort: "About 1 minute",
+		icon: Zap,
+		path: "free" as const,
+		title: "Start tracking freely",
+	},
+	{
+		description:
+			"Review categories and optional planned amounts before tracking.",
+		effort: "About 3 minutes",
+		icon: Target,
+		path: "plan" as const,
+		title: "Plan & track",
+	},
+] as const;
 
 export default function OnboardingStartPage() {
-	const user = useQuery(api.users.get);
-	const updateCurrency = useMutation(api.users.updateCurrency);
-	const seedDefaults = useMutation(api.categories.seedDefaults);
-	const [open, setOpen] = useState(false);
-	const [value, setValue] = useState("");
+	const router = useRouter();
+	const onboardingState = useQuery(api.users.getOnboardingState);
+	const beginOnboarding = useMutation(api.users.beginOnboarding);
+	const [currency, setCurrency] = useState<SupportedCurrency>("USD");
+	const [selectedPath, setSelectedPath] = useState<SetupPath>("free");
+	const [isSaving, setIsSaving] = useState(false);
+	const [error, setError] = useState<string>();
 
 	useEffect(() => {
-		seedDefaults();
-	}, [seedDefaults]);
-
-	useEffect(() => {
-		if (user?.currency) {
-			setValue(user.currency);
+		if (!onboardingState) {
+			return;
 		}
-	}, [user?.currency]);
+		if (isSupportedCurrency(onboardingState.currency)) {
+			setCurrency(onboardingState.currency);
+		}
+		if (onboardingState.path) {
+			setSelectedPath(onboardingState.path);
+		}
+	}, [onboardingState]);
 
-	const handleSelect = (currentValue: string) => {
-		setValue(currentValue);
-		updateCurrency({ currency: currentValue });
-		setOpen(false);
+	const handleContinue = async () => {
+		setIsSaving(true);
+		setError(undefined);
+		try {
+			await beginOnboarding({ currency, path: selectedPath });
+			router.push(`/onboarding/cycle?mode=${selectedPath}`);
+		} catch (_error) {
+			setError(
+				"We couldn't save your setup choice. Your selections are still here—please try again."
+			);
+			setIsSaving(false);
+		}
 	};
 
 	return (
-		<div className="space-y-6">
-			<div className="space-y-2 text-center">
-				<h1 className="font-bold text-3xl tracking-tight">Welcome to Spendy</h1>
-				<p className="text-muted-foreground">
-					Let's get you set up. First, choose your currency.
-				</p>
-			</div>
+		<Card className="gap-0 overflow-hidden py-0 shadow-sm">
+			<CardContent className="p-0">
+				<div className="border-b bg-muted/25 px-5 py-6 sm:px-8 sm:py-8">
+					<h1 className="max-w-xl text-balance font-semibold text-3xl tracking-tight sm:text-4xl">
+						Set up the way you already think about money.
+					</h1>
+					<p className="mt-3 max-w-2xl text-pretty text-muted-foreground leading-6">
+						Choose your currency and a starting path. Nothing is locked—you can
+						add budgets, categories, or accounts later.
+					</p>
+				</div>
 
-			<div className="flex justify-center">
-				<Popover onOpenChange={setOpen} open={open}>
-					<PopoverTrigger asChild>
-						<Button
-							aria-expanded={open}
-							className="w-[200px] justify-between"
-							role="combobox"
-							variant="outline"
+				<div className="space-y-7 px-5 py-6 sm:px-8 sm:py-8">
+					<div className="space-y-2">
+						<Label htmlFor="onboarding-currency">Primary currency</Label>
+						<Select
+							onValueChange={(value) => setCurrency(value as SupportedCurrency)}
+							value={currency}
 						>
-							{value
-								? currencies.find((framework) => framework.value === value)
-										?.label
-								: "Select currency..."}
-							<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-						</Button>
-					</PopoverTrigger>
-					<PopoverContent className="w-[200px] p-0">
-						<Command>
-							<CommandInput placeholder="Search currency..." />
-							<CommandList>
-								<CommandEmpty>No currency found.</CommandEmpty>
-								<CommandGroup>
-									{currencies.map((framework) => (
-										<CommandItem
-											key={framework.value}
-											onSelect={(_currentValue) => {
-												// Command component usually lowercases value
-												// We need to match it back to our uppercase codes if needed
-												// But here we are using value={framework.value} which is uppercase
-												// However, cmdk might lowercase the 'value' passed to onSelect
-												// Let's rely on the passed value if it matches, or find it.
-												// Actually, simpler to just use framework.value directly in closure
-												handleSelect(framework.value);
-											}}
-											value={framework.value}
-										>
-											<Check
-												className={cn(
-													"mr-2 h-4 w-4",
-													value === framework.value
-														? "opacity-100"
-														: "opacity-0"
-												)}
-											/>
-											{framework.label}
-										</CommandItem>
-									))}
-								</CommandGroup>
-							</CommandList>
-						</Command>
-					</PopoverContent>
-				</Popover>
-			</div>
+							<SelectTrigger
+								className="w-full sm:max-w-sm"
+								id="onboarding-currency"
+							>
+								<SelectValue placeholder="Choose a currency" />
+							</SelectTrigger>
+							<SelectContent>
+								{SUPPORTED_CURRENCIES.map((item) => (
+									<SelectItem key={item.value} value={item.value}>
+										{item.label} ({item.value})
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						<p className="text-muted-foreground text-sm">
+							Spendly uses this for planned amounts and new accounts. You can
+							change it later.
+						</p>
+					</div>
 
-			<div className="space-y-2 text-center">
-				<p className="text-muted-foreground">
-					Now, choose how you want to start.
-				</p>
-			</div>
+					<fieldset className="space-y-3">
+						<legend className="font-medium text-sm">
+							How would you like to begin?
+						</legend>
+						<div className="grid gap-3 sm:grid-cols-2">
+							{PATH_OPTIONS.map((option) => {
+								const Icon = option.icon;
+								const isSelected = selectedPath === option.path;
+								return (
+									<button
+										aria-pressed={isSelected}
+										className={cn(
+											"relative flex min-h-48 flex-col rounded-xl border p-5 text-left outline-none transition-all hover:-translate-y-0.5 hover:border-foreground/30 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+											isSelected && "border-primary bg-primary/[0.04] shadow-sm"
+										)}
+										key={option.path}
+										onClick={() => setSelectedPath(option.path)}
+										type="button"
+									>
+										<div className="flex items-center gap-3">
+											<span className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+												<Icon className="size-5" />
+											</span>
+											<p className="font-semibold text-lg">{option.title}</p>
+										</div>
+										<div className="mt-4">
+											<p className="text-muted-foreground text-sm leading-5">
+												{option.description}
+											</p>
+										</div>
+										<div className="mt-auto flex items-center justify-between gap-3 pt-5 text-sm">
+											<span className="flex items-center gap-1.5 text-muted-foreground">
+												<Clock3 className="size-3.5" /> {option.effort}
+											</span>
+											{isSelected ? (
+												<Check className="size-5 text-primary" />
+											) : null}
+										</div>
+									</button>
+								);
+							})}
+						</div>
+					</fieldset>
 
-			<div className="mx-auto grid max-w-md gap-4">
-				<Link
-					className={cn(!value && "pointer-events-none opacity-50")}
-					href={value ? "/onboarding/cycle?mode=free" : "#"}
-				>
-					<Card className="w-full cursor-pointer border-2 transition-colors hover:border-primary hover:bg-muted/50">
-						<CardHeader className="flex flex-row items-center gap-4 space-y-0">
-							<div className="shrink-0 rounded-lg bg-primary/10 p-2 text-primary">
-								<Zap className="h-6 w-6" />
-							</div>
-							<div className="flex flex-col gap-1">
-								<div className="flex flex-wrap items-center gap-2">
-									<CardTitle className="text-lg">
-										Start tracking freely
-									</CardTitle>
-									<CardDescription className="text-sm">
-										Add expenses with minimal setup.
-									</CardDescription>
-								</div>
-							</div>
-						</CardHeader>
-					</Card>
-				</Link>
+					<div className="flex items-start gap-3 rounded-xl border bg-muted/30 p-4 text-sm">
+						<ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
+						<p>
+							<span className="font-medium">You can change course later.</span>{" "}
+							Both paths unlock the same Spendly features.
+						</p>
+					</div>
 
-				<Link
-					className={cn(!value && "pointer-events-none opacity-50")}
-					href={value ? "/onboarding/cycle?mode=plan" : "#"}
-				>
-					<Card className="w-full cursor-pointer border-2 transition-colors hover:border-primary hover:bg-muted/50">
-						<CardHeader className="flex flex-row items-center gap-4 space-y-0">
-							<div className="shrink-0 rounded-lg bg-primary/10 p-2 text-primary">
-								<Target className="h-6 w-6" />
-							</div>
-							<div className="flex flex-col gap-1">
-								<div className="flex flex-wrap items-center gap-2">
-									<CardTitle className="text-lg">Plan & track</CardTitle>
-									<CardDescription className="text-sm">
-										Set categories and planned amounts before you start.
-									</CardDescription>
-								</div>
-							</div>
-						</CardHeader>
-					</Card>
-				</Link>
-			</div>
-			<p className="text-center text-muted-foreground text-sm">
-				Don't worry, all these settings can be updated later in your dashboard.
-			</p>
-		</div>
+					<div aria-live="polite">
+						{error ? (
+							<p className="mb-3 text-destructive text-sm" role="alert">
+								{error}
+							</p>
+						) : null}
+						<OnboardingStepControls>
+							<Button disabled={isSaving} onClick={handleContinue} size="lg">
+								{isSaving ? <LoaderCircle className="animate-spin" /> : null}
+								{isSaving ? "Saving your choices…" : "Save and continue"}
+								{isSaving ? null : <ArrowRight />}
+							</Button>
+						</OnboardingStepControls>
+					</div>
+				</div>
+			</CardContent>
+		</Card>
 	);
 }

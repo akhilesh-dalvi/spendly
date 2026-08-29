@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/collapsible";
 import {
 	SidebarGroup,
+	SidebarGroupLabel,
 	SidebarMenu,
 	SidebarMenuAction,
 	SidebarMenuButton,
@@ -21,8 +22,11 @@ import {
 } from "@/components/ui/sidebar";
 
 export function NavMain({
+	className,
 	items,
+	label,
 }: {
+	className?: string;
 	items: readonly {
 		readonly title: string;
 		readonly url: string;
@@ -34,9 +38,11 @@ export function NavMain({
 			readonly isActive: boolean;
 		}[];
 	}[];
+	label?: string;
 }) {
 	return (
-		<SidebarGroup>
+		<SidebarGroup className={className}>
+			{label ? <SidebarGroupLabel>{label}</SidebarGroupLabel> : null}
 			<SidebarMenu>
 				{items.map((item) => (
 					<Collapsible asChild defaultOpen={item.isActive} key={item.title}>

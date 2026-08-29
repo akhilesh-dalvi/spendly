@@ -1,6 +1,11 @@
 packages:
   - apps/*
   - packages/*
+allowBuilds:
+  '@clerk/shared': false
+  esbuild: true
+  msw: false
+  sharp: true
 catalog:
   dotenv: ^17.2.2
   zod: ^4.1.13

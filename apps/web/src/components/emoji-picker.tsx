@@ -198,12 +198,20 @@ const EMOJI_CATEGORIES = [
 ];
 
 interface EmojiPickerProps {
-	value?: string;
-	onChange: (emoji: string) => void;
+	ariaLabel?: string;
 	className?: string;
+	id?: string;
+	onChange: (emoji: string) => void;
+	value?: string;
 }
 
-export function EmojiPicker({ value, onChange, className }: EmojiPickerProps) {
+export function EmojiPicker({
+	ariaLabel = "Choose an icon",
+	className,
+	id,
+	onChange,
+	value,
+}: EmojiPickerProps) {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
 	const containerReference = useRef<HTMLDivElement>(null);
@@ -230,11 +238,13 @@ export function EmojiPicker({ value, onChange, className }: EmojiPickerProps) {
 				<PopoverTrigger asChild>
 					<Button
 						aria-expanded={open}
+						aria-label={ariaLabel}
 						className={cn(
 							"flex h-10 w-[3rem] items-center justify-center p-0 text-xl",
 							!value && "text-muted-foreground opacity-50",
 							className
 						)}
+						id={id}
 						role="combobox"
 						variant="outline"
 					>

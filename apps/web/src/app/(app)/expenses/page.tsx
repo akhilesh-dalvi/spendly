@@ -13,12 +13,14 @@ import {
 	Plus,
 	Search,
 	Tag,
+	Wallet,
 	X,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { AccountTypeIcon } from "@/components/account-type-icon";
 import { Loader } from "@/components/loader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +40,7 @@ import {
 import { useCurrency } from "@/hooks/use-currency";
 
 interface Filters {
+	accountId: string;
 	cycleId: string;
 	categoryId: string;
 	includeUncategorized: boolean;
@@ -47,6 +50,10 @@ interface Filters {
 interface ExpenseRow {
 	_id: string;
 	amount: number;
+	accountName?: string | null;
+	accountTypeColor?: string | null;
+	accountTypeIcon?: string | null;
+	accountTypeName?: string | null;
 	categoryIcon?: string | null;
 	categoryId?: string | null;
 	categoryName?: string | null;
@@ -61,20 +68,173 @@ type ExpenseColumnDef = ColumnDef<ExpenseRow> & {
 	headerClassName?: string;
 };
 
-export default function ExpensesPage() {
+interface AccountFilterOption {
+	_id: Id<"accounts">;
+	accountTypeName: string;
+	isArchived?: boolean;
+	name: string;
+}
+
+interface ExpenseAccountFilterProps {
+	accounts: AccountFilterOption[];
+	onValueChange: (accountId: string) => void;
+	selectedAccountId?: Id<"accounts">;
+}
+
+function ExpenseAccountFilter({
+	accounts,
+	onValueChange,
+	selectedAccountId,
+}: ExpenseAccountFilterProps) {
+	const activeAccounts = accounts.filter((account) => !account.isArchived);
+	const archivedAccounts = accounts.filter((account) => account.isArchived);
+
+	return (
+		<Select
+			onValueChange={(value) => onValueChange(value === "all" ? "" : value)}
+			value={selectedAccountId ?? "all"}
+		>
+			<SelectTrigger className="h-10 w-[180px] bg-card/50">
+				<Wallet />
+				<SelectValue placeholder="Account" />
+			</SelectTrigger>
+			<SelectContent>
+				<SelectGroup>
+					<SelectItem value="all">All accounts</SelectItem>
+				</SelectGroup>
+				{activeAccounts.length > 0 ? (
+					<SelectGroup>
+						<SelectLabel>Active</SelectLabel>
+						{activeAccounts.map((account) => (
+							<SelectItem key={account._id} value={account._id}>
+								{account.name} · {account.accountTypeName}
+							</SelectItem>
+						))}
+					</SelectGroup>
+				) : null}
+				{archivedAccounts.length > 0 ? (
+					<SelectGroup>
+						<SelectLabel>Archived</SelectLabel>
+						{archivedAccounts.map((account) => (
+							<SelectItem key={account._id} value={account._id}>
+								{account.name} · {account.accountTypeName} (Archived)
+							</SelectItem>
+						))}
+					</SelectGroup>
+				) : null}
+			</SelectContent>
+		</Select>
+	);
+}
+
+interface ActiveAccountFilterBadgeProps {
+	account?: AccountFilterOption;
+	onClear: () => void;
+}
+
+function ActiveAccountFilterBadge({
+	account,
+	onClear,
+}: ActiveAccountFilterBadgeProps) {
+	if (!account) {
+		return null;
+	}
+
+	return (
+		<Badge
+			className="h-7 gap-1 border-primary/20 bg-primary/10 pr-1 pl-1 text-primary"
+			variant="secondary"
+		>
+			<span className="px-1 font-bold text-[10px] uppercase opacity-60">
+				Account
+			</span>
+			<span className="font-semibold text-xs">
+				{account.name}
+				{account.isArchived ? " (Archived)" : ""}
+			</span>
+			<button
+				aria-label={`Remove ${account.name} account filter`}
+				className="rounded-full p-0.5 hover:bg-primary/20"
+				onClick={onClear}
+				type="button"
+			>
+				<X className="h-3 w-3" />
+			</button>
+		</Badge>
+	);
+}
+
+interface ExpenseResultsProps {
+	columns: ExpenseColumnDef[];
+	expenses: ExpenseRow[];
+	globalSearch: string;
+	onDelete: (expense: ExpenseRow) => void;
+	onRowClick: (expense: ExpenseRow) => void;
+	onSearchChange: (value: string) => void;
+}
+
+function ExpenseResults({
+	columns,
+	expenses,
+	globalSearch,
+	onDelete,
+	onRowClick,
+	onSearchChange,
+}: ExpenseResultsProps) {
+	if (expenses.length === 0) {
+		return (
+			<EmptyState
+				action={
+					<Button asChild>
+						<Link href="/expenses/new">
+							<Plus className="mr-2 h-4 w-4" />
+							Add Expense
+						</Link>
+					</Button>
+				}
+				description="Try adjusting your filters or add a new expense."
+				icon={<Calendar className="h-12 w-12" />}
+				title="No expenses found"
+			/>
+		);
+	}
+
+	return (
+		<DataTable
+			columns={columns}
+			data={expenses}
+			deleteDescription="This action cannot be undone. This will permanently remove the expense."
+			deleteTitle="Delete expense?"
+			externalSearchValue={globalSearch}
+			onExternalSearchChange={onSearchChange}
+			onRowClick={onRowClick}
+			onRowDelete={onDelete}
+			rowClassName="hover:bg-muted/50"
+			showFooter={true}
+		/>
+	);
+}
+
+function ExpensesPageContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const { format: formatCurrency } = useCurrency();
 	const removeExpense = useMutation(api.expenses.remove);
-	const [filters, setFilters] = useState<Filters>({
-		cycleId: "",
-		categoryId: "",
-		includeUncategorized: false,
-		tagIds: [],
+	const [filters, setFilters] = useState<Filters>(() => {
+		const categoryId =
+			searchParams.get("category") === "uncategorized" ? "uncategorized" : "";
+		return {
+			accountId: searchParams.get("account") ?? "",
+			cycleId: "",
+			categoryId,
+			includeUncategorized: categoryId === "uncategorized",
+			tagIds: [],
+		};
 	});
 	const [globalSearch, setGlobalSearch] = useState("");
 
 	const cycles = useQuery(api.cycles.list);
+	const accounts = useQuery(api.accounts.list, { includeArchived: true });
 
 	const groupedCycles = useMemo(() => {
 		if (!cycles) {
@@ -109,17 +269,25 @@ export default function ExpensesPage() {
 		return categories?.find((c) => c._id === filters.categoryId)?.name;
 	}, [categories, filters.categoryId, filters.includeUncategorized]);
 
+	const activeAccount = useMemo(
+		() => accounts?.find((account) => account._id === filters.accountId),
+		[accounts, filters.accountId]
+	);
 	const activeTags = useMemo(
 		() => tags?.filter((t) => filters.tagIds.includes(t._id)) || [],
 		[tags, filters.tagIds]
 	);
 
 	const hasActiveFilters = Boolean(
-		filters.cycleId || filters.categoryId || filters.tagIds.length > 0
+		filters.accountId ||
+			filters.cycleId ||
+			filters.categoryId ||
+			filters.tagIds.length > 0
 	);
 
 	const expenseQueryArgs = useMemo(() => {
 		const args: {
+			accountId?: Id<"accounts">;
 			cycleId?: Id<"expense_cycles">;
 			categoryId?: Id<"categories">;
 			startDate?: string;
@@ -127,6 +295,9 @@ export default function ExpensesPage() {
 			tagIds?: Id<"tags">[];
 		} = {};
 
+		if (activeAccount) {
+			args.accountId = activeAccount._id;
+		}
 		if (filters.cycleId) {
 			args.cycleId = filters.cycleId as Id<"expense_cycles">;
 		}
@@ -138,7 +309,7 @@ export default function ExpensesPage() {
 		}
 
 		return args;
-	}, [filters]);
+	}, [activeAccount, filters]);
 
 	const expenses = useQuery(api.expenses.list, expenseQueryArgs);
 	const visibleExpenses = useMemo(() => {
@@ -152,14 +323,26 @@ export default function ExpensesPage() {
 	}, [expenses, filters.includeUncategorized]);
 
 	useEffect(() => {
+		const accountId = searchParams.get("account") ?? "";
 		const category = searchParams.get("category");
-		if (category === "uncategorized") {
-			setFilters((current) => ({
+		setFilters((current) => {
+			const shouldSelectUncategorized = category === "uncategorized";
+			if (
+				current.accountId === accountId &&
+				(!shouldSelectUncategorized || current.includeUncategorized)
+			) {
+				return current;
+			}
+			return {
 				...current,
-				categoryId: "uncategorized",
-				includeUncategorized: true,
-			}));
-		}
+				accountId,
+				categoryId: shouldSelectUncategorized
+					? "uncategorized"
+					: current.categoryId,
+				includeUncategorized:
+					shouldSelectUncategorized || current.includeUncategorized,
+			};
+		});
 	}, [searchParams]);
 
 	const columns = useMemo<ExpenseColumnDef[]>(() => {
@@ -242,6 +425,41 @@ export default function ExpensesPage() {
 				},
 			},
 			{
+				accessorKey: "accountName",
+				headerClassName: "px-4",
+				className: "px-4",
+				header: "Account",
+				cell: ({ row }) => {
+					const accountName = row.original.accountName;
+					if (!accountName) {
+						return <span className="text-muted-foreground text-sm">—</span>;
+					}
+
+					return (
+						<div className="flex items-center gap-2">
+							<div
+								className="flex size-7 items-center justify-center rounded-lg border bg-background shadow-xs"
+								style={
+									row.original.accountTypeColor
+										? { color: row.original.accountTypeColor }
+										: undefined
+								}
+							>
+								<AccountTypeIcon iconKey={row.original.accountTypeIcon} />
+							</div>
+							<div className="flex min-w-0 flex-col">
+								<span className="truncate font-medium">{accountName}</span>
+								{row.original.accountTypeName ? (
+									<span className="text-muted-foreground text-xs">
+										{row.original.accountTypeName}
+									</span>
+								) : null}
+							</div>
+						</div>
+					);
+				},
+			},
+			{
 				accessorKey: "spentOn",
 				headerClassName: "px-4",
 				className: "px-4 w-full min-w-[200px]",
@@ -278,6 +496,7 @@ export default function ExpensesPage() {
 
 	const isLoading =
 		expenses === undefined ||
+		accounts === undefined ||
 		cycles === undefined ||
 		tags === undefined ||
 		(filters.cycleId && categories === undefined);
@@ -304,12 +523,48 @@ export default function ExpensesPage() {
 
 	const resetFilters = () => {
 		setFilters({
+			accountId: "",
 			cycleId: "",
 			categoryId: "",
 			includeUncategorized: false,
 			tagIds: [],
 		});
 		setGlobalSearch("");
+		const nextSearchParams = new URLSearchParams(searchParams.toString());
+		nextSearchParams.delete("account");
+		nextSearchParams.delete("category");
+		const query = nextSearchParams.toString();
+		router.replace(query ? `/expenses?${query}` : "/expenses", {
+			scroll: false,
+		});
+	};
+
+	const clearCategoryFilter = () => {
+		setFilters((current) => ({
+			...current,
+			categoryId: "",
+			includeUncategorized: false,
+		}));
+		const nextSearchParams = new URLSearchParams(searchParams.toString());
+		nextSearchParams.delete("category");
+		const query = nextSearchParams.toString();
+		router.replace(query ? `/expenses?${query}` : "/expenses", {
+			scroll: false,
+		});
+	};
+
+	const updateAccountFilter = (accountId: string) => {
+		setFilters((current) => ({ ...current, accountId }));
+		const nextSearchParams = new URLSearchParams(searchParams.toString());
+		if (accountId) {
+			nextSearchParams.set("account", accountId);
+		} else {
+			nextSearchParams.delete("account");
+		}
+		const query = nextSearchParams.toString();
+		router.replace(query ? `/expenses?${query}` : "/expenses", {
+			scroll: false,
+		});
 	};
 
 	const handleDelete = async (expenseId: string) => {
@@ -349,7 +604,7 @@ export default function ExpensesPage() {
 
 			<div className="space-y-4">
 				<div className="flex flex-col gap-3 md:flex-row md:items-center">
-					<div className="flex flex-1 items-center gap-2">
+					<div className="flex flex-1 flex-wrap items-center gap-2">
 						<div className="relative max-w-sm flex-1">
 							<Search className="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
 							<Input
@@ -433,15 +688,23 @@ export default function ExpensesPage() {
 								<SelectValue placeholder="Category" />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="all">All categories</SelectItem>
-								<SelectItem value="uncategorized">Uncategorized</SelectItem>
-								{categories?.map((category) => (
-									<SelectItem key={category._id} value={category._id}>
-										{category.name}
-									</SelectItem>
-								))}
+								<SelectGroup>
+									<SelectItem value="all">All categories</SelectItem>
+									<SelectItem value="uncategorized">Uncategorized</SelectItem>
+									{categories?.map((category) => (
+										<SelectItem key={category._id} value={category._id}>
+											{category.name}
+										</SelectItem>
+									))}
+								</SelectGroup>
 							</SelectContent>
 						</Select>
+
+						<ExpenseAccountFilter
+							accounts={accounts}
+							onValueChange={updateAccountFilter}
+							selectedAccountId={activeAccount?._id}
+						/>
 					</div>
 
 					<div className="flex items-center gap-4 px-2">
@@ -503,19 +766,17 @@ export default function ExpensesPage() {
 								</span>
 								<button
 									className="rounded-full p-0.5 hover:bg-primary/20"
-									onClick={() =>
-										setFilters((f) => ({
-											...f,
-											categoryId: "",
-											includeUncategorized: false,
-										}))
-									}
+									onClick={clearCategoryFilter}
 									type="button"
 								>
 									<X className="h-3 w-3" />
 								</button>
 							</Badge>
 						)}
+						<ActiveAccountFilterBadge
+							account={activeAccount}
+							onClear={() => updateAccountFilter("")}
+						/>
 						{activeTags.map((tag) => (
 							<Badge
 								className="h-7 gap-1 border-amber-500/20 bg-amber-500/10 pr-1 pl-1 text-amber-600 dark:text-amber-400"
@@ -571,34 +832,30 @@ export default function ExpensesPage() {
 				)}
 			</div>
 
-			{visibleExpenses.length === 0 ? (
-				<EmptyState
-					action={
-						<Button asChild>
-							<Link href="/expenses/new">
-								<Plus className="mr-2 h-4 w-4" />
-								Add Expense
-							</Link>
-						</Button>
-					}
-					description="Try adjusting your filters or add a new expense."
-					icon={<Calendar className="h-12 w-12" />}
-					title="No expenses found"
-				/>
-			) : (
-				<DataTable
-					columns={columns}
-					data={visibleExpenses}
-					deleteDescription="This action cannot be undone. This will permanently remove the expense."
-					deleteTitle="Delete expense?"
-					externalSearchValue={globalSearch}
-					onExternalSearchChange={setGlobalSearch}
-					onRowClick={(expense) => router.push(`/expenses/${expense._id}`)}
-					onRowDelete={(expense) => handleDelete(expense._id)}
-					rowClassName="hover:bg-muted/50"
-					showFooter={true}
-				/>
-			)}
+			<ExpenseResults
+				columns={columns}
+				expenses={visibleExpenses}
+				globalSearch={globalSearch}
+				onDelete={(expense) => handleDelete(expense._id)}
+				onRowClick={(expense) => router.push(`/expenses/${expense._id}`)}
+				onSearchChange={setGlobalSearch}
+			/>
 		</div>
+	);
+}
+
+function ExpensesPageLoading() {
+	return (
+		<div className="flex h-full w-full items-center justify-center">
+			<Loader />
+		</div>
+	);
+}
+
+export default function ExpensesPage() {
+	return (
+		<Suspense fallback={<ExpensesPageLoading />}>
+			<ExpensesPageContent />
+		</Suspense>
 	);
 }

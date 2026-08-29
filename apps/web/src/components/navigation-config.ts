@@ -1,10 +1,14 @@
 import {
 	ArrowLeftRight,
 	Calendar,
+	CircleDollarSign,
 	CreditCard,
+	Layers,
 	LayoutDashboard,
 	type LucideIcon,
 	Settings,
+	Tag,
+	WalletCards,
 } from "lucide-react";
 
 export type NavMatchMode = "exact" | "prefix";
@@ -23,25 +27,7 @@ export interface NavItem {
 	items?: readonly NavSubItem[];
 }
 
-export const SETTINGS_SUB_ITEMS = [
-	{
-		title: "Profile",
-		url: "/settings",
-		match: "exact",
-	},
-	{
-		title: "Category Types",
-		url: "/settings/data/types",
-		match: "prefix",
-	},
-	{
-		title: "Tags",
-		url: "/settings/data/tags",
-		match: "prefix",
-	},
-] as const satisfies readonly NavSubItem[];
-
-export const PRIMARY_NAV_ITEMS = [
+export const CORE_NAV_ITEMS = [
 	{
 		title: "Dashboard",
 		url: "/dashboard",
@@ -61,18 +47,58 @@ export const PRIMARY_NAV_ITEMS = [
 		match: "prefix",
 	},
 	{
+		title: "Accounts",
+		url: "/accounts",
+		icon: WalletCards,
+		match: "prefix",
+	},
+	{
 		title: "Compare",
 		url: "/compare",
 		icon: ArrowLeftRight,
 		match: "exact",
 	},
+] as const satisfies readonly NavItem[];
+
+export const MANAGEMENT_NAV_ITEMS = [
 	{
-		title: "Settings",
-		url: "/settings",
-		icon: Settings,
-		match: "exact",
-		items: SETTINGS_SUB_ITEMS,
+		title: "Tags",
+		url: "/data/tags",
+		icon: Tag,
+		match: "prefix",
 	},
+	{
+		title: "Category Types",
+		url: "/data/types",
+		icon: Layers,
+		match: "prefix",
+	},
+	{
+		title: "Account Types",
+		url: "/data/account-types",
+		icon: CircleDollarSign,
+		match: "prefix",
+	},
+] as const satisfies readonly NavItem[];
+
+export const SETTINGS_NAV_ITEM = {
+	title: "Settings",
+	url: "/settings",
+	icon: Settings,
+	match: "exact",
+} as const satisfies NavItem;
+
+export const MOBILE_PRIMARY_NAV_ITEMS = [
+	CORE_NAV_ITEMS[0],
+	CORE_NAV_ITEMS[1],
+	CORE_NAV_ITEMS[2],
+	CORE_NAV_ITEMS[3],
+] as const satisfies readonly NavItem[];
+
+export const MOBILE_MORE_NAV_ITEMS = [
+	CORE_NAV_ITEMS[4],
+	...MANAGEMENT_NAV_ITEMS,
+	SETTINGS_NAV_ITEM,
 ] as const satisfies readonly NavItem[];
 
 const normalizePathname = (pathname: string): string => {

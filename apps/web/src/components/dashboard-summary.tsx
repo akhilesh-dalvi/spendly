@@ -1,13 +1,31 @@
 "use client";
 
-import { differenceInDays, parseISO } from "date-fns";
+import { differenceInDays, parseISO, startOfDay } from "date-fns";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { useCurrency } from "@/hooks/use-currency";
+import { formatAccountMoney } from "@/lib/accounts";
 import { cn } from "@/lib/utils";
 
-// Type derived from the return value of api.aggregations.getCycleSummary
+interface AccountSummaryItem {
+	accountTypeName: string;
+	isDefault: boolean;
+	name: string;
+}
+
+interface AccountBalanceTotal {
+	currency: string;
+	total: number;
+}
+
+interface AccountSummary {
+	accounts: AccountSummaryItem[];
+	totals: AccountBalanceTotal[];
+}
+
 interface DashboardSummaryProps {
+	accountSummary: AccountSummary;
 	summary: {
-		cycleName: string;
 		totalSpent: number;
 		totalPlanned: number;
 		startDate: string;
@@ -16,7 +34,51 @@ interface DashboardSummaryProps {
 	};
 }
 
-function getCycleTimingDetails({
+function getBudgetOverview({
+	isFuture,
+	isPast,
+	totalPlanned,
+	totalSpent,
+}: {
+	isFuture: boolean;
+	isPast: boolean;
+	totalPlanned: number;
+	totalSpent: number;
+}) {
+	const remaining = totalPlanned - totalSpent;
+	const isOverBudget = !isFuture && remaining < 0;
+	let label = totalPlanned > 0 ? "Budget left" : "No budget planned";
+	let value = remaining;
+
+	if (isFuture) {
+		label = "Planned budget";
+		value = totalPlanned;
+	} else if (isOverBudget) {
+		label = "Over budget";
+		value = Math.abs(remaining);
+	} else if (isPast) {
+		label = "Unspent budget";
+	}
+
+	let progress = 0;
+	if (totalPlanned > 0) {
+		progress = Math.min(100, (totalSpent / totalPlanned) * 100);
+	} else if (isOverBudget) {
+		progress = 100;
+	}
+
+	return {
+		hasValue: totalPlanned > 0 || isOverBudget,
+		isOverBudget,
+		label,
+		progress,
+		spentPercentage:
+			totalPlanned > 0 ? Math.round((totalSpent / totalPlanned) * 100) : 0,
+		value,
+	};
+}
+
+function getCycleStatus({
 	daysRemaining,
 	isFuture,
 	isPast,
@@ -29,52 +91,118 @@ function getCycleTimingDetails({
 	start: Date;
 	today: Date;
 }) {
-	let cycleLabel = "Past Cycle";
-	let daysLabel = "Days Left";
-	let daysValue: number | string = daysRemaining ?? 0;
-
 	if (isFuture) {
-		cycleLabel = "Upcoming";
-		daysLabel = "Starts In";
-		daysValue = differenceInDays(start, today);
-	} else if (isPast) {
-		daysLabel = "Cycle Status";
-		daysValue = "Ended";
-	} else {
-		cycleLabel = "Active Cycle";
+		const daysUntilStart = Math.max(0, differenceInDays(start, today));
+		return {
+			label: "Upcoming",
+			detail: `Starts in ${daysUntilStart} ${daysUntilStart === 1 ? "day" : "days"}`,
+		};
 	}
 
-	return { cycleLabel, daysLabel, daysValue };
+	if (isPast) {
+		return { label: "Ended", detail: "Past cycle" };
+	}
+
+	const remainingDays = Math.max(0, daysRemaining ?? 0);
+	return {
+		label: "Active",
+		detail: `${remainingDays} ${remainingDays === 1 ? "day" : "days"} left`,
+	};
 }
 
-export function DashboardSummary({ summary }: DashboardSummaryProps) {
-	const { format } = useCurrency();
+function TrackedFundsSummary({
+	accountSummary,
+}: {
+	accountSummary: AccountSummary;
+}) {
+	const defaultAccount = accountSummary.accounts.find(
+		(account) => account.isDefault
+	);
+	const accountCount = accountSummary.accounts.length;
+	const accountCountLabel = `${accountCount} ${accountCount === 1 ? "account" : "accounts"}`;
+	const hasMultipleCurrencies = accountSummary.totals.length > 1;
+
+	return (
+		<section
+			aria-labelledby="tracked-funds-heading"
+			className="border-t bg-muted/15 p-5 sm:p-6 lg:border-t-0 lg:border-l"
+		>
+			<h2
+				className="font-bold text-[11px] text-muted-foreground uppercase tracking-[0.16em]"
+				id="tracked-funds-heading"
+			>
+				Tracked funds
+			</h2>
+
+			{accountSummary.totals.length > 0 ? (
+				<div className="mt-3 space-y-1.5">
+					{accountSummary.totals.map(({ currency, total }) => (
+						<div className="flex flex-wrap items-baseline gap-2" key={currency}>
+							<p className="font-medium text-3xl tabular-nums tracking-tight">
+								{formatAccountMoney(total, currency)}
+							</p>
+							{hasMultipleCurrencies && (
+								<span className="font-medium text-muted-foreground text-xs uppercase">
+									{currency}
+								</span>
+							)}
+						</div>
+					))}
+				</div>
+			) : (
+				<p className="mt-3 font-medium text-3xl tracking-tight">—</p>
+			)}
+
+			<p className="mt-2 text-muted-foreground text-sm">
+				Across {accountCountLabel}
+			</p>
+
+			<div className="mt-6 space-y-3 border-t pt-4 text-sm">
+				<div className="flex items-center justify-between gap-4">
+					<span className="text-muted-foreground">New expenses use</span>
+					<span className="max-w-40 truncate font-medium">
+						{defaultAccount
+							? `${defaultAccount.name} · ${defaultAccount.accountTypeName}`
+							: "No default"}
+					</span>
+				</div>
+				{hasMultipleCurrencies && (
+					<div className="flex items-center justify-between gap-4">
+						<span className="text-muted-foreground">
+							Balances stay separate
+						</span>
+						<span className="font-medium">
+							{accountSummary.totals.length} currencies
+						</span>
+					</div>
+				)}
+			</div>
+		</section>
+	);
+}
+
+export function DashboardSummary({
+	accountSummary,
+	summary,
+}: DashboardSummaryProps) {
+	const { format: formatCurrency } = useCurrency();
 	const totalSpent = summary.totalSpent || 0;
 	const totalPlanned = summary.totalPlanned || 0;
-	const remaining = totalPlanned - totalSpent;
 
-	const today = new Date();
+	const today = startOfDay(new Date());
 	const start = parseISO(summary.startDate);
 	const end = parseISO(summary.endDate);
-
 	const isFuture = today < start;
 	const isPast = today > end;
-	const isCurrent = !(isFuture || isPast);
-
-	const totalDays = differenceInDays(end, start);
-	const daysPassed = differenceInDays(today, start);
-
-	let cycleProgress = 0;
-	if (isPast) {
-		cycleProgress = 100;
-	} else if (isCurrent) {
-		cycleProgress = Math.min(100, Math.max(0, (daysPassed / totalDays) * 100));
-	}
-
-	const budgetProgress =
-		totalPlanned > 0 ? Math.min(100, (totalSpent / totalPlanned) * 100) : 0;
-
-	const { cycleLabel, daysLabel, daysValue } = getCycleTimingDetails({
+	const {
+		hasValue: hasBudgetValue,
+		isOverBudget,
+		label: budgetLabel,
+		progress: budgetProgress,
+		spentPercentage,
+		value: budgetValue,
+	} = getBudgetOverview({ isFuture, isPast, totalPlanned, totalSpent });
+	const { detail: cycleDetail, label: cycleStatus } = getCycleStatus({
 		daysRemaining: summary.daysRemaining,
 		isFuture,
 		isPast,
@@ -83,135 +211,69 @@ export function DashboardSummary({ summary }: DashboardSummaryProps) {
 	});
 
 	return (
-		<div className="grid divide-y divide-border/40 md:grid-cols-2 md:divide-x md:divide-y-0 lg:grid-cols-4">
-			<div className="flex flex-col justify-between bg-card/5 p-6 transition-colors hover:bg-card/10">
-				<div>
-					<p className="font-bold text-[10px] text-muted-foreground/80 uppercase tracking-widest">
-						Total Spent
-					</p>
-
-					<div className="mt-2 flex items-baseline gap-2">
-						<h3 className="font-medium text-3xl tracking-tight">
-							{format(totalSpent)}
-						</h3>
-						{totalPlanned > 0 && (
-							<span className="font-medium text-muted-foreground/60 text-sm">
-								({Math.round((totalSpent / totalPlanned) * 100)}%)
-							</span>
-						)}
-					</div>
-				</div>
-
-				<div className="mt-4 flex flex-col gap-2">
-					<div className="flex items-center gap-1.5">
-						<div
-							className={cn(
-								"h-1.5 w-1.5 rounded-full",
-								isCurrent ? "bg-primary" : "bg-muted-foreground/40"
-							)}
-						/>
-						<p className="font-bold text-[10px] text-muted-foreground/60 uppercase tracking-wider">
-							{cycleLabel}
-						</p>
-					</div>
-					{totalPlanned > 0 && (
-						<div className="h-1 w-full overflow-hidden rounded-full bg-primary/10">
-							<div
-								className="h-full bg-primary transition-all"
-								style={{ width: `${budgetProgress}%` }}
-							/>
-						</div>
-					)}
-				</div>
-			</div>
-
-			<div className="flex flex-col justify-between bg-card/5 p-6 transition-colors hover:bg-card/10">
-				<div>
-					<p className="font-bold text-[10px] text-muted-foreground/80 uppercase tracking-widest">
-						{remaining < 0 ? "Over Budget" : "Remaining"}
-					</p>
-
-					<div className="mt-2 flex items-baseline gap-2">
-						<h3
-							className={cn(
-								"font-medium text-3xl tracking-tight",
-								remaining < 0 && "text-destructive"
-							)}
-						>
-							{format(Math.abs(remaining))}
-						</h3>
-						{totalPlanned > 0 && (
-							<span
-								className={cn(
-									"font-medium text-sm",
-									remaining < 0
-										? "text-destructive/60"
-										: "text-muted-foreground/60"
-								)}
-							>
-								({Math.round((Math.abs(remaining) / totalPlanned) * 100)}%)
-							</span>
-						)}
-					</div>
-				</div>
-
-				<div className="mt-4 flex items-center gap-1.5">
-					<div
+		<div className="grid lg:grid-cols-[minmax(0,1.55fr)_minmax(18rem,0.8fr)]">
+			<section aria-labelledby="cycle-budget-heading" className="p-5 sm:p-6">
+				<div className="flex flex-wrap items-center gap-2">
+					<Badge
 						className={cn(
-							"h-1.5 w-1.5 rounded-full",
-							remaining >= 0 ? "bg-emerald-500" : "bg-destructive"
+							"border-0 px-2.5 py-1",
+							isPast && "bg-muted text-muted-foreground",
+							isFuture &&
+								"bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
+							!(isPast || isFuture) &&
+								"bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
 						)}
-					/>
+						variant="secondary"
+					>
+						{cycleStatus}
+					</Badge>
+					<span className="text-muted-foreground text-sm">{cycleDetail}</span>
+				</div>
 
-					<p className="font-bold text-[10px] text-muted-foreground/60 uppercase tracking-wider">
-						{remaining < 0 ? "Over Budget" : "Budget Left"}
+				<div className="mt-6">
+					<h2
+						className="font-bold text-[11px] text-muted-foreground uppercase tracking-[0.16em]"
+						id="cycle-budget-heading"
+					>
+						{budgetLabel}
+					</h2>
+					<p
+						className={cn(
+							"mt-2 font-medium text-3xl tabular-nums tracking-tight sm:text-4xl",
+							isOverBudget && "text-destructive"
+						)}
+					>
+						{hasBudgetValue ? formatCurrency(budgetValue) : "—"}
 					</p>
 				</div>
-			</div>
 
-			<div className="flex flex-col justify-between bg-card/5 p-6 transition-colors hover:bg-card/10">
-				<div>
-					<p className="font-bold text-[10px] text-muted-foreground/80 uppercase tracking-widest">
-						Planned
-					</p>
-
-					<h3 className="mt-2 font-medium text-3xl tracking-tight">
-						{totalPlanned > 0 ? format(totalPlanned) : "—"}
-					</h3>
-				</div>
-			</div>
-
-			<div className="flex flex-col justify-between bg-card/5 p-6 transition-colors hover:bg-card/10">
-				<div>
-					<p className="font-bold text-[10px] text-muted-foreground/80 uppercase tracking-widest">
-						{daysLabel}
-					</p>
-
-					<h3 className="mt-2 font-medium text-3xl tracking-tight">
-						{daysValue}
-						{typeof daysValue === "number" && (
-							<span className="ml-1 font-normal text-muted-foreground text-sm">
-								days
+				<div className="mt-6 max-w-2xl">
+					<div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+						<p className="text-muted-foreground">
+							<span className="font-medium text-foreground">
+								{formatCurrency(totalSpent)}
+							</span>{" "}
+							spent of {formatCurrency(totalPlanned)} planned
+						</p>
+						{totalPlanned > 0 && (
+							<span className="font-medium tabular-nums">
+								{spentPercentage}% spent
 							</span>
 						)}
-					</h3>
+					</div>
+					<Progress
+						aria-label="Budget spent"
+						className={cn(
+							"h-2 bg-primary/10",
+							isOverBudget &&
+								"[&_[data-slot=progress-indicator]]:bg-destructive"
+						)}
+						value={budgetProgress}
+					/>
 				</div>
+			</section>
 
-				<div className="mt-4 flex flex-col gap-2">
-					<div className="flex items-center gap-1.5">
-						<div className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
-						<p className="font-bold text-[10px] text-muted-foreground/60 uppercase tracking-wider">
-							Cycle Progress
-						</p>
-					</div>
-					<div className="h-1 w-full overflow-hidden rounded-full bg-indigo-500/10">
-						<div
-							className="h-full bg-indigo-500 transition-all"
-							style={{ width: `${cycleProgress}%` }}
-						/>
-					</div>
-				</div>
-			</div>
+			<TrackedFundsSummary accountSummary={accountSummary} />
 		</div>
 	);
 }

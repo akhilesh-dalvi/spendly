@@ -3,6 +3,7 @@ import { Separator } from "@radix-ui/react-separator";
 import type { Metadata } from "next";
 
 import { AppSidebar } from "@/components/app-sidebar";
+import { MobileNav } from "@/components/mobile-nav";
 import { ModeToggle } from "@/components/mode-toggle";
 import { OnboardingGuard } from "@/components/onboarding-guard";
 import {
@@ -36,11 +37,12 @@ export default function AppLayout({
 							<ModeToggle />
 						</div>
 					</header>
-					<div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-3">
+					<div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 pt-3 pb-24 md:pb-3">
 						{children}
 						{modal}
 					</div>
 				</SidebarInset>
+				<MobileNav />
 			</SidebarProvider>
 		</OnboardingGuard>
 	);

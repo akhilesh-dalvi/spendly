@@ -13,6 +13,7 @@ import {
 	Loader2,
 	Plus,
 	Save,
+	Wallet,
 	X,
 } from "lucide-react";
 import Link from "next/link";
@@ -20,6 +21,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { AccountTypeIcon } from "@/components/account-type-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,11 +40,13 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useCurrency } from "@/hooks/use-currency";
 
 const expenseSchema = z.object({
 	amount: z.number().min(0.01, "Amount must be greater than 0"),
+	accountId: z.string().optional(),
 	categoryId: z.string().optional(),
 	date: z.date(),
 	spentOn: z.string(),
@@ -53,6 +57,7 @@ const AMOUNT_REGEX = /^\d*\.?\d{0,2}$/;
 
 interface ExpenseFormValues {
 	amount: number | undefined;
+	accountId: string;
 	categoryId: string;
 	date: Date;
 	spentOn: string;
@@ -80,17 +85,59 @@ interface CategoryItem {
 	plannedAmount?: number;
 }
 
+interface AccountItem {
+	_id: Id<"accounts">;
+	accountTypeBalanceNature: "asset" | "liability";
+	accountTypeColor: string | null;
+	accountTypeIcon: string | null;
+	accountTypeName: string;
+	name: string;
+	currentBalance: number;
+	currency?: string;
+	isArchived?: boolean;
+}
+
 interface ExpenseFormProps {
 	onSuccess?: () => void;
 	className?: string;
 	expenseId?: Id<"expenses"> | string;
 	defaultValues?: Partial<{
 		amount: number;
+		accountId: string;
 		categoryId: string;
 		date: Date;
 		spentOn: string;
 		tagIds: string[];
 	}>;
+}
+
+function resolveDefaultAccountId(
+	user: { defaultAccountId?: Id<"accounts"> } | undefined,
+	recentExpenses: { accountId?: Id<"accounts"> }[] | undefined,
+	accounts: AccountItem[] | undefined
+): string | undefined {
+	if (user === undefined || accounts === undefined) {
+		return undefined;
+	}
+
+	const isActiveAccount = (accountId?: Id<"accounts">) =>
+		Boolean(
+			accountId &&
+				accounts.some(
+					(account) => account._id === accountId && !account.isArchived
+				)
+		);
+
+	if (isActiveAccount(user.defaultAccountId)) {
+		return user.defaultAccountId;
+	}
+
+	if (recentExpenses === undefined) {
+		return undefined;
+	}
+
+	const recentAccountId = recentExpenses[0]?.accountId;
+	return isActiveAccount(recentAccountId) ? recentAccountId : "";
 }
 
 export function ExpenseForm({
@@ -102,8 +149,13 @@ export function ExpenseForm({
 	const createExpense = useMutation(api.expenses.create);
 	const updateExpense = useMutation(api.expenses.update);
 	const tags = useQuery(api.tags.list);
+	const user = useQuery(api.users.get);
 	const { format: formatCurrency } = useCurrency();
 	const isEditing = Boolean(expenseId);
+	const accounts = useQuery(
+		api.accounts.list,
+		isEditing ? { includeArchived: true } : {}
+	);
 	const [addAnother, setAddAnother] = useState(false);
 
 	// Track date in local state to drive the cycle query
@@ -127,6 +179,11 @@ export function ExpenseForm({
 
 	// Fetch most recent expense for smart default
 	const recentExpenses = useQuery(api.expenses.listRecent, { limit: 1 });
+	const defaultAccountId = resolveDefaultAccountId(
+		user,
+		recentExpenses,
+		accounts
+	);
 	const defaultCategoryId = recentExpenses?.[0]?.categoryId || "";
 
 	const submitExpense = async (value: ExpenseFormValues) => {
@@ -144,20 +201,22 @@ export function ExpenseForm({
 
 		// Show soft warnings (non-blocking)
 		const warnings = getSoftWarnings(value.amount, value.date);
-		if (warnings.length > 0) {
-			for (const warning of warnings) {
-				toast.warning(warning);
-			}
+		for (const warning of warnings) {
+			toast.warning(warning);
 		}
 
 		const resolvedCategoryId = value.categoryId
 			? (value.categoryId as Id<"categories">)
+			: undefined;
+		const resolvedAccountId = value.accountId
+			? (value.accountId as Id<"accounts">)
 			: undefined;
 
 		if (isEditing) {
 			await updateExpense({
 				id: expenseId as Id<"expenses">,
 				amount: Number(value.amount),
+				accountId: resolvedAccountId ?? null,
 				categoryId: resolvedCategoryId,
 				date: format(value.date, "yyyy-MM-dd"),
 				spentOn: value.spentOn || undefined,
@@ -169,6 +228,7 @@ export function ExpenseForm({
 
 		await createExpense({
 			amount: Number(value.amount),
+			accountId: resolvedAccountId,
 			categoryId: resolvedCategoryId,
 			date: format(value.date, "yyyy-MM-dd"),
 			spentOn: value.spentOn || undefined,
@@ -181,6 +241,7 @@ export function ExpenseForm({
 	const form = useForm({
 		defaultValues: {
 			amount: defaultValues?.amount ?? (undefined as number | undefined),
+			accountId: defaultValues?.accountId ?? "",
 			categoryId: defaultValues?.categoryId ?? "",
 			date: defaultValues?.date ?? new Date(),
 			spentOn: defaultValues?.spentOn ?? "",
@@ -206,6 +267,7 @@ export function ExpenseForm({
 					form.reset();
 					setTimeout(() => {
 						form.setFieldValue("date", value.date);
+						form.setFieldValue("accountId", value.accountId);
 						form.setFieldValue("categoryId", value.categoryId);
 						form.setFieldValue("tagIds", value.tagIds);
 					}, 0);
@@ -228,6 +290,12 @@ export function ExpenseForm({
 			form.setFieldValue("categoryId", defaultCategoryId);
 		}
 	}, [defaultCategoryId, isEditing, form]);
+
+	useEffect(() => {
+		if (!isEditing && defaultAccountId && !form.state.values.accountId) {
+			form.setFieldValue("accountId", defaultAccountId);
+		}
+	}, [defaultAccountId, isEditing, form]);
 
 	return (
 		<div className={className}>
@@ -261,9 +329,9 @@ export function ExpenseForm({
 									placeholder="0.00"
 									type="text"
 									value={
-										field.state.value !== undefined
-											? field.state.value.toString()
-											: ""
+										field.state.value === undefined
+											? ""
+											: field.state.value.toString()
 									}
 								/>
 							</div>
@@ -293,6 +361,27 @@ export function ExpenseForm({
 								}}
 							/>
 							<CyclePreview cycle={cycle} />
+						</div>
+					)}
+				</form.Field>
+
+				{/* Account */}
+				<form.Field name="accountId">
+					{(field) => (
+						<div className="space-y-2">
+							<Label>
+								Account{" "}
+								<span className="text-muted-foreground">(optional)</span>
+							</Label>
+							<p className="text-muted-foreground text-xs">
+								Choose where this expense was paid from.
+							</p>
+							<AccountCombobox
+								accounts={accounts}
+								formatCurrency={formatCurrency}
+								onChange={field.handleChange}
+								selectedAccountId={field.state.value}
+							/>
 						</div>
 					)}
 				</form.Field>
@@ -636,6 +725,191 @@ function TagMultiSelect({
 				</PopoverContent>
 			</Popover>
 		</div>
+	);
+}
+
+interface AccountComboboxProps {
+	accounts: AccountItem[] | undefined;
+	selectedAccountId: string;
+	onChange: (accountId: string) => void;
+	formatCurrency: (amount: number) => string;
+}
+
+function AccountCombobox({
+	accounts,
+	selectedAccountId,
+	onChange,
+	formatCurrency,
+}: AccountComboboxProps) {
+	const [open, setOpen] = useState(false);
+	const [query, setQuery] = useState("");
+
+	const normalizedQuery = query.trim().toLowerCase();
+	const allAccounts = accounts || [];
+	const selectedAccount = useMemo(() => {
+		return allAccounts.find((account) => account._id === selectedAccountId);
+	}, [allAccounts, selectedAccountId]);
+	const filteredAccounts = useMemo(() => {
+		if (normalizedQuery.length === 0) {
+			return allAccounts;
+		}
+		return allAccounts.filter((account) =>
+			`${account.name} ${account.accountTypeName}`
+				.toLowerCase()
+				.includes(normalizedQuery)
+		);
+	}, [allAccounts, normalizedQuery]);
+
+	const handleSelectAccount = (accountId: string) => {
+		onChange(accountId);
+		setOpen(false);
+	};
+
+	return (
+		<Popover onOpenChange={setOpen} open={open}>
+			<PopoverTrigger asChild>
+				<Button
+					aria-expanded={open}
+					className="w-full justify-between"
+					role="combobox"
+					type="button"
+					variant="outline"
+				>
+					<span className="inline-flex max-w-[85%] items-center gap-2 truncate">
+						{selectedAccount ? (
+							<span
+								className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted"
+								style={
+									selectedAccount.accountTypeColor
+										? { color: selectedAccount.accountTypeColor }
+										: undefined
+								}
+							>
+								<AccountTypeIcon iconKey={selectedAccount.accountTypeIcon} />
+							</span>
+						) : (
+							<Wallet className="h-4 w-4 shrink-0 text-muted-foreground" />
+						)}
+						<span className="truncate">
+							{selectedAccount ? selectedAccount.name : "No account selected"}
+						</span>
+					</span>
+					<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+				</Button>
+			</PopoverTrigger>
+			<PopoverContent
+				align="start"
+				className="w-[--radix-popover-trigger-width] p-0"
+			>
+				<Command shouldFilter={false}>
+					<CommandInput
+						onValueChange={setQuery}
+						placeholder="Search accounts..."
+						value={query}
+					/>
+					<CommandList onWheel={(e) => e.stopPropagation()}>
+						{accounts === undefined ? (
+							<div className="flex flex-col gap-2 p-3">
+								<Skeleton className="h-4 w-full" />
+								<Skeleton className="h-4 w-2/3" />
+							</div>
+						) : (
+							<>
+								<CommandGroup heading="General">
+									<CommandItem
+										onSelect={() => handleSelectAccount("")}
+										value="no-account"
+									>
+										<Check
+											className={`mr-2 h-4 w-4 ${
+												selectedAccountId ? "opacity-0" : "opacity-100"
+											}`}
+										/>
+										<div className="flex min-w-0 flex-col">
+											<span>No account selected</span>
+											<span className="text-muted-foreground text-xs">
+												Do not change an account balance
+											</span>
+										</div>
+									</CommandItem>
+								</CommandGroup>
+
+								{filteredAccounts.length > 0 ? (
+									<CommandGroup heading="Accounts">
+										{filteredAccounts.map((account) => (
+											<CommandItem
+												key={account._id}
+												onSelect={() => handleSelectAccount(account._id)}
+												value={`${account.name}-${account.accountTypeName}`}
+											>
+												<Check
+													className={`mr-2 h-4 w-4 ${
+														selectedAccountId === account._id
+															? "opacity-100"
+															: "opacity-0"
+													}`}
+												/>
+												<div className="flex w-full min-w-0 items-center justify-between gap-2">
+													<div className="flex min-w-0 items-center gap-2">
+														<span
+															className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted"
+															style={
+																account.accountTypeColor
+																	? { color: account.accountTypeColor }
+																	: undefined
+															}
+														>
+															<AccountTypeIcon
+																iconKey={account.accountTypeIcon}
+															/>
+														</span>
+														<div className="flex min-w-0 flex-col">
+															<span className="truncate">{account.name}</span>
+															<span className="text-muted-foreground text-xs">
+																{account.accountTypeName} ·{" "}
+																{account.accountTypeBalanceNature ===
+																"liability"
+																	? "Money owed"
+																	: "Money available"}
+															</span>
+														</div>
+													</div>
+													<span className="shrink-0 text-muted-foreground text-xs tabular-nums">
+														{formatCurrency(account.currentBalance)}
+													</span>
+												</div>
+											</CommandItem>
+										))}
+									</CommandGroup>
+								) : null}
+
+								{filteredAccounts.length === 0 && allAccounts.length === 0 ? (
+									<div className="flex flex-col items-center gap-3 px-3 py-5 text-center text-sm">
+										<div>
+											<p className="font-medium">No accounts yet</p>
+											<p className="mt-1 text-muted-foreground text-xs">
+												Add one to keep this expense connected to a balance.
+											</p>
+										</div>
+										<Button asChild size="sm" variant="outline">
+											<Link href="/accounts/new">
+												<Plus data-icon="inline-start" />
+												Create account
+											</Link>
+										</Button>
+									</div>
+								) : null}
+								{filteredAccounts.length === 0 && allAccounts.length > 0 ? (
+									<p className="px-3 py-6 text-center text-muted-foreground text-sm">
+										No matching accounts.
+									</p>
+								) : null}
+							</>
+						)}
+					</CommandList>
+				</Command>
+			</PopoverContent>
+		</Popover>
 	);
 }
 
