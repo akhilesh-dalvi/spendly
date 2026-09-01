@@ -1,12 +1,31 @@
+import type { AuthConfig } from "convex/server";
+
+const clerkDomain = process.env.CLERK_JWT_ISSUER_DOMAIN;
+const cliOAuthClientId = process.env.CLERK_CLI_OAUTH_CLIENT_ID;
+
+if (!clerkDomain) {
+	throw new Error("CLERK_JWT_ISSUER_DOMAIN is required");
+}
+
+const webProvider = {
+	// See https://docs.convex.dev/auth/clerk#configuring-dev-and-prod-instances
+	domain: clerkDomain,
+	applicationID: "convex",
+};
+
 export default {
 	providers: [
-		{
-			// Replace with your own Clerk Issuer URL from your "convex" JWT template
-			// or with `process.env.CLERK_JWT_ISSUER_DOMAIN`
-			// and configure CLERK_JWT_ISSUER_DOMAIN on the Convex Dashboard
-			// See https://docs.convex.dev/auth/clerk#configuring-dev-and-prod-instances
-			domain: process.env.CLERK_JWT_ISSUER_DOMAIN,
-			applicationID: "convex",
-		},
+		webProvider,
+		...(cliOAuthClientId
+			? [
+					{
+						algorithm: "RS256" as const,
+						applicationID: cliOAuthClientId,
+						issuer: clerkDomain,
+						jwks: `${clerkDomain}/.well-known/jwks.json`,
+						type: "customJwt" as const,
+					},
+				]
+			: []),
 	],
-};
+} satisfies AuthConfig;

@@ -51,3 +51,7 @@ temp
 
 # Local tooling artifacts
 chrome-devtools/
+
+# Spendly CLI source-checkout development configuration
+apps/cli/.env.local
+apps/cli/development-dist

@@ -14,6 +14,7 @@ import type * as accountTypes from "../accountTypes.js";
 import type * as accounts from "../accounts.js";
 import type * as aggregations from "../aggregations.js";
 import type * as categories from "../categories.js";
+import type * as cli_v1_auth from "../cli/v1/auth.js";
 import type * as cycles from "../cycles.js";
 import type * as expenses from "../expenses.js";
 import type * as healthCheck from "../healthCheck.js";
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   accounts: typeof accounts;
   aggregations: typeof aggregations;
   categories: typeof categories;
+  "cli/v1/auth": typeof cli_v1_auth;
   cycles: typeof cycles;
   expenses: typeof expenses;
   healthCheck: typeof healthCheck;
