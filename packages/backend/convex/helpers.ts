@@ -1,6 +1,7 @@
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { nextRevision } from "./domain/revisions";
 
 /**
  * Get the current authenticated user.
@@ -128,6 +129,7 @@ export async function applyAccountBalanceChange(
 	const balanceAfter = account.currentBalance + args.amount;
 	await ctx.db.patch(args.accountId, {
 		currentBalance: balanceAfter,
+		revision: nextRevision(account.revision),
 		updatedAt: Date.now(),
 	});
 

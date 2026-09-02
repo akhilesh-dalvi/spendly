@@ -99,6 +99,7 @@ export default defineSchema({
 		isArchived: v.optional(v.boolean()),
 		createdAt: v.number(),
 		updatedAt: v.optional(v.number()),
+		revision: v.optional(v.number()),
 	})
 		.index("by_userId", ["userId"])
 		.index("by_userId_archived", ["userId", "isArchived"])
@@ -136,6 +137,7 @@ export default defineSchema({
 		createdAt: v.number(),
 	})
 		.index("by_accountId_date", ["accountId", "date"])
+		.index("by_accountId_date_createdAt", ["accountId", "date", "createdAt"])
 		.index("by_userId_date", ["userId", "date"])
 		.index("by_expenseId", ["expenseId"])
 		.index("by_transferId", ["transferId"]),
@@ -150,9 +152,34 @@ export default defineSchema({
 		spentOn: v.optional(v.string()),
 		tagIds: v.optional(v.array(v.id("tags"))),
 		createdAt: v.number(),
+		revision: v.optional(v.number()),
 	})
 		.index("by_cycleId", ["cycleId"])
 		.index("by_categoryId", ["categoryId"])
 		.index("by_accountId", ["accountId"])
-		.index("by_userId_date", ["userId", "date"]),
+		.index("by_userId_date", ["userId", "date"])
+		.index("by_userId_date_createdAt", ["userId", "date", "createdAt"]),
+
+	cli_idempotency: defineTable({
+		userId: v.id("users"),
+		key: v.string(),
+		operation: v.string(),
+		requestFingerprint: v.string(),
+		result: v.any(),
+		createdAt: v.number(),
+		expiresAt: v.number(),
+	})
+		.index("by_userId_key", ["userId", "key"])
+		.index("by_expiresAt", ["expiresAt"]),
+
+	cli_deletion_confirmations: defineTable({
+		userId: v.id("users"),
+		expenseId: v.id("expenses"),
+		revision: v.number(),
+		createdAt: v.number(),
+		expiresAt: v.number(),
+		usedAt: v.optional(v.number()),
+	})
+		.index("by_userId_expenseId", ["userId", "expenseId"])
+		.index("by_expiresAt", ["expiresAt"]),
 });

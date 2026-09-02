@@ -1034,22 +1034,25 @@ Implementation and verification evidence is recorded in
 
 ### Phase 3: Versioned Backend Facade
 
-- [ ] Add `cli/v1` validators, stable response types, and error taxonomy.
-- [ ] Extract shared Web/CLI expense, account, transfer, and ledger business
+- [x] Add `cli/v1` validators, stable response types, and error taxonomy.
+- [x] Extract shared Web/CLI expense, account, transfer, and ledger business
       logic.
-- [ ] Initialize expense revisions and increment them from every Web and CLI
+- [x] Initialize expense revisions and increment them from every Web and CLI
       update.
-- [ ] Add account revisions and bind transfer previews to both account
+- [x] Add account revisions and bind transfer previews to both account
       revisions.
-- [ ] Add the 30-day idempotency table and cleanup job.
-- [ ] Add server-backed create and update dry runs.
-- [ ] Add five-minute single-use deletion confirmation capabilities.
-- [ ] Add deterministic cursor pagination and required indexes.
-- [ ] Add the aggregated context query.
-- [ ] Add cursor-paginated account transaction reads and account summary
+- [x] Add the 30-day idempotency table and cleanup job.
+- [x] Add server-backed create and update dry runs.
+- [x] Add five-minute single-use deletion confirmation capabilities.
+- [x] Add deterministic cursor pagination and required indexes.
+- [x] Add the aggregated context query.
+- [x] Add cursor-paginated account transaction reads and account summary
       responses.
-- [ ] Add backend ownership, conflict, replay, expiry, and concurrency tests.
-- [ ] Perform a Convex security and best-practices review.
+- [x] Add backend ownership, conflict, replay, expiry, and concurrency tests.
+- [x] Perform a Convex security and best-practices review.
+
+Implementation and verification evidence is recorded in
+[Spendly CLI Phase 3: Versioned Backend Facade](spendly-cli-phase-3.md).
 
 ### Phase 4: Read Commands
 
