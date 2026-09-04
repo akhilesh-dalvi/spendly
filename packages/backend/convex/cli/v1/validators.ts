@@ -9,6 +9,39 @@ export const accountTypeMetadataValidator = v.object({
 	name: v.string(),
 });
 
+export const cycleSummaryValidator = v.object({
+	createdAt: v.string(),
+	endDateExclusive: v.string(),
+	id: v.id("expense_cycles"),
+	name: v.string(),
+	startDate: v.string(),
+});
+
+export const categorySummaryValidator = v.object({
+	categoryType: v.union(
+		v.null(),
+		v.object({
+			color: v.union(v.string(), v.null()),
+			id: v.id("category_types"),
+			name: v.string(),
+		})
+	),
+	createdAt: v.string(),
+	cycleId: v.id("expense_cycles"),
+	icon: v.union(v.string(), v.null()),
+	id: v.id("categories"),
+	isHidden: v.boolean(),
+	name: v.string(),
+	order: v.number(),
+	plannedAmount: v.union(v.number(), v.null()),
+});
+
+export const tagSummaryValidator = v.object({
+	createdAt: v.string(),
+	id: v.id("tags"),
+	name: v.string(),
+});
+
 export const accountSummaryValidator = v.object({
 	accountType: accountTypeMetadataValidator,
 	createdAt: v.string(),

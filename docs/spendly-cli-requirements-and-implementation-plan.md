@@ -515,7 +515,7 @@ spendly cycles list
 spendly cycles current [--date YYYY-MM-DD]
 spendly categories list --cycle-id <id>
 spendly tags list
-spendly summary [--cycle-id <id> | --current]
+spendly summary [--cycle-id <id> | --current] [--date YYYY-MM-DD]
 ```
 
 Mutations for these resources are deferred.
@@ -1056,14 +1056,17 @@ Implementation and verification evidence is recorded in
 
 ### Phase 4: Read Commands
 
-- [ ] Implement `context`.
-- [ ] Implement expense get and cursor-paginated list.
-- [ ] Implement the approved expense filters.
-- [ ] Implement cycle, category, tag, and summary reads.
-- [ ] Implement account list, get, transactions, and read-only account-type
+- [x] Implement `context`.
+- [x] Implement expense get and cursor-paginated list.
+- [x] Implement the approved expense filters.
+- [x] Implement cycle, category, tag, and summary reads.
+- [x] Implement account list, get, transactions, and read-only account-type
       commands.
-- [ ] Implement exact human-name resolution and agent ID requirements.
-- [ ] Add JSON fixtures and stdout/stderr compatibility tests.
+- [x] Implement exact human-name resolution and agent ID requirements.
+- [x] Add JSON fixtures and stdout/stderr compatibility tests.
+
+Implementation and local verification evidence is recorded in
+[Spendly CLI Phase 4: Read Commands](spendly-cli-phase-4.md).
 
 ### Phase 5: Expense Mutations
 

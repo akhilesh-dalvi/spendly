@@ -1,0 +1,53 @@
+{
+  "accounts": [
+    {
+      "accountType": {
+        "balanceNature": "asset",
+        "color": "#22C55E",
+        "icon": "wallet",
+        "id": "account-type-wallet",
+        "name": "Wallet"
+      },
+      "createdAt": "2026-09-01T08:00:00.000Z",
+      "currency": "INR",
+      "currentBalance": 1250,
+      "id": "account-wallet",
+      "isArchived": false,
+      "isDefault": true,
+      "name": "Daily Wallet",
+      "revision": 3,
+      "startingBalance": 1500,
+      "updatedAt": "2026-09-02T08:00:00.000Z"
+    }
+  ],
+  "accountTypes": [
+    {
+      "balanceNature": "asset",
+      "color": "#22C55E",
+      "createdAt": "2026-09-01T08:00:00.000Z",
+      "icon": "wallet",
+      "id": "account-type-wallet",
+      "isArchived": false,
+      "name": "Wallet",
+      "order": 0,
+      "updatedAt": "2026-09-01T08:00:00.000Z"
+    }
+  ],
+  "transactions": {
+    "hasMore": false,
+    "items": [
+      {
+        "accountId": "account-wallet",
+        "amount": -250,
+        "balanceAfter": 1250,
+        "createdAt": "2026-09-02T10:30:00.000Z",
+        "date": "2026-09-02",
+        "id": "transaction-lunch",
+        "note": "Lunch",
+        "relatedId": "expense-lunch",
+        "type": "expense"
+      }
+    ],
+    "nextCursor": null
+  }
+}

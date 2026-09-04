@@ -1,5 +1,5 @@
 // biome-ignore-all lint/style/useFilenamingConvention: Convex module filenames use camelCase.
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { query } from "../../_generated/server";
 import { getCurrentUser } from "../../helpers";
 import { withCliErrors } from "./errors";
@@ -26,7 +26,10 @@ export const list = query({
 				.withIndex("by_userId_order", (queryBuilder) =>
 					queryBuilder.eq("userId", user._id)
 				)
-				.take(MAXIMUM_ACCOUNT_TYPES);
+				.take(MAXIMUM_ACCOUNT_TYPES + 1);
+			if (accountTypes.length > MAXIMUM_ACCOUNT_TYPES) {
+				throw new ConvexError("RESOURCE_LIMIT_EXCEEDED");
+			}
 			return accountTypes
 				.filter(
 					(accountType) => args.includeArchived || !accountType.isArchived

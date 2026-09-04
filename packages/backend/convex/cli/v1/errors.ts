@@ -12,6 +12,7 @@ export type CliDomainErrorCode =
 	| "IDEMPOTENCY_CONFLICT"
 	| "INTERNAL_ERROR"
 	| "INVALID_INPUT"
+	| "RESOURCE_LIMIT_EXCEEDED"
 	| "RESOURCE_NOT_FOUND"
 	| "TRANSFER_CURRENCY_MISMATCH"
 	| "TRANSFER_SAME_ACCOUNT";
@@ -29,6 +30,8 @@ const ERROR_MESSAGES: Record<CliDomainErrorCode, string> = {
 		"The idempotency key was already used for another request",
 	INTERNAL_ERROR: "The backend request failed unexpectedly",
 	INVALID_INPUT: "The request input is invalid",
+	RESOURCE_LIMIT_EXCEEDED:
+		"The requested summary is too large to calculate safely",
 	RESOURCE_NOT_FOUND: "The requested resource was not found",
 	TRANSFER_CURRENCY_MISMATCH:
 		"Transfers require accounts with the same currency",
@@ -62,6 +65,7 @@ const DOMAIN_CODE_MAP: Record<string, CliDomainErrorCode> = {
 	INVALID_TAG_FILTERS: "INVALID_INPUT",
 	INVALID_TRANSFER_AMOUNT: "INVALID_INPUT",
 	NOT_FOUND: "RESOURCE_NOT_FOUND",
+	RESOURCE_LIMIT_EXCEEDED: "RESOURCE_LIMIT_EXCEEDED",
 	TAG_NOT_FOUND: "RESOURCE_NOT_FOUND",
 	TRANSFER_CURRENCY_MISMATCH: "TRANSFER_CURRENCY_MISMATCH",
 	TRANSFER_SAME_ACCOUNT: "TRANSFER_SAME_ACCOUNT",

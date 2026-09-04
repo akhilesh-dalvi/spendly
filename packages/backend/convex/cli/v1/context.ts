@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { query } from "../../_generated/server";
 import { resolveLocalDate } from "../../domain/dates";
 import { findCycleForDate, getCurrentUser } from "../../helpers";
@@ -44,7 +44,7 @@ const contextValidator = v.object({
 	categories: v.array(categoryValidator),
 	currency: v.string(),
 	currentCycle: v.union(cycleValidator, v.null()),
-	dateSource: v.union(v.literal("explicit"), v.literal("server_default")),
+	dateSource: v.union(v.literal("explicit"), v.literal("local_default")),
 	effectiveDate: v.string(),
 	tags: v.array(tagValidator),
 	timezone: v.union(v.string(), v.null()),
@@ -55,7 +55,10 @@ const contextValidator = v.object({
 
 export const get = query({
 	args: {
-		date: v.optional(v.string()),
+		date: v.string(),
+		dateSource: v.optional(
+			v.union(v.literal("explicit"), v.literal("local_default"))
+		),
 		timezone: v.optional(v.string()),
 	},
 	returns: contextValidator,
@@ -71,21 +74,28 @@ export const get = query({
 							.withIndex("by_cycleId", (queryBuilder) =>
 								queryBuilder.eq("cycleId", currentCycle._id)
 							)
-							.take(MAXIMUM_CONTEXT_RESOURCES)
+							.take(MAXIMUM_CONTEXT_RESOURCES + 1)
 					: Promise.resolve([]),
 				ctx.db
 					.query("tags")
 					.withIndex("by_userId", (queryBuilder) =>
 						queryBuilder.eq("userId", user._id)
 					)
-					.take(MAXIMUM_CONTEXT_RESOURCES),
+					.take(MAXIMUM_CONTEXT_RESOURCES + 1),
 				ctx.db
 					.query("accounts")
 					.withIndex("by_userId", (queryBuilder) =>
 						queryBuilder.eq("userId", user._id)
 					)
-					.take(MAXIMUM_CONTEXT_RESOURCES),
+					.take(MAXIMUM_CONTEXT_RESOURCES + 1),
 			]);
+			if (
+				categories.length > MAXIMUM_CONTEXT_RESOURCES ||
+				tags.length > MAXIMUM_CONTEXT_RESOURCES ||
+				accountDocuments.length > MAXIMUM_CONTEXT_RESOURCES
+			) {
+				throw new ConvexError("RESOURCE_LIMIT_EXCEEDED");
+			}
 			const accounts = await Promise.all(
 				accountDocuments
 					.filter((account) => !account.isArchived)
@@ -129,9 +139,7 @@ export const get = query({
 							startDate: currentCycle.startDate,
 						}
 					: null,
-				dateSource: args.date
-					? ("explicit" as const)
-					: ("server_default" as const),
+				dateSource: args.dateSource ?? ("explicit" as const),
 				effectiveDate,
 				tags: tags
 					.sort((left, right) => left.name.localeCompare(right.name))
@@ -142,7 +150,7 @@ export const get = query({
 					total,
 				})).sort((left, right) => left.currency.localeCompare(right.currency)),
 				userId: user._id,
-				warnings: args.date ? [] : ["SERVER_DATE_DEFAULT_USED"],
+				warnings: [],
 			};
 		}),
 });

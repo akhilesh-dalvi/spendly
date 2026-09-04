@@ -1,0 +1,82 @@
+{
+  "categories": [
+    {
+      "categoryType": {
+        "color": "#F97316",
+        "id": "category-type-needs",
+        "name": "Needs"
+      },
+      "createdAt": "2026-09-01T08:00:00.000Z",
+      "cycleId": "cycle-september",
+      "icon": "utensils",
+      "id": "category-food",
+      "isHidden": false,
+      "name": "Food",
+      "order": 0,
+      "plannedAmount": 1000
+    }
+  ],
+  "cycles": [
+    {
+      "createdAt": "2026-09-01T08:00:00.000Z",
+      "endDateExclusive": "2026-10-01",
+      "id": "cycle-september",
+      "name": "September",
+      "startDate": "2026-09-01"
+    }
+  ],
+  "summary": {
+    "categories": [
+      {
+        "categoryId": "category-food",
+        "difference": 750,
+        "icon": "utensils",
+        "name": "Food",
+        "planned": 1000,
+        "progressPercent": 25,
+        "spent": 250,
+        "typeId": "category-type-needs",
+        "typeName": "Needs"
+      }
+    ],
+    "cycle": {
+      "createdAt": "2026-09-01T08:00:00.000Z",
+      "endDateExclusive": "2026-10-01",
+      "id": "cycle-september",
+      "name": "September",
+      "startDate": "2026-09-01"
+    },
+    "daysRemaining": 28,
+    "remaining": 750,
+    "totalPlanned": 1000,
+    "totalSpent": 250,
+    "types": [
+      {
+        "categories": [
+          {
+            "categoryId": "category-food",
+            "difference": 750,
+            "icon": "utensils",
+            "name": "Food",
+            "planned": 1000,
+            "progressPercent": 25,
+            "spent": 250,
+            "typeId": "category-type-needs",
+            "typeName": "Needs"
+          }
+        ],
+        "totalPlanned": 1000,
+        "totalSpent": 250,
+        "typeId": "category-type-needs",
+        "typeName": "Needs"
+      }
+    ]
+  },
+  "tags": [
+    {
+      "createdAt": "2026-09-01T08:00:00.000Z",
+      "id": "tag-essential",
+      "name": "Essential"
+    }
+  ]
+}

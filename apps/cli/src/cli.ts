@@ -1,5 +1,6 @@
 import { Command, CommanderError, Option } from "commander";
 import { registerAuthCommands } from "./commands/auth.js";
+import { registerReadCommands } from "./commands/read.js";
 import {
 	CLI_EXIT_CODE,
 	CliError,
@@ -50,6 +51,7 @@ const createProgram = (
 		});
 
 	registerAuthCommands(program, runtime);
+	registerReadCommands(program, runtime);
 	return program;
 };
 

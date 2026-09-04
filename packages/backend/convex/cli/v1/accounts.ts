@@ -58,7 +58,10 @@ export const list = query({
 				.withIndex("by_userId", (queryBuilder) =>
 					queryBuilder.eq("userId", user._id)
 				)
-				.take(MAXIMUM_ACCOUNTS);
+				.take(MAXIMUM_ACCOUNTS + 1);
+			if (accounts.length > MAXIMUM_ACCOUNTS) {
+				throw new ConvexError("RESOURCE_LIMIT_EXCEEDED");
+			}
 			const visible = accounts
 				.filter((account) => args.includeArchived || !account.isArchived)
 				.sort((left, right) => {

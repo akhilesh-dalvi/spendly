@@ -4,12 +4,21 @@ export interface OutputWriter {
 	write(value: string): unknown;
 }
 
+export type BackendQuery = <Result>(
+	functionName: string,
+	args: Readonly<Record<string, unknown>>
+) => Promise<Result>;
+
 export interface CliRuntime {
+	backendQuery?: BackendQuery;
 	developmentTools: boolean;
 	environment: NodeJS.ProcessEnv;
 	getConfig: () => RuntimeConfig;
+	now?: () => Date;
+	sleep?: (milliseconds: number) => Promise<void>;
 	stderr: OutputWriter;
 	stdout: OutputWriter;
+	timeZone?: () => string | undefined;
 }
 
 export const createProcessRuntime = (

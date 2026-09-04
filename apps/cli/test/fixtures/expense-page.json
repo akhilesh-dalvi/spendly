@@ -1,0 +1,35 @@
+{
+  "hasMore": true,
+  "items": [
+    {
+      "account": {
+        "accountType": {
+          "balanceNature": "asset",
+          "color": "#22C55E",
+          "icon": "wallet",
+          "id": "account-type-wallet",
+          "name": "Wallet"
+        },
+        "currency": "INR",
+        "id": "account-wallet",
+        "name": "Daily Wallet"
+      },
+      "amount": 250,
+      "category": { "id": "category-food", "name": "Food" },
+      "createdAt": "2026-09-02T10:30:00.000Z",
+      "currency": "INR",
+      "cycle": {
+        "endDateExclusive": "2026-10-01",
+        "id": "cycle-september",
+        "name": "September",
+        "startDate": "2026-09-01"
+      },
+      "date": "2026-09-02",
+      "id": "expense-lunch",
+      "revision": 2,
+      "spentOn": "Lunch",
+      "tags": [{ "id": "tag-essential", "name": "Essential" }]
+    }
+  ],
+  "nextCursor": "cursor-next"
+}

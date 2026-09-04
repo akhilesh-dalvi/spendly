@@ -22,6 +22,7 @@ import type * as cli_v1_errors from "../cli/v1/errors.js";
 import type * as cli_v1_expenses from "../cli/v1/expenses.js";
 import type * as cli_v1_maintenance from "../cli/v1/maintenance.js";
 import type * as cli_v1_presenters from "../cli/v1/presenters.js";
+import type * as cli_v1_resources from "../cli/v1/resources.js";
 import type * as cli_v1_validators from "../cli/v1/validators.js";
 import type * as crons from "../crons.js";
 import type * as cycles from "../cycles.js";
@@ -58,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   "cli/v1/expenses": typeof cli_v1_expenses;
   "cli/v1/maintenance": typeof cli_v1_maintenance;
   "cli/v1/presenters": typeof cli_v1_presenters;
+  "cli/v1/resources": typeof cli_v1_resources;
   "cli/v1/validators": typeof cli_v1_validators;
   crons: typeof crons;
   cycles: typeof cycles;

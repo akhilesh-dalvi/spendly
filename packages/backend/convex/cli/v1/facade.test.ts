@@ -80,7 +80,7 @@ describe("cli/v1 facade", () => {
 	it("returns stable authentication and cross-user ownership errors", async () => {
 		const test = createBackendTest();
 		await expectCliError(
-			test.query(api.cli.v1.context.get, {}),
+			test.query(api.cli.v1.context.get, { date: "2026-09-02" }),
 			"AUTHENTICATION_REQUIRED"
 		);
 		const alice = await createAuthenticatedUser(test, "facade-alice");
@@ -682,5 +682,104 @@ describe("cli/v1 facade", () => {
 		} while (cursor);
 
 		expect(seenIds.size).toBe(3);
+	});
+
+	it("returns stable supporting reads and exclusive cycle boundaries", async () => {
+		const test = createBackendTest();
+		const owner = await createAuthenticatedUser(test, "supporting-reads");
+		const other = await createAuthenticatedUser(test, "supporting-reads-other");
+		const september = await owner.client.mutation(api.cycles.create, {
+			endDate: "2026-10-01",
+			name: "September",
+			startDate: "2026-09-01",
+		});
+		const october = await owner.client.mutation(api.cycles.create, {
+			endDate: "2026-11-01",
+			name: "October",
+			startDate: "2026-10-01",
+		});
+		if (!(september && october)) {
+			throw new Error("Expected cycles");
+		}
+		const category = await owner.client.mutation(api.categories.create, {
+			cycleId: september._id,
+			name: "Food",
+			plannedAmount: 100,
+		});
+		if (!category) {
+			throw new Error("Expected a category");
+		}
+		await owner.client.mutation(api.tags.create, { name: "essential" });
+		await owner.client.mutation(api.cli.v1.expenses.create, {
+			amount: 25,
+			categoryId: category._id,
+			date: "2026-09-30",
+			idempotencyKey: "supporting-read-expense",
+		});
+
+		const [
+			cycles,
+			septemberCurrent,
+			octoberCurrent,
+			categories,
+			tags,
+			summary,
+		] = await Promise.all([
+			owner.client.query(api.cli.v1.resources.listCycles, {}),
+			owner.client.query(api.cli.v1.resources.getCurrentCycle, {
+				date: "2026-09-30",
+			}),
+			owner.client.query(api.cli.v1.resources.getCurrentCycle, {
+				date: "2026-10-01",
+			}),
+			owner.client.query(api.cli.v1.resources.listCategories, {
+				cycleId: september._id,
+			}),
+			owner.client.query(api.cli.v1.resources.listTags, {}),
+			owner.client.query(api.cli.v1.resources.getSummary, {
+				cycleId: september._id,
+				today: "2026-09-02",
+			}),
+		]);
+
+		expect(cycles.map((cycle) => cycle.id)).toEqual([
+			october._id,
+			september._id,
+		]);
+		expect(septemberCurrent?.id).toBe(september._id);
+		expect(octoberCurrent?.id).toBe(october._id);
+		expect(categories).toMatchObject([
+			{ id: category._id, name: "Food", plannedAmount: 100 },
+		]);
+		expect(tags).toMatchObject([{ name: "essential" }]);
+		expect(summary).toMatchObject({
+			cycle: { id: september._id },
+			daysRemaining: 29,
+			remaining: 75,
+			totalPlanned: 100,
+			totalSpent: 25,
+		});
+		await expectCliError(
+			other.client.query(api.cli.v1.resources.listCategories, {
+				cycleId: september._id,
+			}),
+			"RESOURCE_NOT_FOUND"
+		);
+	});
+
+	it("preserves the CLI local-default date source in context", async () => {
+		const test = createBackendTest();
+		const owner = await createAuthenticatedUser(test, "local-context-date");
+		const context = await owner.client.query(api.cli.v1.context.get, {
+			date: "2026-09-02",
+			dateSource: "local_default",
+			timezone: "Asia/Kolkata",
+		});
+
+		expect(context).toMatchObject({
+			dateSource: "local_default",
+			effectiveDate: "2026-09-02",
+			timezone: "Asia/Kolkata",
+		});
 	});
 });
