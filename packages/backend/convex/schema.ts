@@ -150,6 +150,7 @@ export default defineSchema({
 		amount: v.number(),
 		date: v.string(), // ISO date string YYYY-MM-DD
 		spentOn: v.optional(v.string()),
+		normalizedSpentOn: v.optional(v.string()),
 		tagIds: v.optional(v.array(v.id("tags"))),
 		createdAt: v.number(),
 		revision: v.optional(v.number()),
@@ -158,6 +159,11 @@ export default defineSchema({
 		.index("by_categoryId", ["categoryId"])
 		.index("by_accountId", ["accountId"])
 		.index("by_userId_date", ["userId", "date"])
+		.index("by_userId_normalizedSpentOn_date", [
+			"userId",
+			"normalizedSpentOn",
+			"date",
+		])
 		.index("by_userId_date_createdAt", ["userId", "date", "createdAt"]),
 
 	cli_idempotency: defineTable({

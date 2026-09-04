@@ -1,5 +1,6 @@
 import { type Command, Option } from "commander";
 import type { CliRuntime } from "../runtime.js";
+import { registerExpenseMutationCommands } from "./expense-mutations.js";
 
 const collectOption = (value: string, previous: string[]): string[] => [
 	...previous,
@@ -80,6 +81,7 @@ export const registerReadCommands = (
 			const { runExpenseList } = await import("./read-actions.js");
 			await runExpenseList(options, command, runtime);
 		});
+	registerExpenseMutationCommands(expenses, runtime);
 
 	const cycles = program.command("cycles").description("Read expense cycles");
 	cycles

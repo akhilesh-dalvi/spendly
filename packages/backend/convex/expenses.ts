@@ -48,6 +48,11 @@ const MAX_EXPENSE_QUERY_RESULTS = 500;
 const MAX_RECENT_EXPENSES = 100;
 const MAX_TAG_FILTERS = 100;
 
+const presentExpenseDocument = (expense: Doc<"expenses">) => {
+	const { normalizedSpentOn: _normalizedSpentOn, ...document } = expense;
+	return document;
+};
+
 interface ExpenseListFilters {
 	accountId?: Id<"accounts">;
 	categoryId?: Id<"categories">;
@@ -187,7 +192,7 @@ const enrichExpense = async (
 		: null;
 
 	return {
-		...expense,
+		...presentExpenseDocument(expense),
 		accountName: account?.name ?? null,
 		accountTypeBalanceNature:
 			accountTypeMetadata?.accountTypeBalanceNature ?? null,
@@ -312,10 +317,11 @@ export const create = mutation({
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const prepared = await prepareExpenseCreate(ctx, { input: args, user });
-		return await commitExpenseCreate(ctx, {
+		const expense = await commitExpenseCreate(ctx, {
 			prepared,
 			userId: user._id,
 		});
+		return presentExpenseDocument(expense);
 	},
 });
 
@@ -337,7 +343,7 @@ export const update = mutation({
 			input: args,
 			user,
 		});
-		return await commitExpenseUpdate(ctx, prepared);
+		return presentExpenseDocument(await commitExpenseUpdate(ctx, prepared));
 	},
 });
 

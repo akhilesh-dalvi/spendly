@@ -9,12 +9,20 @@ export type BackendQuery = <Result>(
 	args: Readonly<Record<string, unknown>>
 ) => Promise<Result>;
 
+export type BackendMutation = <Result>(
+	functionName: string,
+	args: Readonly<Record<string, unknown>>
+) => Promise<Result>;
+
 export interface CliRuntime {
+	backendMutation?: BackendMutation;
 	backendQuery?: BackendQuery;
+	confirm?: (message: string) => Promise<boolean>;
 	developmentTools: boolean;
 	environment: NodeJS.ProcessEnv;
 	getConfig: () => RuntimeConfig;
 	now?: () => Date;
+	randomIdempotencyKey?: () => string;
 	sleep?: (milliseconds: number) => Promise<void>;
 	stderr: OutputWriter;
 	stdout: OutputWriter;

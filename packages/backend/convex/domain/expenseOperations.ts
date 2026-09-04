@@ -11,7 +11,7 @@ import {
 import { resolveLocalDate } from "./dates";
 import { assertRevision, INITIAL_REVISION, nextRevision } from "./revisions";
 
-const MAXIMUM_CATEGORY_HISTORY_CANDIDATES = 500;
+const MAXIMUM_CYCLE_CATEGORIES = 1000;
 const MINIMUM_EXPENSE_AMOUNT = 0.01;
 
 export type CategorySource = "explicit" | "history" | "none";
@@ -74,6 +74,10 @@ const normalizeOptionalText = (
 	return normalized;
 };
 
+export const normalizeSpentOnForSearch = (
+	value: string | undefined
+): string | undefined => value?.trim().toLocaleLowerCase() || undefined;
+
 const normalizeCurrency = (currency: string | undefined): string =>
 	currency?.trim().toUpperCase() || "USD";
 
@@ -111,24 +115,21 @@ const inferCategory = async (
 		return undefined;
 	}
 	const cycleId = options.cycleId;
-	const normalizedSpentOn = options.spentOn.toLocaleLowerCase();
-	const candidates = await ctx.db
+	const normalizedSpentOn = normalizeSpentOnForSearch(options.spentOn);
+	if (!normalizedSpentOn) {
+		return undefined;
+	}
+	const matchingExpenses = await ctx.db
 		.query("expenses")
-		.withIndex("by_userId_date", (queryBuilder) =>
+		.withIndex("by_userId_normalizedSpentOn_date", (queryBuilder) =>
 			queryBuilder
 				.eq("userId", options.userId)
+				.eq("normalizedSpentOn", normalizedSpentOn)
 				.gte("date", previousYearDate(options.date))
 				.lt("date", options.date)
 		)
 		.order("desc")
-		.take(MAXIMUM_CATEGORY_HISTORY_CANDIDATES);
-	const matchingExpenses = candidates
-		.filter(
-			(expense) =>
-				expense.categoryId &&
-				expense.spentOn?.trim().toLocaleLowerCase() === normalizedSpentOn
-		)
-		.slice(0, 3);
+		.take(3);
 	if (matchingExpenses.length < 3) {
 		return undefined;
 	}
@@ -159,7 +160,10 @@ const inferCategory = async (
 		.withIndex("by_cycleId", (queryBuilder) =>
 			queryBuilder.eq("cycleId", cycleId)
 		)
-		.collect();
+		.take(MAXIMUM_CYCLE_CATEGORIES + 1);
+	if (currentCategories.length > MAXIMUM_CYCLE_CATEGORIES) {
+		throw new ConvexError("RESOURCE_LIMIT_EXCEEDED");
+	}
 	const matches = currentCategories.filter(
 		(category) =>
 			category.userId === options.userId &&
@@ -304,6 +308,7 @@ export const commitExpenseCreate = async (
 		createdAt: now,
 		cycleId: options.prepared.cycleId,
 		date: options.prepared.date,
+		normalizedSpentOn: normalizeSpentOnForSearch(options.prepared.spentOn),
 		revision: INITIAL_REVISION,
 		spentOn: options.prepared.spentOn,
 		tagIds:
@@ -391,6 +396,7 @@ export const prepareExpenseUpdate = async (
 			categoryId: category.categoryId,
 			cycleId: category.cycleId,
 			date,
+			normalizedSpentOn: normalizeSpentOnForSearch(spentOn),
 			revision: nextRevision(expense.revision),
 			spentOn,
 			tagIds: tagIds.length > 0 ? tagIds : undefined,

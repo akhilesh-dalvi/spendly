@@ -8,7 +8,7 @@ import { getActiveSession } from "../auth/session.js";
 import type { AuthReadyRuntimeConfig } from "../config.js";
 import { CliError, type CliErrorCode } from "../errors.js";
 import { resolveGlobalOptions } from "../options.js";
-import type { BackendQuery, CliRuntime } from "../runtime.js";
+import type { BackendMutation, BackendQuery, CliRuntime } from "../runtime.js";
 
 const MAXIMUM_READ_ATTEMPTS = 3;
 const RETRY_DELAYS_MS = [100, 250] as const;
@@ -148,11 +148,26 @@ export const queryWithRetry = async <Result>(options: {
 const createConvexQuery = (
 	config: AuthReadyRuntimeConfig,
 	idToken: string
-): { dispose: () => void; query: BackendQuery } => {
+): {
+	dispose: () => void;
+	mutation: BackendMutation;
+	query: BackendQuery;
+} => {
 	const client = new ConvexHttpClient(config.convexUrl);
 	client.setAuth(idToken);
 	return {
 		dispose: () => client.clearAuth(),
+		mutation: async <Result>(
+			functionName: string,
+			args: Readonly<Record<string, unknown>>
+		): Promise<Result> => {
+			const reference = makeFunctionReference<
+				"mutation",
+				Record<string, unknown>,
+				Result
+			>(functionName);
+			return await client.mutation(reference, { ...args });
+		},
 		query: async <Result>(
 			functionName: string,
 			args: Readonly<Record<string, unknown>>
@@ -170,6 +185,10 @@ const createConvexQuery = (
 export interface BackendCommandContext {
 	dispose: () => void;
 	globalOptions: ReturnType<typeof resolveGlobalOptions>;
+	mutation: <Result>(
+		functionName: string,
+		args: Readonly<Record<string, unknown>>
+	) => Promise<Result>;
 	query: <Result>(
 		functionName: string,
 		args: Readonly<Record<string, unknown>>
@@ -198,9 +217,26 @@ export const createBackendCommandContext = async (
 		}
 	};
 
-	let backend: { dispose: () => void; query: BackendQuery } | undefined =
-		runtime.backendQuery
-			? { dispose: () => undefined, query: runtime.backendQuery }
+	const missingInjectedOperation = (): Promise<never> =>
+		Promise.reject(
+			new CliError(
+				"INTERNAL_ERROR",
+				"The injected backend operation is unavailable"
+			)
+		);
+	let backend:
+		| {
+				dispose: () => void;
+				mutation: BackendMutation;
+				query: BackendQuery;
+		  }
+		| undefined =
+		runtime.backendQuery || runtime.backendMutation
+			? {
+					dispose: () => undefined,
+					mutation: runtime.backendMutation ?? missingInjectedOperation,
+					query: runtime.backendQuery ?? missingInjectedOperation,
+				}
 			: undefined;
 	if (!backend) {
 		const store = createCredentialStore({
@@ -216,6 +252,16 @@ export const createBackendCommandContext = async (
 	return {
 		dispose: backend.dispose,
 		globalOptions,
+		mutation: async <Result>(
+			functionName: string,
+			args: Readonly<Record<string, unknown>>
+		): Promise<Result> => {
+			try {
+				return await backend.mutation<Result>(functionName, args);
+			} catch (error) {
+				throw toBackendCliError(error);
+			}
+		},
 		query: async <Result>(
 			functionName: string,
 			args: Readonly<Record<string, unknown>>

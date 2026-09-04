@@ -130,20 +130,45 @@ export const expenseSummaryValidator = v.object({
 	tags: v.array(v.object({ id: v.id("tags"), name: v.string() })),
 });
 
+export const accountBalanceEffectValidator = v.object({
+	accountId: v.id("accounts"),
+	accountName: v.string(),
+	balanceAfter: v.number(),
+	balanceBefore: v.number(),
+	currency: v.string(),
+	delta: v.number(),
+});
+
+export const expenseMutationResultValidator = v.object({
+	...expenseSummaryValidator.fields,
+	accountEffects: v.array(accountBalanceEffectValidator),
+});
+
+const accountSourceValidator = v.union(
+	v.literal("explicit"),
+	v.literal("user_default"),
+	v.literal("none")
+);
+
+const categorySourceValidator = v.union(
+	v.literal("explicit"),
+	v.literal("history"),
+	v.literal("none")
+);
+
+export const expenseCreateResultValidator = v.object({
+	...expenseMutationResultValidator.fields,
+	accountSource: accountSourceValidator,
+	categorySource: categorySourceValidator,
+});
+
 export const expenseProposalValidator = v.object({
+	accountEffects: v.array(accountBalanceEffectValidator),
 	accountId: v.union(v.id("accounts"), v.null()),
-	accountSource: v.union(
-		v.literal("explicit"),
-		v.literal("user_default"),
-		v.literal("none")
-	),
+	accountSource: accountSourceValidator,
 	amount: v.number(),
 	categoryId: v.union(v.id("categories"), v.null()),
-	categorySource: v.union(
-		v.literal("explicit"),
-		v.literal("history"),
-		v.literal("none")
-	),
+	categorySource: categorySourceValidator,
 	currency: v.string(),
 	cycleId: v.union(v.id("expense_cycles"), v.null()),
 	date: v.string(),
@@ -156,7 +181,7 @@ export const expenseCreateInputValidator = {
 	accountId: v.optional(v.union(v.id("accounts"), v.null())),
 	amount: v.number(),
 	categoryId: v.optional(v.union(v.id("categories"), v.null())),
-	date: v.optional(v.string()),
+	date: v.string(),
 	spentOn: v.optional(v.string()),
 	tagIds: v.optional(v.array(v.id("tags"))),
 } as const;

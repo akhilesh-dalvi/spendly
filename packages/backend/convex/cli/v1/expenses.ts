@@ -6,6 +6,7 @@ import {
 	commitExpenseCreate,
 	commitExpenseDelete,
 	commitExpenseUpdate,
+	type PreparedExpenseUpdate,
 	prepareExpenseCreate,
 	prepareExpenseUpdate,
 } from "../../domain/expenseOperations";
@@ -22,12 +23,16 @@ import {
 } from "../../helpers";
 import { withCliErrors } from "./errors";
 import {
+	presentAccount,
 	presentExpense,
 	presentExpenseProposal,
 	requireOwnedExpense,
 } from "./presenters";
 import {
+	accountBalanceEffectValidator,
 	expenseCreateInputValidator,
+	expenseCreateResultValidator,
+	expenseMutationResultValidator,
 	expenseProposalValidator,
 	expenseSummaryValidator,
 	expenseUpdateInputValidator,
@@ -36,6 +41,50 @@ import {
 const DEFAULT_PAGE_SIZE = 50;
 const MAXIMUM_PAGE_SIZE = 100;
 const MAXIMUM_TAG_FILTERS = 100;
+
+interface AccountBalanceDelta {
+	accountId: Id<"accounts">;
+	delta: number;
+}
+
+const getUpdateBalanceDeltas = (
+	prepared: PreparedExpenseUpdate
+): AccountBalanceDelta[] => {
+	const deltas = new Map<Id<"accounts">, number>();
+	if (prepared.before.accountId) {
+		deltas.set(prepared.before.accountId, prepared.before.amount);
+	}
+	if (prepared.after.accountId) {
+		deltas.set(
+			prepared.after.accountId,
+			(deltas.get(prepared.after.accountId) ?? 0) - prepared.after.amount
+		);
+	}
+	return Array.from(deltas, ([accountId, delta]) => ({
+		accountId,
+		delta,
+	})).filter((effect) => effect.delta !== 0);
+};
+
+const presentAccountEffects = async (
+	ctx: Parameters<typeof validateAccountOwnership>[0],
+	user: Doc<"users">,
+	deltas: readonly AccountBalanceDelta[]
+) =>
+	await Promise.all(
+		deltas.map(async ({ accountId, delta }) => {
+			const account = await validateAccountOwnership(ctx, accountId, user._id);
+			const presented = await presentAccount(ctx, account, user);
+			return {
+				accountId,
+				accountName: account.name,
+				balanceAfter: account.currentBalance + delta,
+				balanceBefore: account.currentBalance,
+				currency: presented.currency,
+				delta,
+			};
+		})
+	);
 
 interface ExpenseListFilters {
 	accountId?: Id<"accounts">;
@@ -213,7 +262,14 @@ export const previewCreate = query({
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
 			const prepared = await prepareExpenseCreate(ctx, { input: args, user });
-			return presentExpenseProposal(prepared);
+			const accountEffects = await presentAccountEffects(
+				ctx,
+				user,
+				prepared.accountId
+					? [{ accountId: prepared.accountId, delta: -prepared.amount }]
+					: []
+			);
+			return { ...presentExpenseProposal(prepared), accountEffects };
 		}),
 });
 
@@ -222,7 +278,7 @@ export const create = mutation({
 		...expenseCreateInputValidator,
 		idempotencyKey: v.string(),
 	},
-	returns: expenseSummaryValidator,
+	returns: expenseCreateResultValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -230,11 +286,23 @@ export const create = mutation({
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
 					const prepared = await prepareExpenseCreate(ctx, { input, user });
+					const accountEffects = await presentAccountEffects(
+						ctx,
+						user,
+						prepared.accountId
+							? [{ accountId: prepared.accountId, delta: -prepared.amount }]
+							: []
+					);
 					const expense = await commitExpenseCreate(ctx, {
 						prepared,
 						userId: user._id,
 					});
-					return await presentExpense(ctx, expense, user);
+					return {
+						...(await presentExpense(ctx, expense, user)),
+						accountEffects,
+						accountSource: prepared.accountSource,
+						categorySource: prepared.categorySource,
+					};
 				},
 				key: idempotencyKey,
 				operation: "expenses.create",
@@ -250,6 +318,7 @@ export const previewUpdate = query({
 		expenseId: v.id("expenses"),
 	},
 	returns: v.object({
+		accountEffects: v.array(accountBalanceEffectValidator),
 		after: expenseSummaryValidator,
 		before: expenseSummaryValidator,
 	}),
@@ -263,6 +332,11 @@ export const previewUpdate = query({
 				user,
 			});
 			return {
+				accountEffects: await presentAccountEffects(
+					ctx,
+					user,
+					getUpdateBalanceDeltas(prepared)
+				),
 				after: await presentExpense(ctx, prepared.after, user),
 				before: await presentExpense(ctx, prepared.before, user),
 			};
@@ -276,7 +350,7 @@ export const update = mutation({
 		expenseId: v.id("expenses"),
 		idempotencyKey: v.string(),
 	},
-	returns: expenseSummaryValidator,
+	returns: expenseMutationResultValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -288,8 +362,16 @@ export const update = mutation({
 						input,
 						user,
 					});
+					const accountEffects = await presentAccountEffects(
+						ctx,
+						user,
+						getUpdateBalanceDeltas(prepared)
+					);
 					const expense = await commitExpenseUpdate(ctx, prepared);
-					return await presentExpense(ctx, expense, user);
+					return {
+						...(await presentExpense(ctx, expense, user)),
+						accountEffects,
+					};
 				},
 				key: idempotencyKey,
 				operation: "expenses.update",
@@ -302,6 +384,7 @@ export const update = mutation({
 export const previewDelete = mutation({
 	args: { expenseId: v.id("expenses") },
 	returns: v.object({
+		accountEffects: v.array(accountBalanceEffectValidator),
 		confirmationToken: v.id("cli_deletion_confirmations"),
 		expiresAt: v.string(),
 		expense: expenseSummaryValidator,
@@ -314,6 +397,13 @@ export const previewDelete = mutation({
 			const now = Date.now();
 			const revision = getRevision(expense.revision);
 			const expiresAt = now + DELETION_CONFIRMATION_LIFETIME_MS;
+			const accountEffects = await presentAccountEffects(
+				ctx,
+				user,
+				expense.accountId
+					? [{ accountId: expense.accountId, delta: expense.amount }]
+					: []
+			);
 			const confirmationToken = await ctx.db.insert(
 				"cli_deletion_confirmations",
 				{
@@ -325,6 +415,7 @@ export const previewDelete = mutation({
 				}
 			);
 			return {
+				accountEffects,
 				confirmationToken,
 				expiresAt: new Date(expiresAt).toISOString(),
 				expense: await presentExpense(ctx, expense, user),
@@ -341,6 +432,7 @@ export const remove = mutation({
 		idempotencyKey: v.string(),
 	},
 	returns: v.object({
+		accountEffects: v.array(accountBalanceEffectValidator),
 		deleted: v.literal(true),
 		expense: expenseSummaryValidator,
 	}),
@@ -373,6 +465,13 @@ export const remove = mutation({
 						args.expectedRevision,
 						"EXPENSE_REVISION_CONFLICT"
 					);
+					const accountEffects = await presentAccountEffects(
+						ctx,
+						user,
+						expense.accountId
+							? [{ accountId: expense.accountId, delta: expense.amount }]
+							: []
+					);
 					const presented = await presentExpense(ctx, expense, user);
 					await commitExpenseDelete(ctx, {
 						expectedRevision: args.expectedRevision,
@@ -380,7 +479,11 @@ export const remove = mutation({
 						userId: user._id,
 					});
 					await ctx.db.patch(confirmation._id, { usedAt: now });
-					return { deleted: true as const, expense: presented };
+					return {
+						accountEffects,
+						deleted: true as const,
+						expense: presented,
+					};
 				},
 				key: args.idempotencyKey,
 				operation: "expenses.delete",

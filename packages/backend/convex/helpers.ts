@@ -48,13 +48,16 @@ export async function findCycleForDate(
 	userId: Id<"users">,
 	date: string
 ) {
-	return await ctx.db
+	const latestStartedCycle = await ctx.db
 		.query("expense_cycles")
 		.withIndex("by_userId_dates", (q) =>
 			q.eq("userId", userId).lte("startDate", date)
 		)
-		.filter((q) => q.gt(q.field("endDate"), date))
-		.unique();
+		.order("desc")
+		.first();
+	return latestStartedCycle && latestStartedCycle.endDate > date
+		? latestStartedCycle
+		: null;
 }
 
 /**

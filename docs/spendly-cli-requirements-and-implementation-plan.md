@@ -1070,17 +1070,20 @@ Implementation and local verification evidence is recorded in
 
 ### Phase 5: Expense Mutations
 
-- [ ] Implement create and `create --dry-run`.
-- [ ] Implement update, explicit clear flags, and `update --dry-run`.
-- [ ] Implement delete dry run and confirmed permanent delete.
-- [ ] Implement local-date resolution and category-history inference.
-- [ ] Implement interactive key generation and non-interactive key requirement.
-- [ ] Implement revision handling and conflict guidance.
-- [ ] Implement account selection, default-account resolution, unassigned
+- [x] Implement create and `create --dry-run`.
+- [x] Implement update, explicit clear flags, and `update --dry-run`.
+- [x] Implement delete dry run and confirmed permanent delete.
+- [x] Implement local-date resolution and category-history inference.
+- [x] Implement interactive key generation and non-interactive key requirement.
+- [x] Implement revision handling and conflict guidance.
+- [x] Implement account selection, default-account resolution, unassigned
       expenses, and the account expense filter.
-- [ ] Verify expense create, edit, move, clear, and delete ledger effects.
-- [ ] Implement uncertain-result recovery without automatic mutation retry.
-- [ ] Pass the complete expense lifecycle end to end on development.
+- [x] Verify expense create, edit, move, clear, and delete ledger effects.
+- [x] Implement uncertain-result recovery without automatic mutation retry.
+- [x] Pass the complete expense lifecycle end to end on development.
+
+Implementation and verification evidence is recorded in
+[Spendly CLI Phase 5: Expense Mutations](spendly-cli-phase-5.md).
 
 ### Phase 6: Account Mutations
 

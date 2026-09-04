@@ -124,12 +124,25 @@ describe("cli/v1 facade", () => {
 		});
 
 		expect(preview).toMatchObject({
+			accountEffects: [
+				{
+					accountId: account.id,
+					balanceAfter: 85,
+					balanceBefore: 100,
+					delta: -15,
+				},
+			],
 			accountId: account.id,
 			accountSource: "user_default",
 			amount: created.amount,
 			date: created.date,
 			revision: 1,
 			spentOn: "Lunch",
+		});
+		expect(created.accountEffects).toEqual(preview.accountEffects);
+		expect(created).toMatchObject({
+			accountSource: "user_default",
+			categorySource: "none",
 		});
 		expect(replay).toEqual(created);
 		expect(
@@ -144,10 +157,17 @@ describe("cli/v1 facade", () => {
 			"IDEMPOTENCY_CONFLICT"
 		);
 
-		const updated = await owner.client.mutation(api.cli.v1.expenses.update, {
+		const updateInput = {
 			amount: 18,
 			expectedRevision: created.revision,
 			expenseId: created.id,
+		};
+		const updatePreview = await owner.client.query(
+			api.cli.v1.expenses.previewUpdate,
+			updateInput
+		);
+		const updated = await owner.client.mutation(api.cli.v1.expenses.update, {
+			...updateInput,
 			idempotencyKey: "expense-update-key",
 		});
 		const updateReplay = await owner.client.mutation(
@@ -159,8 +179,26 @@ describe("cli/v1 facade", () => {
 				idempotencyKey: "expense-update-key",
 			}
 		);
+		expect(updatePreview).toMatchObject({
+			accountEffects: [
+				{
+					accountId: account.id,
+					balanceAfter: 82,
+					balanceBefore: 85,
+					delta: -3,
+				},
+			],
+			after: { amount: 18, revision: 2 },
+			before: { amount: 15, revision: 1 },
+		});
+		expect(updated.accountEffects).toEqual(updatePreview.accountEffects);
 		expect(updated.revision).toBe(2);
 		expect(updateReplay).toEqual(updated);
+		expect(
+			await owner.client.query(api.cli.v1.accounts.get, {
+				accountId: account.id,
+			})
+		).toMatchObject({ currentBalance: 82 });
 		await expectCliError(
 			owner.client.mutation(api.cli.v1.expenses.update, {
 				amount: 19,
@@ -170,11 +208,101 @@ describe("cli/v1 facade", () => {
 			}),
 			"EXPENSE_REVISION_CONFLICT"
 		);
+
+		const destination = await createAccount(
+			owner.client,
+			owner.accountType._id,
+			{
+				key: "expense-destination-account",
+				name: "Savings",
+				startingBalance: 200,
+			}
+		);
+		const moveInput = {
+			accountId: destination.id,
+			expectedRevision: updated.revision,
+			expenseId: updated.id,
+		};
+		const movePreview = await owner.client.query(
+			api.cli.v1.expenses.previewUpdate,
+			moveInput
+		);
+		const moved = await owner.client.mutation(api.cli.v1.expenses.update, {
+			...moveInput,
+			idempotencyKey: "expense-move-key",
+		});
+		expect(movePreview.accountEffects).toEqual([
+			{
+				accountId: account.id,
+				accountName: "Everyday",
+				balanceAfter: 100,
+				balanceBefore: 82,
+				currency: "USD",
+				delta: 18,
+			},
+			{
+				accountId: destination.id,
+				accountName: "Savings",
+				balanceAfter: 182,
+				balanceBefore: 200,
+				currency: "USD",
+				delta: -18,
+			},
+		]);
+		expect(moved).toMatchObject({
+			account: { id: destination.id },
+			accountEffects: movePreview.accountEffects,
+			revision: 3,
+		});
+
+		const clearInput = {
+			accountId: null,
+			expectedRevision: moved.revision,
+			expenseId: moved.id,
+		};
+		const clearPreview = await owner.client.query(
+			api.cli.v1.expenses.previewUpdate,
+			clearInput
+		);
+		const cleared = await owner.client.mutation(api.cli.v1.expenses.update, {
+			...clearInput,
+			idempotencyKey: "expense-clear-account-key",
+		});
+		expect(clearPreview.accountEffects).toEqual([
+			{
+				accountId: destination.id,
+				accountName: "Savings",
+				balanceAfter: 200,
+				balanceBefore: 182,
+				currency: "USD",
+				delta: 18,
+			},
+		]);
+		expect(cleared).toMatchObject({
+			account: null,
+			accountEffects: clearPreview.accountEffects,
+			revision: 4,
+		});
+		expect(
+			await owner.client.query(api.cli.v1.accounts.get, {
+				accountId: account.id,
+			})
+		).toMatchObject({ currentBalance: 100 });
+		expect(
+			await owner.client.query(api.cli.v1.accounts.get, {
+				accountId: destination.id,
+			})
+		).toMatchObject({ currentBalance: 200 });
 	});
 
 	it("requires a current single-use deletion confirmation and replays success", async () => {
 		const test = createBackendTest();
 		const owner = await createAuthenticatedUser(test, "delete-flow");
+		const account = await createAccount(owner.client, owner.accountType._id, {
+			key: "delete-account-key",
+			name: "Delete account",
+			startingBalance: 100,
+		});
 		const expense = await owner.client.mutation(api.cli.v1.expenses.create, {
 			amount: 10,
 			date: "2026-09-01",
@@ -198,10 +326,24 @@ describe("cli/v1 facade", () => {
 		});
 
 		expect(deleted).toMatchObject({
+			accountEffects: [
+				{
+					accountId: account.id,
+					balanceAfter: 100,
+					balanceBefore: 90,
+					delta: 10,
+				},
+			],
 			deleted: true,
 			expense: { id: expense.id },
 		});
+		expect(preview.accountEffects).toEqual(deleted.accountEffects);
 		expect(replay).toEqual(deleted);
+		expect(
+			await owner.client.query(api.cli.v1.accounts.get, {
+				accountId: account.id,
+			})
+		).toMatchObject({ currentBalance: 100 });
 		await expectCliError(
 			owner.client.mutation(api.cli.v1.expenses.remove, {
 				confirmationToken: preview.confirmationToken,
@@ -518,23 +660,37 @@ describe("cli/v1 facade", () => {
 				amount: 5,
 				createdAt: 1,
 				date: "2026-09-01",
+				spentOn: " Legacy Shop ",
 				userId: owner.userId,
 			});
 			return { accountId, expenseId };
 		});
 
-		const [accountMigration, expenseMigration] = await Promise.all([
-			test.mutation(internal.cli.v1.maintenance.initializeAccountRevisions, {}),
-			test.mutation(internal.cli.v1.maintenance.initializeExpenseRevisions, {}),
-		]);
+		const [accountMigration, expenseMigration, searchMigration] =
+			await Promise.all([
+				test.mutation(
+					internal.cli.v1.maintenance.initializeAccountRevisions,
+					{}
+				),
+				test.mutation(
+					internal.cli.v1.maintenance.initializeExpenseRevisions,
+					{}
+				),
+				test.mutation(
+					internal.cli.v1.maintenance.initializeExpenseSearchFields,
+					{}
+				),
+			]);
 		expect(accountMigration.updated).toBe(1);
 		expect(expenseMigration.updated).toBe(1);
+		expect(searchMigration.updated).toBe(1);
 		const initialized = await test.run(async (ctx) => ({
 			account: await ctx.db.get(legacy.accountId),
 			expense: await ctx.db.get(legacy.expenseId),
 		}));
 		expect(initialized.account?.revision).toBe(1);
 		expect(initialized.expense?.revision).toBe(1);
+		expect(initialized.expense?.normalizedSpentOn).toBe("legacy shop");
 
 		const webExpense = await owner.client.mutation(api.expenses.create, {
 			accountId: legacy.accountId,
@@ -594,6 +750,21 @@ describe("cli/v1 facade", () => {
 				spentOn: "Local Market",
 			});
 		}
+		await test.run(async (ctx) => {
+			for (const index of Array.from({ length: 501 }, (_, value) => value)) {
+				await ctx.db.insert("expenses", {
+					amount: 1,
+					categoryId: augustCategory._id,
+					createdAt: 1000 + index,
+					cycleId: august._id,
+					date: "2026-08-31",
+					normalizedSpentOn: `noise ${index}`,
+					revision: 1,
+					spentOn: `Noise ${index}`,
+					userId: owner.userId,
+				});
+			}
+		});
 		const preview = await owner.client.query(
 			api.cli.v1.expenses.previewCreate,
 			{ amount: 20, date: "2026-09-02", spentOn: " local market " }
