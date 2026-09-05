@@ -56,6 +56,24 @@ export const accountSummaryValidator = v.object({
 	updatedAt: v.string(),
 });
 
+export const accountTransactionValidator = v.object({
+	accountId: v.id("accounts"),
+	amount: v.number(),
+	balanceAfter: v.number(),
+	createdAt: v.string(),
+	date: v.string(),
+	id: v.id("account_transactions"),
+	note: v.union(v.string(), v.null()),
+	relatedId: v.union(v.id("expenses"), v.id("account_transfers"), v.null()),
+	type: v.union(
+		v.literal("opening_balance"),
+		v.literal("expense"),
+		v.literal("manual_adjustment"),
+		v.literal("transfer_in"),
+		v.literal("transfer_out")
+	),
+});
+
 export const accountCreateProposalValidator = v.object({
 	accountType: accountTypeMetadataValidator,
 	currency: v.string(),
@@ -66,6 +84,11 @@ export const accountCreateProposalValidator = v.object({
 	startingBalance: v.number(),
 });
 
+export const accountCreateResultValidator = v.object({
+	...accountSummaryValidator.fields,
+	openingTransaction: accountTransactionValidator,
+});
+
 export const balanceAdjustmentPreviewValidator = v.object({
 	account: accountSummaryValidator,
 	adjustment: v.number(),
@@ -73,6 +96,11 @@ export const balanceAdjustmentPreviewValidator = v.object({
 	date: v.string(),
 	resultingBalance: v.number(),
 	warnings: v.array(v.string()),
+});
+
+export const balanceAdjustmentResultValidator = v.object({
+	...balanceAdjustmentPreviewValidator.fields,
+	transaction: v.union(accountTransactionValidator, v.null()),
 });
 
 export const transferPreviewValidator = v.object({
@@ -92,9 +120,12 @@ export const transferResultValidator = v.object({
 	currency: v.string(),
 	date: v.string(),
 	fromAccount: accountSummaryValidator,
+	fromTransaction: accountTransactionValidator,
 	id: v.id("account_transfers"),
 	note: v.union(v.string(), v.null()),
 	toAccount: accountSummaryValidator,
+	toTransaction: accountTransactionValidator,
+	warnings: v.array(v.string()),
 });
 
 export const expenseSummaryValidator = v.object({
@@ -195,21 +226,3 @@ export const expenseUpdateInputValidator = {
 	spentOn: v.optional(v.union(v.string(), v.null())),
 	tagIds: v.optional(v.array(v.id("tags"))),
 } as const;
-
-export const accountTransactionValidator = v.object({
-	accountId: v.id("accounts"),
-	amount: v.number(),
-	balanceAfter: v.number(),
-	createdAt: v.string(),
-	date: v.string(),
-	id: v.id("account_transactions"),
-	note: v.union(v.string(), v.null()),
-	relatedId: v.union(v.id("expenses"), v.id("account_transfers"), v.null()),
-	type: v.union(
-		v.literal("opening_balance"),
-		v.literal("expense"),
-		v.literal("manual_adjustment"),
-		v.literal("transfer_in"),
-		v.literal("transfer_out")
-	),
-});

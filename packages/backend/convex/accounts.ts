@@ -247,7 +247,7 @@ export const create = mutation({
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const prepared = await prepareAccountCreate(ctx, { ...args, user });
-		const account = await commitAccountCreate(ctx, { prepared, user });
+		const { account } = await commitAccountCreate(ctx, { prepared, user });
 		return await resolveAccount(ctx, account, user._id);
 	},
 });
@@ -293,7 +293,7 @@ export const createOnboardingAccount = mutation({
 			startingBalance: args.openingBalance,
 			user,
 		});
-		const account = await commitAccountCreate(ctx, { now, prepared, user });
+		const { account } = await commitAccountCreate(ctx, { now, prepared, user });
 
 		await ctx.db.patch(user._id, {
 			accountsOnboardingStatus: "completed",
@@ -330,7 +330,7 @@ export const updateBalance = mutation({
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const prepared = await prepareBalanceAdjustment(ctx, { ...args, user });
-		const account = await commitBalanceAdjustment(ctx, prepared);
+		const { account } = await commitBalanceAdjustment(ctx, prepared);
 		return await resolveAccount(ctx, account, user._id);
 	},
 });

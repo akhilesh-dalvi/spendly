@@ -71,6 +71,7 @@ const createAccount = async (
 ) =>
 	await client.mutation(api.cli.v1.accounts.create, {
 		accountTypeId,
+		date: "2026-09-01",
 		idempotencyKey: options.key,
 		name: options.name,
 		startingBalance: options.startingBalance,
@@ -452,10 +453,11 @@ describe("cli/v1 facade", () => {
 			owner.accountType._id,
 			{ key: "destination-account", name: "Destination", startingBalance: 25 }
 		);
-		const preview = await owner.client.query(
+		const preview = await owner.client.mutation(
 			api.cli.v1.accounts.previewTransfer,
 			{
 				amount: 30,
+				date: "2026-09-02",
 				expectedFromRevision: source.revision,
 				expectedToRevision: destination.revision,
 				fromAccountId: source.id,
@@ -469,6 +471,7 @@ describe("cli/v1 facade", () => {
 
 		await owner.client.mutation(api.cli.v1.accounts.adjustBalance, {
 			accountId: destination.id,
+			date: "2026-09-02",
 			expectedRevision: destination.revision,
 			idempotencyKey: "destination-adjustment",
 			newBalance: 30,
@@ -476,6 +479,7 @@ describe("cli/v1 facade", () => {
 		await expectCliError(
 			owner.client.mutation(api.cli.v1.accounts.transfer, {
 				amount: 30,
+				date: "2026-09-02",
 				expectedFromRevision: source.revision,
 				expectedToRevision: destination.revision,
 				fromAccountId: source.id,
@@ -490,6 +494,7 @@ describe("cli/v1 facade", () => {
 		);
 		const transfer = await owner.client.mutation(api.cli.v1.accounts.transfer, {
 			amount: 30,
+			date: "2026-09-02",
 			expectedFromRevision: source.revision,
 			expectedToRevision: currentDestination.revision,
 			fromAccountId: source.id,
@@ -498,6 +503,7 @@ describe("cli/v1 facade", () => {
 		});
 		const replay = await owner.client.mutation(api.cli.v1.accounts.transfer, {
 			amount: 30,
+			date: "2026-09-02",
 			expectedFromRevision: source.revision,
 			expectedToRevision: currentDestination.revision,
 			fromAccountId: source.id,
@@ -506,6 +512,21 @@ describe("cli/v1 facade", () => {
 		});
 		expect(transfer.fromAccount.currentBalance).toBe(70);
 		expect(transfer.toAccount.currentBalance).toBe(60);
+		expect(transfer.warnings).toEqual([]);
+		expect(transfer.fromTransaction).toMatchObject({
+			accountId: source.id,
+			amount: -30,
+			balanceAfter: 70,
+			relatedId: transfer.id,
+			type: "transfer_out",
+		});
+		expect(transfer.toTransaction).toMatchObject({
+			accountId: destination.id,
+			amount: 30,
+			balanceAfter: 60,
+			relatedId: transfer.id,
+			type: "transfer_in",
+		});
 		expect(replay).toEqual(transfer);
 	});
 
@@ -518,7 +539,7 @@ describe("cli/v1 facade", () => {
 			name: "  Daily cash  ",
 			startingBalance: -10,
 		};
-		const preview = await owner.client.query(
+		const preview = await owner.client.mutation(
 			api.cli.v1.accounts.previewCreate,
 			createInput
 		);
@@ -533,14 +554,28 @@ describe("cli/v1 facade", () => {
 			name: preview.name,
 			revision: preview.revision,
 			startingBalance: preview.startingBalance,
+			openingTransaction: {
+				amount: -10,
+				balanceAfter: -10,
+				date: "2026-09-02",
+				type: "opening_balance",
+			},
 		});
+		const createReplay = await owner.client.mutation(
+			api.cli.v1.accounts.create,
+			{
+				...createInput,
+				idempotencyKey: "account-dry-run-create",
+			}
+		);
+		expect(createReplay).toEqual(created);
 
 		const updateInput = {
 			accountId: created.id,
 			expectedRevision: created.revision,
 			name: "  Pocket cash  ",
 		};
-		const updatePreview = await owner.client.query(
+		const updatePreview = await owner.client.mutation(
 			api.cli.v1.accounts.previewUpdate,
 			updateInput
 		);
@@ -548,6 +583,13 @@ describe("cli/v1 facade", () => {
 			...updateInput,
 			idempotencyKey: "account-dry-run-update",
 		});
+		const updateReplay = await owner.client.mutation(
+			api.cli.v1.accounts.update,
+			{
+				...updateInput,
+				idempotencyKey: "account-dry-run-update",
+			}
+		);
 		expect(updated).toMatchObject({
 			name: updatePreview.after.name,
 			revision: updatePreview.after.revision,
@@ -556,6 +598,198 @@ describe("cli/v1 facade", () => {
 			name: created.name,
 			revision: created.revision,
 		});
+		expect(updateReplay).toEqual(updated);
+	});
+
+	it("enforces archive, reactivate, and default account lifecycle rules", async () => {
+		const test = createBackendTest();
+		const owner = await createAuthenticatedUser(test, "account-lifecycle");
+		const account = await createAccount(owner.client, owner.accountType._id, {
+			key: "lifecycle-account",
+			name: "Lifecycle",
+			startingBalance: 10,
+		});
+		const archivePreview = await owner.client.mutation(
+			api.cli.v1.accounts.previewArchive,
+			{ accountId: account.id, expectedRevision: account.revision }
+		);
+		expect(archivePreview).toMatchObject({
+			after: { isArchived: true, isDefault: false, revision: 2 },
+			before: { isArchived: false, isDefault: true, revision: 1 },
+		});
+		const archived = await owner.client.mutation(api.cli.v1.accounts.archive, {
+			accountId: account.id,
+			expectedRevision: account.revision,
+			idempotencyKey: "archive-account-key",
+		});
+		expect(archived).toMatchObject({
+			isArchived: true,
+			isDefault: false,
+			revision: 2,
+		});
+		await expectCliError(
+			owner.client.mutation(api.cli.v1.accounts.previewSetDefault, {
+				accountId: account.id,
+				expectedRevision: archived.revision,
+			}),
+			"ACCOUNT_ARCHIVED"
+		);
+		await expectCliError(
+			owner.client.mutation(api.cli.v1.accounts.previewBalanceAdjustment, {
+				accountId: account.id,
+				date: "2026-09-03",
+				expectedRevision: archived.revision,
+				newBalance: 20,
+			}),
+			"ACCOUNT_ARCHIVED"
+		);
+
+		const reactivated = await owner.client.mutation(
+			api.cli.v1.accounts.reactivate,
+			{
+				accountId: account.id,
+				expectedRevision: archived.revision,
+				idempotencyKey: "reactivate-account-key",
+			}
+		);
+		expect(reactivated).toMatchObject({
+			isArchived: false,
+			isDefault: false,
+			revision: 3,
+		});
+		const defaultAccount = await owner.client.mutation(
+			api.cli.v1.accounts.setDefault,
+			{
+				accountId: account.id,
+				expectedRevision: reactivated.revision,
+				idempotencyKey: "default-account-key",
+			}
+		);
+		expect(defaultAccount).toMatchObject({
+			isDefault: true,
+			revision: 4,
+		});
+	});
+
+	it("returns adjustment ledger references and preserves zero-delta no-ops", async () => {
+		const test = createBackendTest();
+		const owner = await createAuthenticatedUser(test, "adjustment-results");
+		const account = await createAccount(owner.client, owner.accountType._id, {
+			key: "adjustment-account",
+			name: "Adjustable",
+			startingBalance: 20,
+		});
+		const preview = await owner.client.mutation(
+			api.cli.v1.accounts.previewBalanceAdjustment,
+			{
+				accountId: account.id,
+				date: "2026-09-03",
+				expectedRevision: account.revision,
+				newBalance: -5,
+				note: "  Reconcile  ",
+			}
+		);
+		expect(preview).toMatchObject({
+			adjustment: -25,
+			resultingBalance: -5,
+			warnings: ["NEGATIVE_BALANCE"],
+		});
+		const adjusted = await owner.client.mutation(
+			api.cli.v1.accounts.adjustBalance,
+			{
+				accountId: account.id,
+				date: "2026-09-03",
+				expectedRevision: account.revision,
+				idempotencyKey: "negative-adjustment-key",
+				newBalance: -5,
+				note: "  Reconcile  ",
+			}
+		);
+		expect(adjusted).toMatchObject({
+			account: { currentBalance: -5, revision: 2 },
+			adjustment: -25,
+			transaction: {
+				accountId: account.id,
+				amount: -25,
+				balanceAfter: -5,
+				note: "Reconcile",
+				type: "manual_adjustment",
+			},
+			warnings: ["NEGATIVE_BALANCE"],
+		});
+		const noOp = await owner.client.mutation(
+			api.cli.v1.accounts.adjustBalance,
+			{
+				accountId: account.id,
+				date: "2026-09-03",
+				expectedRevision: adjusted.account.revision,
+				idempotencyKey: "zero-adjustment-key",
+				newBalance: -5,
+			}
+		);
+		expect(noOp).toMatchObject({
+			account: { currentBalance: -5, revision: 2 },
+			adjustment: 0,
+			transaction: null,
+		});
+	});
+
+	it("rejects archived account types and cross-currency transfers", async () => {
+		const test = createBackendTest();
+		const owner = await createAuthenticatedUser(test, "account-validation");
+		const source = await createAccount(owner.client, owner.accountType._id, {
+			key: "validation-source",
+			name: "Source",
+			startingBalance: 100,
+		});
+		const destination = await createAccount(
+			owner.client,
+			owner.accountType._id,
+			{ key: "validation-destination", name: "Destination", startingBalance: 0 }
+		);
+		const archivedTypeId = await test.run(
+			async (ctx) =>
+				await ctx.db.insert("account_types", {
+					balanceNature: "asset",
+					createdAt: 1,
+					isArchived: true,
+					name: "Archived type",
+					normalizedName: "archived type",
+					order: 100,
+					userId: owner.userId,
+				})
+		);
+		await expectCliError(
+			owner.client.mutation(api.cli.v1.accounts.previewCreate, {
+				accountTypeId: archivedTypeId,
+				date: "2026-09-03",
+				name: "Invalid",
+				startingBalance: 0,
+			}),
+			"INVALID_INPUT"
+		);
+		await expectCliError(
+			owner.client.mutation(api.cli.v1.accounts.previewUpdate, {
+				accountId: source.id,
+				accountTypeId: archivedTypeId,
+				expectedRevision: source.revision,
+			}),
+			"INVALID_INPUT"
+		);
+		await test.run(async (ctx) => {
+			await ctx.db.patch(destination.id, { currency: "EUR" });
+		});
+		await expectCliError(
+			owner.client.mutation(api.cli.v1.accounts.previewTransfer, {
+				amount: 5,
+				date: "2026-09-03",
+				expectedFromRevision: source.revision,
+				expectedToRevision: destination.revision,
+				fromAccountId: source.id,
+				toAccountId: destination.id,
+			}),
+			"TRANSFER_CURRENCY_MISMATCH"
+		);
 	});
 
 	it("allows only one competing update at the same expense revision", async () => {
@@ -617,6 +851,7 @@ describe("cli/v1 facade", () => {
 		});
 		await owner.client.mutation(api.cli.v1.accounts.adjustBalance, {
 			accountId: account.id,
+			date: "2026-09-01",
 			expectedRevision: account.revision,
 			idempotencyKey: "context-adjustment",
 			newBalance: 90,

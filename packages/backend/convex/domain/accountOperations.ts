@@ -86,7 +86,10 @@ export const commitAccountCreate = async (
 		prepared: PreparedAccountCreate;
 		user: Doc<"users">;
 	}
-): Promise<Doc<"accounts">> => {
+): Promise<{
+	account: Doc<"accounts">;
+	openingTransaction: Doc<"account_transactions">;
+}> => {
 	const now = options.now ?? Date.now();
 	const accountId = await ctx.db.insert("accounts", {
 		accountTypeId: options.prepared.accountTypeId,
@@ -100,7 +103,7 @@ export const commitAccountCreate = async (
 		updatedAt: now,
 		userId: options.user._id,
 	});
-	await ctx.db.insert("account_transactions", {
+	const openingTransactionId = await ctx.db.insert("account_transactions", {
 		accountId,
 		amount: options.prepared.startingBalance,
 		balanceAfter: options.prepared.startingBalance,
@@ -123,11 +126,14 @@ export const commitAccountCreate = async (
 	if (Object.keys(userUpdates).length > 0) {
 		await ctx.db.patch(options.user._id, userUpdates);
 	}
-	const account = await ctx.db.get(accountId);
-	if (!account) {
+	const [account, openingTransaction] = await Promise.all([
+		ctx.db.get(accountId),
+		ctx.db.get(openingTransactionId),
+	]);
+	if (!(account && openingTransaction)) {
 		throw new ConvexError("ACCOUNT_NOT_FOUND");
 	}
-	return account;
+	return { account, openingTransaction };
 };
 
 export interface AccountUpdateInput {
@@ -363,9 +369,13 @@ export const prepareBalanceAdjustment = async (
 export const commitBalanceAdjustment = async (
 	ctx: MutationCtx,
 	prepared: PreparedBalanceAdjustment
-): Promise<Doc<"accounts">> => {
+): Promise<{
+	account: Doc<"accounts">;
+	transaction: Doc<"account_transactions"> | null;
+}> => {
+	let transactionId: Id<"account_transactions"> | undefined;
 	if (prepared.adjustment !== 0) {
-		await applyAccountBalanceChange(ctx, {
+		transactionId = await applyAccountBalanceChange(ctx, {
 			accountId: prepared.account._id,
 			amount: prepared.adjustment,
 			date: prepared.date,
@@ -374,11 +384,14 @@ export const commitBalanceAdjustment = async (
 			userId: prepared.account.userId,
 		});
 	}
-	const account = await ctx.db.get(prepared.account._id);
+	const [account, transaction] = await Promise.all([
+		ctx.db.get(prepared.account._id),
+		transactionId ? ctx.db.get(transactionId) : Promise.resolve(null),
+	]);
 	if (!account) {
 		throw new ConvexError("ACCOUNT_NOT_FOUND");
 	}
-	return account;
+	return { account, transaction };
 };
 
 export interface PreparedTransfer {
@@ -458,7 +471,9 @@ export const commitTransfer = async (
 	now = Date.now()
 ): Promise<{
 	fromAccount: Doc<"accounts">;
+	fromTransaction: Doc<"account_transactions">;
 	toAccount: Doc<"accounts">;
+	toTransaction: Doc<"account_transactions">;
 	transfer: Doc<"account_transfers">;
 }> => {
 	const transferId = await ctx.db.insert("account_transfers", {
@@ -470,7 +485,7 @@ export const commitTransfer = async (
 		toAccountId: prepared.toAccount._id,
 		userId: prepared.fromAccount.userId,
 	});
-	await applyAccountBalanceChange(ctx, {
+	const fromTransactionId = await applyAccountBalanceChange(ctx, {
 		accountId: prepared.fromAccount._id,
 		amount: -prepared.amount,
 		date: prepared.date,
@@ -479,7 +494,7 @@ export const commitTransfer = async (
 		type: "transfer_out",
 		userId: prepared.fromAccount.userId,
 	});
-	await applyAccountBalanceChange(ctx, {
+	const toTransactionId = await applyAccountBalanceChange(ctx, {
 		accountId: prepared.toAccount._id,
 		amount: prepared.amount,
 		date: prepared.date,
@@ -488,13 +503,24 @@ export const commitTransfer = async (
 		type: "transfer_in",
 		userId: prepared.toAccount.userId,
 	});
-	const [fromAccount, toAccount, transfer] = await Promise.all([
-		ctx.db.get(prepared.fromAccount._id),
-		ctx.db.get(prepared.toAccount._id),
-		ctx.db.get(transferId),
-	]);
-	if (!(fromAccount && toAccount && transfer)) {
+	const [fromAccount, fromTransaction, toAccount, toTransaction, transfer] =
+		await Promise.all([
+			ctx.db.get(prepared.fromAccount._id),
+			ctx.db.get(fromTransactionId),
+			ctx.db.get(prepared.toAccount._id),
+			ctx.db.get(toTransactionId),
+			ctx.db.get(transferId),
+		]);
+	if (
+		!(fromAccount && fromTransaction && toAccount && toTransaction && transfer)
+	) {
 		throw new ConvexError("TRANSFER_NOT_FOUND");
 	}
-	return { fromAccount, toAccount, transfer };
+	return {
+		fromAccount,
+		fromTransaction,
+		toAccount,
+		toTransaction,
+		transfer,
+	};
 };

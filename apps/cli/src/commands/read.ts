@@ -1,5 +1,6 @@
 import { type Command, Option } from "commander";
 import type { CliRuntime } from "../runtime.js";
+import { registerAccountMutationCommands } from "./account-mutations.js";
 import { registerExpenseMutationCommands } from "./expense-mutations.js";
 
 const collectOption = (value: string, previous: string[]): string[] => [
@@ -148,7 +149,7 @@ export const registerReadCommands = (
 
 	const accounts = program
 		.command("accounts")
-		.description("Read Spendly accounts");
+		.description("Read and manage Spendly accounts");
 	accounts
 		.command("list")
 		.description("List accounts")
@@ -177,6 +178,7 @@ export const registerReadCommands = (
 			const { runAccountTransactions } = await import("./read-actions.js");
 			await runAccountTransactions(account, options, command, runtime);
 		});
+	registerAccountMutationCommands(accounts, runtime);
 
 	program
 		.command("account-types")

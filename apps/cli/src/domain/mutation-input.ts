@@ -3,6 +3,7 @@ import { CliError } from "../errors.js";
 import type { CliRuntime } from "../runtime.js";
 
 const DECIMAL_PATTERN = /^\d+(?:\.\d+)?$/u;
+const SIGNED_DECIMAL_PATTERN = /^-?\d+(?:\.\d+)?$/u;
 const POSITIVE_INTEGER_PATTERN = /^\d+$/u;
 const MINIMUM_IDEMPOTENCY_KEY_LENGTH = 8;
 const MAXIMUM_IDEMPOTENCY_KEY_LENGTH = 200;
@@ -19,6 +20,20 @@ export const parseAmount = (value: string): number => {
 		throw new CliError("INVALID_INPUT", "--amount must be at least 0.01");
 	}
 	return amount;
+};
+
+export const parseBalance = (value: string): number => {
+	if (!SIGNED_DECIMAL_PATTERN.test(value)) {
+		throw new CliError(
+			"INVALID_INPUT",
+			"--balance must be an ordinary decimal number"
+		);
+	}
+	const balance = Number(value);
+	if (!Number.isFinite(balance)) {
+		throw new CliError("INVALID_INPUT", "--balance must be finite");
+	}
+	return balance;
 };
 
 export const parseRevision = (value: string): number => {

@@ -22,9 +22,11 @@ import { withCliErrors } from "./errors";
 import { presentAccount, presentTransaction } from "./presenters";
 import {
 	accountCreateProposalValidator,
+	accountCreateResultValidator,
 	accountSummaryValidator,
 	accountTransactionValidator,
 	balanceAdjustmentPreviewValidator,
+	balanceAdjustmentResultValidator,
 	transferPreviewValidator,
 	transferResultValidator,
 } from "./validators";
@@ -124,10 +126,10 @@ export const listTransactions = query({
 		}),
 });
 
-export const previewCreate = query({
+export const previewCreate = mutation({
 	args: {
 		accountTypeId: v.id("account_types"),
-		date: v.optional(v.string()),
+		date: v.string(),
 		name: v.string(),
 		startingBalance: v.number(),
 	},
@@ -162,12 +164,12 @@ export const previewCreate = query({
 export const create = mutation({
 	args: {
 		accountTypeId: v.id("account_types"),
-		date: v.optional(v.string()),
+		date: v.string(),
 		idempotencyKey: v.string(),
 		name: v.string(),
 		startingBalance: v.number(),
 	},
-	returns: accountSummaryValidator,
+	returns: accountCreateResultValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -175,9 +177,18 @@ export const create = mutation({
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
 					const prepared = await prepareAccountCreate(ctx, { ...input, user });
-					const account = await commitAccountCreate(ctx, { prepared, user });
+					const { account, openingTransaction } = await commitAccountCreate(
+						ctx,
+						{
+							prepared,
+							user,
+						}
+					);
 					const currentUser = (await ctx.db.get(user._id)) ?? user;
-					return await presentAccount(ctx, account, currentUser);
+					return {
+						...(await presentAccount(ctx, account, currentUser)),
+						openingTransaction: presentTransaction(openingTransaction),
+					};
 				},
 				key: idempotencyKey,
 				operation: "accounts.create",
@@ -187,7 +198,7 @@ export const create = mutation({
 		}),
 });
 
-export const previewUpdate = query({
+export const previewUpdate = mutation({
 	args: {
 		accountId: v.id("accounts"),
 		accountTypeId: v.optional(v.id("account_types")),
@@ -264,7 +275,7 @@ const previewArchiveHandler = async (
 	};
 };
 
-export const previewArchive = query({
+export const previewArchive = mutation({
 	args: {
 		accountId: v.id("accounts"),
 		expectedRevision: v.optional(v.number()),
@@ -280,7 +291,7 @@ export const previewArchive = query({
 		),
 });
 
-export const previewReactivate = query({
+export const previewReactivate = mutation({
 	args: {
 		accountId: v.id("accounts"),
 		expectedRevision: v.optional(v.number()),
@@ -346,7 +357,7 @@ export const reactivate = mutation({
 		),
 });
 
-export const previewSetDefault = query({
+export const previewSetDefault = mutation({
 	args: {
 		accountId: v.id("accounts"),
 		expectedRevision: v.optional(v.number()),
@@ -390,13 +401,13 @@ export const setDefault = mutation({
 
 const adjustmentArgs = {
 	accountId: v.id("accounts"),
-	date: v.optional(v.string()),
+	date: v.string(),
 	expectedRevision: v.optional(v.number()),
 	newBalance: v.number(),
 	note: v.optional(v.string()),
 } as const;
 
-export const previewBalanceAdjustment = query({
+export const previewBalanceAdjustment = mutation({
 	args: adjustmentArgs,
 	returns: balanceAdjustmentPreviewValidator,
 	handler: async (ctx, args) =>
@@ -420,7 +431,7 @@ export const adjustBalance = mutation({
 		expectedRevision: v.number(),
 		idempotencyKey: v.string(),
 	},
-	returns: accountSummaryValidator,
+	returns: balanceAdjustmentResultValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -431,8 +442,19 @@ export const adjustBalance = mutation({
 						...input,
 						user,
 					});
-					const account = await commitBalanceAdjustment(ctx, prepared);
-					return await presentAccount(ctx, account, user);
+					const { account, transaction } = await commitBalanceAdjustment(
+						ctx,
+						prepared
+					);
+					return {
+						account: await presentAccount(ctx, account, user),
+						adjustment: prepared.adjustment,
+						currency: prepared.currency,
+						date: prepared.date,
+						resultingBalance: prepared.resultingBalance,
+						transaction: transaction ? presentTransaction(transaction) : null,
+						warnings: prepared.warnings,
+					};
 				},
 				key: idempotencyKey,
 				operation: "accounts.adjustBalance",
@@ -444,7 +466,7 @@ export const adjustBalance = mutation({
 
 const transferArgs = {
 	amount: v.number(),
-	date: v.optional(v.string()),
+	date: v.string(),
 	expectedFromRevision: v.optional(v.number()),
 	expectedToRevision: v.optional(v.number()),
 	fromAccountId: v.id("accounts"),
@@ -452,7 +474,7 @@ const transferArgs = {
 	toAccountId: v.id("accounts"),
 } as const;
 
-export const previewTransfer = query({
+export const previewTransfer = mutation({
 	args: transferArgs,
 	returns: transferPreviewValidator,
 	handler: async (ctx, args) =>
@@ -494,9 +516,12 @@ export const transfer = mutation({
 						currency: prepared.currency,
 						date: result.transfer.date,
 						fromAccount: await presentAccount(ctx, result.fromAccount, user),
+						fromTransaction: presentTransaction(result.fromTransaction),
 						id: result.transfer._id,
 						note: result.transfer.note ?? null,
 						toAccount: await presentAccount(ctx, result.toAccount, user),
+						toTransaction: presentTransaction(result.toTransaction),
+						warnings: prepared.warnings,
 					};
 				},
 				key: idempotencyKey,

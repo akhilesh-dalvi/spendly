@@ -1087,15 +1087,18 @@ Implementation and verification evidence is recorded in
 
 ### Phase 6: Account Mutations
 
-- [ ] Implement account create and update with active account-type validation.
-- [ ] Implement archive, reactivate, and set-default.
-- [ ] Implement absolute-balance adjustment with delta preview and ledger entry.
-- [ ] Implement same-currency transfer with two-account revision checks.
-- [ ] Return all affected balances and ledger references from mutation results.
-- [ ] Add archived-account, ambiguity, cross-currency, negative-balance,
+- [x] Implement account create and update with active account-type validation.
+- [x] Implement archive, reactivate, and set-default.
+- [x] Implement absolute-balance adjustment with delta preview and ledger entry.
+- [x] Implement same-currency transfer with two-account revision checks.
+- [x] Return all affected balances and ledger references from mutation results.
+- [x] Add archived-account, ambiguity, cross-currency, negative-balance,
       idempotency, and stale-preview tests.
-- [ ] Pass the complete account and account-backed expense lifecycle end to end
+- [x] Pass the complete account and account-backed expense lifecycle end to end
       on development.
+
+Implementation and verification evidence is recorded in
+[Spendly CLI Phase 6: Account Mutations](spendly-cli-phase-6.md).
 
 ### Phase 7: Spendly Skill
 
