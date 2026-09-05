@@ -1,0 +1,15 @@
+{
+  "title": "Spendly CLI",
+  "pages": [
+    "index",
+    "installation",
+    "authentication",
+    "cli-contract",
+    "expenses",
+    "accounts",
+    "transfers",
+    "agent-skill",
+    "privacy",
+    "troubleshooting"
+  ]
+}

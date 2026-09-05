@@ -1,5 +1,8 @@
 import "@spendly/env/web";
+import { createMDX } from "fumadocs-mdx/next";
 import type { NextConfig } from "next";
+
+const withMDX = createMDX();
 
 const nextConfig: NextConfig = {
 	typedRoutes: true,
@@ -18,4 +21,4 @@ const nextConfig: NextConfig = {
 	},
 };
 
-export default nextConfig;
+export default withMDX(nextConfig);

@@ -2,8 +2,9 @@
 
 ## Status
 
-- Status: In progress; Phase 7 implementation is verified and its unavailable
-  Claude Code response evaluation remains a release gate
+- Status: Implementation complete and locally verified; the stable production
+  URL and npm/CLI link handoff remain Phase 9 release work, while Phase 7's
+  unavailable Claude Code response evaluation remains a release gate
 - Approved: 2026-09-05
 - Branch: `feature/spendly-cli`
 - Depends on: stable CLI command/JSON contracts and the completed Spendly skill
@@ -163,12 +164,51 @@ Browser verification must cover:
 
 ## Completion Checklist
 
-- [ ] Fumadocs is integrated into `apps/web` with locked compatible versions.
-- [ ] `/docs/cli` and documentation search work without authentication.
-- [ ] All required content pages are published and linked in navigation.
-- [ ] Command and JSON examples pass automated contract checks.
-- [ ] Public content and generated output pass leakage scanning.
-- [ ] Production build and browser verification pass.
+- [x] Fumadocs is integrated into `apps/web` with locked compatible versions.
+- [x] `/docs/cli` and documentation search work without authentication.
+- [x] All required content pages are authored and linked in navigation.
+- [x] Command and JSON examples pass automated contract checks.
+- [x] Public content and generated output pass leakage scanning.
+- [x] Production build and browser verification pass.
 - [ ] Metadata, sitemap, canonical URLs, and product navigation are complete.
+      Page metadata, canonical URLs, sitemap entries, and marketing navigation
+      are implemented; npm README and CLI-help links wait for the stable URL.
 - [ ] The production documentation URL is ready for npm and skills.sh links in
       Phase 9.
+
+## Implementation Evidence
+
+Implemented on 2026-09-05:
+
+- Locked `fumadocs-core@16.15.7`, `fumadocs-ui@16.15.7`,
+  `fumadocs-mdx@15.4.0`, and `@types/mdx@2.0.14` without changing the CLI's
+  Node.js runtime contract.
+- Added the MDX source, shared provider and components, public catch-all route,
+  navigation tree, table of contents, built-in search endpoint, metadata,
+  canonical URLs, sitemap entries, and marketing navigation.
+- Added all ten approved task-oriented pages under
+  `apps/web/content/docs/cli`, using synthetic identifiers and examples only.
+- Added `pnpm --dir apps/web docs:validate`, which first builds the CLI and then
+  checks the navigation/frontmatter contract, live command paths and options,
+  JSON schemas, internal links, and leakage boundaries.
+- Added `/docs(.*)` to the Clerk public-route matcher so documentation does not
+  require authentication.
+
+Verification completed on 2026-09-05:
+
+- `pnpm --dir apps/web docs:validate` passed: 10 pages, 61 command examples,
+  two JSON examples, internal links, and leakage boundaries.
+- `pnpm --dir apps/web exec tsc --noEmit` passed.
+- Focused Biome checks and `git diff --check` passed.
+- `pnpm --dir apps/web build` passed with all ten `/docs/cli` paths statically
+  generated and `/api/docs/search` available.
+- Browser checks passed at `http://localhost:3001/docs/cli`: desktop and 390px
+  mobile layouts, zero page-level horizontal overflow, responsive sidebar,
+  table of contents, keyboard focus, copy feedback, light/dark themes, and a
+  `transfer` search that navigated to `/docs/cli/transfers`.
+- The browser console had no application errors. The only warning was Clerk's
+  expected development-key notice.
+
+Phase 9 must deploy the Web application, record the stable production URL, and
+then add that URL to the npm README, installed CLI help, and skills.sh-facing
+content before publishing the beta.

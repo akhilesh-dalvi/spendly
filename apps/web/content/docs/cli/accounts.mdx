@@ -1,0 +1,126 @@
+---
+title: Accounts and balances
+description: Inspect accounts and ledger history, create accounts, manage lifecycle state, and reconcile balances.
+---
+
+## Read accounts
+
+```bash
+spendly accounts list
+spendly accounts list --include-archived
+spendly accounts get account_demo_001
+```
+
+Account totals are grouped by currency. Spendly never adds or converts values
+from different currencies.
+
+Account types are read-only in the CLI:
+
+```bash
+spendly account-types list
+spendly account-types list --include-archived
+```
+
+## Inspect ledger history
+
+```bash
+spendly accounts transactions account_demo_001 --limit 25
+```
+
+Follow `nextCursor` only when another page is needed:
+
+```bash
+spendly accounts transactions account_demo_001 \
+  --limit 25 \
+  --cursor cursor_from_previous_page
+```
+
+The CLI never edits ledger rows directly.
+
+## Create an account
+
+Resolve an active account type, then preview the opening balance:
+
+```bash
+spendly accounts create \
+  --name "Daily checking" \
+  --account-type-id account_type_demo_001 \
+  --starting-balance 850.00 \
+  --date 2026-09-05 \
+  --idempotency-key account-demo-create-001 \
+  --dry-run
+```
+
+Commit the same input without `--dry-run`:
+
+```bash
+spendly accounts create \
+  --name "Daily checking" \
+  --account-type-id account_type_demo_001 \
+  --starting-balance 850.00 \
+  --date 2026-09-05 \
+  --idempotency-key account-demo-create-001
+```
+
+The opening balance is represented by a ledger entry. Do not create an account
+when the user's intended name, account type, or balance is unclear.
+
+## Rename or change account type
+
+Use the current account revision:
+
+```bash
+spendly accounts update account_demo_001 \
+  --name "Household checking" \
+  --if-revision 2 \
+  --idempotency-key account-demo-update-001 \
+  --dry-run
+```
+
+The selected account type must be active. Commit only when the preview targets
+the intended account and shows no unrelated effect.
+
+## Default, archive, and reactivate
+
+```bash
+spendly accounts set-default account_demo_001 \
+  --if-revision 3 \
+  --idempotency-key account-demo-default-001 \
+  --dry-run
+
+spendly accounts archive account_demo_001 \
+  --if-revision 4 \
+  --idempotency-key account-demo-archive-001 \
+  --dry-run
+
+spendly accounts reactivate account_demo_001 \
+  --if-revision 5 \
+  --idempotency-key account-demo-reactivate-001 \
+  --dry-run
+```
+
+Remove `--dry-run` from only the intended command after reviewing its preview.
+Archived accounts remain readable for history but reject new expenses,
+adjustments, and transfers. Permanent account deletion is unsupported.
+
+## Reconcile an absolute balance
+
+`adjust-balance` sets the desired final balance. It does not add the supplied
+number to the existing balance.
+
+```bash
+spendly accounts adjust-balance account_demo_001 \
+  --balance 925.40 \
+  --date 2026-09-05 \
+  --note "Statement reconciliation" \
+  --if-revision 6 \
+  --idempotency-key account-demo-adjust-001 \
+  --dry-run
+```
+
+The preview reports the current balance, desired balance, calculated delta,
+ledger entry, resulting revision, and warnings. Commit the same request only
+after verifying that delta.
+
+Zero and negative balances are allowed. A negative result must be reported
+clearly; never reinterpret a liability balance or silently change the amount.

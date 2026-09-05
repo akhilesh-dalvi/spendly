@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --port 3001",
     "build": "next build",
+    "docs:validate": "pnpm --dir ../cli build && node scripts/validate-cli-docs.mjs",
     "start": "next start"
   },
   "dependencies": {
@@ -37,6 +38,9 @@
     "date-fns": "^4.1.0",
     "dotenv": "catalog:",
     "frimousse": "^0.3.0",
+    "fumadocs-core": "16.15.7",
+    "fumadocs-mdx": "15.4.0",
+    "fumadocs-ui": "16.15.7",
     "lucide-react": "^0.546.0",
     "motion": "^12.34.3",
     "next": "^16.1.1",
@@ -54,6 +58,7 @@
     "@spendly/config": "workspace:*",
     "@tailwindcss/postcss": "^4.1.10",
     "@types/color": "^4.2.0",
+    "@types/mdx": "2.0.14",
     "@types/node": "^20",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",

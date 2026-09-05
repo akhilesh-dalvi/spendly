@@ -1,0 +1,64 @@
+---
+title: Privacy and security
+description: Understand Spendly CLI credential, data, mutation, and agent boundaries.
+---
+
+## Credentials stay local
+
+Spendly CLI authenticates through your browser and stores credentials in the
+operating system credential store. It never requires a Clerk secret, Convex
+deploy key, or copied browser token.
+
+The owner-only plaintext fallback is disabled unless you explicitly pass
+`--allow-file-storage`. Do not enable it on a shared or untrusted computer.
+
+## Financial data stays in scope
+
+The CLI sends authenticated requests only to Spendly's configured production
+services. It does not send expense payloads, account balances, credentials, or
+authorization headers to skills.sh, documentation search, Sentry, PostHog, or
+an unrelated AI service.
+
+Documentation examples use synthetic IDs, amounts, names, dates, and tokens.
+
+## Backend enforcement
+
+The backend derives the user from verified authentication and enforces
+ownership for every resource. A stable ID does not grant access to another
+user's data.
+
+The backend also enforces:
+
+- Input normalization and business rules.
+- Dry-run and commit parity.
+- Idempotency and request fingerprinting.
+- Expense and account revisions.
+- Atomic account and ledger changes.
+- Short-lived, single-use deletion confirmation.
+
+Terminal prompts and agent source labels are usability features, not security
+boundaries.
+
+## Safe diagnostics
+
+`--debug` writes redacted diagnostics to standard error. Do not redirect debug
+output into a public issue without reviewing it. Never add tokens, environment
+files, credential paths, or real financial payloads to a bug report.
+
+## Agent boundaries
+
+The Spendly skill is instruction-only. It contains no credential and does not
+expand the user's authorization. Review the agent's preview before a mutation,
+especially for deletion, account balance adjustments, transfers, or negative
+balance warnings.
+
+Bulk mutations, account deletion, account-type mutation, direct ledger edits,
+and transfer editing or deletion are unsupported in version 1.
+
+## If you suspect exposure
+
+1. Run `spendly auth logout` on the affected computer.
+2. Revoke relevant browser sessions through the identity provider.
+3. Do not paste exposed material into a support request.
+4. Sign in again only after securing the computer and removing the exposed
+   copy.

@@ -3,7 +3,8 @@
 ## Document Status
 
 - Status: Phases 0-6 complete; Phase 7 implementation verified with external
-  cross-agent evaluation pending; Phase 8 in progress
+  cross-agent evaluation pending; Phase 8 implementation locally verified with
+  production URL and release-link handoff pending Phase 9
 - Last updated: 2026-09-05
 - Target branch: `feature/spendly-cli`
 - Package location: `apps/cli`
@@ -1167,7 +1168,9 @@ Implementation and verification evidence is recorded in
 - [x] Add expense and account success, ambiguity, conflict, timeout, negative
       balance, and deletion examples.
 - [x] Test global skills.sh installation for Codex and Claude Code.
-- [ ] Run the agent evaluation suite and review for personal-data leakage.
+- [x] Run the automated agent evaluation suite and review for personal-data
+      leakage.
+- [ ] Run independent Codex and Claude Code response evaluations.
 
 Implementation and current verification evidence is recorded in
 [Spendly CLI Phase 7: Spendly Skill](spendly-cli-phase-7.md).
@@ -1178,22 +1181,26 @@ Exit criterion: `/docs/cli` is a public, searchable, responsive Fumadocs site
 whose copyable commands match the production CLI build and whose examples
 contain only synthetic data.
 
-- [ ] Add compatible Fumadocs Core, UI, and MDX packages to `apps/web`.
-- [ ] Configure the Fumadocs MDX source, Next.js integration, shared provider,
+- [x] Add compatible Fumadocs Core, UI, and MDX packages to `apps/web`.
+- [x] Configure the Fumadocs MDX source, Next.js integration, shared provider,
       and styles without regressing existing Web routes.
-- [ ] Add the public `/docs/cli` layout, page route, navigation tree, table of
+- [x] Add the public `/docs/cli` layout, page route, navigation tree, table of
       contents, and search endpoint.
-- [ ] Create the approved overview, installation, authentication, CLI contract,
+- [x] Create the approved overview, installation, authentication, CLI contract,
       expense, account, transfer, agent-skill, privacy, and troubleshooting
       pages.
-- [ ] Add command-reference generation or validation against the production CLI
+- [x] Add command-reference generation or validation against the production CLI
       build and versioned JSON schemas.
-- [ ] Ensure every public example uses synthetic data and no development or
+- [x] Ensure every public example uses synthetic data and no development or
       credential material is included in the generated site.
 - [ ] Add documentation metadata, canonical URLs, sitemap entries, and links
       from the Spendly marketing navigation, npm README, and CLI help.
-- [ ] Verify the production Web build, search, keyboard navigation, responsive
+- [x] Verify the production Web build, search, keyboard navigation, responsive
       layout, copy buttons, internal links, and representative command examples.
+
+Metadata, canonical URLs, sitemap entries, and marketing navigation are
+implemented. The npm README and CLI-help links remain intentionally pending
+until Phase 9 establishes the stable production documentation URL.
 
 The approved implementation design and verification checklist are recorded in
 [Spendly CLI Phase 8: Fumadocs Documentation](spendly-cli-phase-8.md).

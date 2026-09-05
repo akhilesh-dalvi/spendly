@@ -1,0 +1,132 @@
+---
+title: Expenses
+description: List, inspect, create, correct, categorize, assign, and permanently delete individual expenses.
+---
+
+## Read expenses
+
+List one page:
+
+```bash
+spendly expenses list --limit 25
+```
+
+Useful filters include `--cycle-id`, `--category-id`, `--uncategorized`,
+`--account-id`, `--unassigned`, repeatable `--tag-id`, `--from`, and `--to`.
+Run `spendly expenses list --help` for the current syntax.
+
+Inspect one expense using its stable ID:
+
+```bash
+spendly expenses get expense_demo_001
+```
+
+## Create an expense
+
+Preview the normalized result first:
+
+```bash
+spendly expenses create \
+  --amount 18.75 \
+  --date 2026-09-05 \
+  --spent-on "Lunch" \
+  --account-id account_demo_001 \
+  --category-id category_demo_001 \
+  --idempotency-key expense-demo-20260905-01 \
+  --dry-run
+```
+
+Review the resolved cycle, category, account, tags, date, amount, warnings, and
+balance effect. Commit the same intended mutation without `--dry-run` and with
+the same idempotency key:
+
+```bash
+spendly expenses create \
+  --amount 18.75 \
+  --date 2026-09-05 \
+  --spent-on "Lunch" \
+  --account-id account_demo_001 \
+  --category-id category_demo_001 \
+  --idempotency-key expense-demo-20260905-01
+```
+
+An account-backed expense subtracts the amount from that account and appends a
+ledger entry. Use `--no-account` to create an explicitly unassigned expense.
+
+When category is omitted, Spendly may infer it only from the approved exact
+description history rule. It never classifies from general-world knowledge and
+never infers or creates tags.
+
+## Correct an expense
+
+Read the current expense and use its revision:
+
+```bash
+spendly expenses get expense_demo_001
+```
+
+Preview an update:
+
+```bash
+spendly expenses update expense_demo_001 \
+  --amount 20.25 \
+  --if-revision 3 \
+  --idempotency-key expense-demo-update-001 \
+  --dry-run
+```
+
+Commit the identical update once the preview is correct:
+
+```bash
+spendly expenses update expense_demo_001 \
+  --amount 20.25 \
+  --if-revision 3 \
+  --idempotency-key expense-demo-update-001
+```
+
+Use explicit clear options instead of treating omission as deletion:
+
+- `--clear-spent-on`
+- `--clear-category`
+- `--clear-account`
+- `--clear-tags`
+
+Moving an expense between accounts reverses the old account effect and applies
+the new one. Clearing the account reverses the existing effect and leaves the
+expense unassigned.
+
+If another actor changes the expense after it was read, the commit returns
+`EXPENSE_REVISION_CONFLICT`. Read it again, reconsider the requested change,
+create a new preview, and use a new idempotency key.
+
+## Permanently delete an expense
+
+Deletion is intentionally two-step. The preview returns a short-lived token
+bound to the expense ID and revision:
+
+```bash
+spendly expenses delete expense_demo_001 \
+  --if-revision 4 \
+  --idempotency-key expense-demo-delete-001 \
+  --dry-run
+```
+
+Only after confirming the preview, commit with its token:
+
+```bash
+spendly expenses delete expense_demo_001 \
+  --if-revision 4 \
+  --idempotency-key expense-demo-delete-001 \
+  --confirmation-token confirm_demo_token
+```
+
+Deleting an account-backed expense restores its amount to the account and
+preserves the corresponding ledger history. Expired, invalid, reused, or stale
+tokens perform no deletion.
+
+## Uncertain network result
+
+Spendly never automatically retries a mutation. If a commit reports a
+retryable uncertain result, verify the resource first. If the result is still
+unknown, explicitly repeat the exact command with the same idempotency key.
+Never generate a new key for a retry of the same intended write.

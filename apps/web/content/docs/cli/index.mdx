@@ -1,0 +1,77 @@
+---
+title: Spendly CLI
+description: Read and manage your Spendly expenses, accounts, balances, and transfers from a trusted computer.
+---
+
+Spendly CLI is a deterministic interface for people and local AI agents. It
+uses the same Spendly account as the web app while keeping ownership,
+normalization, revisions, and financial mutations enforced by the backend.
+
+## Choose a starting point
+
+### Use it in a terminal
+
+Install the beta, sign in through your browser, then inspect your current
+Spendly context.
+
+```bash
+npm install --global spendly@next
+spendly auth login
+spendly context
+```
+
+Continue with [installation](/docs/cli/installation),
+[authentication](/docs/cli/authentication), or the
+[expense workflows](/docs/cli/expenses).
+
+### Use it with an AI agent
+
+Install the portable Spendly skill for Codex or Claude Code. The skill teaches
+the agent to use stable IDs, JSON output, dry runs, idempotency keys, and
+revision checks.
+
+```bash
+DISABLE_TELEMETRY=1 npx skills add akhilesh-dalvi/spendly \
+  --skill spendly \
+  --global \
+  --agent codex \
+  --agent claude-code
+```
+
+Read [agent and skill usage](/docs/cli/agent-skill) before authorizing a
+financial mutation.
+
+### Understand the safety model
+
+Every mutation can be previewed. Expense deletion uses a separate,
+short-lived confirmation token. Updates use revisions to prevent overwriting a
+newer web or CLI change, and uncertain network results are never retried
+automatically.
+
+Read the [CLI contract](/docs/cli/cli-contract),
+[privacy boundaries](/docs/cli/privacy), and
+[troubleshooting guide](/docs/cli/troubleshooting).
+
+## Supported in version 1
+
+- Read context, cycles, categories, tags, summaries, expenses, accounts,
+  account types, and ledger history.
+- Create, update, and permanently delete one expense.
+- Create, edit, archive, reactivate, and select a default account.
+- Reconcile an account to an absolute balance.
+- Transfer funds atomically between active accounts in the same currency.
+
+Bulk mutation, currency conversion, account-type mutation, permanent account
+deletion, direct ledger editing, and editing or deleting completed transfers
+are intentionally unsupported.
+
+## Command authority
+
+These guides explain safe workflows. The installed command remains the syntax
+authority:
+
+```bash
+spendly --version
+spendly --help
+spendly expenses create --help
+```

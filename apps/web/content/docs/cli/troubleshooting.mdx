@@ -1,0 +1,98 @@
+---
+title: Troubleshooting
+description: Recover from installation, authentication, selector, revision, confirmation, and network errors safely.
+---
+
+## Command not found
+
+Verify the package and npm global binary location:
+
+```bash
+npm list --global spendly
+npm prefix --global
+spendly --version
+```
+
+If the package is missing, reinstall the beta with
+`npm install --global spendly@next`. Do not download an unofficial binary.
+If it is installed but unavailable, ensure the global executable directory is
+on `PATH` (`<npm-prefix>/bin` on macOS or Linux, and `<npm-prefix>` on Windows).
+
+## Authentication required or expired
+
+```bash
+spendly auth status
+spendly auth login
+```
+
+Use a browser on the same computer. Never copy a token or authorization URL to
+an external agent.
+
+## `ACCOUNT_SETUP_REQUIRED`
+
+Open Spendly Web once while signed in, then rerun `spendly context`. The CLI
+will not create the backend user automatically.
+
+## `KEYCHAIN_UNAVAILABLE`
+
+Restore access to the operating system credential store when possible. The
+file fallback requires the explicit `--allow-file-storage` flag and should be
+used only on a trusted, owner-controlled filesystem.
+
+## Ambiguous selector
+
+The CLI performs no write and returns candidates. List the resource, choose the
+intended stable ID, and rerun the preview:
+
+```bash
+spendly --json --non-interactive accounts list
+spendly --json --non-interactive expenses list --account-id account_demo_001
+```
+
+Do not choose the first candidate or use fuzzy matching.
+
+## Revision conflict
+
+Another CLI or web action changed the resource. Read it again, reconsider the
+requested change, create a new preview, and use a new idempotency key. Do not
+overwrite the newer revision automatically.
+
+## Idempotency conflict
+
+An idempotency key was reused with different input. Stop and inspect the
+original result. Use a new key only for a genuinely new user intent.
+
+## Deletion confirmation error
+
+Deletion tokens are short-lived, single-use, and bound to the expense ID and
+revision. Rerun the deletion preview and ask for confirmation again. Never
+substitute a token from another preview.
+
+## Network error after a mutation
+
+The outcome may be uncertain. Do not automatically retry and do not create a
+new idempotency key.
+
+1. Read the target resource and affected account history.
+2. If the mutation is visible, report the committed result.
+3. If it is not visible or remains unknown, explicitly repeat the exact
+   intended command with the same idempotency key.
+
+Read-only commands may use bounded retries unless `--no-retry` is present.
+
+## Archived or currency conflict
+
+Archived accounts reject new expenses, adjustments, and transfers. Reactivate
+the account only when the user explicitly requests it. Transfers require two
+different active accounts with the same stored currency; Spendly never converts
+currency.
+
+## Get exact command help
+
+```bash
+spendly --help
+spendly expenses create --help
+spendly accounts transfer --help
+```
+
+Installed help takes precedence over a stale example or cached documentation.

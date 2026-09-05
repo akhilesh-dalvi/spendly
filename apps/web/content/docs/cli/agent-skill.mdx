@@ -1,0 +1,83 @@
+---
+title: Agent and skill usage
+description: Install the Spendly skill and let Codex or Claude Code use the CLI safely on your trusted computer.
+---
+
+The Spendly skill translates a user's financial intent into deterministic CLI
+commands. It does not contain credentials or personal financial data and does
+not grant additional authorization.
+
+## Install
+
+```bash
+DISABLE_TELEMETRY=1 npx skills add akhilesh-dalvi/spendly \
+  --skill spendly \
+  --global \
+  --agent codex \
+  --agent claude-code
+```
+
+Update an existing installation with:
+
+```bash
+DISABLE_TELEMETRY=1 npx skills update spendly --global
+```
+
+Review installed skills before use because agent skills can direct tools with
+the permissions available to the agent.
+
+## Trusted-computer boundary
+
+Use Spendly only with a local Codex or Claude Code session on the same trusted
+computer where browser login and credential storage occur. Version 1 does not
+support hosted agents, CI, service accounts, or delegated third-party access.
+
+Never provide an agent with:
+
+- Keychain access or credential-file contents.
+- OAuth tokens, authorization URLs, headers, or cookies.
+- Clerk secrets, Convex deploy keys, or environment files.
+- Permission to send Spendly payloads to an unrelated external service.
+
+## Agent command contract
+
+Agents should run every financial-data command with global JSON and
+non-interactive flags:
+
+```bash
+spendly --json --non-interactive context
+spendly --json --non-interactive accounts list
+spendly --json --non-interactive expenses list --limit 25
+```
+
+The agent must use stable IDs returned by reads. It must not invent or silently
+create categories, tags, accounts, account types, cycles, or dates.
+
+## Mutation contract
+
+One clear user intent authorizes at most one mutation. The agent should:
+
+1. Verify version, authentication status, and context.
+2. Resolve stable IDs and current revisions.
+3. Run a server-backed `--dry-run` with a stable idempotency key.
+4. Show the normalized target, balance effects, warnings, and destructive
+   consequences.
+5. Stop for ambiguity, conflicts, unexpected normalization, or missing user
+   authorization.
+6. Commit once and report the result.
+
+Expense deletion additionally requires the short-lived token returned by its
+preview.
+
+## Ask clearly
+
+Good requests identify one intended outcome:
+
+> Record a 24.50 lunch expense today from my Daily checking account. Preview it
+> before saving.
+
+> Reconcile my Savings account to 2,450.00 using today's date. Show me the
+> calculated adjustment before committing.
+
+If names are ambiguous or the date cannot be safely inferred, the agent should
+ask rather than choose.

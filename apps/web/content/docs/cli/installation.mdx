@@ -1,0 +1,77 @@
+---
+title: Installation
+description: Install, update, verify, and remove the Spendly CLI beta.
+---
+
+## Requirements
+
+- Node.js 20 or newer.
+- A trusted personal computer with a browser.
+- A Spendly account that has been opened in Spendly Web at least once.
+- macOS is currently verified. Linux support is announced only after the
+  native credential-store and packaged-install gates pass.
+
+Spendly CLI does not support hosted-agent, CI, device-code, service-account, or
+Windows authentication in version 1.
+
+## Install the beta
+
+Install the current beta from the npm `next` tag:
+
+```bash
+npm install --global spendly@next
+```
+
+Verify the executable before signing in:
+
+```bash
+spendly --version
+spendly --help
+```
+
+The published package contains production configuration only. Development
+configuration is available only from a source checkout.
+
+## Update
+
+```bash
+npm install --global spendly@next
+spendly --version
+```
+
+After the stable release, use the default npm tag:
+
+```bash
+npm install --global spendly
+```
+
+## Remove
+
+Sign out first so Spendly can attempt provider revocation and remove local
+credentials:
+
+```bash
+spendly auth logout
+npm uninstall --global spendly
+```
+
+If logout reports a temporary provider error, follow the exact recovery action
+in its output before removing the package.
+
+## Install the agent skill
+
+The optional skill is distributed from the same public repository:
+
+```bash
+DISABLE_TELEMETRY=1 npx skills add akhilesh-dalvi/spendly \
+  --skill spendly \
+  --global \
+  --agent codex \
+  --agent claude-code
+```
+
+The `DISABLE_TELEMETRY=1` setting applies to the third-party skills installer.
+Spendly CLI itself does not send financial payloads or credentials to that
+installer.
+
+Continue with [authentication](/docs/cli/authentication).
