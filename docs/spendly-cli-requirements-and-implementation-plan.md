@@ -2,8 +2,9 @@
 
 ## Document Status
 
-- Status: Phase 0 complete for macOS; Linux validation deferred to pre-release
-- Last updated: 2026-08-30
+- Status: Phases 0-6 complete; Phase 7 implementation verified with external
+  cross-agent evaluation pending; Phase 8 in progress
+- Last updated: 2026-09-05
 - Target branch: `feature/spendly-cli`
 - Package location: `apps/cli`
 - npm package and executable: `spendly`
@@ -53,6 +54,7 @@ types, account types, or tags.
 - Keep expense and account balances synchronized when an expense is created,
   edited, moved, unassigned, or deleted.
 - Establish a backend contract that can later be reused by an MCP server.
+- Publish searchable, task-oriented CLI documentation alongside Spendly Web.
 
 ## 3. Non-Goals for Version 1
 
@@ -71,6 +73,8 @@ types, account types, or tags.
 - An MCP server.
 - A persistent mutation audit table. Sentry and PostHog may be designed later
   as observability systems, but version 1 does not claim a durable audit trail.
+- Treating public documentation as a substitute for live CLI help, versioned
+  JSON schemas, or backend validation.
 
 ## 4. Supported Users and Platforms
 
@@ -113,6 +117,9 @@ default; JSON is opt-in.
    development configuration is source-checkout-only.
 9. **Privacy:** credentials and financial payloads never enter logs,
    diagnostics, skill files, or future telemetry.
+10. **Documentation authority:** public examples are checked against the built
+    CLI; installed `--help`, versioned JSON schemas, and backend validation
+    remain authoritative.
 
 ## 6. Current Spendly Baseline
 
@@ -894,7 +901,59 @@ contains no credentials or user financial data.
 8. For expense delete, obtain the short-lived confirmation token and perform the
    separate confirmed commit.
 
-## 18. Security Requirements
+## 18. Public CLI Documentation
+
+### 18.1 Architecture and Location
+
+- Add Fumadocs to the existing `apps/web` Next.js application instead of
+  creating and operating a separate documentation application.
+- Serve the documentation publicly at `/docs/cli`; it must not require Clerk
+  authentication or expose signed-in Spendly data.
+- Store public MDX under `apps/web/content/docs/cli` and keep the internal
+  phase, implementation, and verification records under the repository-level
+  `docs/` directory.
+- Use Fumadocs MDX as the content source and Fumadocs UI for the page tree,
+  sidebar, table of contents, code blocks, and search experience.
+- Integrate the docs with Spendly's existing typography, colors, navigation,
+  metadata, sitemap, and responsive behavior rather than presenting an
+  unrelated default theme.
+
+### 18.2 Required Information Architecture
+
+The version 1 documentation must include:
+
+1. Overview and supported use cases.
+2. Installation, update, version, and uninstall instructions.
+3. Browser authentication, logout, credential storage, and account-setup
+   requirements.
+4. Global flags, human output, JSON envelopes, exit codes, pagination, dates,
+   currencies, and selector rules.
+5. Expense read and mutation workflows.
+6. Account, balance-adjustment, transaction-history, and transfer workflows.
+7. Dry-run, idempotency, revisions, deletion confirmation, ambiguity, and
+   uncertain-result recovery.
+8. Codex and Claude Code Spendly skill installation and safe agent usage.
+9. Privacy, security boundaries, and troubleshooting.
+
+Pages should teach complete tasks first and link to concise command reference
+material when exact flags or response fields are needed.
+
+### 18.3 Accuracy and Privacy Gates
+
+- Installed `spendly <resource> <command> --help` output and versioned JSON
+  schemas are the command-reference source of truth.
+- Validate documented commands and flags against a production CLI build in CI.
+- Run copyable command examples in a parser-only or isolated fixture mode; docs
+  verification must never access a user's live Spendly data.
+- Use synthetic IDs, names, balances, dates, tokens, and JSON responses in all
+  public examples.
+- Do not publish development endpoints, Clerk configuration, Convex deploy
+  keys, credential paths, real financial payloads, or internal implementation
+  notes.
+- Link the npm package README and CLI help output to the stable documentation
+  URL once it is deployed.
+
+## 19. Security Requirements
 
 - Embed no Clerk secret, Convex deploy key, backend secret, or personal token in
   the npm package or skill.
@@ -912,9 +971,9 @@ contains no credentials or user financial data.
 - Treat source labels such as interactive or non-interactive as informational,
   never as an authorization boundary.
 
-## 19. Testing Requirements
+## 20. Testing Requirements
 
-### 19.1 Unit Tests
+### 20.1 Unit Tests
 
 - Commander parsing and local validation.
 - Amount, date, and timezone normalization.
@@ -927,7 +986,7 @@ contains no credentials or user financial data.
 - Account selector ambiguity, default-account resolution, balance-adjustment
   math, transfer validation, and negative-balance warnings.
 
-### 19.2 Backend Tests
+### 20.2 Backend Tests
 
 - Missing-user and authentication behavior.
 - Cross-user ownership enforcement.
@@ -950,7 +1009,7 @@ contains no credentials or user financial data.
 - Idempotent account mutation replay and stale account/transfer revision
   conflicts.
 
-### 19.3 Integration and End-to-End Tests
+### 20.3 Integration and End-to-End Tests
 
 - Browser login through a random loopback port.
 - Token refresh within 30 days and reauthentication after 30 days.
@@ -972,7 +1031,7 @@ contains no credentials or user financial data.
 - Packaged CLI installation outside the monorepo on macOS and Linux.
 - Codex and Claude Code skill evaluations.
 
-## 20. Implementation Plan
+## 21. Implementation Plan
 
 ### Phase 0: Decisions and Authentication Spike
 
@@ -1102,15 +1161,44 @@ Implementation and verification evidence is recorded in
 
 ### Phase 7: Spendly Skill
 
-- [ ] Add `skills/spendly/SKILL.md` in portable Agent Skills format.
-- [ ] Encode auth, context, date, selector, account, balance, transfer,
+- [x] Add `skills/spendly/SKILL.md` in portable Agent Skills format.
+- [x] Encode auth, context, date, selector, account, balance, transfer,
       inference, dry-run, idempotency, revision, and deletion workflows.
-- [ ] Add expense and account success, ambiguity, conflict, timeout, negative
+- [x] Add expense and account success, ambiguity, conflict, timeout, negative
       balance, and deletion examples.
-- [ ] Test global skills.sh installation for Codex and Claude Code.
+- [x] Test global skills.sh installation for Codex and Claude Code.
 - [ ] Run the agent evaluation suite and review for personal-data leakage.
 
-### Phase 8: Packaging and Release
+Implementation and current verification evidence is recorded in
+[Spendly CLI Phase 7: Spendly Skill](spendly-cli-phase-7.md).
+
+### Phase 8: Fumadocs CLI Documentation
+
+Exit criterion: `/docs/cli` is a public, searchable, responsive Fumadocs site
+whose copyable commands match the production CLI build and whose examples
+contain only synthetic data.
+
+- [ ] Add compatible Fumadocs Core, UI, and MDX packages to `apps/web`.
+- [ ] Configure the Fumadocs MDX source, Next.js integration, shared provider,
+      and styles without regressing existing Web routes.
+- [ ] Add the public `/docs/cli` layout, page route, navigation tree, table of
+      contents, and search endpoint.
+- [ ] Create the approved overview, installation, authentication, CLI contract,
+      expense, account, transfer, agent-skill, privacy, and troubleshooting
+      pages.
+- [ ] Add command-reference generation or validation against the production CLI
+      build and versioned JSON schemas.
+- [ ] Ensure every public example uses synthetic data and no development or
+      credential material is included in the generated site.
+- [ ] Add documentation metadata, canonical URLs, sitemap entries, and links
+      from the Spendly marketing navigation, npm README, and CLI help.
+- [ ] Verify the production Web build, search, keyboard navigation, responsive
+      layout, copy buttons, internal links, and representative command examples.
+
+The approved implementation design and verification checklist are recorded in
+[Spendly CLI Phase 8: Fumadocs Documentation](spendly-cli-phase-8.md).
+
+### Phase 9: Packaging and Release
 
 - [ ] Add CI for format, lint, typecheck, tests, package build, and tarball
       inspection.
@@ -1118,9 +1206,11 @@ Implementation and verification evidence is recorded in
 - [ ] Verify `npm whoami` and package availability immediately before publish.
 - [ ] Generate npm provenance and dependency-audit results.
 - [ ] Verify development end-to-end gates before merge.
+- [ ] Deploy `/docs/cli` and verify its stable production URL.
 - [ ] Publish `spendly@0.1.0` with tag `next`.
 - [ ] Verify clean global installation and production login.
-- [ ] Publish command, JSON contract, skill, privacy, and troubleshooting docs.
+- [ ] Verify the published package, CLI help, and skills.sh bundle link to the
+      production documentation.
 - [ ] Resolve beta findings before publishing `1.0.0` with tag `latest`.
 
 ### Later Phases
@@ -1138,7 +1228,7 @@ Implementation and verification evidence is recorded in
 - [ ] Evaluate export and MCP surfaces that reuse `cli/v1`.
 - [ ] Design a product-wide trash system only if both Web and CLI adopt it.
 
-## 21. Version 1 Acceptance Criteria
+## 22. Version 1 Acceptance Criteria
 
 - [ ] A source checkout authenticates against Clerk and Convex development
       without weakening issuer or audience checks.
@@ -1173,8 +1263,14 @@ Implementation and verification evidence is recorded in
       development configuration.
 - [ ] The package works outside the monorepo on macOS and Linux.
 - [ ] The skills.sh-installed skill passes Codex and Claude Code evaluations.
+- [ ] `/docs/cli` is public, searchable, responsive, and accessible without a
+      Spendly account.
+- [ ] Public command examples and flags pass automated checks against the
+      production CLI build and contain only synthetic data.
+- [ ] The npm package, CLI help, and Spendly skill link to the stable CLI
+      documentation URL.
 
-## 22. Remaining Technical Decisions
+## 23. Remaining Technical Decisions
 
 The product behavior is approved. The following implementation selections may
 be made during their phase and validated with tests:
@@ -1192,7 +1288,7 @@ Any discovery that requires weakening the approved authentication, ownership,
 idempotency, revision, deletion, privacy, or environment boundaries requires a
 new product decision.
 
-## 23. Risks and Mitigations
+## 24. Risks and Mitigations
 
 | Risk                                             | Impact                                        | Mitigation                                                                 |
 | ------------------------------------------------ | --------------------------------------------- | -------------------------------------------------------------------------- |
@@ -1209,8 +1305,10 @@ new product decision.
 | Tokens leak through files or output              | Account compromise                            | Use keychain, explicit secure fallback, redaction, and leakage tests       |
 | Published package reaches development            | Data or auth isolation failure                | Bake production configuration into releases and keep dev source-only       |
 | Skill and CLI contracts drift                    | Agent performs unsafe or invalid calls        | Version JSON, release together, and run Codex/Claude evaluations           |
+| Public CLI documentation drifts from the binary  | Users run invalid or unsafe commands          | Validate documented commands against the production CLI build in CI        |
+| Documentation exposes private configuration      | Credentials or internal endpoints leak        | Use synthetic fixtures and scan generated output before deployment         |
 
-## 24. References
+## 25. References
 
 - [Convex `ConvexHttpClient` API](https://docs.convex.dev/api/classes/browser.ConvexHttpClient.html)
 - [Convex error handling and retries](https://docs.convex.dev/functions/error-handling/)
@@ -1221,5 +1319,8 @@ new product decision.
 - [Clerk OAuth public clients and PKCE](https://clerk.com/docs/guides/configure/auth-strategies/oauth/how-clerk-implements-oauth)
 - [skills.sh CLI reference](https://www.skills.sh/docs/cli)
 - [Claude Code skills](https://code.claude.com/docs/en/slash-commands)
+- [Fumadocs quick start](https://www.fumadocs.dev/docs)
+- [Fumadocs Next.js installation](https://www.fumadocs.dev/docs/manual-installation/next)
+- [Fumadocs search](https://www.fumadocs.dev/docs/search)
 - [Spendly documentation index](README.md)
 - [Spendly backend documentation](../packages/backend/convex/README.md)

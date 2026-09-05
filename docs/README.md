@@ -11,6 +11,8 @@ This folder is for **active, in-flight feature work only** — not long-lived do
 ## What not to put here
 
 - Permanent API or route documentation (read the code instead)
+- Public Spendly CLI guides or command reference (put those in
+  `apps/web/content/docs/cli` for the Fumadocs site)
 - Project status checklists or roadmaps (use GitHub Issues)
 - Duplicates of `schema.ts`, README, or AGENTS.md
 
