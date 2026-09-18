@@ -1,11 +1,13 @@
 # Spendly
 
-Spendly is a personal expense tracking monorepo built around custom expense cycles, categories, accounts, tags, and comparison views. The web app and Convex backend are the main active parts of the project today, with the native Expo app present in the repo for later work.
+Spendly is a personal expense tracker built around custom expense cycles,
+categories, accounts, tags, and comparison views. The Next.js web app and
+Convex backend are the active parts of the project.
 
 ## Product principles
 
 - No income tracking — observe spending, not earnings
-- Cycles over calendar months — user-defined time buckets (e.g. pay period to pay period)
+- Cycles over calendar months — use personal time buckets such as pay periods
 - Planning is optional — track freely or add planned amounts when ready
 - No enforcement — overspending is data, not an error
 - Historical data is editable — mistakes are part of the process
@@ -13,120 +15,50 @@ Spendly is a personal expense tracking monorepo built around custom expense cycl
 
 ## Stack
 
-- Next.js 16 + React 19 for the web app
+- Next.js 16 and React 19 for the web app
 - Convex for backend functions, schema, and realtime data
 - Clerk for authentication
-- Expo + React Native for the native app workspace
-- Tailwind CSS 4 and shadcn/ui for UI
-- Turborepo + pnpm workspaces for the monorepo
+- Tailwind CSS 4 and shadcn/ui for the interface
+- Turborepo and pnpm workspaces for the monorepo
 - Biome via Ultracite for formatting and linting
 
-## Repo Layout
+## Repository layout
 
 ```text
 spendly/
 ├── apps/
-│   ├── web/                 # Next.js web app
-│   └── native/              # Expo / React Native app
+│   └── web/                 # Next.js web app
 ├── packages/
 │   ├── backend/             # Convex workspace
-│   │   └── convex/          # Convex schema, queries, and mutations
-│   └── env/                 # Shared env validation/helpers
-├── docs/features/           # Ephemeral specs for in-flight work (delete when shipped)
+│   │   └── convex/          # Schema, queries, and mutations
+│   ├── config/              # Shared TypeScript configuration
+│   └── env/                 # Shared environment validation
+├── docs/
+│   └── features/            # Temporary specs for in-flight work
+├── CONTRIBUTING.md
 ├── README.md
 └── turbo.json
 ```
 
-## Requirements
+## Development
 
-- Node.js 20+
-- pnpm 10+
-- A Convex account/project
-- A Clerk application
-
-## Getting Started
-
-Install dependencies:
+Install dependencies, connect a Convex deployment, and start the development
+setup:
 
 ```bash
 pnpm install
-```
-
-Configure Convex for this repo:
-
-```bash
 pnpm dev:setup
 ```
 
-That command runs `convex dev --configure --until-success` in the backend workspace and walks you through connecting a deployment.
-
-## Environment Setup
-
-Spendly uses separate environment files per app/workspace. Set up the files you actually need instead of copying one env file into every package.
-
-Typical setup:
-
-- `apps/web/.env.local`
-- `apps/native/.env`
-- `packages/backend/.env.local`
-
-Clerk + Convex notes:
-
-- Set `CLERK_JWT_ISSUER_DOMAIN` in the Convex dashboard
-- Set the appropriate Clerk publishable key in the web/native app env files
-- Keep the Convex deployment values in the app env files that talk to the backend
-
-## Running The Project
-
-Start everything in dev mode:
+Configure the local environment as described in
+[CONTRIBUTING.md](CONTRIBUTING.md), then start the development servers:
 
 ```bash
 pnpm dev
 ```
 
-Useful scoped commands:
+The web app runs at [http://localhost:3001](http://localhost:3001).
 
-```bash
-pnpm dev:web
-pnpm dev:server
-pnpm dev:native
-pnpm build
-pnpm check-types
-```
-
-Default local app entry points:
-
-- Web: [http://localhost:3001](http://localhost:3001)
-- Native: Expo dev server via `pnpm dev:native`
-
-## Code Quality
-
-Format and auto-fix issues:
-
-```bash
-pnpm dlx ultracite fix
-```
-
-Check formatting and lint issues:
-
-```bash
-pnpm dlx ultracite check
-```
-
-Typecheck the workspaces:
-
-```bash
-pnpm check-types
-```
-
-## Current Project Focus
-
-- `apps/web` and `packages/backend` are the primary active surfaces
-- `apps/native` exists in the monorepo but is intentionally a later phase
-- For in-flight feature specs, use `docs/features/` (see `docs/README.md`)
-- Schema and API details live in `packages/backend/convex/schema.ts` and the Convex function files
-
-## Notes
-
-- Convex generated files under `packages/backend/convex/_generated/` are local/generated artifacts and should not be edited by hand
-- If production web builds fail locally because fonts cannot be fetched, check network access for Google Fonts used by the app shell
+See [CONTRIBUTING.md](CONTRIBUTING.md) for prerequisites, environment setup,
+scoped development commands, verification, and the GitHub contribution
+workflow.
