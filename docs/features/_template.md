@@ -1,6 +1,8 @@
 # Feature: [name]
 
-**Status:** draft | in progress | done (delete this file when done)
+**Status:** draft | in progress
+
+Delete this file when the feature ships.
 
 ## Goal
 
@@ -13,11 +15,11 @@ What problem does this solve? One or two sentences.
 
 ## Open questions
 
-- 
+- [Question to resolve]
 
 ## Tasks
 
-- [ ] 
+- [ ] Task
 
 ## Notes
 
