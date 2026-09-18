@@ -8,7 +8,7 @@ second project.
 
 ### Prerequisites
 
-- Node.js 20.9 or newer
+- Node.js 20.19 or newer in the 20.x line, or Node.js 22.12 or newer
 - pnpm 11.21.0, as pinned by the `packageManager` field in `package.json`
 - A Convex account and project
 - A Clerk application
