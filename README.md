@@ -36,6 +36,7 @@ spendly/
 ├── docs/
 │   └── features/            # Temporary specs for in-flight work
 ├── CONTRIBUTING.md
+├── LICENSE
 ├── README.md
 └── turbo.json
 ```
@@ -62,3 +63,8 @@ The web app runs at [http://localhost:3001](http://localhost:3001).
 See [CONTRIBUTING.md](CONTRIBUTING.md) for prerequisites, environment setup,
 scoped development commands, verification, and the GitHub contribution
 workflow.
+
+## License
+
+Spendly is licensed under the
+[GNU Affero General Public License v3.0 only](LICENSE).
