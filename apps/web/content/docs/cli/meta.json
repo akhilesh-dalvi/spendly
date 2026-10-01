@@ -1,0 +1,13 @@
+{
+  "title": "Spendly CLI",
+  "pages": [
+    "index",
+    "ai-agents",
+    "expenses",
+    "accounts",
+    "cycles",
+    "categories",
+    "tags",
+    "troubleshooting"
+  ]
+}

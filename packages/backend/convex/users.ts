@@ -1,11 +1,8 @@
-import { ConvexError, v } from "convex/values";
+import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { seedDefaultAccountTypes } from "./accountTypeHelpers";
-import {
-	getCurrentUser,
-	getCurrentUserOrNull,
-	validateAccountOwnership,
-} from "./helpers";
+import { commitDefaultAccount } from "./domain/accountOperations";
+import { getCurrentUser, getCurrentUserOrNull } from "./helpers";
 import { supportedCurrencyValidator } from "./onboardingValidators";
 
 const userValidator = v.object({
@@ -257,18 +254,10 @@ export const updateDefaultAccount = mutation({
 	returns: v.id("accounts"),
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
-		const account = await validateAccountOwnership(
-			ctx,
-			args.accountId,
-			user._id
-		);
-
-		if (account.isArchived) {
-			throw new ConvexError("ACCOUNT_ARCHIVED");
-		}
-
-		await ctx.db.patch(user._id, {
-			defaultAccountId: args.accountId,
+		await commitDefaultAccount(ctx, {
+			accountId: args.accountId,
+			source: "web",
+			user,
 		});
 		return args.accountId;
 	},

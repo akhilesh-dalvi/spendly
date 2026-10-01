@@ -1,6 +1,8 @@
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
+import type { ActionSource } from "./domain/actionSource";
+import { nextRevision } from "./domain/revisions";
 
 /**
  * Get the current authenticated user.
@@ -47,13 +49,16 @@ export async function findCycleForDate(
 	userId: Id<"users">,
 	date: string
 ) {
-	return await ctx.db
+	const latestStartedCycle = await ctx.db
 		.query("expense_cycles")
 		.withIndex("by_userId_dates", (q) =>
 			q.eq("userId", userId).lte("startDate", date)
 		)
-		.filter((q) => q.gt(q.field("endDate"), date))
-		.unique();
+		.order("desc")
+		.first();
+	return latestStartedCycle && latestStartedCycle.endDate > date
+		? latestStartedCycle
+		: null;
 }
 
 /**
@@ -113,6 +118,7 @@ export async function applyAccountBalanceChange(
 		expenseId?: Id<"expenses">;
 		transferId?: Id<"account_transfers">;
 		allowArchived?: boolean;
+		source: ActionSource;
 	}
 ) {
 	const account = await validateAccountOwnership(
@@ -128,6 +134,8 @@ export async function applyAccountBalanceChange(
 	const balanceAfter = account.currentBalance + args.amount;
 	await ctx.db.patch(args.accountId, {
 		currentBalance: balanceAfter,
+		lastModifiedSource: args.source,
+		revision: nextRevision(account.revision),
 		updatedAt: Date.now(),
 	});
 
@@ -142,6 +150,7 @@ export async function applyAccountBalanceChange(
 		expenseId: args.expenseId,
 		transferId: args.transferId,
 		createdAt: Date.now(),
+		source: args.source,
 	});
 }
 

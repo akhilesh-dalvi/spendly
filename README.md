@@ -1,8 +1,9 @@
 # Spendly
 
 Spendly is a personal expense tracker built around custom expense cycles,
-categories, accounts, tags, and comparison views. The Next.js web app and
-Convex backend are the active parts of the project.
+categories, accounts, tags, and comparison views. The Next.js web app,
+Convex backend, and CLI for people and local AI agents are the active parts of
+the project.
 
 ## Product principles
 
@@ -27,7 +28,8 @@ Convex backend are the active parts of the project.
 ```text
 spendly/
 ├── apps/
-│   └── web/                 # Next.js web app
+│   ├── web/                 # Next.js web app
+│   └── cli/                 # Node.js CLI for people and local AI agents
 ├── packages/
 │   ├── backend/             # Convex workspace
 │   │   └── convex/          # Schema, queries, and mutations
@@ -63,6 +65,18 @@ The web app runs at [http://localhost:3001](http://localhost:3001).
 See [CONTRIBUTING.md](CONTRIBUTING.md) for prerequisites, environment setup,
 scoped development commands, verification, and the GitHub contribution
 workflow.
+
+For CLI development, use Node.js 22 or newer and the scoped workspace commands:
+
+```bash
+pnpm dev:cli
+pnpm check-types:cli
+pnpm test:cli
+pnpm pack:cli
+```
+
+User-facing guidance lives at [Spendly CLI docs](https://spendly.akhileshdalvi.com/docs/cli).
+Release work is tracked in [the CLI implementation plan](docs/spendly-cli-requirements-and-implementation-plan.md).
 
 ## License
 

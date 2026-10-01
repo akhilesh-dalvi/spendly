@@ -1,0 +1,137 @@
+---
+title: Troubleshooting
+description: Fix setup problems, understand errors, and find your next step.
+---
+
+## Command not found
+
+Check whether your terminal can find the CLI:
+
+```bash
+command -v spendly
+npm prefix --global
+```
+
+If it isn't installed, follow [Quick start](/docs/cli). If it is installed,
+make sure the `bin` folder under the printed npm prefix is on your `PATH`,
+then open a new terminal. An AI agent needs the CLI available in its own
+terminal environment too.
+
+If npm reports that `spendly@next` is missing, the initial `0.1.0` release has
+not entered public verification yet. Production sign-in is also pending;
+reinstalling will not enable it.
+
+## The shell runs words from the output as commands
+
+Copy only the command inside a fenced command block. Do not type Markdown
+backticks around it: in zsh and similar shells, backticks execute their contents
+as command substitution. Labels printed by Spendly such as `Changes`,
+`PREVIEW ONLY`, or `Next` are output, not commands to paste into the shell.
+
+## Sign-in and storage
+
+```bash
+spendly auth status
+spendly auth login
+```
+
+If the browser doesn't open:
+
+```bash
+spendly auth login --no-browser
+```
+
+Open the displayed URL on the same computer. `ACCOUNT_SETUP_REQUIRED` means
+you need to open Spendly Web once while signed in and complete setup.
+
+Credentials normally use your operating system's credential store. For
+`KEYCHAIN_UNAVAILABLE`, restore access to that store. If you choose file storage,
+`spendly --allow-file-storage auth login` uses a plaintext local file instead.
+Use that fallback only on a computer and user account you control. Never share
+the sign-in URL, tokens, credential files, environment variables, or request
+headers. Authorization expires after at most 30 days and then requires browser
+sign-in again.
+
+To sign out:
+
+```bash
+spendly auth logout
+```
+
+## A name matches more than one record
+
+List the accounts, categories, or tags and use the intended record's ID instead.
+Account commands accept an ID in place of a name. Expense options include
+`--account-id`, `--category-id`, and `--tag-id`. Human terminal users can add
+`--interactive` to choose from stable-ID-backed labels instead.
+
+## Interactive input is unavailable
+
+Guided prompts require a real terminal for both input and prompt output. They
+are intentionally disabled for redirected or piped execution and cannot be
+combined with `--json`, `--non-interactive`, or `--agent`. Use explicit flags
+for those modes. Press Escape or Ctrl-C to cancel a guided command without a
+write. Add `--accessible` or set `ACCESSIBLE=1` for static numbered prompts that
+do not redraw earlier terminal lines.
+
+## A record changed or a category doesn't fit
+
+A revision conflict means the record changed since it was read. Fetch it again,
+check the current values, and retry the change using the latest revision if
+you supplied one.
+
+`CATEGORY_CYCLE_MISMATCH` means the category belongs to another cycle. Choose a
+category from the expense's new cycle or use `--clear-category` on the edit.
+An archived account must be reactivated before it can receive new activity.
+
+## A connection failed while saving
+
+The change may have saved even if the response was lost. Check the expense or
+account history first. Write commands do not retry automatically. Only when the
+user explicitly asks to recover the intended write, repeat the identical command
+with its original `--idempotency-key` so it cannot create a second change. If
+you don't have the key, or the retry is also uncertain, stop and report the
+outcome as unknown rather than attempting another write.
+
+An idempotency conflict means a key was used with different input. Check the
+original action; a new action needs a new key. For an expired deletion token,
+run the deletion preview again to get a current one.
+
+## Update or remove the CLI
+
+During release verification, update the CLI and skill with:
+
+```bash
+npm install --global spendly@next
+npx skills update spendly --global
+```
+
+The initial unsuffixed `0.1.0` package uses the `next` channel only while it is
+being verified. After that unchanged package moves to the default `latest`
+channel, switch with `npm install --global spendly`. Check `spendly --version`
+after every update. Spendly supports Node.js 22 or newer on the platforms listed
+in Quick start and will remain below `1.0.0` until real usage proves its CLI
+contract is stable.
+
+To remove the CLI:
+
+```bash
+spendly auth logout
+npm uninstall --global spendly
+```
+
+## Get help
+
+```bash
+spendly --help
+spendly expenses add --help
+spendly accounts transfer --help
+```
+
+`--debug` adds redacted diagnostic details on stderr if you need to investigate
+an error. Review diagnostic output before sharing it in a bug report. Use
+[GitHub issues](https://github.com/akhilesh-dalvi/spendly/issues) for ordinary
+problems. Report suspected vulnerabilities through
+[private vulnerability reporting](https://github.com/akhilesh-dalvi/spendly/security/advisories/new),
+never a public issue. Do not include tokens, OAuth URLs, headers, credential
+files, environment values, or personal financial output.

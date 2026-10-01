@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
+import { nextRevision } from "./domain/revisions";
 import {
 	getCurrentUser,
 	validateCategoryOwnership,
@@ -511,7 +512,11 @@ export const remove = mutation({
 			.collect();
 
 		for (const exp of expenses) {
-			await ctx.db.patch(exp._id, { categoryId: undefined });
+			await ctx.db.patch(exp._id, {
+				categoryId: undefined,
+				lastModifiedSource: "web",
+				revision: nextRevision(exp.revision),
+			});
 		}
 
 		await ctx.db.delete(args.categoryId);

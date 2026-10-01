@@ -12,6 +12,10 @@ import { ArrowRight, Plus, Receipt } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
 import { AccountTypeIcon } from "@/components/account-type-icon";
+import {
+	type ActionSource,
+	ActionSourceIndicator,
+} from "@/components/action-source-indicator";
 import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/hooks/use-currency";
 import { EmptyState } from "./ui/empty-state";
@@ -20,7 +24,10 @@ interface ExpenseWithDetails {
 	_id: string;
 	categoryId?: string | null;
 	amount: number;
+	createdSource?: ActionSource;
 	date: string;
+	lastModifiedSource?: ActionSource;
+	revision?: number;
 	spentOn?: string | null;
 	categoryName: string | null;
 	categoryIcon?: string | null;
@@ -63,13 +70,19 @@ function RecentActivityItem({
 				</div>
 				<div className="flex flex-1 flex-col overflow-hidden">
 					<div className="mr-2 flex items-center justify-between gap-2">
-						<p className="truncate font-medium text-sm">
-							{expense.spentOn || (
-								<span className="text-muted-foreground/50 italic">
-									No description
-								</span>
-							)}
-						</p>
+						<div className="flex min-w-0 items-center gap-1.5">
+							<ActionSourceIndicator
+								action={(expense.revision ?? 1) > 1 ? "updated" : "added"}
+								source={expense.lastModifiedSource ?? expense.createdSource}
+							/>
+							<p className="truncate font-medium text-sm">
+								{expense.spentOn || (
+									<span className="text-muted-foreground/50 italic">
+										No description
+									</span>
+								)}
+							</p>
+						</div>
 						<div className="min-w-[4rem] text-right font-bold text-sm tabular-nums">
 							{formatAmount(expense.amount)}
 						</div>

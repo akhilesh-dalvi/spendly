@@ -1,5 +1,6 @@
 import {
 	ArrowLeftRight,
+	BookOpen,
 	Calendar,
 	CircleDollarSign,
 	CreditCard,
@@ -88,6 +89,13 @@ export const SETTINGS_NAV_ITEM = {
 	match: "exact",
 } as const satisfies NavItem;
 
+export const CLI_DOCS_NAV_ITEM = {
+	title: "CLI Docs",
+	url: "/docs/cli",
+	icon: BookOpen,
+	match: "prefix",
+} as const satisfies NavItem;
+
 export const MOBILE_PRIMARY_NAV_ITEMS = [
 	CORE_NAV_ITEMS[0],
 	CORE_NAV_ITEMS[1],
@@ -99,6 +107,7 @@ export const MOBILE_MORE_NAV_ITEMS = [
 	CORE_NAV_ITEMS[4],
 	...MANAGEMENT_NAV_ITEMS,
 	SETTINGS_NAV_ITEM,
+	CLI_DOCS_NAV_ITEM,
 ] as const satisfies readonly NavItem[];
 
 const normalizePathname = (pathname: string): string => {

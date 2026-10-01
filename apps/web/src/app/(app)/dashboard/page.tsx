@@ -331,7 +331,7 @@ export default function DashboardPage() {
 				summary={summary}
 			/>
 
-			<div className="grid gap-8 lg:grid-cols-3">
+			<div className="grid gap-8 lg:grid-cols-3 [&>*]:min-w-0">
 				<DashboardSection
 					action={
 						<CategoryTypeModal

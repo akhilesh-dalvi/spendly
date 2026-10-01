@@ -13,6 +13,7 @@ const menuItems = [
 	{ name: "Home", href: "/" },
 	{ name: "Features", href: "/features" },
 	{ name: "Pricing", href: "/pricing" },
+	{ name: "CLI Docs", href: "/docs/cli" },
 	{ name: "About", href: "/about" },
 	{ name: "FAQs", href: "/faqs" },
 ] as const;

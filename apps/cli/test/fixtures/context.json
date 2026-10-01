@@ -1,0 +1,47 @@
+{
+  "accounts": [
+    {
+      "accountType": {
+        "balanceNature": "asset",
+        "color": "#22C55E",
+        "icon": "wallet",
+        "id": "account-type-wallet",
+        "name": "Wallet"
+      },
+      "createdAt": "2026-09-01T08:00:00.000Z",
+      "currency": "INR",
+      "currentBalance": 1250,
+      "id": "account-wallet",
+      "isArchived": false,
+      "isDefault": true,
+      "name": "Daily Wallet",
+      "revision": 3,
+      "startingBalance": 1500,
+      "updatedAt": "2026-09-02T08:00:00.000Z"
+    }
+  ],
+  "accountsOnboardingStatus": "completed",
+  "capabilities": {
+    "accountMutations": true,
+    "deletionConfirmation": true,
+    "expenseMutations": true,
+    "idempotencyRetentionDays": 30,
+    "maximumPageSize": 100,
+    "schemaVersion": 1
+  },
+  "categories": [{ "id": "category-food", "name": "Food", "order": 0 }],
+  "currency": "INR",
+  "currentCycle": {
+    "endDateExclusive": "2026-10-01",
+    "id": "cycle-september",
+    "name": "September",
+    "startDate": "2026-09-01"
+  },
+  "dateSource": "local_default",
+  "effectiveDate": "2026-09-02",
+  "tags": [{ "id": "tag-essential", "name": "Essential" }],
+  "timezone": "Asia/Kolkata",
+  "totals": [{ "currency": "INR", "total": 1250 }],
+  "userId": "user-one",
+  "warnings": []
+}

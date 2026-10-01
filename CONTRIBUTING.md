@@ -56,6 +56,10 @@ Convex setup manages deployment values such as `CONVEX_DEPLOYMENT` and
 `CLERK_JWT_ISSUER_DOMAIN` in the Convex dashboard so backend authentication can
 verify Clerk-issued tokens.
 
+`CLERK_CLI_OAUTH_CLIENT_ID` is optional in Convex deployments that only serve
+the Web app. Configure it with the approved Clerk OAuth public client ID before
+enabling CLI authentication; an unset value leaves the CLI OAuth provider disabled.
+
 Keep `apps/web/.env.example` and `packages/backend/.env.example` synchronized
 with the environment requirements when configuration changes.
 

@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { cliDocsSource } from "@/lib/docs/source";
 import { absoluteUrl } from "@/lib/seo";
 
 const publicRoutes = [
@@ -25,10 +26,20 @@ export default function sitemap(): MetadataRoute.Sitemap {
 		return 0.8;
 	};
 
-	return publicRoutes.map((route) => ({
+	const marketingEntries: MetadataRoute.Sitemap = publicRoutes.map((route) => ({
 		url: absoluteUrl(route),
 		lastModified,
 		changeFrequency: route === "/" ? "weekly" : "monthly",
 		priority: getPriority(route),
 	}));
+	const cliDocsEntries: MetadataRoute.Sitemap = cliDocsSource
+		.getPages()
+		.map((page) => ({
+			url: absoluteUrl(page.url),
+			lastModified,
+			changeFrequency: "monthly",
+			priority: page.slugs.length === 0 ? 0.9 : 0.7,
+		}));
+
+	return [...marketingEntries, ...cliDocsEntries];
 }

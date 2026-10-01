@@ -7,6 +7,7 @@ import Link from "next/link";
 import { AccountActionDialogs } from "@/components/account-actions";
 import { AccountBalanceOverview } from "@/components/account-balance-overview";
 import { AccountTypeIcon } from "@/components/account-type-icon";
+import { ActionSourceIndicator } from "@/components/action-source-indicator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -87,7 +88,13 @@ function AccountCard({
 						/>
 					</div>
 					<div className="min-w-0">
-						<CardTitle className="truncate">{account.name}</CardTitle>
+						<div className="flex items-center gap-1.5">
+							<ActionSourceIndicator
+								action={(account.revision ?? 1) > 1 ? "changed" : "added"}
+								source={account.lastModifiedSource ?? account.createdSource}
+							/>
+							<CardTitle className="truncate">{account.name}</CardTitle>
+						</div>
 						<CardDescription>
 							{account.accountTypeName} ·{" "}
 							{account.accountTypeBalanceNature === "liability"

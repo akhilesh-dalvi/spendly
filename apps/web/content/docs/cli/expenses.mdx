@@ -1,0 +1,105 @@
+---
+title: Expenses
+description: Find, add, edit, and delete expenses from your terminal.
+---
+
+## Find expenses
+
+Use guided mode to choose filters with checkbox-style and searchable inputs:
+
+```bash
+spendly expenses list --interactive
+```
+
+```bash
+spendly expenses list --limit 25
+spendly expenses list --from 2026-09-01 --to 2026-09-30
+```
+
+Dates use `YYYY-MM-DD`, and both ends of the range are included. The list shows
+an ID for each expense. Copy that ID to view one expense:
+
+```bash
+spendly expenses get EXPENSE_ID
+```
+
+Replace `EXPENSE_ID` in these examples with an ID from your results.
+`spendly expenses list --help` shows all filters. For more than one page, pass
+the returned cursor with `--cursor`; use `spendly summary --current` for totals.
+
+## Add an expense
+
+For a guided preview that cannot save anything:
+
+```bash
+spendly expenses add --interactive --dry-run
+```
+
+The form asks for the amount, local date, optional description, category,
+account, and tags. Remove `--dry-run` only when you are ready to review the
+server preview and confirm the exact write.
+
+```bash
+spendly expenses add --amount 18.75 --spent-on "Lunch" --dry-run
+```
+
+The preview shows what will be saved and how it affects your balance. To save,
+run the same command without `--dry-run`.
+
+Interactive commits generate a write key when one is not supplied. Automated
+or non-interactive commits must send a fresh `--idempotency-key`; reuse it only
+for an explicitly requested retry of that exact write.
+
+The date defaults to today. In guided mode, Spendly shows the visible categories
+for the selected date's cycle followed by `Uncategorized`; it does not offer
+automatic category inference. In an explicit command that omits the category,
+Spendly may reuse a category from matching description history. An omitted
+account uses your default account when available; otherwise it remains
+unassigned.
+
+You can choose them yourself using existing names:
+
+```bash
+spendly expenses add --amount 18.75 --spent-on "Lunch" \
+  --account "Daily checking" --category "Food" --dry-run
+```
+
+Use names from your own [accounts](/docs/cli/accounts) and
+[categories](/docs/cli/categories). Add `--date 2026-09-05` for a different date
+or `--no-account` to leave the expense unassigned.
+
+## Edit an expense
+
+Omit the ID in guided mode to choose an expense, then select the fields to
+change:
+
+```bash
+spendly expenses edit --interactive --dry-run
+```
+
+```bash
+spendly expenses edit EXPENSE_ID --amount 20.25 --dry-run
+```
+
+Remove `--dry-run` to save. Only supplied fields change. To remove a value, use
+`--clear-category`, `--clear-account`, `--clear-spent-on`, or `--clear-tags`.
+Changing or clearing an account also updates the affected balances.
+Automated edits also use the current expense revision from `expenses get` so
+a stale edit cannot overwrite a newer change.
+
+## Delete an expense
+
+```bash
+spendly expenses delete EXPENSE_ID --dry-run
+```
+
+To delete it, run the command without `--dry-run` in your terminal and answer
+the confirmation prompt, which defaults to No. `spendly expenses delete
+--interactive --dry-run` lets you choose the target without deleting it.
+Deletion is permanent. If the expense used an account, its amount is added back
+to that account's balance.
+
+For automated use, the [Spendly skill](/docs/cli/ai-agents) handles the deletion
+preview token, current revision, and idempotency key. The token is single-use,
+bound to that expense and revision, and valid for five minutes. See
+`spendly expenses delete --help` for the options.

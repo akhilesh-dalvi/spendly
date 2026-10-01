@@ -10,16 +10,21 @@ import {
 	type QueryCtx,
 	query,
 } from "./_generated/server";
-import {
-	resolveAccountTypeMetadata,
-	validateActiveAccountType,
-} from "./accountTypeHelpers";
+import { resolveAccountTypeMetadata } from "./accountTypeHelpers";
 import { resolvedAccountTypeFields } from "./accountTypeValidators";
 import {
-	applyAccountBalanceChange,
-	getCurrentUser,
-	validateAccountOwnership,
-} from "./helpers";
+	commitAccountArchive,
+	commitAccountCreate,
+	commitAccountUpdate,
+	commitBalanceAdjustment,
+	commitTransfer,
+	normalizeCurrencyCode,
+	prepareAccountCreate,
+	prepareBalanceAdjustment,
+	prepareTransfer,
+} from "./domain/accountOperations";
+import { actionSourceValidator } from "./domain/actionSource";
+import { getCurrentUser, validateAccountOwnership } from "./helpers";
 
 const accountTransactionValidator = v.object({
 	_id: v.id("account_transactions"),
@@ -40,6 +45,7 @@ const accountTransactionValidator = v.object({
 	expenseId: v.optional(v.id("expenses")),
 	transferId: v.optional(v.id("account_transfers")),
 	createdAt: v.number(),
+	source: v.optional(actionSourceValidator),
 });
 
 const accountDocumentFields = {
@@ -47,10 +53,13 @@ const accountDocumentFields = {
 	_creationTime: v.number(),
 	accountTypeId: v.id("account_types"),
 	createdAt: v.number(),
+	createdSource: v.optional(actionSourceValidator),
 	currency: v.optional(v.string()),
 	currentBalance: v.number(),
 	isArchived: v.optional(v.boolean()),
 	name: v.string(),
+	lastModifiedSource: v.optional(actionSourceValidator),
+	revision: v.optional(v.number()),
 	startingBalance: v.number(),
 	updatedAt: v.optional(v.number()),
 	userId: v.id("users"),
@@ -66,6 +75,7 @@ const accountTransferValidator = v.object({
 	_creationTime: v.number(),
 	amount: v.number(),
 	createdAt: v.number(),
+	source: v.optional(actionSourceValidator),
 	date: v.string(),
 	fromAccountId: v.id("accounts"),
 	note: v.optional(v.string()),
@@ -76,32 +86,6 @@ const accountTransferValidator = v.object({
 const MAX_DASHBOARD_ACCOUNTS = 1000;
 const MAX_LIST_ACCOUNTS = 1000;
 const MAX_TRANSACTION_RESULTS = 500;
-
-const todayIsoDate = () => new Date().toISOString().split("T")[0];
-
-const normalizeCurrencyCode = (currency?: string) =>
-	currency?.trim().toUpperCase() || undefined;
-
-const normalizeName = (name: string) => {
-	const normalizedName = name.trim();
-	if (normalizedName.length === 0) {
-		throw new ConvexError("ACCOUNT_NAME_REQUIRED");
-	}
-	return normalizedName;
-};
-
-const assertFiniteAmount = (amount: number, errorCode: string) => {
-	if (!Number.isFinite(amount)) {
-		throw new ConvexError(errorCode);
-	}
-};
-
-const assertPositiveAmount = (amount: number, errorCode: string) => {
-	assertFiniteAmount(amount, errorCode);
-	if (amount <= 0) {
-		throw new ConvexError(errorCode);
-	}
-};
 
 const normalizeResultLimit = (limit: number | undefined, fallback: number) => {
 	if (limit === undefined) {
@@ -121,18 +105,6 @@ const resolveAccount = async (
 	...account,
 	...(await resolveAccountTypeMetadata(ctx, account.accountTypeId, userId)),
 });
-
-const getResolvedAccountAfterWrite = async (
-	ctx: MutationCtx,
-	accountId: Id<"accounts">,
-	userId: Id<"users">
-) => {
-	const account = await ctx.db.get(accountId);
-	if (!account) {
-		throw new ConvexError("ACCOUNT_NOT_FOUND");
-	}
-	return await resolveAccount(ctx, account, userId);
-};
 
 export const list = query({
 	args: {
@@ -279,53 +251,13 @@ export const create = mutation({
 	returns: resolvedAccountValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
-		const name = normalizeName(args.name);
-		assertFiniteAmount(args.startingBalance, "INVALID_STARTING_BALANCE");
-		await validateActiveAccountType(ctx, args.accountTypeId, user._id);
-
-		const now = Date.now();
-		const accountId = await ctx.db.insert("accounts", {
-			userId: user._id,
-			name,
-			accountTypeId: args.accountTypeId,
-			startingBalance: args.startingBalance,
-			currentBalance: args.startingBalance,
-			currency:
-				normalizeCurrencyCode(args.currency) ??
-				normalizeCurrencyCode(user.currency),
-			isArchived: false,
-			createdAt: now,
-			updatedAt: now,
+		const prepared = await prepareAccountCreate(ctx, { ...args, user });
+		const { account } = await commitAccountCreate(ctx, {
+			prepared,
+			source: "web",
+			user,
 		});
-
-		await ctx.db.insert("account_transactions", {
-			userId: user._id,
-			accountId,
-			type: "opening_balance",
-			amount: args.startingBalance,
-			balanceAfter: args.startingBalance,
-			date: todayIsoDate(),
-			note: "Opening balance",
-			createdAt: now,
-		});
-
-		const userRecord = await ctx.db.get(user._id);
-		const userUpdates: {
-			defaultAccountId?: typeof accountId;
-			accountsOnboardingStatus?: "completed";
-		} = {};
-
-		if (!userRecord?.defaultAccountId) {
-			userUpdates.defaultAccountId = accountId;
-		}
-		if (userRecord?.accountsOnboardingStatus !== "completed") {
-			userUpdates.accountsOnboardingStatus = "completed";
-		}
-		if (Object.keys(userUpdates).length > 0) {
-			await ctx.db.patch(user._id, userUpdates);
-		}
-
-		return await getResolvedAccountAfterWrite(ctx, accountId, user._id);
+		return await resolveAccount(ctx, account, user._id);
 	},
 });
 
@@ -339,31 +271,13 @@ export const update = mutation({
 	returns: resolvedAccountValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
-		const account = await validateAccountOwnership(
-			ctx,
-			args.accountId,
-			user._id
-		);
-
-		const updates: Partial<Doc<"accounts">> = {
-			updatedAt: Date.now(),
-		};
-
-		if (args.name !== undefined) {
-			updates.name = normalizeName(args.name);
-		}
-		if (
-			args.accountTypeId !== undefined &&
-			args.accountTypeId !== account.accountTypeId
-		) {
-			await validateActiveAccountType(ctx, args.accountTypeId, user._id);
-			updates.accountTypeId = args.accountTypeId;
-		}
-		if (args.currency !== undefined) {
-			updates.currency = normalizeCurrencyCode(args.currency);
-		}
-		await ctx.db.patch(args.accountId, updates);
-		return await getResolvedAccountAfterWrite(ctx, args.accountId, user._id);
+		const account = await commitAccountUpdate(ctx, {
+			accountId: args.accountId,
+			input: args,
+			source: "web",
+			userId: user._id,
+		});
+		return await resolveAccount(ctx, account, user._id);
 	},
 });
 
@@ -380,41 +294,30 @@ export const createOnboardingAccount = mutation({
 			throw new ConvexError("ONBOARDING_CYCLE_REQUIRED");
 		}
 
-		const name = normalizeName(args.name);
-		assertFiniteAmount(args.openingBalance, "INVALID_OPENING_BALANCE");
-		await validateActiveAccountType(ctx, args.accountTypeId, user._id);
-
 		const now = Date.now();
-		const accountId = await ctx.db.insert("accounts", {
+		const prepared = await prepareAccountCreate(ctx, {
 			accountTypeId: args.accountTypeId,
-			createdAt: now,
-			currentBalance: args.openingBalance,
-			isArchived: false,
-			name,
+			name: args.name,
+			now,
+			persistCurrency: false,
 			startingBalance: args.openingBalance,
-			updatedAt: now,
-			userId: user._id,
+			user,
 		});
-
-		await ctx.db.insert("account_transactions", {
-			accountId,
-			amount: args.openingBalance,
-			balanceAfter: args.openingBalance,
-			createdAt: now,
-			date: todayIsoDate(),
-			note: "Opening balance",
-			type: "opening_balance",
-			userId: user._id,
+		const { account } = await commitAccountCreate(ctx, {
+			now,
+			prepared,
+			source: "web",
+			user,
 		});
 
 		await ctx.db.patch(user._id, {
 			accountsOnboardingStatus: "completed",
-			defaultAccountId: user.defaultAccountId ?? accountId,
+			defaultAccountId: user.defaultAccountId ?? account._id,
 			onboardingCompletedAt: now,
 			onboardingStep: "complete",
 		});
 
-		return accountId;
+		return account._id;
 	},
 });
 
@@ -426,18 +329,12 @@ export const archive = mutation({
 	returns: resolvedAccountValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
-		await validateAccountOwnership(ctx, args.accountId, user._id);
-
-		await ctx.db.patch(args.accountId, {
-			isArchived: args.isArchived,
-			updatedAt: Date.now(),
+		const account = await commitAccountArchive(ctx, {
+			...args,
+			source: "web",
+			user,
 		});
-
-		if (args.isArchived && user.defaultAccountId === args.accountId) {
-			await ctx.db.patch(user._id, { defaultAccountId: undefined });
-		}
-
-		return await getResolvedAccountAfterWrite(ctx, args.accountId, user._id);
+		return await resolveAccount(ctx, account, user._id);
 	},
 });
 
@@ -451,31 +348,9 @@ export const updateBalance = mutation({
 	returns: resolvedAccountValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
-		const account = await validateAccountOwnership(
-			ctx,
-			args.accountId,
-			user._id
-		);
-		if (account.isArchived) {
-			throw new ConvexError("ACCOUNT_ARCHIVED");
-		}
-		assertFiniteAmount(args.newBalance, "INVALID_BALANCE");
-
-		const adjustment = args.newBalance - account.currentBalance;
-		if (adjustment === 0) {
-			return await resolveAccount(ctx, account, user._id);
-		}
-
-		await applyAccountBalanceChange(ctx, {
-			userId: user._id,
-			accountId: args.accountId,
-			type: "manual_adjustment",
-			amount: adjustment,
-			date: args.date ?? todayIsoDate(),
-			note: args.note,
-		});
-
-		return await getResolvedAccountAfterWrite(ctx, args.accountId, user._id);
+		const prepared = await prepareBalanceAdjustment(ctx, { ...args, user });
+		const { account } = await commitBalanceAdjustment(ctx, prepared, "web");
+		return await resolveAccount(ctx, account, user._id);
 	},
 });
 
@@ -494,84 +369,12 @@ export const transfer = mutation({
 	}),
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
-		if (args.fromAccountId === args.toAccountId) {
-			throw new ConvexError("TRANSFER_SAME_ACCOUNT");
-		}
-		assertPositiveAmount(args.amount, "INVALID_TRANSFER_AMOUNT");
-
-		const fromAccount = await validateAccountOwnership(
-			ctx,
-			args.fromAccountId,
-			user._id
-		);
-		const toAccount = await validateAccountOwnership(
-			ctx,
-			args.toAccountId,
-			user._id
-		);
-
-		if (fromAccount.isArchived || toAccount.isArchived) {
-			throw new ConvexError("ACCOUNT_ARCHIVED");
-		}
-
-		const fromCurrency = normalizeCurrencyCode(
-			fromAccount.currency ?? user.currency
-		);
-		const toCurrency = normalizeCurrencyCode(
-			toAccount.currency ?? user.currency
-		);
-		if (fromCurrency !== toCurrency) {
-			throw new ConvexError("TRANSFER_CURRENCY_MISMATCH");
-		}
-
-		const date = args.date ?? todayIsoDate();
-		const transferId = await ctx.db.insert("account_transfers", {
-			userId: user._id,
-			fromAccountId: args.fromAccountId,
-			toAccountId: args.toAccountId,
-			amount: args.amount,
-			date,
-			note: args.note,
-			createdAt: Date.now(),
-		});
-
-		await applyAccountBalanceChange(ctx, {
-			userId: user._id,
-			accountId: args.fromAccountId,
-			type: "transfer_out",
-			amount: -args.amount,
-			date,
-			note: args.note,
-			transferId,
-		});
-
-		await applyAccountBalanceChange(ctx, {
-			userId: user._id,
-			accountId: args.toAccountId,
-			type: "transfer_in",
-			amount: args.amount,
-			date,
-			note: args.note,
-			transferId,
-		});
-
-		const transferRecord = await ctx.db.get(transferId);
-		if (!transferRecord) {
-			throw new ConvexError("TRANSFER_NOT_FOUND");
-		}
-
+		const prepared = await prepareTransfer(ctx, { ...args, user });
+		const result = await commitTransfer(ctx, prepared, "web");
 		return {
-			fromAccount: await getResolvedAccountAfterWrite(
-				ctx,
-				args.fromAccountId,
-				user._id
-			),
-			toAccount: await getResolvedAccountAfterWrite(
-				ctx,
-				args.toAccountId,
-				user._id
-			),
-			transfer: transferRecord,
+			fromAccount: await resolveAccount(ctx, result.fromAccount, user._id),
+			toAccount: await resolveAccount(ctx, result.toAccount, user._id),
+			transfer: result.transfer,
 		};
 	},
 });

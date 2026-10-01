@@ -1,0 +1,134 @@
+---
+title: Quick start
+description: Set up Spendly, then use it from your terminal or with an AI agent.
+---
+
+Spendly CLI lets you track expenses and manage account balances from your
+terminal using the same data as Spendly Web.
+
+The initial `0.1.0` release is not available yet. The setup steps below are for
+that upcoming release; npm installation and production sign-in are not ready
+today.
+
+## Install
+
+You'll need Node.js 22 or newer and a Spendly account. macOS is the currently
+verified platform; Linux verification is planned, and Windows is not supported
+in the initial release. Install only on a computer you trust. During release
+verification, install the exact `0.1.0` package in your terminal:
+
+```bash
+npm install --global spendly@next
+spendly --version
+```
+
+This makes the `spendly` command available in your terminal.
+
+The `next` tag is a temporary verification channel for the unsuffixed `0.1.0`
+package. After that unchanged package passes production checks, it moves to the
+default `latest` channel and users can install it with
+`npm install --global spendly`. Spendly will continue with `0.x` releases until
+real usage proves the CLI contract is ready for `1.0.0`.
+
+## Sign in
+
+Open Spendly Web and finish setting up your account if you haven't already.
+Then run:
+
+```bash
+spendly auth login
+```
+
+Complete sign-in in the browser, then return to your terminal. To check your
+session:
+
+```bash
+spendly auth status
+```
+
+Authorization lasts for at most 30 days before browser sign-in is required
+again. Sign out and remove the locally stored session with:
+
+```bash
+spendly auth logout
+```
+
+## Choose how to use Spendly
+
+### Use an AI agent
+
+Continue to [AI agents](/docs/cli/ai-agents) to install the skill for Codex or
+Claude Code. Then ask things like "Show my account balances" or "Record 18.75
+for lunch today." You can go straight there without learning the commands below.
+
+### Try the CLI yourself
+
+Open the guided command launcher:
+
+```bash
+spendly --interactive
+```
+
+Use the arrow keys or type to search, then press Enter. Guided commands use
+single-choice selectors for Spendly records, checkbox-style selectors for tags
+and filters, and a preview before saving. Press Escape or Ctrl-C to cancel
+without making a change. `›` marks the focused choice. In date inputs, brackets
+mark the active segment, for example `[2026]-09-15`; use Left/Right to change
+the segment and Up/Down to change its value.
+
+For a screen reader or a terminal that does not handle cursor redraws well, use
+static numbered prompts:
+
+```bash
+spendly --interactive --accessible
+```
+
+You can also set `ACCESSIBLE=1`. This mode uses numbered single-choice inputs,
+comma-separated checkbox selections, plain yes/no confirmations, and no ANSI
+cursor movement. Spendly automatically selects it when `TERM=dumb`. Color is
+never required to understand focus, warnings, or errors.
+
+See your current currency and cycle, account balances, and spending summary:
+
+```bash
+spendly context
+spendly accounts list
+spendly summary --current
+```
+
+Preview an expense without saving it:
+
+```bash
+spendly expenses add --interactive --dry-run
+```
+
+The guided form asks for the amount, date, description, category, account, and
+tags. The amount prompt includes the currency configured during onboarding, for
+example `Expense amount (INR)`. To record the expense, run the same command
+without `--dry-run`, review the preview, and confirm it. Values already supplied
+as flags are kept. The category list contains visible categories from the cycle
+covering the selected date, followed by an explicit `Uncategorized` choice.
+Automatic history inference remains available to scripts that omit a category,
+but it is not exposed as a guided choice.
+
+Install local command and global-option completion by generating the script for
+your shell and following that shell's normal sourcing setup:
+
+```bash
+spendly completion zsh
+spendly completion bash
+spendly completion fish
+```
+
+## Find your next command
+
+```bash
+spendly --help
+spendly expenses --help
+spendly expenses add --help
+```
+
+Explore [expenses](/docs/cli/expenses), [accounts](/docs/cli/accounts),
+[cycles](/docs/cli/cycles), [categories](/docs/cli/categories), or
+[tags](/docs/cli/tags). If something fails, see
+[Troubleshooting](/docs/cli/troubleshooting).

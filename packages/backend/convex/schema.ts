@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { accountTypeBalanceNatureValidator } from "./accountTypeValidators";
+import { actionSourceValidator } from "./domain/actionSource";
 
 export default defineSchema({
 	users: defineTable({
@@ -98,7 +99,10 @@ export default defineSchema({
 		currency: v.optional(v.string()),
 		isArchived: v.optional(v.boolean()),
 		createdAt: v.number(),
+		createdSource: v.optional(actionSourceValidator),
+		lastModifiedSource: v.optional(actionSourceValidator),
 		updatedAt: v.optional(v.number()),
+		revision: v.optional(v.number()),
 	})
 		.index("by_userId", ["userId"])
 		.index("by_userId_archived", ["userId", "isArchived"])
@@ -112,6 +116,7 @@ export default defineSchema({
 		date: v.string(),
 		note: v.optional(v.string()),
 		createdAt: v.number(),
+		source: v.optional(actionSourceValidator),
 	})
 		.index("by_userId_date", ["userId", "date"])
 		.index("by_fromAccountId", ["fromAccountId"])
@@ -134,8 +139,10 @@ export default defineSchema({
 		expenseId: v.optional(v.id("expenses")),
 		transferId: v.optional(v.id("account_transfers")),
 		createdAt: v.number(),
+		source: v.optional(actionSourceValidator),
 	})
 		.index("by_accountId_date", ["accountId", "date"])
+		.index("by_accountId_date_createdAt", ["accountId", "date", "createdAt"])
 		.index("by_userId_date", ["userId", "date"])
 		.index("by_expenseId", ["expenseId"])
 		.index("by_transferId", ["transferId"]),
@@ -148,11 +155,44 @@ export default defineSchema({
 		amount: v.number(),
 		date: v.string(), // ISO date string YYYY-MM-DD
 		spentOn: v.optional(v.string()),
+		normalizedSpentOn: v.optional(v.string()),
 		tagIds: v.optional(v.array(v.id("tags"))),
 		createdAt: v.number(),
+		createdSource: v.optional(actionSourceValidator),
+		lastModifiedSource: v.optional(actionSourceValidator),
+		revision: v.optional(v.number()),
 	})
 		.index("by_cycleId", ["cycleId"])
 		.index("by_categoryId", ["categoryId"])
 		.index("by_accountId", ["accountId"])
-		.index("by_userId_date", ["userId", "date"]),
+		.index("by_userId_date", ["userId", "date"])
+		.index("by_userId_normalizedSpentOn_date", [
+			"userId",
+			"normalizedSpentOn",
+			"date",
+		])
+		.index("by_userId_date_createdAt", ["userId", "date", "createdAt"]),
+
+	cli_idempotency: defineTable({
+		userId: v.id("users"),
+		key: v.string(),
+		operation: v.string(),
+		requestFingerprint: v.string(),
+		result: v.any(),
+		createdAt: v.number(),
+		expiresAt: v.number(),
+	})
+		.index("by_userId_key", ["userId", "key"])
+		.index("by_expiresAt", ["expiresAt"]),
+
+	cli_deletion_confirmations: defineTable({
+		userId: v.id("users"),
+		expenseId: v.id("expenses"),
+		revision: v.number(),
+		createdAt: v.number(),
+		expiresAt: v.number(),
+		usedAt: v.optional(v.number()),
+	})
+		.index("by_userId_expenseId", ["userId", "expenseId"])
+		.index("by_expiresAt", ["expiresAt"]),
 });

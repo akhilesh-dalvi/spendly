@@ -1,16 +1,17 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import {
-	type MutationCtx,
-	mutation,
-	type QueryCtx,
-	query,
-} from "./_generated/server";
+import { mutation, type QueryCtx, query } from "./_generated/server";
 import { resolveAccountTypeMetadata } from "./accountTypeHelpers";
 import { nullableResolvedAccountTypeFields } from "./accountTypeValidators";
+import { actionSourceValidator } from "./domain/actionSource";
 import {
-	applyAccountBalanceChange,
-	findCycleForDate,
+	commitExpenseCreate,
+	commitExpenseDelete,
+	commitExpenseUpdate,
+	prepareExpenseCreate,
+	prepareExpenseUpdate,
+} from "./domain/expenseOperations";
+import {
 	getCurrentUser,
 	validateAccountOwnership,
 	validateCategoryOwnership,
@@ -23,8 +24,11 @@ const expenseDocumentFields = {
 	amount: v.number(),
 	categoryId: v.optional(v.id("categories")),
 	createdAt: v.number(),
+	createdSource: v.optional(actionSourceValidator),
 	cycleId: v.optional(v.id("expense_cycles")),
 	date: v.string(),
+	revision: v.optional(v.number()),
+	lastModifiedSource: v.optional(actionSourceValidator),
 	spentOn: v.optional(v.string()),
 	tagIds: v.optional(v.array(v.id("tags"))),
 	userId: v.id("users"),
@@ -47,6 +51,11 @@ const MAX_EXPENSE_QUERY_RESULTS = 500;
 const MAX_RECENT_EXPENSES = 100;
 const MAX_TAG_FILTERS = 100;
 
+const presentExpenseDocument = (expense: Doc<"expenses">) => {
+	const { normalizedSpentOn: _normalizedSpentOn, ...document } = expense;
+	return document;
+};
+
 interface ExpenseListFilters {
 	accountId?: Id<"accounts">;
 	categoryId?: Id<"categories">;
@@ -57,17 +66,6 @@ interface ExpenseListFilters {
 	startDate?: string;
 	tagIds?: Id<"tags">[];
 }
-
-const getExpenseAfterWrite = async (
-	ctx: MutationCtx,
-	expenseId: Id<"expenses">
-) => {
-	const expense = await ctx.db.get(expenseId);
-	if (!expense) {
-		throw new ConvexError("EXPENSE_NOT_FOUND");
-	}
-	return expense;
-};
 
 const normalizeRecentLimit = (limit?: number) => {
 	if (limit === undefined) {
@@ -197,7 +195,7 @@ const enrichExpense = async (
 		: null;
 
 	return {
-		...expense,
+		...presentExpenseDocument(expense),
 		accountName: account?.name ?? null,
 		accountTypeBalanceNature:
 			accountTypeMetadata?.accountTypeBalanceNature ?? null,
@@ -321,43 +319,13 @@ export const create = mutation({
 	returns: expenseValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
-		const date = args.date || new Date().toISOString().split("T")[0];
-		const cycleId = await resolveExpenseCycleId(ctx, {
+		const prepared = await prepareExpenseCreate(ctx, { input: args, user });
+		const expense = await commitExpenseCreate(ctx, {
+			prepared,
+			source: "web",
 			userId: user._id,
-			date,
-			categoryId: args.categoryId,
 		});
-		const accountId = args.accountId ?? undefined;
-		await validateExpenseAccountForWrite(ctx, {
-			userId: user._id,
-			accountId,
-		});
-
-		const id = await ctx.db.insert("expenses", {
-			userId: user._id,
-			cycleId,
-			categoryId: args.categoryId,
-			accountId,
-			amount: args.amount,
-			date,
-			spentOn: args.spentOn,
-			tagIds: args.tagIds,
-			createdAt: Date.now(),
-		});
-
-		if (accountId) {
-			await applyAccountBalanceChange(ctx, {
-				userId: user._id,
-				accountId,
-				type: "expense",
-				amount: -args.amount,
-				date,
-				note: args.spentOn,
-				expenseId: id,
-			});
-		}
-
-		return await getExpenseAfterWrite(ctx, id);
+		return presentExpenseDocument(expense);
 	},
 });
 
@@ -374,64 +342,14 @@ export const update = mutation({
 	returns: expenseValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
-		const expense = await ctx.db.get(args.id);
-		if (!expense || expense.userId !== user._id) {
-			throw new ConvexError("NOT_FOUND");
-		}
-
-		const updates: Partial<Doc<"expenses">> = {};
-		if (args.amount !== undefined) {
-			updates.amount = args.amount;
-		}
-		if (args.spentOn !== undefined) {
-			updates.spentOn = args.spentOn;
-		}
-		if (args.tagIds !== undefined) {
-			updates.tagIds = args.tagIds;
-		}
-		if (args.date !== undefined) {
-			updates.date = args.date;
-		}
-		if (args.categoryId !== undefined) {
-			updates.categoryId = args.categoryId;
-		}
-		if (args.accountId !== undefined) {
-			updates.accountId = args.accountId ?? undefined;
-		}
-
-		const targetDate = updates.date || expense.date;
-		const targetCategoryId =
-			args.categoryId === undefined ? expense.categoryId : args.categoryId;
-		const targetAccountId =
-			args.accountId === undefined
-				? expense.accountId
-				: (args.accountId ?? undefined);
-
-		updates.cycleId = await resolveExpenseCycleId(ctx, {
-			userId: user._id,
-			date: targetDate,
-			categoryId: targetCategoryId,
-		});
-		await validateExpenseAccountForWrite(ctx, {
-			userId: user._id,
-			accountId: targetAccountId,
-			previousAccountId: expense.accountId,
-		});
-
-		await ctx.db.patch(args.id, updates);
-
-		await applyExpenseAccountBalanceUpdate(ctx, {
-			userId: user._id,
+		const prepared = await prepareExpenseUpdate(ctx, {
 			expenseId: args.id,
-			previousAccountId: expense.accountId,
-			nextAccountId: targetAccountId,
-			previousAmount: expense.amount,
-			nextAmount: updates.amount ?? expense.amount,
-			date: targetDate,
-			note: updates.spentOn ?? expense.spentOn,
+			input: args,
+			user,
 		});
-
-		return await getExpenseAfterWrite(ctx, args.id);
+		return presentExpenseDocument(
+			await commitExpenseUpdate(ctx, prepared, "web")
+		);
 	},
 });
 
@@ -440,137 +358,11 @@ export const remove = mutation({
 	returns: v.object({ success: v.literal(true) }),
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
-		const expense = await ctx.db.get(args.id);
-		if (!expense || expense.userId !== user._id) {
-			throw new ConvexError("NOT_FOUND");
-		}
-		if (expense.accountId) {
-			await applyAccountBalanceChange(ctx, {
-				userId: user._id,
-				accountId: expense.accountId,
-				type: "expense",
-				amount: expense.amount,
-				date: expense.date,
-				note: "Expense deleted",
-				expenseId: expense._id,
-				allowArchived: true,
-			});
-		}
-		await ctx.db.delete(args.id);
+		await commitExpenseDelete(ctx, {
+			expenseId: args.id,
+			source: "web",
+			userId: user._id,
+		});
 		return { success: true as const };
 	},
 });
-
-async function resolveExpenseCycleId(
-	ctx: MutationCtx,
-	args: {
-		userId: Id<"users">;
-		date: string;
-		categoryId?: Id<"categories">;
-	}
-) {
-	if (!args.categoryId) {
-		const cycle = await findCycleForDate(ctx, args.userId, args.date);
-		return cycle?._id;
-	}
-
-	const category = await validateCategoryOwnership(
-		ctx,
-		args.categoryId,
-		args.userId
-	);
-	const cycle = await ctx.db.get(category.cycleId);
-	if (cycle && (args.date < cycle.startDate || args.date >= cycle.endDate)) {
-		const derivedCycle = await findCycleForDate(ctx, args.userId, args.date);
-		if (derivedCycle?._id !== category.cycleId) {
-			throw new ConvexError("CATEGORY_CYCLE_MISMATCH");
-		}
-	}
-
-	return category.cycleId;
-}
-
-async function validateExpenseAccountForWrite(
-	ctx: MutationCtx,
-	args: {
-		userId: Id<"users">;
-		accountId?: Id<"accounts">;
-		previousAccountId?: Id<"accounts">;
-	}
-) {
-	if (!args.accountId) {
-		return;
-	}
-
-	const account = await validateAccountOwnership(
-		ctx,
-		args.accountId,
-		args.userId
-	);
-	const isExistingAccount = args.accountId === args.previousAccountId;
-	if (account.isArchived && !isExistingAccount) {
-		throw new ConvexError("ACCOUNT_ARCHIVED");
-	}
-}
-
-async function applyExpenseAccountBalanceUpdate(
-	ctx: MutationCtx,
-	args: {
-		userId: Id<"users">;
-		expenseId: Id<"expenses">;
-		previousAccountId?: Id<"accounts">;
-		nextAccountId?: Id<"accounts">;
-		previousAmount: number;
-		nextAmount: number;
-		date: string;
-		note?: string;
-	}
-) {
-	if (args.previousAccountId === args.nextAccountId) {
-		if (!args.nextAccountId) {
-			return;
-		}
-
-		const balanceDelta = args.previousAmount - args.nextAmount;
-		if (balanceDelta === 0) {
-			return;
-		}
-
-		await applyAccountBalanceChange(ctx, {
-			userId: args.userId,
-			accountId: args.nextAccountId,
-			type: "expense",
-			amount: balanceDelta,
-			date: args.date,
-			note: args.note,
-			expenseId: args.expenseId,
-			allowArchived: true,
-		});
-		return;
-	}
-
-	if (args.previousAccountId) {
-		await applyAccountBalanceChange(ctx, {
-			userId: args.userId,
-			accountId: args.previousAccountId,
-			type: "expense",
-			amount: args.previousAmount,
-			date: args.date,
-			note: "Expense moved from account",
-			expenseId: args.expenseId,
-			allowArchived: true,
-		});
-	}
-
-	if (args.nextAccountId) {
-		await applyAccountBalanceChange(ctx, {
-			userId: args.userId,
-			accountId: args.nextAccountId,
-			type: "expense",
-			amount: -args.nextAmount,
-			date: args.date,
-			note: args.note,
-			expenseId: args.expenseId,
-		});
-	}
-}

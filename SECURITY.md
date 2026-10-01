@@ -10,6 +10,12 @@ Security fixes are applied to the latest version of Spendly on the `master`
 branch and to the official hosted application. Older commits, forks, and
 third-party deployments are not supported.
 
+Spendly CLI has not been published yet. During initial-release verification,
+only the newest `0.x` version on the npm `next` tag will receive security fixes.
+After the validated package moves to the default `latest` tag, the newest
+version there will be supported; older versions may be deprecated when a
+security correction is available.
+
 ## Reporting a vulnerability
 
 Do not disclose suspected vulnerabilities in a public issue, discussion, pull
@@ -22,13 +28,14 @@ Include as much of the following as possible:
 
 - A description of the vulnerability and its potential impact
 - The affected page, endpoint, component, or file
+- For CLI reports, the Spendly version, operating system, and Node.js version
 - Reproduction steps or a minimal proof of concept
 - Any conditions required to reproduce the issue
 - A suggested remediation, if you have one
 
-Do not include real user financial data, authentication tokens, secrets, or
-other sensitive information beyond what is strictly necessary to demonstrate
-the issue.
+Use synthetic data for reproduction. Do not include personal financial data,
+access or refresh tokens, OAuth URLs, authorization headers, credential-store
+contents, environment files, or Convex/Clerk secrets.
 
 We aim to acknowledge reports within three business days. After reviewing the
 report, we will share our assessment and, when applicable, expected remediation

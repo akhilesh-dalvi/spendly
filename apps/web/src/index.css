@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
@@ -37,6 +39,8 @@
 	--sidebar-ring: oklch(0.705 0.015 286.067);
 	--background: oklch(1 0 0);
 	--foreground: oklch(0.141 0.005 285.823);
+	--action-source-cli: oklch(0.546 0.215 262.881);
+	--action-source-agent: oklch(0.541 0.281 293.009);
 }
 
 .dark {
@@ -71,6 +75,8 @@
 	--sidebar-accent-foreground: oklch(0.985 0 0);
 	--sidebar-border: oklch(1 0 0 / 10%);
 	--sidebar-ring: oklch(0.552 0.016 285.938);
+	--action-source-cli: oklch(0.707 0.165 254.624);
+	--action-source-agent: oklch(0.714 0.203 305.504);
 }
 
 @theme inline {
@@ -156,5 +162,11 @@
 	}
 	body {
 		@apply bg-background text-foreground;
+	}
+}
+
+@media (width >= 97rem) {
+	#nd-docs-layout {
+		--fd-layout-width: 100%;
 	}
 }

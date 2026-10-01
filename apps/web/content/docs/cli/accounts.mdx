@@ -1,0 +1,130 @@
+---
+title: Accounts
+description: View balances, manage accounts, and move funds between them.
+---
+
+## Find accounts and balances
+
+In guided mode, you can choose an account instead of copying its name or ID:
+
+```bash
+spendly accounts get --interactive
+spendly accounts transactions --interactive
+```
+
+```bash
+spendly accounts list
+spendly accounts list --include-archived
+spendly accounts get "Daily checking"
+```
+
+Use your own account names in these examples. Commands also accept an account
+ID from the list if names are ambiguous.
+
+View recent account activity:
+
+```bash
+spendly accounts transactions "Daily checking" --limit 25
+```
+
+Use the returned cursor with `--cursor` to see the next page.
+
+## Add an account
+
+Check existing accounts first, then list the available account types:
+
+```bash
+spendly account-types list
+```
+
+Use a type from that list to preview a new account:
+
+```bash
+spendly accounts add --interactive --dry-run
+```
+
+This guided form validates the name and signed opening balance, then provides
+an active account-type selector and local-date input. The explicit equivalent
+is:
+
+```bash
+spendly accounts add --name "Daily checking" \
+  --account-type "Checking" --starting-balance 850.00 --dry-run
+```
+
+The account uses your Spendly currency. Remove `--dry-run` to add it with
+that opening balance. Account types are managed in Spendly Web.
+
+## Rename, set a default, or archive
+
+Choose the action you need:
+
+```bash
+spendly accounts edit "Daily checking" --name "Household" --dry-run
+spendly accounts set-default "Daily checking" --dry-run
+spendly accounts archive "Daily checking" --dry-run
+spendly accounts reactivate "Daily checking" --dry-run
+```
+
+For a guided bulk preview, omit the account and select one or more eligible
+accounts:
+
+```bash
+spendly accounts archive --interactive --dry-run
+spendly accounts reactivate --interactive --dry-run
+```
+
+Guided bulk Archive and Reactivate show one combined preview. Without
+`--dry-run`, one safe confirmation applies the complete selection atomically;
+if any selected account changed after selection, none are updated.
+
+Remove `--dry-run` from the chosen command to apply it. Renaming changes the
+name you'll use in later commands. `accounts edit` can also change the type
+with `--account-type`.
+
+The default account is used for new expenses when no account is specified.
+Archiving keeps history but prevents new activity. Archiving the default account
+clears that default; reactivating it does not set it as default again. The CLI
+does not permanently delete accounts.
+
+## Set a balance
+
+Use this when you want an account to match a known balance:
+
+```bash
+spendly accounts adjust-balance "Daily checking" --balance 925.40 --dry-run
+```
+
+`--balance` is the final amount you want. If the current balance is 850.00,
+this example adds an adjustment of 75.40. Remove `--dry-run` to apply it.
+Zero and negative balances are supported.
+
+## Transfer funds
+
+Use guided mode to filter the destination to another active account with the
+same currency:
+
+```bash
+spendly accounts transfer --interactive --dry-run
+```
+
+```bash
+spendly accounts transfer --from-account "Daily checking" \
+  --to-account "Savings" --amount 100.00 --dry-run
+```
+
+The preview shows both resulting balances. Remove `--dry-run` to transfer the
+funds. Both accounts must be active and use the same currency. Transfers do not
+count as expenses. If the source would become negative, the preview returns a
+`NEGATIVE_SOURCE_BALANCE` warning; review that warning before committing.
+Completed transfers cannot be edited or deleted. Make a separate reverse
+transfer only when the user explicitly authorizes that new transfer.
+
+Interactive commits generate a write key when one is not supplied.
+Non-interactive commits require a fresh `--idempotency-key` and the current
+revision for each affected account. See the
+[agent contract](/docs/cli/ai-agents#mutation-safeguards) for the complete safe
+workflow.
+
+Run `spendly accounts --help` for all actions, or
+`spendly accounts transfer --help` for a specific action's options.

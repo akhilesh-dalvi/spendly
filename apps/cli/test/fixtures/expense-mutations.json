@@ -1,0 +1,222 @@
+{
+  "createProposal": {
+    "accountEffects": [
+      {
+        "accountId": "account-wallet",
+        "accountName": "Daily Wallet",
+        "balanceAfter": 1250,
+        "balanceBefore": 1500,
+        "currency": "INR",
+        "delta": -250
+      }
+    ],
+    "accountId": "account-wallet",
+    "accountSource": "explicit",
+    "amount": 250,
+    "categoryId": "category-food",
+    "categorySource": "explicit",
+    "currency": "INR",
+    "cycleId": "cycle-september",
+    "date": "2026-09-02",
+    "revision": 1,
+    "spentOn": "Lunch",
+    "tagIds": ["tag-essential"]
+  },
+  "createResult": {
+    "accountSource": "explicit",
+    "account": {
+      "accountType": {
+        "balanceNature": "asset",
+        "color": "#22C55E",
+        "icon": "wallet",
+        "id": "account-type-wallet",
+        "name": "Wallet"
+      },
+      "currency": "INR",
+      "id": "account-wallet",
+      "name": "Daily Wallet"
+    },
+    "accountEffects": [
+      {
+        "accountId": "account-wallet",
+        "accountName": "Daily Wallet",
+        "balanceAfter": 1250,
+        "balanceBefore": 1500,
+        "currency": "INR",
+        "delta": -250
+      }
+    ],
+    "amount": 250,
+    "category": { "id": "category-food", "name": "Food" },
+    "categorySource": "explicit",
+    "createdAt": "2026-09-02T10:30:00.000Z",
+    "currency": "INR",
+    "cycle": {
+      "endDateExclusive": "2026-10-01",
+      "id": "cycle-september",
+      "name": "September",
+      "startDate": "2026-09-01"
+    },
+    "date": "2026-09-02",
+    "id": "expense-lunch",
+    "revision": 1,
+    "spentOn": "Lunch",
+    "tags": [{ "id": "tag-essential", "name": "Essential" }]
+  },
+  "updatePreview": {
+    "accountEffects": [
+      {
+        "accountId": "account-wallet",
+        "accountName": "Daily Wallet",
+        "balanceAfter": 1200,
+        "balanceBefore": 1250,
+        "currency": "INR",
+        "delta": -50
+      }
+    ],
+    "after": {
+      "account": {
+        "accountType": {
+          "balanceNature": "asset",
+          "color": "#22C55E",
+          "icon": "wallet",
+          "id": "account-type-wallet",
+          "name": "Wallet"
+        },
+        "currency": "INR",
+        "id": "account-wallet",
+        "name": "Daily Wallet"
+      },
+      "amount": 300,
+      "category": null,
+      "createdAt": "2026-09-02T10:30:00.000Z",
+      "currency": "INR",
+      "cycle": {
+        "endDateExclusive": "2026-10-01",
+        "id": "cycle-september",
+        "name": "September",
+        "startDate": "2026-09-01"
+      },
+      "date": "2026-09-02",
+      "id": "expense-lunch",
+      "revision": 3,
+      "spentOn": null,
+      "tags": []
+    },
+    "before": {
+      "account": {
+        "accountType": {
+          "balanceNature": "asset",
+          "color": "#22C55E",
+          "icon": "wallet",
+          "id": "account-type-wallet",
+          "name": "Wallet"
+        },
+        "currency": "INR",
+        "id": "account-wallet",
+        "name": "Daily Wallet"
+      },
+      "amount": 250,
+      "category": { "id": "category-food", "name": "Food" },
+      "createdAt": "2026-09-02T10:30:00.000Z",
+      "currency": "INR",
+      "cycle": {
+        "endDateExclusive": "2026-10-01",
+        "id": "cycle-september",
+        "name": "September",
+        "startDate": "2026-09-01"
+      },
+      "date": "2026-09-02",
+      "id": "expense-lunch",
+      "revision": 2,
+      "spentOn": "Lunch",
+      "tags": [{ "id": "tag-essential", "name": "Essential" }]
+    }
+  },
+  "deletePreview": {
+    "accountEffects": [
+      {
+        "accountId": "account-wallet",
+        "accountName": "Daily Wallet",
+        "balanceAfter": 1500,
+        "balanceBefore": 1250,
+        "currency": "INR",
+        "delta": 250
+      }
+    ],
+    "confirmationToken": "confirmation-lunch",
+    "expiresAt": "2026-09-02T10:35:00.000Z",
+    "expense": {
+      "account": {
+        "accountType": {
+          "balanceNature": "asset",
+          "color": "#22C55E",
+          "icon": "wallet",
+          "id": "account-type-wallet",
+          "name": "Wallet"
+        },
+        "currency": "INR",
+        "id": "account-wallet",
+        "name": "Daily Wallet"
+      },
+      "amount": 250,
+      "category": { "id": "category-food", "name": "Food" },
+      "createdAt": "2026-09-02T10:30:00.000Z",
+      "currency": "INR",
+      "cycle": {
+        "endDateExclusive": "2026-10-01",
+        "id": "cycle-september",
+        "name": "September",
+        "startDate": "2026-09-01"
+      },
+      "date": "2026-09-02",
+      "id": "expense-lunch",
+      "revision": 2,
+      "spentOn": "Lunch",
+      "tags": [{ "id": "tag-essential", "name": "Essential" }]
+    },
+    "revision": 2
+  },
+  "deleteResult": {
+    "accountEffects": [
+      {
+        "accountId": "account-wallet",
+        "accountName": "Daily Wallet",
+        "balanceAfter": 1500,
+        "balanceBefore": 1250,
+        "currency": "INR",
+        "delta": 250
+      }
+    ],
+    "deleted": true,
+    "expense": {
+      "account": {
+        "accountType": {
+          "balanceNature": "asset",
+          "color": "#22C55E",
+          "icon": "wallet",
+          "id": "account-type-wallet",
+          "name": "Wallet"
+        },
+        "currency": "INR",
+        "id": "account-wallet",
+        "name": "Daily Wallet"
+      },
+      "amount": 250,
+      "category": { "id": "category-food", "name": "Food" },
+      "createdAt": "2026-09-02T10:30:00.000Z",
+      "currency": "INR",
+      "cycle": {
+        "endDateExclusive": "2026-10-01",
+        "id": "cycle-september",
+        "name": "September",
+        "startDate": "2026-09-01"
+      },
+      "date": "2026-09-02",
+      "id": "expense-lunch",
+      "revision": 2,
+      "spentOn": "Lunch",
+      "tags": [{ "id": "tag-essential", "name": "Essential" }]
+    }
+  }
+}

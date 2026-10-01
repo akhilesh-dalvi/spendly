@@ -1,0 +1,329 @@
+{
+  "accountCreateProposal": {
+    "accountType": {
+      "balanceNature": "asset",
+      "color": "#22C55E",
+      "icon": "wallet",
+      "id": "account-type-wallet",
+      "name": "Wallet"
+    },
+    "currency": "INR",
+    "currentBalance": -100,
+    "date": "2026-09-04",
+    "name": "Travel Cash",
+    "revision": 1,
+    "startingBalance": -100
+  },
+  "accountCreateResult": {
+    "accountType": {
+      "balanceNature": "asset",
+      "color": "#22C55E",
+      "icon": "wallet",
+      "id": "account-type-wallet",
+      "name": "Wallet"
+    },
+    "createdAt": "2026-09-04T10:00:00.000Z",
+    "currency": "INR",
+    "currentBalance": -100,
+    "id": "account-travel",
+    "isArchived": false,
+    "isDefault": false,
+    "name": "Travel Cash",
+    "openingTransaction": {
+      "accountId": "account-travel",
+      "amount": -100,
+      "balanceAfter": -100,
+      "createdAt": "2026-09-04T10:00:00.000Z",
+      "date": "2026-09-04",
+      "id": "transaction-opening-travel",
+      "note": "Opening balance",
+      "relatedId": null,
+      "type": "opening_balance"
+    },
+    "revision": 1,
+    "startingBalance": -100,
+    "updatedAt": "2026-09-04T10:00:00.000Z"
+  },
+  "accountUpdatePreview": {
+    "after": {
+      "accountType": {
+        "balanceNature": "asset",
+        "color": "#22C55E",
+        "icon": "wallet",
+        "id": "account-type-wallet",
+        "name": "Wallet"
+      },
+      "createdAt": "2026-09-01T08:00:00.000Z",
+      "currency": "INR",
+      "currentBalance": 1250,
+      "id": "account-wallet",
+      "isArchived": false,
+      "isDefault": true,
+      "name": "Everyday Wallet",
+      "revision": 4,
+      "startingBalance": 1500,
+      "updatedAt": "2026-09-04T10:00:00.000Z"
+    },
+    "before": {
+      "accountType": {
+        "balanceNature": "asset",
+        "color": "#22C55E",
+        "icon": "wallet",
+        "id": "account-type-wallet",
+        "name": "Wallet"
+      },
+      "createdAt": "2026-09-01T08:00:00.000Z",
+      "currency": "INR",
+      "currentBalance": 1250,
+      "id": "account-wallet",
+      "isArchived": false,
+      "isDefault": true,
+      "name": "Daily Wallet",
+      "revision": 3,
+      "startingBalance": 1500,
+      "updatedAt": "2026-09-02T08:00:00.000Z"
+    }
+  },
+  "accounts": [
+    {
+      "accountType": {
+        "balanceNature": "asset",
+        "color": "#22C55E",
+        "icon": "wallet",
+        "id": "account-type-wallet",
+        "name": "Wallet"
+      },
+      "createdAt": "2026-09-01T08:00:00.000Z",
+      "currency": "INR",
+      "currentBalance": 1250,
+      "id": "account-wallet",
+      "isArchived": false,
+      "isDefault": true,
+      "name": "Daily Wallet",
+      "revision": 3,
+      "startingBalance": 1500,
+      "updatedAt": "2026-09-02T08:00:00.000Z"
+    },
+    {
+      "accountType": {
+        "balanceNature": "asset",
+        "color": "#3B82F6",
+        "icon": "landmark",
+        "id": "account-type-bank",
+        "name": "Bank"
+      },
+      "createdAt": "2026-09-01T09:00:00.000Z",
+      "currency": "INR",
+      "currentBalance": 500,
+      "id": "account-savings",
+      "isArchived": false,
+      "isDefault": false,
+      "name": "Savings",
+      "revision": 2,
+      "startingBalance": 500,
+      "updatedAt": "2026-09-02T09:00:00.000Z"
+    }
+  ],
+  "accountTypes": [
+    {
+      "balanceNature": "asset",
+      "color": "#22C55E",
+      "createdAt": "2026-09-01T08:00:00.000Z",
+      "icon": "wallet",
+      "id": "account-type-wallet",
+      "isArchived": false,
+      "name": "Wallet",
+      "order": 0,
+      "updatedAt": "2026-09-01T08:00:00.000Z"
+    },
+    {
+      "balanceNature": "asset",
+      "color": "#3B82F6",
+      "createdAt": "2026-09-01T08:00:00.000Z",
+      "icon": "landmark",
+      "id": "account-type-bank",
+      "isArchived": false,
+      "name": "Bank",
+      "order": 1,
+      "updatedAt": "2026-09-01T08:00:00.000Z"
+    }
+  ],
+  "balanceAdjustmentPreview": {
+    "account": {
+      "accountType": {
+        "balanceNature": "asset",
+        "color": "#22C55E",
+        "icon": "wallet",
+        "id": "account-type-wallet",
+        "name": "Wallet"
+      },
+      "createdAt": "2026-09-01T08:00:00.000Z",
+      "currency": "INR",
+      "currentBalance": 1250,
+      "id": "account-wallet",
+      "isArchived": false,
+      "isDefault": true,
+      "name": "Daily Wallet",
+      "revision": 3,
+      "startingBalance": 1500,
+      "updatedAt": "2026-09-02T08:00:00.000Z"
+    },
+    "adjustment": -1300,
+    "currency": "INR",
+    "date": "2026-09-04",
+    "resultingBalance": -50,
+    "warnings": ["NEGATIVE_BALANCE"]
+  },
+  "balanceAdjustmentResult": {
+    "account": {
+      "accountType": {
+        "balanceNature": "asset",
+        "color": "#22C55E",
+        "icon": "wallet",
+        "id": "account-type-wallet",
+        "name": "Wallet"
+      },
+      "createdAt": "2026-09-01T08:00:00.000Z",
+      "currency": "INR",
+      "currentBalance": -50,
+      "id": "account-wallet",
+      "isArchived": false,
+      "isDefault": true,
+      "name": "Daily Wallet",
+      "revision": 4,
+      "startingBalance": 1500,
+      "updatedAt": "2026-09-04T10:00:00.000Z"
+    },
+    "adjustment": -1300,
+    "currency": "INR",
+    "date": "2026-09-04",
+    "resultingBalance": -50,
+    "transaction": {
+      "accountId": "account-wallet",
+      "amount": -1300,
+      "balanceAfter": -50,
+      "createdAt": "2026-09-04T10:00:00.000Z",
+      "date": "2026-09-04",
+      "id": "transaction-adjustment",
+      "note": "Reconcile",
+      "relatedId": null,
+      "type": "manual_adjustment"
+    },
+    "warnings": ["NEGATIVE_BALANCE"]
+  },
+  "transferPreview": {
+    "amount": 1400,
+    "currency": "INR",
+    "date": "2026-09-04",
+    "fromAccount": {
+      "accountType": {
+        "balanceNature": "asset",
+        "color": "#22C55E",
+        "icon": "wallet",
+        "id": "account-type-wallet",
+        "name": "Wallet"
+      },
+      "createdAt": "2026-09-01T08:00:00.000Z",
+      "currency": "INR",
+      "currentBalance": 1250,
+      "id": "account-wallet",
+      "isArchived": false,
+      "isDefault": true,
+      "name": "Daily Wallet",
+      "revision": 3,
+      "startingBalance": 1500,
+      "updatedAt": "2026-09-02T08:00:00.000Z"
+    },
+    "fromBalanceAfter": -150,
+    "note": "Move funds",
+    "toAccount": {
+      "accountType": {
+        "balanceNature": "asset",
+        "color": "#3B82F6",
+        "icon": "landmark",
+        "id": "account-type-bank",
+        "name": "Bank"
+      },
+      "createdAt": "2026-09-01T09:00:00.000Z",
+      "currency": "INR",
+      "currentBalance": 500,
+      "id": "account-savings",
+      "isArchived": false,
+      "isDefault": false,
+      "name": "Savings",
+      "revision": 2,
+      "startingBalance": 500,
+      "updatedAt": "2026-09-02T09:00:00.000Z"
+    },
+    "toBalanceAfter": 1900,
+    "warnings": ["NEGATIVE_SOURCE_BALANCE"]
+  },
+  "transferResult": {
+    "amount": 1400,
+    "currency": "INR",
+    "date": "2026-09-04",
+    "fromAccount": {
+      "accountType": {
+        "balanceNature": "asset",
+        "color": "#22C55E",
+        "icon": "wallet",
+        "id": "account-type-wallet",
+        "name": "Wallet"
+      },
+      "createdAt": "2026-09-01T08:00:00.000Z",
+      "currency": "INR",
+      "currentBalance": -150,
+      "id": "account-wallet",
+      "isArchived": false,
+      "isDefault": true,
+      "name": "Daily Wallet",
+      "revision": 4,
+      "startingBalance": 1500,
+      "updatedAt": "2026-09-04T10:00:00.000Z"
+    },
+    "fromTransaction": {
+      "accountId": "account-wallet",
+      "amount": -1400,
+      "balanceAfter": -150,
+      "createdAt": "2026-09-04T10:00:00.000Z",
+      "date": "2026-09-04",
+      "id": "transaction-transfer-out",
+      "note": "Move funds",
+      "relatedId": "transfer-1",
+      "type": "transfer_out"
+    },
+    "id": "transfer-1",
+    "note": "Move funds",
+    "toAccount": {
+      "accountType": {
+        "balanceNature": "asset",
+        "color": "#3B82F6",
+        "icon": "landmark",
+        "id": "account-type-bank",
+        "name": "Bank"
+      },
+      "createdAt": "2026-09-01T09:00:00.000Z",
+      "currency": "INR",
+      "currentBalance": 1900,
+      "id": "account-savings",
+      "isArchived": false,
+      "isDefault": false,
+      "name": "Savings",
+      "revision": 3,
+      "startingBalance": 500,
+      "updatedAt": "2026-09-04T10:00:00.000Z"
+    },
+    "toTransaction": {
+      "accountId": "account-savings",
+      "amount": 1400,
+      "balanceAfter": 1900,
+      "createdAt": "2026-09-04T10:00:00.000Z",
+      "date": "2026-09-04",
+      "id": "transaction-transfer-in",
+      "note": "Move funds",
+      "relatedId": "transfer-1",
+      "type": "transfer_in"
+    },
+    "warnings": ["NEGATIVE_SOURCE_BALANCE"]
+  }
+}

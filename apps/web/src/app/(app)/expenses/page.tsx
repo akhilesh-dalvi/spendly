@@ -21,6 +21,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AccountTypeIcon } from "@/components/account-type-icon";
+import {
+	type ActionSource,
+	ActionSourceIndicator,
+} from "@/components/action-source-indicator";
 import { Loader } from "@/components/loader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,6 +54,7 @@ interface Filters {
 interface ExpenseRow {
 	_id: string;
 	amount: number;
+	createdSource?: ActionSource;
 	accountName?: string | null;
 	accountTypeColor?: string | null;
 	accountTypeIcon?: string | null;
@@ -59,6 +64,8 @@ interface ExpenseRow {
 	categoryName?: string | null;
 	categoryTypeColor?: string | null;
 	date: string;
+	lastModifiedSource?: ActionSource;
+	revision?: number;
 	spentOn?: string | null;
 	tagNames?: string[];
 }
@@ -465,9 +472,17 @@ function ExpensesPageContent() {
 				className: "px-4 w-full min-w-[200px]",
 				header: "Note",
 				cell: ({ row }) => (
-					<span className="text-muted-foreground">
-						{row.getValue("spentOn") || "—"}
-					</span>
+					<div className="flex items-center gap-1.5">
+						<ActionSourceIndicator
+							action={(row.original.revision ?? 1) > 1 ? "updated" : "added"}
+							source={
+								row.original.lastModifiedSource ?? row.original.createdSource
+							}
+						/>
+						<span className="text-muted-foreground">
+							{row.getValue("spentOn") || "—"}
+						</span>
+					</div>
 				),
 			},
 			{
