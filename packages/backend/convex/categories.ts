@@ -514,6 +514,7 @@ export const remove = mutation({
 		for (const exp of expenses) {
 			await ctx.db.patch(exp._id, {
 				categoryId: undefined,
+				lastModifiedSource: "web",
 				revision: nextRevision(exp.revision),
 			});
 		}

@@ -119,13 +119,39 @@ const createTestRuntime = (
 };
 
 describe("Phase 5 expense mutation commands", () => {
-	it("previews create with the same normalized server contract", async () => {
+	it("makes a human dry run unmistakably non-writing", async () => {
 		const testRuntime = createTestRuntime();
 
 		const exitCode = await runCli(
 			[
 				"expenses",
-				"create",
+				"add",
+				"--amount",
+				"250",
+				"--date",
+				"2026-09-02",
+				"--account-id",
+				"account-wallet",
+				"--dry-run",
+			],
+			testRuntime.runtime
+		);
+
+		expect(exitCode).toBe(CLI_EXIT_CODE.success);
+		expect(testRuntime.getStdout()).toContain(
+			"PREVIEW ONLY - no changes were saved."
+		);
+		expect(testRuntime.getStdout()).toContain("Amount: INR 250.00");
+		expect(testRuntime.getStderr()).toBe("");
+	});
+
+	it("previews add with the same normalized server contract", async () => {
+		const testRuntime = createTestRuntime();
+
+		const exitCode = await runCli(
+			[
+				"expenses",
+				"add",
 				"--amount",
 				"250",
 				"--date",
@@ -139,6 +165,7 @@ describe("Phase 5 expense mutation commands", () => {
 				"--tag-id",
 				"tag-essential",
 				"--dry-run",
+				"--agent",
 				"--json",
 				"--non-interactive",
 			],
@@ -167,13 +194,47 @@ describe("Phase 5 expense mutation commands", () => {
 		});
 	});
 
+	it("marks only committed agent mutations", async () => {
+		const testRuntime = createTestRuntime();
+		const exitCode = await runCli(
+			[
+				"expenses",
+				"add",
+				"--amount",
+				"250",
+				"--date",
+				"2026-09-02",
+				"--category-id",
+				"category-food",
+				"--account-id",
+				"account-wallet",
+				"--idempotency-key",
+				"agent-expense-key",
+				"--agent",
+				"--json",
+				"--non-interactive",
+			],
+			testRuntime.runtime
+		);
+
+		expect(exitCode).toBe(CLI_EXIT_CODE.success);
+		expect(testRuntime.calls.at(-1)).toMatchObject({
+			args: {
+				agent: true,
+				idempotencyKey: "agent-expense-key",
+			},
+			kind: "mutation",
+			name: "cli/v1/expenses:create",
+		});
+	});
+
 	it("resolves exact human selectors and generates a commit key", async () => {
 		const testRuntime = createTestRuntime();
 
 		const exitCode = await runCli(
 			[
 				"expenses",
-				"create",
+				"add",
 				"--amount",
 				"250",
 				"--spent-on",
@@ -207,7 +268,7 @@ describe("Phase 5 expense mutation commands", () => {
 			kind: "mutation",
 		});
 		expect(testRuntime.getStdout()).toContain(
-			"Daily Wallet: INR 1500.00 -> INR 1250.00"
+			"Daily Wallet: INR 1,500.00 -> INR 1,250.00"
 		);
 		expect(testRuntime.getStdout()).toContain("Category source: explicit");
 		expect(testRuntime.getStdout()).toContain("Account source: explicit");
@@ -217,7 +278,7 @@ describe("Phase 5 expense mutation commands", () => {
 		const testRuntime = createTestRuntime();
 
 		const exitCode = await runCli(
-			["expenses", "create", "--amount", "5", "--json", "--non-interactive"],
+			["expenses", "add", "--amount", "5", "--json", "--non-interactive"],
 			testRuntime.runtime
 		);
 
@@ -228,13 +289,13 @@ describe("Phase 5 expense mutation commands", () => {
 		});
 	});
 
-	it("previews explicit update clears at the supplied revision", async () => {
+	it("previews explicit edit clears at the supplied revision", async () => {
 		const testRuntime = createTestRuntime();
 
 		const exitCode = await runCli(
 			[
 				"expenses",
-				"update",
+				"edit",
 				"expense-lunch",
 				"--amount",
 				"300",
@@ -269,11 +330,11 @@ describe("Phase 5 expense mutation commands", () => {
 		});
 	});
 
-	it("uses the current revision transparently for a human update", async () => {
+	it("uses the current revision transparently for a human edit", async () => {
 		const testRuntime = createTestRuntime();
 
 		const exitCode = await runCli(
-			["expenses", "update", "expense-lunch", "--amount", "300"],
+			["expenses", "edit", "expense-lunch", "--amount", "300"],
 			testRuntime.runtime
 		);
 
@@ -307,7 +368,7 @@ describe("Phase 5 expense mutation commands", () => {
 		const exitCode = await runCli(
 			[
 				"expenses",
-				"update",
+				"edit",
 				"expense-lunch",
 				"--date",
 				"2026-10-02",
@@ -410,11 +471,11 @@ describe("Phase 5 expense mutation commands", () => {
 			testRuntime.runtime
 		);
 
-		expect(exitCode).toBe(CLI_EXIT_CODE.confirmation);
+		expect(exitCode).toBe(CLI_EXIT_CODE.success);
 		expect(testRuntime.calls.map((call) => call.name)).toEqual([
 			"cli/v1/expenses:previewDelete",
 		]);
-		expect(testRuntime.getStderr()).toContain("Deletion was not confirmed");
+		expect(testRuntime.getStderr()).toContain("Cancelled; no changes made");
 	});
 
 	it("does not retry an uncertain mutation and returns its recovery key", async () => {
@@ -429,7 +490,7 @@ describe("Phase 5 expense mutation commands", () => {
 		const exitCode = await runCli(
 			[
 				"expenses",
-				"create",
+				"add",
 				"--amount",
 				"5",
 				"--idempotency-key",
@@ -458,7 +519,7 @@ describe("Phase 5 expense mutation commands", () => {
 		const testRuntime = createTestRuntime();
 
 		const exitCode = await runCli(
-			["expenses", "create", "--amount", "1e3", "--dry-run"],
+			["expenses", "add", "--amount", "1e3", "--dry-run"],
 			testRuntime.runtime
 		);
 

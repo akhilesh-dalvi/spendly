@@ -9,13 +9,13 @@ import { useMemo } from "react";
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
 import {
+	CLI_DOCS_NAV_ITEM,
 	CORE_NAV_ITEMS,
 	isNavItemActive,
 	isSubNavItemActive,
 	MANAGEMENT_NAV_ITEMS,
 	type NavItem,
 	type NavSubItem,
-	SETTINGS_NAV_ITEM,
 } from "@/components/navigation-config";
 import {
 	Sidebar,
@@ -57,7 +57,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 		return {
 			core: addActiveState(pathname, CORE_NAV_ITEMS),
 			management: addActiveState(pathname, MANAGEMENT_NAV_ITEMS),
-			settings: addActiveState(pathname, [SETTINGS_NAV_ITEM]),
+			docs: addActiveState(pathname, [CLI_DOCS_NAV_ITEM]),
 		};
 	}, [pathname]);
 
@@ -81,7 +81,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 				<NavMain items={navigation.management} label="Manage" />
 			</SidebarContent>
 			<SidebarFooter>
-				<NavMain className="p-0" items={navigation.settings} />
+				<NavMain className="p-0" items={navigation.docs} />
 				<NavUser user={user} />
 			</SidebarFooter>
 		</Sidebar>

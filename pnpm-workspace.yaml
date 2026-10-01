@@ -9,6 +9,7 @@ allowBuilds:
 overrides:
   "@clerk/clerk-react": 5.61.6
   "@clerk/shared": 3.47.5
+  browserslist: 4.28.9
   js-cookie: 3.0.7
   ws: 8.21.0
 catalog:
@@ -19,3 +20,14 @@ catalog:
 minimumReleaseAgeExclude:
   - fumadocs-core@16.15.7
   - fumadocs-ui@16.15.7
+  - '@next/env@16.3.6'
+  - '@next/swc-darwin-arm64@16.3.6'
+  - '@next/swc-darwin-x64@16.3.6'
+  - '@next/swc-linux-arm64-gnu@16.3.6'
+  - '@next/swc-linux-arm64-musl@16.3.6'
+  - '@next/swc-linux-x64-gnu@16.3.6'
+  - '@next/swc-linux-x64-musl@16.3.6'
+  - '@next/swc-win32-arm64-msvc@16.3.6'
+  - next@16.3.6
+  - '@clack/core@1.5.1'
+  - '@clack/prompts@1.8.1'

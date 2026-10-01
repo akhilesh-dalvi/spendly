@@ -27,6 +27,10 @@ export const accountUpdatePreviewSchema = z.object({
 	before: accountSchema,
 });
 
+export const accountUpdatePreviewArraySchema = z.array(
+	accountUpdatePreviewSchema
+);
+
 export const balanceAdjustmentPreviewSchema = z.object({
 	account: accountSchema,
 	adjustment: z.number().finite(),

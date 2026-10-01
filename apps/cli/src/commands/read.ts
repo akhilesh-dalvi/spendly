@@ -27,11 +27,13 @@ export const registerReadCommands = (
 	expenses
 		.command("get")
 		.description("Get an expense by ID")
-		.argument("<expense-id>", "stable expense ID")
-		.action(async (expenseId: string, _options, command: Command) => {
-			const { runExpenseGet } = await import("./read-actions.js");
-			await runExpenseGet(expenseId, command, runtime);
-		});
+		.argument("[expense-id]", "stable expense ID")
+		.action(
+			async (expenseId: string | undefined, _options, command: Command) => {
+				const { runExpenseGet } = await import("./read-actions.js");
+				await runExpenseGet(expenseId, command, runtime);
+			}
+		);
 	expenses
 		.command("list")
 		.description("List expenses using cursor pagination")
@@ -163,18 +165,18 @@ export const registerReadCommands = (
 	accounts
 		.command("get")
 		.description("Get an account by ID or exact name")
-		.argument("<account>", "stable account ID or exact human name")
-		.action(async (account: string, _options, command: Command) => {
+		.argument("[account]", "stable account ID or exact human name")
+		.action(async (account: string | undefined, _options, command: Command) => {
 			const { runAccountGet } = await import("./read-actions.js");
 			await runAccountGet(account, command, runtime);
 		});
 	accounts
 		.command("transactions")
 		.description("List an account's ledger transactions")
-		.argument("<account>", "stable account ID or exact human name")
+		.argument("[account]", "stable account ID or exact human name")
 		.option("--limit <number>", "page size from 1 to 100")
 		.option("--cursor <cursor>", "opaque cursor from a previous response")
-		.action(async (account: string, options, command: Command) => {
+		.action(async (account: string | undefined, options, command: Command) => {
 			const { runAccountTransactions } = await import("./read-actions.js");
 			await runAccountTransactions(account, options, command, runtime);
 		});

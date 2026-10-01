@@ -4,39 +4,65 @@
   "private": true,
   "description": "Spendly command-line interface",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/akhilesh-dalvi/spendly.git",
+    "directory": "apps/cli"
+  },
+  "homepage": "https://spendly.akhileshdalvi.com/docs/cli",
+  "bugs": {
+    "url": "https://github.com/akhilesh-dalvi/spendly/issues"
+  },
+  "keywords": [
+    "expense-tracker",
+    "personal-finance",
+    "cli",
+    "ai-agent"
+  ],
   "files": [
-    "dist"
+    "dist",
+    "npm-shrinkwrap.json"
   ],
   "bin": {
     "spendly": "dist/index.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true,
+    "registry": "https://registry.npmjs.org/",
+    "tag": "next"
   },
   "scripts": {
-    "build": "pnpm clean:production && tsc -p tsconfig.json",
-    "build:development": "pnpm clean:development && tsc -p tsconfig.development.json",
+    "audit:release": "node scripts/audit-release-dependencies.mjs",
+    "build": "node scripts/clean-output.mjs dist && tsc -p tsconfig.json",
+    "build:development": "node scripts/clean-output.mjs development-dist && tsc -p tsconfig.development.json",
     "check-types": "tsc -p tsconfig.json --noEmit",
     "check-types:development": "tsc -p tsconfig.development.json --noEmit",
     "clean:development": "node scripts/clean-output.mjs development-dist",
     "clean:production": "node scripts/clean-output.mjs dist",
     "dev": "pnpm build:development && node --env-file=.env.local development-dist/development/index.js",
     "pack:verify": "node scripts/verify-package.mjs",
-    "prepack": "pnpm build",
+    "prepack": "npm run release:check && npm run build",
+    "release:check": "node scripts/verify-release-metadata.mjs",
+    "shrinkwrap:generate": "node scripts/generate-shrinkwrap.mjs",
     "start": "node dist/index.js",
     "test": "vitest run --environment node"
   },
   "dependencies": {
-    "@napi-rs/keyring": "^1.3.0",
-    "commander": "^14.0.0",
-    "convex": "catalog:",
-    "jose": "^6.1.0",
-    "zod": "catalog:"
+    "@clack/core": "1.5.1",
+    "@clack/prompts": "1.8.1",
+    "@napi-rs/keyring": "1.3.0",
+    "commander": "14.0.3",
+    "convex": "1.45.0",
+    "jose": "6.2.2",
+    "zod": "4.3.6"
   },
   "devDependencies": {
-    "@spendly/config": "workspace:*",
-    "@types/node": "^24.3.0",
-    "typescript": "catalog:",
-    "vitest": "^3.2.4"
+    "@types/node": "24.12.2",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7"
   }
 }

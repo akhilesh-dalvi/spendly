@@ -1,29 +1,24 @@
-# Account Workflows
+# Accounts and Transfers
 
-Load this reference for account and ledger reads or account mutations. For
-every mutation, also load `references/mutation-safety.md` directly from the
-skill root.
+The variables below represent values from the request or CLI output. See
+[command basics](cli-contract.md) for JSON, revisions, and saving a preview.
 
-Values beginning with `$` below are placeholders obtained from current Spendly
-JSON or generated locally for one intent.
-
-## Read
-
-- Use `accounts list` to resolve active account IDs; include archived accounts
-  only when history or lifecycle work requires them.
-- Use `accounts get` for current balance, type, currency, default state,
-  archived state, and revision.
-- Use `accounts transactions` for cursor-paginated ledger history.
-- Use `account-types list` to resolve an active type ID. Account types are
-  read-only in the CLI.
-
-## Create and update
-
-Account creation requires a name, active account-type ID, and starting balance.
-It inherits context currency and creates an immutable opening ledger entry.
+## Find accounts and history
 
 ```bash
-spendly --json --non-interactive accounts create \
+spendly --agent --json --non-interactive accounts list --include-archived
+spendly --agent --json --non-interactive accounts get "$ACCOUNT_ID"
+spendly --agent --json --non-interactive accounts transactions "$ACCOUNT_ID" --limit 25
+spendly --agent --json --non-interactive account-types list
+```
+
+`accounts get` returns balance, currency, type, default status, archived status,
+and revision. Existing accounts and types may already fit the request.
+
+## Add or edit an account
+
+```bash
+spendly --agent --json --non-interactive accounts add \
   --name "$ACCOUNT_NAME" \
   --account-type-id "$ACCOUNT_TYPE_ID" \
   --starting-balance "$STARTING_BALANCE" \
@@ -31,51 +26,45 @@ spendly --json --non-interactive accounts create \
   --dry-run
 ```
 
-Commit the otherwise identical command with `--idempotency-key "$KEY"`.
-Report the account ID, revision, default state, balances, currency, and opening
-ledger reference.
+Creation needs a name, active account type, and starting balance. It uses the
+context currency and records an opening ledger entry. Remove `--dry-run` and
+add `--idempotency-key "$KEY"` to save.
 
-Account update changes only its name or active type. Read the account, preview
-with `--if-revision "$REVISION"`, then commit with the same revision and a fresh
-key. Never edit opening balance, current balance, currency, or ledger history
-through update.
+`accounts edit "$ACCOUNT_ID"` changes the name with `--name` or type with
+`--account-type-id`. It accepts `--if-revision "$REVISION"`, `--dry-run`, and
+`--idempotency-key "$KEY"`. Balance changes use `adjust-balance` instead.
 
-## Lifecycle and default
+## Default and archive status
 
-Archive, reactivate, and set-default each require the account ID and current
-revision, a dry run, and a keyed commit.
+`accounts set-default`, `accounts archive`, and `accounts reactivate` each take
+an account ID, `--if-revision`, and `--idempotency-key`; `--dry-run` previews them.
 
-- Archive preserves all history. Archiving the default clears that preference.
-- Reactivate restores eligibility for new expenses and transfers but does not
-  restore default status.
-- Set-default accepts only an active account.
-- There is no permanent account-delete command. Never erase ledger history.
+Archiving preserves history and clears the default if applicable. Reactivation
+allows new activity again; `set-default` selects an active account as default.
+Permanent account deletion and direct ledger editing are unavailable in the CLI.
 
-## Reconcile an absolute balance
-
-`adjust-balance --balance` is the desired final balance, not a delta. The
-backend calculates and records only the difference.
+## Set a balance
 
 ```bash
-spendly --json --non-interactive accounts adjust-balance "$ACCOUNT_ID" \
+spendly --agent --json --non-interactive accounts adjust-balance "$ACCOUNT_ID" \
   --balance "$DESIRED_BALANCE" \
   --date "$DATE" \
   --if-revision "$REVISION" \
   --dry-run
 ```
 
-Check current balance, signed adjustment, resulting balance, currency, and
-warnings. A zero adjustment is a successful no-op. A negative result is valid
-but must be surfaced before commit. Commit the same values with a fresh key,
-then report the new revision and ledger reference, if one was created.
+`--balance` is the desired final balance. The CLI calculates the adjustment;
+for example, setting 100 to 125 records +25. A zero adjustment is a no-op.
+Negative balances are supported and appear in preview warnings. Remove
+`--dry-run` and add `--idempotency-key "$KEY"` to save.
 
-## Transfer
+## Transfer funds
 
-Resolve two different active account IDs and both current revisions. Currencies
-must match; never convert.
+Get both accounts for their IDs and current revisions. Transfers work between
+two different active accounts with the same currency:
 
 ```bash
-spendly --json --non-interactive accounts transfer \
+spendly --agent --json --non-interactive accounts transfer \
   --from-account-id "$SOURCE_ACCOUNT_ID" \
   --to-account-id "$DESTINATION_ACCOUNT_ID" \
   --amount "$AMOUNT" \
@@ -85,10 +74,9 @@ spendly --json --non-interactive accounts transfer \
   --dry-run
 ```
 
-Check both resolved IDs, amount, currency, revisions, resulting balances, and
-negative-source warning. Commit with a fresh key and otherwise identical
-inputs. Report transfer ID, both balances and revisions, and both ledger
-references. Transfers do not change expense-cycle spending.
-
-Completed transfers cannot be edited or deleted. Use a separately authorized
-compensating transfer when correction is intended.
+The preview shows both resulting balances. Remove `--dry-run` and add
+`--idempotency-key "$KEY"` to save. Transfers affect account balances without
+changing expense-cycle spending. Completed transfers have no edit or delete
+command. Surface a `NEGATIVE_SOURCE_BALANCE` preview warning and do not decide
+for the user whether to proceed. A separate reverse transfer is a new write and
+requires the user's explicit authorization.

@@ -7,10 +7,19 @@ import type {
 	ExpenseProposal,
 	ExpenseUpdatePreview,
 } from "../domain/mutation-schemas.js";
+import { formatMoney } from "./human.js";
+import { shellQuote } from "./pagination.js";
 import { renderExpense } from "./read-terminal.js";
 
-const money = (amount: number, currency: string): string =>
-	`${currency} ${amount.toFixed(2)}`;
+export interface ExpenseProposalPresentation {
+	account: string;
+	category: string;
+	cycle: string;
+	tags: string[];
+}
+
+const renderExpenseNextAction = (id: string): string =>
+	`Next: spendly expenses get ${shellQuote(id)}`;
 
 const renderAccountEffects = (effects: AccountBalanceEffect[]): string => {
 	if (effects.length === 0) {
@@ -20,21 +29,67 @@ const renderAccountEffects = (effects: AccountBalanceEffect[]): string => {
 		"Account balance effects:",
 		...effects.map(
 			(effect) =>
-				`- ${effect.accountName}: ${money(effect.balanceBefore, effect.currency)} -> ${money(effect.balanceAfter, effect.currency)} (${effect.delta >= 0 ? "+" : ""}${effect.delta.toFixed(2)})`
+				`- ${effect.accountName}: ${formatMoney(effect.balanceBefore, effect.currency)} -> ${formatMoney(effect.balanceAfter, effect.currency)} (${effect.delta >= 0 ? "+" : ""}${formatMoney(effect.delta, effect.currency)})`
 		),
 	].join("\n");
 };
 
-export const renderExpenseProposal = (proposal: ExpenseProposal): string =>
+const renderChangedFields = (
+	before: ExpenseUpdatePreview["before"],
+	after: ExpenseUpdatePreview["after"]
+): string => {
+	const changes = [
+		["Date", before.date, after.date],
+		[
+			"Amount",
+			formatMoney(before.amount, before.currency),
+			formatMoney(after.amount, after.currency),
+		],
+		["Description", before.spentOn ?? "none", after.spentOn ?? "none"],
+		[
+			"Category",
+			before.category?.name ?? "Uncategorized",
+			after.category?.name ?? "Uncategorized",
+		],
+		[
+			"Account",
+			before.account?.name ?? "Unassigned",
+			after.account?.name ?? "Unassigned",
+		],
+		[
+			"Tags",
+			before.tags.map((tag) => tag.name).join(", ") || "none",
+			after.tags.map((tag) => tag.name).join(", ") || "none",
+		],
+	].filter(([, beforeValue, afterValue]) => beforeValue !== afterValue);
+	return changes.length > 0
+		? changes
+				.map(
+					([label, beforeValue, afterValue]) =>
+						`- ${label}: ${beforeValue} -> ${afterValue}`
+				)
+				.join("\n")
+		: "- No visible field changes";
+};
+
+export const renderExpenseProposal = (
+	proposal: ExpenseProposal,
+	presentation: ExpenseProposalPresentation = {
+		account: proposal.accountId ?? "Unassigned",
+		category: proposal.categoryId ?? "Uncategorized",
+		cycle: proposal.cycleId ?? "none",
+		tags: proposal.tagIds,
+	}
+): string =>
 	[
-		"Expense preview",
+		"Add expense preview",
 		`Date: ${proposal.date}`,
-		`Amount: ${money(proposal.amount, proposal.currency)}`,
+		`Amount: ${formatMoney(proposal.amount, proposal.currency)}`,
 		`Spent on: ${proposal.spentOn ?? "none"}`,
-		`Category ID: ${proposal.categoryId ?? "Uncategorized"} (${proposal.categorySource})`,
-		`Account ID: ${proposal.accountId ?? "Unassigned"} (${proposal.accountSource})`,
-		`Cycle ID: ${proposal.cycleId ?? "none"}`,
-		`Tag IDs: ${proposal.tagIds.join(", ") || "none"}`,
+		`Category: ${presentation.category}`,
+		`Account: ${presentation.account}`,
+		`Cycle: ${presentation.cycle}`,
+		`Tags: ${presentation.tags.join(", ") || "none"}`,
 		`Revision: ${proposal.revision}`,
 		"",
 		renderAccountEffects(proposal.accountEffects),
@@ -43,28 +98,35 @@ export const renderExpenseProposal = (proposal: ExpenseProposal): string =>
 export const renderExpenseMutationResult = (
 	result: ExpenseMutationResult
 ): string =>
-	[renderExpense(result), "", renderAccountEffects(result.accountEffects)].join(
-		"\n"
-	);
-
-export const renderExpenseCreateResult = (
-	result: ExpenseCreateResult
-): string =>
 	[
-		renderExpenseMutationResult(result),
-		`Category source: ${result.categorySource}`,
-		`Account source: ${result.accountSource}`,
+		"OK - Expense updated",
+		renderExpense(result),
+		"",
+		renderAccountEffects(result.accountEffects),
+		"",
+		renderExpenseNextAction(result.id),
 	].join("\n");
 
-export const renderExpenseUpdatePreview = (
+export const renderExpenseAddResult = (result: ExpenseCreateResult): string =>
+	[
+		"OK - Expense added successfully",
+		renderExpense(result),
+		"",
+		renderAccountEffects(result.accountEffects),
+		`Category source: ${result.categorySource}`,
+		`Account source: ${result.accountSource}`,
+		"",
+		renderExpenseNextAction(result.id),
+	].join("\n");
+
+export const renderExpenseEditPreview = (
 	preview: ExpenseUpdatePreview
 ): string =>
 	[
-		"Before",
-		renderExpense(preview.before),
-		"",
-		"After",
-		renderExpense(preview.after),
+		"Edit expense preview",
+		`Expense: ${preview.before.date} · ${preview.before.spentOn ?? "No description"} · ${formatMoney(preview.before.amount, preview.before.currency)}`,
+		"Changes:",
+		renderChangedFields(preview.before, preview.after),
 		"",
 		renderAccountEffects(preview.accountEffects),
 	].join("\n");
@@ -84,9 +146,12 @@ export const renderExpenseDeleteResult = (
 	result: ExpenseDeleteResult
 ): string =>
 	[
-		`Deleted expense: ${result.expense.id}`,
+		"OK - Expense permanently deleted",
+		`ID: ${result.expense.id}`,
 		`Spent on: ${result.expense.spentOn ?? "none"}`,
-		`Amount: ${money(result.expense.amount, result.expense.currency)}`,
+		`Amount: ${formatMoney(result.expense.amount, result.expense.currency)}`,
 		"",
 		renderAccountEffects(result.accountEffects),
+		"",
+		"Next: spendly expenses list",
 	].join("\n");

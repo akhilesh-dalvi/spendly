@@ -254,7 +254,11 @@ export const updateDefaultAccount = mutation({
 	returns: v.id("accounts"),
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
-		await commitDefaultAccount(ctx, { accountId: args.accountId, user });
+		await commitDefaultAccount(ctx, {
+			accountId: args.accountId,
+			source: "web",
+			user,
+		});
 		return args.accountId;
 	},
 });

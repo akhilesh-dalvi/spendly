@@ -7,6 +7,7 @@ import {
 	applyAccountBalanceChange,
 	validateAccountOwnership,
 } from "../helpers";
+import type { ActionSource } from "./actionSource";
 import { resolveLocalDate } from "./dates";
 import { assertRevision, INITIAL_REVISION, nextRevision } from "./revisions";
 
@@ -84,6 +85,7 @@ export const commitAccountCreate = async (
 	options: {
 		now?: number;
 		prepared: PreparedAccountCreate;
+		source: ActionSource;
 		user: Doc<"users">;
 	}
 ): Promise<{
@@ -94,10 +96,12 @@ export const commitAccountCreate = async (
 	const accountId = await ctx.db.insert("accounts", {
 		accountTypeId: options.prepared.accountTypeId,
 		createdAt: now,
+		createdSource: options.source,
 		currency: options.prepared.currency,
 		currentBalance: options.prepared.startingBalance,
 		isArchived: false,
 		name: options.prepared.name,
+		lastModifiedSource: options.source,
 		revision: INITIAL_REVISION,
 		startingBalance: options.prepared.startingBalance,
 		updatedAt: now,
@@ -112,6 +116,7 @@ export const commitAccountCreate = async (
 		note: "Opening balance",
 		type: "opening_balance",
 		userId: options.user._id,
+		source: options.source,
 	});
 	const userUpdates: {
 		accountsOnboardingStatus?: "completed";
@@ -190,15 +195,16 @@ export const prepareAccountUpdate = async (
 
 export const commitAccountUpdate = async (
 	ctx: MutationCtx,
-	options: Parameters<typeof prepareAccountUpdate>[1]
+	options: Parameters<typeof prepareAccountUpdate>[1] & { source: ActionSource }
 ): Promise<Doc<"accounts">> => {
-	const prepared = await prepareAccountUpdate(ctx, options);
+	const { source, ...prepareOptions } = options;
+	const prepared = await prepareAccountUpdate(ctx, prepareOptions);
 	const {
 		_creationTime: _ignoredCreationTime,
 		_id,
 		...updates
 	} = prepared.after;
-	await ctx.db.patch(_id, updates);
+	await ctx.db.patch(_id, { ...updates, lastModifiedSource: source });
 	const updated = await ctx.db.get(_id);
 	if (!updated) {
 		throw new ConvexError("ACCOUNT_NOT_FOUND");
@@ -241,11 +247,15 @@ export const prepareAccountArchive = async (
 
 export const commitAccountArchive = async (
 	ctx: MutationCtx,
-	options: Parameters<typeof prepareAccountArchive>[1]
+	options: Parameters<typeof prepareAccountArchive>[1] & {
+		source: ActionSource;
+	}
 ): Promise<Doc<"accounts">> => {
-	const prepared = await prepareAccountArchive(ctx, options);
+	const { source, ...prepareOptions } = options;
+	const prepared = await prepareAccountArchive(ctx, prepareOptions);
 	await ctx.db.patch(options.accountId, {
 		isArchived: prepared.after.isArchived,
+		lastModifiedSource: source,
 		revision: prepared.after.revision,
 		updatedAt: prepared.after.updatedAt,
 	});
@@ -297,13 +307,17 @@ export const prepareDefaultAccount = async (
 
 export const commitDefaultAccount = async (
 	ctx: MutationCtx,
-	options: Parameters<typeof prepareDefaultAccount>[1]
+	options: Parameters<typeof prepareDefaultAccount>[1] & {
+		source: ActionSource;
+	}
 ): Promise<Doc<"accounts">> => {
-	const prepared = await prepareDefaultAccount(ctx, options);
+	const { source, ...prepareOptions } = options;
+	const prepared = await prepareDefaultAccount(ctx, prepareOptions);
 	if (options.user.defaultAccountId !== options.accountId) {
 		await Promise.all([
 			ctx.db.patch(options.user._id, { defaultAccountId: options.accountId }),
 			ctx.db.patch(options.accountId, {
+				lastModifiedSource: source,
 				revision: prepared.revision,
 				updatedAt: prepared.updatedAt,
 			}),
@@ -368,7 +382,8 @@ export const prepareBalanceAdjustment = async (
 
 export const commitBalanceAdjustment = async (
 	ctx: MutationCtx,
-	prepared: PreparedBalanceAdjustment
+	prepared: PreparedBalanceAdjustment,
+	source: ActionSource
 ): Promise<{
 	account: Doc<"accounts">;
 	transaction: Doc<"account_transactions"> | null;
@@ -382,6 +397,7 @@ export const commitBalanceAdjustment = async (
 			note: prepared.note,
 			type: "manual_adjustment",
 			userId: prepared.account.userId,
+			source,
 		});
 	}
 	const [account, transaction] = await Promise.all([
@@ -468,6 +484,7 @@ export const prepareTransfer = async (
 export const commitTransfer = async (
 	ctx: MutationCtx,
 	prepared: PreparedTransfer,
+	source: ActionSource,
 	now = Date.now()
 ): Promise<{
 	fromAccount: Doc<"accounts">;
@@ -484,6 +501,7 @@ export const commitTransfer = async (
 		note: prepared.note,
 		toAccountId: prepared.toAccount._id,
 		userId: prepared.fromAccount.userId,
+		source,
 	});
 	const fromTransactionId = await applyAccountBalanceChange(ctx, {
 		accountId: prepared.fromAccount._id,
@@ -493,6 +511,7 @@ export const commitTransfer = async (
 		transferId,
 		type: "transfer_out",
 		userId: prepared.fromAccount.userId,
+		source,
 	});
 	const toTransactionId = await applyAccountBalanceChange(ctx, {
 		accountId: prepared.toAccount._id,
@@ -502,6 +521,7 @@ export const commitTransfer = async (
 		transferId,
 		type: "transfer_in",
 		userId: prepared.toAccount.userId,
+		source,
 	});
 	const [fromAccount, fromTransaction, toAccount, toTransaction, transfer] =
 		await Promise.all([

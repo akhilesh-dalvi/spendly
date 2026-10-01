@@ -9,6 +9,7 @@ import {
 	validateMutationText,
 } from "../domain/mutation-input.js";
 import {
+	type ExpenseProposal,
 	expenseCreateResultSchema,
 	expenseDeletePreviewSchema,
 	expenseDeleteResultSchema,
@@ -19,36 +20,55 @@ import {
 import {
 	accountSchema,
 	categorySchema,
+	contextSchema,
 	cycleSchema,
 	expenseSchema,
 	tagSchema,
 } from "../domain/read-schemas.js";
 import { resolveExactName } from "../domain/selectors.js";
 import { CliError } from "../errors.js";
-import { confirmDestructiveAction } from "../input/confirm.js";
+import {
+	type InteractivePrompter,
+	PromptCancelledError,
+} from "../input/types.js";
 import { resolveGlobalOptions } from "../options.js";
 import {
-	renderExpenseCreateResult,
+	type ExpenseProposalPresentation,
+	renderExpenseAddResult,
 	renderExpenseDeletePreview,
 	renderExpenseDeleteResult,
+	renderExpenseEditPreview,
 	renderExpenseMutationResult,
 	renderExpenseProposal,
-	renderExpenseUpdatePreview,
 } from "../output/mutation-terminal.js";
 import { renderExpense } from "../output/read-terminal.js";
 import type { CliRuntime } from "../runtime.js";
 import {
+	confirmMutation,
+	getPrompter,
+	listVisibleCategories,
+	promptDate,
+	promptOptionalText,
+	promptRequiredText,
+	requirePrompter,
+	selectAccountMode,
+	selectCategoryMode,
+	selectExpenseId,
+	selectTags,
+} from "./interactive-support.js";
+import {
 	assertNamesAllowed,
+	commitParsed,
 	mutationParsed,
 	queryParsed,
 	withBackend,
 	writeMutationSuccess,
 } from "./mutation-support.js";
 
-interface ExpenseCreateOptions {
+interface ExpenseAddOptions {
 	account?: string;
 	accountId?: string;
-	amount: string;
+	amount?: string;
 	category?: string;
 	categoryId?: string;
 	date?: string;
@@ -60,7 +80,7 @@ interface ExpenseCreateOptions {
 	withoutAccount?: boolean;
 }
 
-interface ExpenseUpdateOptions {
+interface ExpenseEditOptions {
 	account?: string;
 	accountId?: string;
 	amount?: string;
@@ -93,7 +113,7 @@ const resolveCategoryName = async (
 ): Promise<string> => {
 	const cycle = await queryParsed(
 		context,
-		"cli/v1/resources:getCurrentCycle",
+		"resources.getCurrentCycle",
 		{ date },
 		cycleSchema.nullable()
 	);
@@ -105,7 +125,7 @@ const resolveCategoryName = async (
 	}
 	const categories = await queryParsed(
 		context,
-		"cli/v1/resources:listCategories",
+		"resources.listCategories",
 		{ cycleId: cycle.id },
 		categorySchema.array()
 	);
@@ -123,7 +143,7 @@ const resolveAccountName = async (
 ): Promise<string> => {
 	const accounts = await queryParsed(
 		context,
-		"cli/v1/accounts:list",
+		"accounts.list",
 		{ includeArchived: true },
 		accountSchema.array()
 	);
@@ -144,7 +164,7 @@ const resolveTagIds = async (
 	if (tagNames.length > 0) {
 		const tags = await queryParsed(
 			context,
-			"cli/v1/resources:listTags",
+			"resources.listTags",
 			{},
 			tagSchema.array()
 		);
@@ -162,8 +182,162 @@ const resolveTagIds = async (
 	return [...new Set(resolved)];
 };
 
-export const runExpenseCreate = async (
-	options: ExpenseCreateOptions,
+const resolveExpenseProposalPresentation = async (
+	context: BackendCommandContext,
+	proposal: ExpenseProposal
+): Promise<ExpenseProposalPresentation> => {
+	const [accounts, tags, cycle] = await Promise.all([
+		proposal.accountId
+			? queryParsed(
+					context,
+					"accounts.list",
+					{ includeArchived: true },
+					accountSchema.array()
+				)
+			: Promise.resolve([]),
+		proposal.tagIds.length > 0
+			? queryParsed(context, "resources.listTags", {}, tagSchema.array())
+			: Promise.resolve([]),
+		proposal.cycleId
+			? queryParsed(
+					context,
+					"resources.getCurrentCycle",
+					{ date: proposal.date },
+					cycleSchema.nullable()
+				)
+			: Promise.resolve(null),
+	]);
+	const categories =
+		proposal.categoryId && cycle
+			? await queryParsed(
+					context,
+					"resources.listCategories",
+					{ cycleId: cycle.id },
+					categorySchema.array()
+				)
+			: [];
+	return {
+		account:
+			accounts.find((account) => account.id === proposal.accountId)?.name ??
+			"Unassigned",
+		category:
+			categories.find((category) => category.id === proposal.categoryId)
+				?.name ?? "Uncategorized",
+		cycle: cycle?.name ?? "none",
+		tags: proposal.tagIds.map(
+			(tagId) => tags.find((tag) => tag.id === tagId)?.name ?? "Unknown tag"
+		),
+	};
+};
+
+const resolveAddCategoryId = async (options: {
+	context: BackendCommandContext;
+	date: string;
+	input: ExpenseAddOptions;
+	prompter?: InteractivePrompter;
+}): Promise<string | null | undefined> => {
+	if (options.input.categoryId || options.input.category) {
+		return (
+			options.input.categoryId ??
+			(await resolveCategoryName(
+				options.context,
+				options.input.category ?? "",
+				options.date
+			))
+		);
+	}
+	if (!options.prompter) {
+		return undefined;
+	}
+	const categoryMode = await selectCategoryMode({
+		categories: await listVisibleCategories(options.context, options.date),
+		message: `Choose a category for ${options.date}`,
+		prompter: options.prompter,
+	});
+	return categoryMode === "clear" ? null : categoryMode;
+};
+
+const resolveAddAccountId = async (options: {
+	context: BackendCommandContext;
+	input: ExpenseAddOptions;
+	prompter?: InteractivePrompter;
+}): Promise<string | null | undefined> => {
+	if (options.input.withoutAccount) {
+		return null;
+	}
+	if (options.input.accountId || options.input.account) {
+		return (
+			options.input.accountId ??
+			(await resolveAccountName(options.context, options.input.account ?? ""))
+		);
+	}
+	if (!options.prompter) {
+		return undefined;
+	}
+	const accounts = await queryParsed(
+		options.context,
+		"accounts.list",
+		{ includeArchived: false },
+		accountSchema.array()
+	);
+	const accountMode = await selectAccountMode({
+		accounts,
+		message: "Choose an account",
+		prompter: options.prompter,
+		withAutomatic: true,
+	});
+	if (accountMode === "clear") {
+		return null;
+	}
+	return accountMode === "automatic" ? undefined : accountMode;
+};
+
+const buildExpenseAddInput = async (options: {
+	amount: number;
+	context: BackendCommandContext;
+	date: string;
+	input: ExpenseAddOptions;
+	prompter?: InteractivePrompter;
+	spentOn?: string;
+}): Promise<Record<string, unknown>> => {
+	const result: Record<string, unknown> = {
+		amount: options.amount,
+		date: options.date,
+	};
+	if (options.spentOn !== undefined) {
+		result.spentOn = options.spentOn;
+	}
+	const categoryId = await resolveAddCategoryId(options);
+	if (categoryId !== undefined) {
+		result.categoryId = categoryId;
+	}
+	const accountId = await resolveAddAccountId(options);
+	if (accountId !== undefined) {
+		result.accountId = accountId;
+	}
+	const hasExplicitTags =
+		(options.input.tagId?.length ?? 0) > 0 ||
+		(options.input.tag?.length ?? 0) > 0;
+	const tagIds =
+		options.prompter && !hasExplicitTags
+			? await selectTags({
+					context: options.context,
+					message: "Choose tags",
+					prompter: options.prompter,
+				})
+			: await resolveTagIds(
+					options.context,
+					options.input.tagId ?? [],
+					options.input.tag ?? []
+				);
+	if (tagIds.length > 0) {
+		result.tagIds = tagIds;
+	}
+	return result;
+};
+
+export const runExpenseAdd = async (
+	options: ExpenseAddOptions,
 	command: Command,
 	runtime: CliRuntime
 ): Promise<void> => {
@@ -172,13 +346,14 @@ export const runExpenseCreate = async (
 		[options.account, options.category, options.tag],
 		globalOptions.nonInteractive
 	);
-	const date = resolveCommandDate({
-		explicitDate: options.date,
+	const guided = globalOptions.interactive || options.amount === undefined;
+	const prompter = guided
+		? await getPrompter(globalOptions, runtime, true)
+		: undefined;
+	const defaultDate = resolveCommandDate({
 		now: runtime.now,
 		timeZone: runtime.timeZone,
 	});
-	const amount = parseAmount(options.amount);
-	const spentOn = validateMutationText(options.spentOn, "--spent-on");
 	const dryRun = options.dryRun === true;
 	const idempotencyKey = resolveIdempotencyKey({
 		dryRun,
@@ -188,66 +363,107 @@ export const runExpenseCreate = async (
 	});
 
 	await withBackend(command, runtime, async (context) => {
-		const input: Record<string, unknown> = { amount, date: date.date };
-		if (spentOn !== undefined) {
-			input.spentOn = spentOn;
-		}
-		if (options.categoryId || options.category) {
-			input.categoryId =
-				options.categoryId ??
-				(await resolveCategoryName(context, options.category ?? "", date.date));
-		}
-		if (options.withoutAccount) {
-			input.accountId = null;
-		} else if (options.accountId || options.account) {
-			input.accountId =
-				options.accountId ??
-				(await resolveAccountName(context, options.account ?? ""));
-		}
-		const tagIds = await resolveTagIds(
+		const currency =
+			options.amount === undefined
+				? (
+						await queryParsed(
+							context,
+							"context.get",
+							{
+								date: defaultDate.date,
+								dateSource: defaultDate.dateSource,
+								...(defaultDate.timezone
+									? { timezone: defaultDate.timezone }
+									: {}),
+							},
+							contextSchema
+						)
+					).currency
+				: undefined;
+		const amountInput = await promptRequiredText({
+			current: options.amount,
+			globalOptions,
+			message: currency ? `Expense amount (${currency})` : "Expense amount",
+			parse: parseAmount,
+			runtime,
+		});
+		const explicitDate = prompter
+			? await promptDate({
+					current: options.date,
+					defaultDate: defaultDate.date,
+					message: "Expense date",
+					prompter,
+				})
+			: options.date;
+		const spentOnInput = prompter
+			? await promptOptionalText({
+					current: options.spentOn,
+					message: "What was this spent on?",
+					prompter,
+				})
+			: options.spentOn;
+		const date = resolveCommandDate({
+			explicitDate,
+			now: runtime.now,
+			timeZone: runtime.timeZone,
+		});
+		const amount = parseAmount(amountInput);
+		const spentOn = validateMutationText(spentOnInput, "--spent-on");
+		const input = await buildExpenseAddInput({
+			amount,
 			context,
-			options.tagId ?? [],
-			options.tag ?? []
-		);
-		if (tagIds.length > 0) {
-			input.tagIds = tagIds;
-		}
+			date: date.date,
+			input: options,
+			prompter,
+			spentOn,
+		});
 
-		if (dryRun) {
+		if (dryRun || prompter) {
 			const proposal = await queryParsed(
 				context,
-				"cli/v1/expenses:previewCreate",
+				"expenses.previewCreate",
 				input,
 				expenseProposalSchema
 			);
-			writeMutationSuccess({
-				context,
-				data: proposal,
-				human: renderExpenseProposal(proposal),
-				meta: { dryRun: true, ...date },
+			const presentation = context.globalOptions.json
+				? undefined
+				: await resolveExpenseProposalPresentation(context, proposal);
+			if (dryRun) {
+				writeMutationSuccess({
+					context,
+					data: proposal,
+					human: renderExpenseProposal(proposal, presentation),
+					meta: { dryRun: true, ...date },
+					runtime,
+				});
+				return;
+			}
+			await confirmMutation({
+				message: "Add this expense?",
+				preview: renderExpenseProposal(proposal, presentation),
+				prompter,
 				runtime,
 			});
-			return;
 		}
 
-		const result = await mutationParsed({
+		const result = await commitParsed({
 			args: { ...input, idempotencyKey },
 			context,
 			idempotencyKey,
-			name: "cli/v1/expenses:create",
+			name: "expenses.create",
 			schema: expenseCreateResultSchema,
 		});
 		writeMutationSuccess({
 			context,
 			data: result,
-			human: renderExpenseCreateResult(result),
+			human: renderExpenseAddResult(result),
 			meta: { dryRun: false, idempotencyKey, ...date },
 			runtime,
 		});
 	});
 };
 
-const hasUpdateInput = (options: ExpenseUpdateOptions): boolean =>
+const hasEditInput = (options: ExpenseEditOptions): boolean =>
 	options.amount !== undefined ||
 	options.date !== undefined ||
 	options.spentOn !== undefined ||
@@ -265,7 +481,7 @@ const hasUpdateInput = (options: ExpenseUpdateOptions): boolean =>
 const assertDateCategoryCompatibility = async (
 	context: BackendCommandContext,
 	expense: z.infer<typeof expenseSchema>,
-	options: ExpenseUpdateOptions,
+	options: ExpenseEditOptions,
 	date: string | undefined
 ): Promise<void> => {
 	if (
@@ -281,7 +497,7 @@ const assertDateCategoryCompatibility = async (
 	}
 	const newCycle = await queryParsed(
 		context,
-		"cli/v1/resources:getCurrentCycle",
+		"resources.getCurrentCycle",
 		{ date },
 		cycleSchema.nullable()
 	);
@@ -292,7 +508,7 @@ const assertDateCategoryCompatibility = async (
 		? (
 				await queryParsed(
 					context,
-					"cli/v1/resources:listCategories",
+					"resources.listCategories",
 					{ cycleId: newCycle.id },
 					categorySchema.array()
 				)
@@ -319,9 +535,9 @@ const assertDateCategoryCompatibility = async (
 	);
 };
 
-const resolveUpdateTagIds = async (
+const resolveEditTagIds = async (
 	context: BackendCommandContext,
-	options: ExpenseUpdateOptions
+	options: ExpenseEditOptions
 ): Promise<string[] | undefined> => {
 	if (options.clearTags) {
 		return [];
@@ -332,14 +548,14 @@ const resolveUpdateTagIds = async (
 	return await resolveTagIds(context, options.tagId ?? [], options.tag ?? []);
 };
 
-const buildUpdateInput = async (options: {
+const buildEditInput = async (options: {
 	amount?: number;
 	context: BackendCommandContext;
 	current: z.infer<typeof expenseSchema>;
 	date?: string;
 	expectedRevision: number;
 	expenseId: string;
-	input: ExpenseUpdateOptions;
+	input: ExpenseEditOptions;
 	spentOn?: string;
 }): Promise<Record<string, unknown>> => {
 	const result: Record<string, unknown> = {
@@ -375,23 +591,200 @@ const buildUpdateInput = async (options: {
 			options.input.accountId ??
 			(await resolveAccountName(options.context, options.input.account ?? ""));
 	}
-	const tagIds = await resolveUpdateTagIds(options.context, options.input);
+	const tagIds = await resolveEditTagIds(options.context, options.input);
 	if (tagIds !== undefined) {
 		result.tagIds = tagIds;
 	}
 	return result;
 };
 
-export const runExpenseUpdate = async (
-	expenseId: string,
-	options: ExpenseUpdateOptions,
+const promptExpenseEditInputs = async (options: {
+	context: BackendCommandContext;
+	current: z.infer<typeof expenseSchema>;
+	input: ExpenseEditOptions;
+	prompter: NonNullable<Awaited<ReturnType<typeof getPrompter>>>;
+	runtime: CliRuntime;
+}): Promise<ExpenseEditOptions> => {
+	const fields = await options.prompter.multiselect({
+		message: "What would you like to change?",
+		options: [
+			{ label: "Amount", value: "amount" },
+			{ label: "Date", value: "date" },
+			{ label: "Description", value: "spentOn" },
+			{ label: "Category", value: "category" },
+			{ label: "Account", value: "account" },
+			{ label: "Tags", value: "tags" },
+		],
+		required: true,
+	});
+	const result: ExpenseEditOptions = { ...options.input };
+	if (fields.includes("amount")) {
+		result.amount = await promptRequiredText({
+			globalOptions: options.context.globalOptions,
+			message: "New expense amount",
+			parse: parseAmount,
+			runtime: options.runtime,
+		});
+	}
+	if (fields.includes("date")) {
+		result.date = await promptDate({
+			defaultDate: options.current.date,
+			message: "New expense date",
+			prompter: options.prompter,
+		});
+	}
+	if (fields.includes("spentOn")) {
+		const descriptionMode = await options.prompter.select({
+			message: "Description change",
+			options: [
+				{ label: "Set a description", value: "set" },
+				{ label: "Clear the description", value: "clear" },
+			],
+		});
+		if (descriptionMode === "clear") {
+			result.clearSpentOn = true;
+		} else {
+			result.spentOn = await options.prompter.text({
+				initialValue: options.current.spentOn ?? undefined,
+				message: "New description",
+				validate: (value) =>
+					value.trim().length > 0
+						? undefined
+						: "Description cannot be empty; choose Clear instead",
+			});
+		}
+	}
+	const effectiveDate = result.date ?? options.current.date;
+	if (fields.includes("category")) {
+		const categoryMode = await selectCategoryMode({
+			categories: await listVisibleCategories(options.context, effectiveDate),
+			message: `New category for ${effectiveDate}`,
+			prompter: options.prompter,
+		});
+		if (categoryMode === "clear") {
+			result.clearCategory = true;
+		} else {
+			result.categoryId = categoryMode;
+		}
+	}
+	if (fields.includes("account")) {
+		const accounts = await queryParsed(
+			options.context,
+			"accounts.list",
+			{ includeArchived: false },
+			accountSchema.array()
+		);
+		const accountMode = await selectAccountMode({
+			accounts,
+			message: "New account",
+			prompter: options.prompter,
+		});
+		if (accountMode === "clear") {
+			result.clearAccount = true;
+		} else {
+			result.accountId = accountMode;
+		}
+	}
+	if (fields.includes("tags")) {
+		const tagIds = await selectTags({
+			context: options.context,
+			initialIds: options.current.tags.map((tag) => tag.id),
+			message: "New tags",
+			prompter: options.prompter,
+		});
+		if (tagIds.length === 0) {
+			result.clearTags = true;
+		} else {
+			result.tagId = tagIds;
+		}
+	}
+	return result;
+};
+
+const resolveExpenseEditRequest = async (options: {
+	context: BackendCommandContext;
+	expenseId?: string;
+	input: ExpenseEditOptions;
+	prompter?: InteractivePrompter;
+	providedRevision?: number;
+	runtime: CliRuntime;
+}): Promise<{
+	expectedRevision: number;
+	expenseId: string;
+	input: Record<string, unknown>;
+}> => {
+	const expenseId =
+		options.expenseId ??
+		(await selectExpenseId({
+			context: options.context,
+			message: "Choose an expense to edit",
+			prompter: requirePrompter(options.prompter),
+		}));
+	const current = await queryParsed(
+		options.context,
+		"expenses.get",
+		{ expenseId },
+		expenseSchema
+	);
+	const resolvedOptions =
+		options.prompter && !hasEditInput(options.input)
+			? await promptExpenseEditInputs({
+					context: options.context,
+					current,
+					input: options.input,
+					prompter: options.prompter,
+					runtime: options.runtime,
+				})
+			: options.input;
+	if (!hasEditInput(resolvedOptions)) {
+		throw new CliError("INVALID_INPUT", "Provide at least one expense change");
+	}
+	const amount =
+		resolvedOptions.amount === undefined
+			? undefined
+			: parseAmount(resolvedOptions.amount);
+	const date =
+		resolvedOptions.date === undefined
+			? undefined
+			: parseDate(resolvedOptions.date);
+	const spentOn = validateMutationText(resolvedOptions.spentOn, "--spent-on");
+	await assertDateCategoryCompatibility(
+		options.context,
+		current,
+		resolvedOptions,
+		date
+	);
+	const expectedRevision = options.providedRevision ?? current.revision;
+	return {
+		expectedRevision,
+		expenseId,
+		input: await buildEditInput({
+			amount,
+			context: options.context,
+			current,
+			date,
+			expectedRevision,
+			expenseId,
+			input: resolvedOptions,
+			spentOn,
+		}),
+	};
+};
+
+export const runExpenseEdit = async (
+	expenseId: string | undefined,
+	options: ExpenseEditOptions,
 	command: Command,
 	runtime: CliRuntime
 ): Promise<void> => {
-	if (!hasUpdateInput(options)) {
-		throw new CliError("INVALID_INPUT", "Provide at least one expense change");
-	}
 	const globalOptions = resolveGlobalOptions(command, runtime.environment);
+	const guided =
+		globalOptions.interactive ||
+		expenseId === undefined ||
+		!hasEditInput(options);
+	const prompter = guided
+		? await getPrompter(globalOptions, runtime, true)
+		: undefined;
 	assertNamesAllowed(
 		[options.account, options.category, options.tag],
 		globalOptions.nonInteractive
@@ -403,7 +796,7 @@ export const runExpenseUpdate = async (
 	if (globalOptions.nonInteractive && providedRevision === undefined) {
 		throw new CliError(
 			"NON_INTERACTIVE_INPUT_REQUIRED",
-			"Non-interactive updates require --if-revision"
+			"Non-interactive edits require --if-revision"
 		);
 	}
 	const idempotencyKey = resolveIdempotencyKey({
@@ -412,54 +805,62 @@ export const runExpenseUpdate = async (
 		provided: options.idempotencyKey,
 		runtime,
 	});
-	const amount =
-		options.amount !== undefined ? parseAmount(options.amount) : undefined;
-	const date = options.date !== undefined ? parseDate(options.date) : undefined;
-	const spentOn = validateMutationText(options.spentOn, "--spent-on");
-
 	await withBackend(command, runtime, async (context) => {
-		const current = await queryParsed(
-			context,
-			"cli/v1/expenses:get",
-			{ expenseId },
-			expenseSchema
-		);
-		await assertDateCategoryCompatibility(context, current, options, date);
-		const expectedRevision = providedRevision ?? current.revision;
-		const input = await buildUpdateInput({
-			amount,
-			context,
-			current,
-			date,
-			expectedRevision,
-			expenseId,
-			input: options,
-			spentOn,
-		});
+		let selectedExpenseId = expenseId;
+		let editOptions = options;
+		let expectedRevision = providedRevision ?? 0;
+		let input: Record<string, unknown> = {};
+		for (;;) {
+			const resolved = await resolveExpenseEditRequest({
+				context,
+				expenseId: selectedExpenseId,
+				input: editOptions,
+				prompter,
+				providedRevision,
+				runtime,
+			});
+			expectedRevision = resolved.expectedRevision;
+			selectedExpenseId = resolved.expenseId;
+			input = resolved.input;
 
-		if (dryRun) {
+			if (!(dryRun || prompter)) {
+				break;
+			}
 			const preview = await queryParsed(
 				context,
-				"cli/v1/expenses:previewUpdate",
+				"expenses.previewUpdate",
 				input,
 				expenseUpdatePreviewSchema
 			);
-			writeMutationSuccess({
-				context,
-				data: preview,
-				human: renderExpenseUpdatePreview(preview),
-				meta: { dryRun: true, expectedRevision },
+			if (dryRun) {
+				writeMutationSuccess({
+					context,
+					data: preview,
+					human: renderExpenseEditPreview(preview),
+					meta: { dryRun: true, expectedRevision },
+					runtime,
+				});
+				return;
+			}
+			const reviewAction = await confirmMutation({
+				allowEdit: true,
+				message: "Save these expense changes?",
+				preview: renderExpenseEditPreview(preview),
+				prompter,
 				runtime,
 			});
-			return;
+			if (reviewAction === "confirm") {
+				break;
+			}
+			editOptions = {};
 		}
 
 		try {
-			const result = await mutationParsed({
+			const result = await commitParsed({
 				args: { ...input, idempotencyKey },
 				context,
 				idempotencyKey,
-				name: "cli/v1/expenses:update",
+				name: "expenses.update",
 				schema: expenseMutationResultSchema,
 			});
 			writeMutationSuccess({
@@ -501,7 +902,7 @@ const resolveHumanDeleteConfirmation = async (options: {
 	if (options.confirmationToken && options.expectedRevision) {
 		const expense = await queryParsed(
 			options.context,
-			"cli/v1/expenses:get",
+			"expenses.get",
 			{ expenseId: options.expenseId },
 			expenseSchema
 		);
@@ -514,7 +915,7 @@ const resolveHumanDeleteConfirmation = async (options: {
 	const preview = await mutationParsed({
 		args: { expenseId: options.expenseId },
 		context: options.context,
-		name: "cli/v1/expenses:previewDelete",
+		name: "expenses.previewDelete",
 		schema: expenseDeletePreviewSchema,
 	});
 	return {
@@ -525,13 +926,17 @@ const resolveHumanDeleteConfirmation = async (options: {
 };
 
 export const runExpenseDelete = async (
-	expenseId: string,
+	expenseId: string | undefined,
 	options: ExpenseDeleteOptions,
 	command: Command,
 	runtime: CliRuntime
 ): Promise<void> => {
 	const globalOptions = resolveGlobalOptions(command, runtime.environment);
 	const dryRun = options.dryRun === true;
+	const selectorPrompter =
+		expenseId === undefined
+			? await getPrompter(globalOptions, runtime, true)
+			: undefined;
 	const providedRevision = options.ifRevision
 		? parseRevision(options.ifRevision)
 		: undefined;
@@ -552,11 +957,18 @@ export const runExpenseDelete = async (
 	});
 
 	await withBackend(command, runtime, async (context) => {
+		const resolvedExpenseId =
+			expenseId ??
+			(await selectExpenseId({
+				context,
+				message: "Choose an expense to delete",
+				prompter: requirePrompter(selectorPrompter),
+			}));
 		if (dryRun) {
 			const preview = await mutationParsed({
-				args: { expenseId },
+				args: { expenseId: resolvedExpenseId },
 				context,
-				name: "cli/v1/expenses:previewDelete",
+				name: "expenses.previewDelete",
 				schema: expenseDeletePreviewSchema,
 			});
 			writeMutationSuccess({
@@ -595,18 +1007,18 @@ export const runExpenseDelete = async (
 				confirmationToken,
 				context,
 				expectedRevision,
-				expenseId,
+				expenseId: resolvedExpenseId,
 			});
 			confirmationToken = confirmation.confirmationToken;
 			expectedRevision = confirmation.expectedRevision;
-			const confirmed = await (runtime.confirm ?? confirmDestructiveAction)(
-				confirmation.message
-			);
+			const confirmed = runtime.confirm
+				? await runtime.confirm(confirmation.message)
+				: await (await getPrompter(globalOptions, runtime, true)).confirm({
+						initialValue: false,
+						message: confirmation.message,
+					});
 			if (!confirmed) {
-				throw new CliError(
-					"DELETION_CONFIRMATION_REQUIRED",
-					"Deletion was not confirmed"
-				);
+				throw new PromptCancelledError();
 			}
 		}
 		if (!(confirmationToken && expectedRevision && idempotencyKey)) {
@@ -616,16 +1028,16 @@ export const runExpenseDelete = async (
 			);
 		}
 
-		const result = await mutationParsed({
+		const result = await commitParsed({
 			args: {
 				confirmationToken,
 				expectedRevision,
-				expenseId,
+				expenseId: resolvedExpenseId,
 				idempotencyKey,
 			},
 			context,
 			idempotencyKey,
-			name: "cli/v1/expenses:remove",
+			name: "expenses.remove",
 			schema: expenseDeleteResultSchema,
 		});
 		writeMutationSuccess({

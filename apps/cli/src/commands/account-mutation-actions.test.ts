@@ -127,7 +127,7 @@ describe("Phase 6 account mutation commands", () => {
 		const exitCode = await runCli(
 			[
 				"accounts",
-				"create",
+				"add",
 				"--name",
 				"Travel Cash",
 				"--account-type-id",
@@ -162,12 +162,12 @@ describe("Phase 6 account mutation commands", () => {
 		});
 	});
 
-	it("resolves an exact account type and returns the opening ledger ID", async () => {
+	it("resolves an exact account type without exposing the opening ledger ID", async () => {
 		const testRuntime = createTestRuntime();
 		const exitCode = await runCli(
 			[
 				"accounts",
-				"create",
+				"add",
 				"--name",
 				"Travel Cash",
 				"--account-type",
@@ -186,7 +186,10 @@ describe("Phase 6 account mutation commands", () => {
 		expect(testRuntime.calls.at(-1)).toMatchObject({
 			args: { idempotencyKey: "generated-account-key" },
 		});
-		expect(testRuntime.getStdout()).toContain("transaction-opening-travel");
+		expect(testRuntime.getStdout()).toContain(
+			"Ledger: Opening balance recorded"
+		);
+		expect(testRuntime.getStdout()).not.toContain("transaction-opening-travel");
 	});
 
 	it("rejects non-interactive account-type names before backend access", async () => {
@@ -194,7 +197,7 @@ describe("Phase 6 account mutation commands", () => {
 		const exitCode = await runCli(
 			[
 				"accounts",
-				"create",
+				"add",
 				"--name",
 				"Cash",
 				"--account-type",
@@ -217,7 +220,7 @@ describe("Phase 6 account mutation commands", () => {
 		const exitCode = await runCli(
 			[
 				"accounts",
-				"update",
+				"edit",
 				" daily wallet ",
 				"--name",
 				"Everyday Wallet",
@@ -238,12 +241,12 @@ describe("Phase 6 account mutation commands", () => {
 		});
 	});
 
-	it("requires a revision for non-interactive account updates", async () => {
+	it("requires a revision for non-interactive account edits", async () => {
 		const testRuntime = createTestRuntime();
 		const exitCode = await runCli(
 			[
 				"accounts",
-				"update",
+				"edit",
 				"account-wallet",
 				"--name",
 				"Cash",
@@ -279,7 +282,7 @@ describe("Phase 6 account mutation commands", () => {
 				testRuntime.runtime
 			);
 			expect(exitCode).toBe(CLI_EXIT_CODE.success);
-			expect(testRuntime.calls.at(-1)?.name).toBe(
+			expect(testRuntime.calls.map((call) => call.name)).toContain(
 				`cli/v1/accounts:${backendName}`
 			);
 		}
@@ -400,6 +403,7 @@ describe("Phase 6 account mutation commands", () => {
 				"2",
 				"--idempotency-key",
 				"transfer-key",
+				"--agent",
 				"--json",
 				"--non-interactive",
 			],
@@ -407,6 +411,10 @@ describe("Phase 6 account mutation commands", () => {
 		);
 
 		expect(exitCode).toBe(CLI_EXIT_CODE.success);
+		expect(testRuntime.calls.at(-1)).toMatchObject({
+			args: { agent: true, idempotencyKey: "transfer-key" },
+			name: "cli/v1/accounts:transfer",
+		});
 		expect(JSON.parse(testRuntime.getStdout())).toMatchObject({
 			data: {
 				fromTransaction: { id: "transaction-transfer-out" },
@@ -427,7 +435,7 @@ describe("Phase 6 account mutation commands", () => {
 			},
 		});
 		const exitCode = await runCli(
-			["accounts", "update", "Daily Wallet", "--name", "Cash", "--json"],
+			["accounts", "edit", "Daily Wallet", "--name", "Cash", "--json"],
 			testRuntime.runtime
 		);
 
@@ -453,7 +461,7 @@ describe("Phase 6 account mutation commands", () => {
 		const exitCode = await runCli(
 			[
 				"accounts",
-				"create",
+				"add",
 				"--name",
 				"Cash",
 				"--account-type-id",

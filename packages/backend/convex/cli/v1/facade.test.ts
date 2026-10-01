@@ -98,6 +98,133 @@ describe("cli/v1 facade", () => {
 		);
 	});
 
+	it("records Web, direct CLI, and agent CLI provenance", async () => {
+		const test = createBackendTest();
+		const owner = await createAuthenticatedUser(test, "action-provenance");
+		const agentAccount = await owner.client.mutation(
+			api.cli.v1.accounts.create,
+			{
+				accountTypeId: owner.accountType._id,
+				agent: true,
+				date: "2026-09-01",
+				idempotencyKey: "agent-account",
+				name: "Agent account",
+				startingBalance: 100,
+			}
+		);
+		const directAccount = await createAccount(
+			owner.client,
+			owner.accountType._id,
+			{
+				key: "direct-account",
+				name: "Direct account",
+				startingBalance: 50,
+			}
+		);
+		const agentExpense = await owner.client.mutation(
+			api.cli.v1.expenses.create,
+			{
+				accountId: agentAccount.id,
+				agent: true,
+				amount: 10,
+				date: "2026-09-02",
+				idempotencyKey: "agent-expense",
+			}
+		);
+
+		const initialSources = await test.run(async (ctx) => ({
+			agentAccount: await ctx.db.get(agentAccount.id),
+			agentExpense: await ctx.db.get(agentExpense.id),
+			directAccount: await ctx.db.get(directAccount.id),
+			expenseTransactions: await ctx.db
+				.query("account_transactions")
+				.withIndex("by_expenseId", (queryBuilder) =>
+					queryBuilder.eq("expenseId", agentExpense.id)
+				)
+				.collect(),
+		}));
+		expect(initialSources.agentAccount).toMatchObject({
+			createdSource: "cli_agent",
+			lastModifiedSource: "cli_agent",
+		});
+		expect(initialSources.directAccount).toMatchObject({
+			createdSource: "cli",
+			lastModifiedSource: "cli",
+		});
+		expect(initialSources.agentExpense).toMatchObject({
+			createdSource: "cli_agent",
+			lastModifiedSource: "cli_agent",
+		});
+		expect(initialSources.expenseTransactions).toHaveLength(1);
+		expect(initialSources.expenseTransactions[0]?.source).toBe("cli_agent");
+
+		await expectCliError(
+			owner.client.mutation(api.cli.v1.accounts.create, {
+				accountTypeId: owner.accountType._id,
+				date: "2026-09-01",
+				idempotencyKey: "agent-account",
+				name: "Agent account",
+				startingBalance: 100,
+			}),
+			"IDEMPOTENCY_CONFLICT"
+		);
+
+		const webUpdatedExpense = await owner.client.mutation(api.expenses.update, {
+			amount: 12,
+			id: agentExpense.id,
+		});
+		expect(webUpdatedExpense).toMatchObject({
+			createdSource: "cli_agent",
+			lastModifiedSource: "web",
+		});
+		const webUpdateSources = await test.run(async (ctx) => ({
+			account: await ctx.db.get(agentAccount.id),
+			transactions: await ctx.db
+				.query("account_transactions")
+				.withIndex("by_expenseId", (queryBuilder) =>
+					queryBuilder.eq("expenseId", agentExpense.id)
+				)
+				.collect(),
+		}));
+		expect(webUpdateSources.account?.lastModifiedSource).toBe("web");
+		expect(webUpdateSources.transactions).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ amount: -2, source: "web" }),
+			])
+		);
+
+		const [fromAccount, toAccount] = await Promise.all([
+			owner.client.query(api.cli.v1.accounts.get, {
+				accountId: agentAccount.id,
+			}),
+			owner.client.query(api.cli.v1.accounts.get, {
+				accountId: directAccount.id,
+			}),
+		]);
+		const transfer = await owner.client.mutation(api.cli.v1.accounts.transfer, {
+			agent: true,
+			amount: 5,
+			date: "2026-09-03",
+			expectedFromRevision: fromAccount.revision,
+			expectedToRevision: toAccount.revision,
+			fromAccountId: fromAccount.id,
+			idempotencyKey: "agent-transfer",
+			toAccountId: toAccount.id,
+		});
+		const transferSources = await test.run(async (ctx) => ({
+			fromAccount: await ctx.db.get(fromAccount.id),
+			fromTransaction: await ctx.db.get(transfer.fromTransaction.id),
+			toAccount: await ctx.db.get(toAccount.id),
+			toTransaction: await ctx.db.get(transfer.toTransaction.id),
+			transfer: await ctx.db.get(transfer.id),
+		}));
+		expect(transferSources.fromAccount?.lastModifiedSource).toBe("cli_agent");
+		expect(transferSources.toAccount?.lastModifiedSource).toBe("cli_agent");
+		expect(transferSources.fromTransaction?.source).toBe("cli_agent");
+		expect(transferSources.toTransaction?.source).toBe("cli_agent");
+		expect(transferSources.transfer?.source).toBe("cli_agent");
+	});
+
 	it("keeps create dry runs, commits, replay, and revisions consistent", async () => {
 		const test = createBackendTest();
 		const owner = await createAuthenticatedUser(test, "expense-flow");
@@ -169,11 +296,13 @@ describe("cli/v1 facade", () => {
 		);
 		const updated = await owner.client.mutation(api.cli.v1.expenses.update, {
 			...updateInput,
+			agent: true,
 			idempotencyKey: "expense-update-key",
 		});
 		const updateReplay = await owner.client.mutation(
 			api.cli.v1.expenses.update,
 			{
+				agent: true,
 				amount: 18,
 				expectedRevision: created.revision,
 				expenseId: created.id,
@@ -195,6 +324,21 @@ describe("cli/v1 facade", () => {
 		expect(updated.accountEffects).toEqual(updatePreview.accountEffects);
 		expect(updated.revision).toBe(2);
 		expect(updateReplay).toEqual(updated);
+		const updateSources = await test.run(async (ctx) => ({
+			expense: await ctx.db.get(updated.id),
+			transactions: await ctx.db
+				.query("account_transactions")
+				.withIndex("by_expenseId", (queryBuilder) =>
+					queryBuilder.eq("expenseId", updated.id)
+				)
+				.collect(),
+		}));
+		expect(updateSources.expense?.lastModifiedSource).toBe("cli_agent");
+		expect(updateSources.transactions).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ amount: -3, source: "cli_agent" }),
+			])
+		);
 		expect(
 			await owner.client.query(api.cli.v1.accounts.get, {
 				accountId: account.id,
@@ -314,12 +458,14 @@ describe("cli/v1 facade", () => {
 			{ expenseId: expense.id }
 		);
 		const deleted = await owner.client.mutation(api.cli.v1.expenses.remove, {
+			agent: true,
 			confirmationToken: preview.confirmationToken,
 			expectedRevision: preview.revision,
 			expenseId: expense.id,
 			idempotencyKey: "expense-delete-key",
 		});
 		const replay = await owner.client.mutation(api.cli.v1.expenses.remove, {
+			agent: true,
 			confirmationToken: preview.confirmationToken,
 			expectedRevision: preview.revision,
 			expenseId: expense.id,
@@ -345,6 +491,22 @@ describe("cli/v1 facade", () => {
 				accountId: account.id,
 			})
 		).toMatchObject({ currentBalance: 100 });
+		const deletionSources = await test.run(async (ctx) => ({
+			account: await ctx.db.get(account.id),
+			transactions: await ctx.db
+				.query("account_transactions")
+				.withIndex("by_expenseId", (queryBuilder) =>
+					queryBuilder.eq("expenseId", expense.id)
+				)
+				.collect(),
+		}));
+		expect(deletionSources.account?.lastModifiedSource).toBe("cli_agent");
+		expect(deletionSources.transactions).toHaveLength(2);
+		expect(
+			deletionSources.transactions.find(
+				(transaction) => transaction.amount === 10
+			)?.source
+		).toBe("cli_agent");
 		await expectCliError(
 			owner.client.mutation(api.cli.v1.expenses.remove, {
 				confirmationToken: preview.confirmationToken,
@@ -354,6 +516,40 @@ describe("cli/v1 facade", () => {
 			}),
 			"DELETION_CONFIRMATION_INVALID"
 		);
+	});
+
+	it("does not create provenance tombstones for unassigned expense deletion", async () => {
+		const test = createBackendTest();
+		const owner = await createAuthenticatedUser(test, "unassigned-delete");
+		const expense = await owner.client.mutation(api.cli.v1.expenses.create, {
+			agent: true,
+			amount: 7,
+			date: "2026-09-01",
+			idempotencyKey: "unassigned-expense",
+		});
+		const preview = await owner.client.mutation(
+			api.cli.v1.expenses.previewDelete,
+			{ expenseId: expense.id }
+		);
+		await owner.client.mutation(api.cli.v1.expenses.remove, {
+			agent: true,
+			confirmationToken: preview.confirmationToken,
+			expectedRevision: preview.revision,
+			expenseId: expense.id,
+			idempotencyKey: "unassigned-delete",
+		});
+
+		const persisted = await test.run(async (ctx) => ({
+			expense: await ctx.db.get(expense.id),
+			transactions: await ctx.db
+				.query("account_transactions")
+				.withIndex("by_expenseId", (queryBuilder) =>
+					queryBuilder.eq("expenseId", expense.id)
+				)
+				.collect(),
+		}));
+		expect(persisted.expense).toBeNull();
+		expect(persisted.transactions).toEqual([]);
 	});
 
 	it("rejects expired deletion capabilities and cleans expired records", async () => {
@@ -581,12 +777,14 @@ describe("cli/v1 facade", () => {
 		);
 		const updated = await owner.client.mutation(api.cli.v1.accounts.update, {
 			...updateInput,
+			agent: true,
 			idempotencyKey: "account-dry-run-update",
 		});
 		const updateReplay = await owner.client.mutation(
 			api.cli.v1.accounts.update,
 			{
 				...updateInput,
+				agent: true,
 				idempotencyKey: "account-dry-run-update",
 			}
 		);
@@ -599,6 +797,12 @@ describe("cli/v1 facade", () => {
 			revision: created.revision,
 		});
 		expect(updateReplay).toEqual(updated);
+		expect(
+			await test.run(async (ctx) => await ctx.db.get(created.id))
+		).toMatchObject({
+			createdSource: "cli",
+			lastModifiedSource: "cli_agent",
+		});
 	});
 
 	it("enforces archive, reactivate, and default account lifecycle rules", async () => {
@@ -627,6 +831,9 @@ describe("cli/v1 facade", () => {
 			isDefault: false,
 			revision: 2,
 		});
+		expect(
+			await test.run(async (ctx) => await ctx.db.get(account.id))
+		).toMatchObject({ lastModifiedSource: "cli" });
 		await expectCliError(
 			owner.client.mutation(api.cli.v1.accounts.previewSetDefault, {
 				accountId: account.id,
@@ -648,6 +855,7 @@ describe("cli/v1 facade", () => {
 			api.cli.v1.accounts.reactivate,
 			{
 				accountId: account.id,
+				agent: true,
 				expectedRevision: archived.revision,
 				idempotencyKey: "reactivate-account-key",
 			}
@@ -657,10 +865,14 @@ describe("cli/v1 facade", () => {
 			isDefault: false,
 			revision: 3,
 		});
+		expect(
+			await test.run(async (ctx) => await ctx.db.get(account.id))
+		).toMatchObject({ lastModifiedSource: "cli_agent" });
 		const defaultAccount = await owner.client.mutation(
 			api.cli.v1.accounts.setDefault,
 			{
 				accountId: account.id,
+				agent: true,
 				expectedRevision: reactivated.revision,
 				idempotencyKey: "default-account-key",
 			}
@@ -669,6 +881,96 @@ describe("cli/v1 facade", () => {
 			isDefault: true,
 			revision: 4,
 		});
+		expect(
+			await test.run(async (ctx) => await ctx.db.get(account.id))
+		).toMatchObject({ lastModifiedSource: "cli_agent" });
+	});
+
+	it("archives lifecycle batches atomically with per-account revisions", async () => {
+		const test = createBackendTest();
+		const owner = await createAuthenticatedUser(
+			test,
+			"account-batch-lifecycle"
+		);
+		const first = await createAccount(owner.client, owner.accountType._id, {
+			key: "batch-account-first",
+			name: "Batch first",
+			startingBalance: 10,
+		});
+		const second = await createAccount(owner.client, owner.accountType._id, {
+			key: "batch-account-second",
+			name: "Batch second",
+			startingBalance: 20,
+		});
+		const accounts = [
+			{ accountId: first.id, expectedRevision: first.revision },
+			{ accountId: second.id, expectedRevision: second.revision },
+		];
+		const preview = await owner.client.mutation(
+			api.cli.v1.accounts.previewArchiveBatch,
+			{ accounts }
+		);
+		expect(preview).toMatchObject([
+			{ after: { isArchived: true, revision: 2 }, before: { revision: 1 } },
+			{ after: { isArchived: true, revision: 2 }, before: { revision: 1 } },
+		]);
+
+		await expectCliError(
+			owner.client.mutation(api.cli.v1.accounts.archiveBatch, {
+				accounts: [accounts[0], { ...accounts[1], expectedRevision: 999 }],
+				idempotencyKey: "archive-batch-stale",
+			}),
+			"ACCOUNT_REVISION_CONFLICT"
+		);
+		const unchanged = await Promise.all([
+			owner.client.query(api.cli.v1.accounts.get, { accountId: first.id }),
+			owner.client.query(api.cli.v1.accounts.get, { accountId: second.id }),
+		]);
+		expect(unchanged).toMatchObject([
+			{ isArchived: false, revision: 1 },
+			{ isArchived: false, revision: 1 },
+		]);
+
+		const archived = await owner.client.mutation(
+			api.cli.v1.accounts.archiveBatch,
+			{ accounts, idempotencyKey: "archive-batch-valid" }
+		);
+		const replay = await owner.client.mutation(
+			api.cli.v1.accounts.archiveBatch,
+			{
+				accounts,
+				idempotencyKey: "archive-batch-valid",
+			}
+		);
+		expect(archived).toMatchObject([
+			{ isArchived: true, revision: 2 },
+			{ isArchived: true, revision: 2 },
+		]);
+		expect(replay).toEqual(archived);
+
+		const reactivateAccounts = archived.map((account) => ({
+			accountId: account.id,
+			expectedRevision: account.revision,
+		}));
+		const reactivatePreview = await owner.client.mutation(
+			api.cli.v1.accounts.previewReactivateBatch,
+			{ accounts: reactivateAccounts }
+		);
+		expect(reactivatePreview).toMatchObject([
+			{ after: { isArchived: false, revision: 3 } },
+			{ after: { isArchived: false, revision: 3 } },
+		]);
+		const reactivated = await owner.client.mutation(
+			api.cli.v1.accounts.reactivateBatch,
+			{
+				accounts: reactivateAccounts,
+				idempotencyKey: "reactivate-batch-valid",
+			}
+		);
+		expect(reactivated).toMatchObject([
+			{ isArchived: false, revision: 3 },
+			{ isArchived: false, revision: 3 },
+		]);
 	});
 
 	it("returns adjustment ledger references and preserves zero-delta no-ops", async () => {
@@ -698,6 +1000,7 @@ describe("cli/v1 facade", () => {
 			api.cli.v1.accounts.adjustBalance,
 			{
 				accountId: account.id,
+				agent: true,
 				date: "2026-09-03",
 				expectedRevision: account.revision,
 				idempotencyKey: "negative-adjustment-key",
@@ -717,6 +1020,14 @@ describe("cli/v1 facade", () => {
 			},
 			warnings: ["NEGATIVE_BALANCE"],
 		});
+		const adjustmentSources = await test.run(async (ctx) => ({
+			account: await ctx.db.get(account.id),
+			transaction: adjusted.transaction
+				? await ctx.db.get(adjusted.transaction.id)
+				: null,
+		}));
+		expect(adjustmentSources.account?.lastModifiedSource).toBe("cli_agent");
+		expect(adjustmentSources.transaction?.source).toBe("cli_agent");
 		const noOp = await owner.client.mutation(
 			api.cli.v1.accounts.adjustBalance,
 			{
@@ -732,6 +1043,9 @@ describe("cli/v1 facade", () => {
 			adjustment: 0,
 			transaction: null,
 		});
+		expect(
+			await test.run(async (ctx) => await ctx.db.get(account.id))
+		).toMatchObject({ lastModifiedSource: "cli_agent", revision: 2 });
 	});
 
 	it("rejects archived account types and cross-currency transfers", async () => {

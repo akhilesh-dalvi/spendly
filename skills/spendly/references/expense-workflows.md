@@ -1,26 +1,22 @@
-# Expense Workflows
+# Expenses
 
-Load this reference for expense reads and mutations. For every mutation, also
-load `references/mutation-safety.md` directly from the skill root.
+The variables below represent values from the request or CLI output. See
+[command basics](cli-contract.md) for JSON, revisions, and saving a preview.
 
-Values beginning with `$` below are placeholders obtained from current Spendly
-JSON or generated locally for one intent.
-
-## Read
-
-Use `expenses get` when the ID is known. Use `expenses list` for discovery and
-apply the narrowest available filters: cycle, category, uncategorized, account,
-unassigned, tags, or inclusive date bounds. Follow pagination only as far as the
-request needs.
-
-## Create
-
-Creation requires an amount. Omitted tags remain empty. Omitted category uses
-only backend history inference. Omitted account uses the active default or
-remains unassigned.
+## Find expenses
 
 ```bash
-spendly --json --non-interactive expenses create \
+spendly --agent --json --non-interactive expenses list --limit 25
+spendly --agent --json --non-interactive expenses get "$EXPENSE_ID"
+```
+
+`expenses list --help` shows filters for cycle, category, account, tags, and
+date range, plus uncategorized and unassigned expenses.
+
+## Add an expense
+
+```bash
+spendly --agent --json --non-interactive expenses add \
   --amount "$AMOUNT" \
   --date "$DATE" \
   --spent-on "$DESCRIPTION" \
@@ -29,59 +25,57 @@ spendly --json --non-interactive expenses create \
   --dry-run
 ```
 
-Check normalized amount, date, currency, category and account sources, IDs, and
-balance effect. Commit the otherwise identical command without `--dry-run` and
-with `--idempotency-key "$KEY"`. Report expense ID, revision, and any ledger
-effect.
-
-Omit optional flags the user did not supply. Use the explicit no-account option
-only when unassignment is intended; confirm its current spelling through
-`expenses create --help`.
-
-## Update
-
-Read the exact expense and use its current revision. Omitted fields stay
-unchanged. Use explicit clear flags instead of empty strings:
-
-- `--clear-category`
-- `--clear-account`
-- `--clear-spent-on`
-- `--clear-tags`
+Amount is required. Category and account IDs come from existing-data lookups.
+Resolve a supplied date's cycle before listing categories:
 
 ```bash
-spendly --json --non-interactive expenses update "$EXPENSE_ID" \
+spendly --agent --json --non-interactive cycles current --date "$DATE"
+spendly --agent --json --non-interactive categories list --cycle-id "$CYCLE_ID"
+```
+
+Optional flags can be omitted: date defaults to today, category uses matching
+description history or stays uncategorized, and account uses the active default
+or stays unassigned. Tags stay empty unless supplied. `--no-account` explicitly
+leaves an expense unassigned. The preview reports `categorySource` and
+`accountSource` so the resolved defaults are visible.
+
+To save the previewed expense, remove `--dry-run` and add
+`--idempotency-key "$KEY"`.
+
+## Edit an expense
+
+Get the expense to obtain its current revision, then preview the changed fields:
+
+```bash
+spendly --agent --json --non-interactive expenses edit --help
+spendly --agent --json --non-interactive expenses edit "$EXPENSE_ID" \
   --amount "$NEW_AMOUNT" \
   --if-revision "$REVISION" \
   --dry-run
 ```
 
-Commit the same update with `--idempotency-key "$KEY"`. Report before and
-after values and all account effects. Moving or clearing an account reverses
-the old effect before applying any new one.
+Omitted fields stay unchanged. `--clear-category`, `--clear-account`,
+`--clear-spent-on`, and `--clear-tags` remove existing values. Clearing an
+account reverses its old balance effect. Moving an expense between accounts
+reverses the old account effect before applying the new one.
+Save by removing `--dry-run` and adding `--idempotency-key "$KEY"`.
 
-If a date change returns `CATEGORY_CYCLE_MISMATCH`, stop. Show the old and new
-cycles and safe candidate IDs, then require an explicit new category ID or
-`--clear-category`.
+## Delete an expense
 
-## Delete permanently
-
-Deletion has no trash or restore path. First resolve one exact expense and get
-the server-backed preview:
+Deletion is permanent. Its preview returns a confirmation token and revision:
 
 ```bash
-spendly --json --non-interactive expenses delete "$EXPENSE_ID" --dry-run
+spendly --agent --json --non-interactive expenses delete "$EXPENSE_ID" --dry-run
 ```
 
-Surface the exact expense, revision, permanent effect, and any account balance
-restoration. Commit only under the authorization rules in the safety reference:
+Use those values to apply the deletion:
 
 ```bash
-spendly --json --non-interactive expenses delete "$EXPENSE_ID" \
+spendly --agent --json --non-interactive expenses delete "$EXPENSE_ID" \
   --confirmation-token "$CONFIRMATION_TOKEN" \
   --if-revision "$REVISION" \
   --idempotency-key "$KEY"
 ```
 
-The token is single-use, bound to the displayed expense and revision, and valid
-for five minutes. If it expires or the resource changes, obtain a new preview
-and authorization for the new state.
+The token is single-use, bound to the expense and revision, and valid for five
+minutes. Deleting an account-backed expense restores its amount to the account.

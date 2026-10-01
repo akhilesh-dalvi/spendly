@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { AccountActionDialogs } from "@/components/account-actions";
 import { AccountForm } from "@/components/account-form";
 import { AccountTypeIcon } from "@/components/account-type-icon";
+import { ActionSourceIndicator } from "@/components/action-source-indicator";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -151,6 +152,10 @@ export default function AccountDetailPage() {
 					</div>
 					<div className="min-w-0">
 						<div className="flex flex-wrap items-center gap-2">
+							<ActionSourceIndicator
+								action={(account.revision ?? 1) > 1 ? "changed" : "added"}
+								source={account.lastModifiedSource ?? account.createdSource}
+							/>
 							<h1 className="truncate font-bold text-3xl tracking-tight">
 								{account.name}
 							</h1>
@@ -278,13 +283,19 @@ export default function AccountDetailPage() {
 															{transaction.note ||
 																formatTransactionType(transaction.type)}
 														</p>
-														<p className="text-muted-foreground text-xs">
-															{formatTransactionType(transaction.type)} ·{" "}
-															{format(
-																parseISO(transaction.date),
-																"MMM d, yyyy"
-															)}
-														</p>
+														<div className="flex items-center gap-1.5 text-muted-foreground text-xs">
+															<ActionSourceIndicator
+																action="recorded"
+																source={transaction.source}
+															/>
+															<span>
+																{formatTransactionType(transaction.type)} ·{" "}
+																{format(
+																	parseISO(transaction.date),
+																	"MMM d, yyyy"
+																)}
+															</span>
+														</div>
 													</div>
 												</div>
 												<div className="flex shrink-0 flex-col items-end gap-1">

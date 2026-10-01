@@ -57,6 +57,9 @@ describe("CLI foundation", () => {
 		expect(exitCode).toBe(CLI_EXIT_CODE.success);
 		expect(testRuntime.getStdout()).toContain("Usage: spendly");
 		expect(testRuntime.getStdout()).toContain("--allow-file-storage");
+		expect(testRuntime.getStdout()).toContain(
+			"Guided mode: spendly --interactive"
+		);
 		expect(testRuntime.getStderr()).toBe("");
 	});
 
@@ -70,6 +73,57 @@ describe("CLI foundation", () => {
 
 		expect(exitCode).toBe(CLI_EXIT_CODE.success);
 		expect(testRuntime.getStdout()).toMatch(VERSION_OUTPUT_PATTERN);
+	});
+
+	it("prints local shell completion without authentication", async () => {
+		const testRuntime = createTestRuntime();
+		testRuntime.runtime.getConfig = () => {
+			throw new Error("configuration should stay lazy");
+		};
+
+		const exitCode = await runCli(["completion", "zsh"], testRuntime.runtime);
+
+		expect(exitCode).toBe(CLI_EXIT_CODE.success);
+		expect(testRuntime.getStdout()).toContain("#compdef spendly");
+		expect(testRuntime.getStdout()).toContain("--interactive");
+		expect(testRuntime.getStderr()).toBe("");
+	});
+
+	it("shows guided and flag-based examples in leaf help", async () => {
+		const testRuntime = createTestRuntime();
+
+		const exitCode = await runCli(
+			["expenses", "add", "--help"],
+			testRuntime.runtime
+		);
+
+		expect(exitCode).toBe(CLI_EXIT_CODE.success);
+		expect(testRuntime.getStdout()).toContain(
+			"Guided: spendly expenses add --interactive --dry-run"
+		);
+		expect(testRuntime.getStdout()).toContain(
+			"Flags:   spendly expenses add --amount 18.75"
+		);
+		expect(testRuntime.getStderr()).toBe("");
+	});
+
+	it("does not retain the old create and update command aliases", async () => {
+		const expenseRuntime = createTestRuntime();
+		const accountRuntime = createTestRuntime();
+
+		const expenseExitCode = await runCli(
+			["expenses", "create"],
+			expenseRuntime.runtime
+		);
+		const accountExitCode = await runCli(
+			["accounts", "update"],
+			accountRuntime.runtime
+		);
+
+		expect(expenseExitCode).toBe(CLI_EXIT_CODE.invalidInput);
+		expect(accountExitCode).toBe(CLI_EXIT_CODE.invalidInput);
+		expect(expenseRuntime.getStderr()).toContain("unknown command 'create'");
+		expect(accountRuntime.getStderr()).toContain("unknown command 'update'");
 	});
 
 	it("keeps help and version machine-readable in JSON mode", async () => {
@@ -115,6 +169,16 @@ describe("CLI foundation", () => {
 		});
 	});
 
+	it("suggests a close command spelling without executing it", async () => {
+		const testRuntime = createTestRuntime();
+
+		const exitCode = await runCli(["expenss"], testRuntime.runtime);
+
+		expect(exitCode).toBe(CLI_EXIT_CODE.invalidInput);
+		expect(testRuntime.getStderr()).toContain("Did you mean expenses?");
+		expect(testRuntime.getStdout()).toBe("");
+	});
+
 	it("accepts global flags after a lazily routed subcommand", async () => {
 		const testRuntime = createTestRuntime();
 
@@ -146,7 +210,8 @@ describe("CLI foundation", () => {
 
 		expect(exitCode).toBe(CLI_EXIT_CODE.invalidInput);
 		expect(testRuntime.getStdout()).toBe("");
-		expect(testRuntime.getStderr()).toContain("Error:");
+		expect(testRuntime.getStderr()).toContain("Error [INVALID_COMMAND]:");
+		expect(testRuntime.getStderr()).toContain("Run: spendly --help");
 		expect(testRuntime.getStderr()).not.toContain("\u001b[");
 	});
 });

@@ -9,19 +9,19 @@
   [Spendly CLI Requirements and Implementation Plan](spendly-cli-requirements-and-implementation-plan.md)
 
 The Phase 5 backend is published to the configured development Convex
-deployment. The authenticated CLI passed a reversible create, update, clear,
+deployment. The authenticated CLI passed a reversible add, edit, clear,
 move, conflict, delete, and idempotent-replay lifecycle without leaving a test
 expense behind.
 
 ## Implemented
 
-- Added expense create and server-backed dry run with strict ordinary-decimal
+- Added expense add and server-backed dry run with strict ordinary-decimal
   amount parsing, local-calendar date resolution, exact selectors, optional
   tags, explicit unassignment, default-account fallback, and normalized source
   reporting.
-- Added expense update and dry run with omitted-field preservation and explicit
+- Added expense edit and dry run with omitted-field preservation and explicit
   clear flags for category, account, description, and tags. Non-interactive
-  updates require an expected revision; human commands obtain it transparently.
+  edits require an expected revision; human commands obtain it transparently.
 - Added permanent deletion through a five-minute, single-use, user- and
   revision-bound confirmation token. Human mode prompts after the server
   preview; non-interactive mode requires the token, revision, and idempotency
@@ -32,7 +32,7 @@ expense behind.
 - Added exact indexed category-history inference using normalized `spentOn`
   values. A paginated migration initialized the new search field on existing
   expenses.
-- Added account balance effects to create, update, and delete previews and
+- Added account balance effects to add, edit, and delete previews and
   results. Account moves report the reversal and application separately, and
   account clears report the reversal.
 - Preserved the Web expense response shape while maintaining the internal
@@ -41,8 +41,8 @@ expense behind.
 ## Command Surface
 
 ```text
-spendly expenses create --amount <amount> [inputs] [--dry-run]
-spendly expenses update <expense-id> [changes] [--dry-run]
+spendly expenses add --amount <amount> [inputs] [--dry-run]
+spendly expenses edit <expense-id> [changes] [--dry-run]
 spendly expenses delete <expense-id> [--dry-run]
 ```
 
@@ -73,7 +73,7 @@ Results:
 - Three backend test files and 32 tests passed. The façade suite covers
   ownership, dry-run parity, source reporting, inference beyond 500 unrelated
   records, revisions, idempotent replay, confirmation expiry, and exact ledger
-  deltas for create, same-account edit, account move, account clear, and delete.
+  deltas for add, same-account edit, account move, account clear, and delete.
 - The complete CLI suite passed: 18 files and 88 tests, including 11 Phase 5
   command tests for selector resolution, clear flags, key and revision rules,
   deletion confirmation, uncertain transport recovery, and scientific-notation
@@ -96,7 +96,7 @@ Passed against the configured development Clerk and Convex projects:
 - Previewed and committed an amount/date move into the historical August cycle
   while exercising all four explicit clear flags. The result advanced to
   revision 2 and matched a subsequent read.
-- Proved an update using revision 1 failed with
+- Proved an edit using revision 1 failed with
   `EXPENSE_REVISION_CONFLICT` and made no write.
 - Previewed permanent deletion, committed it with the confirmation token,
   revision, and stable key, then replayed the same request and received the

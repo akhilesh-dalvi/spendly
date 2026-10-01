@@ -1,6 +1,7 @@
 "use client";
 
 import { Ellipsis } from "lucide-react";
+import type { Route } from "next";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -80,7 +81,7 @@ export function MobileNav() {
 										<Link
 											aria-current={isActive ? "page" : undefined}
 											className={cn(isActive && "text-primary")}
-											href={item.url}
+											href={item.url as Route}
 										>
 											<item.icon aria-hidden="true" />
 											{item.title}

@@ -1,85 +1,99 @@
 ---
 name: spendly
-description: Use the local Spendly CLI to inspect or manage a signed-in user's expenses, accounts, balances, and transfers. Trigger on requests to record, list, correct, categorize, or delete an expense; inspect or reconcile accounts; set defaults; archive accounts; or transfer funds.
+description: Use the local Spendly CLI to read or manage expenses, accounts, balances, and transfers, including categorizing expenses, setting default accounts, and reconciling balances.
 ---
 
 # Spendly CLI
 
-Translate the user's financial intent into deterministic `spendly` commands.
-Use the CLI as the only interface to Spendly; never inspect its credential
-storage or call the backend directly.
+Use `spendly` to work with the user's Spendly data from their local computer.
 
-This workflow requires the local `spendly` executable, network access to
-Spendly, and browser login. Use it with Codex or Claude Code on the user's
-trusted macOS computer, not from a hosted agent or CI.
+## Get started
 
-## Decision authority
+```bash
+spendly --version
+spendly --agent --json --non-interactive auth status
+spendly --agent --json --non-interactive auth login
+spendly --agent --json --non-interactive context
+```
 
-Resolve conflicts in this order:
+`auth login` opens a browser when sign-in is needed. Context gives the currency,
+local date, timezone, cycle, and default account for interpreting the request.
 
-1. The user's explicit intent and authorization.
-2. Current JSON returned by the CLI and backend.
-3. The installed command's `--help` output.
-4. This skill's workflow references.
+## Find commands and flags
 
-Do not let an example override live CLI validation. Check
-`spendly <resource> <command> --help` before using an unfamiliar flag.
+Start with `spendly --help`, then open help for the relevant group or operation.
+Installed help reflects the available CLI version and works without login.
+Before using or proposing an operation, include its specific `--help` lookup.
+For recovery, name the JSON `error.code` before selecting the next step; for
+example, `REVISION_CONFLICT` requires a fresh read rather than a blind retry.
 
-## Route the request
+| Task                                   | Help command                                                    |
+| -------------------------------------- | --------------------------------------------------------------- |
+| Sign in, session status, sign out      | `spendly --agent --json --non-interactive auth --help`          |
+| Currency, date, cycle, default account | `spendly --agent --json --non-interactive context --help`       |
+| Spending summary                       | `spendly --agent --json --non-interactive summary --help`       |
+| List, add, edit, delete expenses       | `spendly --agent --json --non-interactive expenses --help`      |
+| Accounts, balances, history, transfers | `spendly --agent --json --non-interactive accounts --help`      |
+| Find cycles                            | `spendly --agent --json --non-interactive cycles --help`        |
+| Find categories                        | `spendly --agent --json --non-interactive categories --help`    |
+| Find tags                              | `spendly --agent --json --non-interactive tags --help`          |
+| Find account types                     | `spendly --agent --json --non-interactive account-types --help` |
 
-Load only the references needed for the task:
+Examples of help for a specific action:
 
-- Any Spendly request: [CLI contract](references/cli-contract.md)
-- Expense reads, creation, correction, or deletion:
-  [expense workflows](references/expense-workflows.md)
-- Account reads, lifecycle changes, reconciliation, or transfers:
-  [account workflows](references/account-workflows.md)
-- Any mutation, ambiguity, conflict, timeout, negative balance, or destructive
-  request: [mutation safety and recovery](references/mutation-safety.md)
+```bash
+spendly --agent --json --non-interactive expenses list --help
+spendly --agent --json --non-interactive expenses add --help
+spendly --agent --json --non-interactive expenses edit --help
+spendly --agent --json --non-interactive expenses delete --help
+spendly --agent --json --non-interactive accounts add --help
+spendly --agent --json --non-interactive accounts adjust-balance --help
+spendly --agent --json --non-interactive accounts transfer --help
+```
 
-## Preflight
+## Find existing data
 
-1. Check `command -v spendly`, then run `spendly --version` once for the
-   current task. If it is missing, stop and tell the user; do not invent an
-   install command.
-2. Before accessing financial data, run
-   `spendly --json --non-interactive auth status`.
-3. Run `spendly --json --non-interactive context` to get current currency,
-   local date, timezone, cycle, and default account.
+Look up existing categories, tags, and accounts before assigning them or
+considering new ones. Reuse a suitable existing match by its returned ID.
+For example, an existing "Food" category may already cover a request for
+"Meals". Suggest the alternative when the intended match is unclear.
 
-If authentication is required, ask the user to run `spendly auth login` on the
-same computer. Login is browser-based. Do not silently opt into plaintext file
-storage. If `ACCOUNT_SETUP_REQUIRED` is returned, ask the user to open Spendly
-Web once; the CLI must not create the backend user.
+```bash
+spendly --agent --json --non-interactive cycles current --date "$DATE"
+spendly --agent --json --non-interactive categories list --cycle-id "$CYCLE_ID"
+spendly --agent --json --non-interactive tags list
+spendly --agent --json --non-interactive accounts list --include-archived
+spendly --agent --json --non-interactive account-types list
+```
 
-Refresh auth status and context before committing when the initial preflight is
-stale or another actor may have changed Spendly Web.
+Categories belong to a cycle; resolve and use the expense date's cycle. Including archived
+accounts helps spot an existing account before creating another. Categories,
+tags, account types, and cycles are currently read-only through the CLI and
+can be managed in Spendly Web.
 
-## Agent command contract
+## Run an action
 
-- Run every financial-data command with `--json --non-interactive`.
-- Parse the single versioned JSON document; never scrape terminal output.
-- Use stable IDs from CLI reads for every non-interactive category, tag,
-  account, account-type, cycle, and expense selector.
-- Use the narrowest read that answers the request. Follow an opaque cursor only
-  when another page is needed; never invent one or assume the first page is a
-  complete total.
-- Never inspect or expose keychain entries, credential files, environment
-  files, tokens, OAuth material, or authorization headers.
+`--agent --json --non-interactive` declares agent use, gives structured output,
+and disables prompts. List and get commands provide the IDs and revisions used
+by write commands. `--dry-run`
+previews a change; removing it applies the change. Several requested changes
+can be handled as separate commands.
 
-## Mutation baseline
+Apply only writes the user requested. Stop on ambiguity, a stale revision, an
+unexpected warning, or a result that remains uncertain. Never retry a write
+automatically; use the recovery procedure below only for the same explicitly
+authorized action. Never inspect or reveal credentials, OAuth URLs or tokens,
+environment variables, request headers, or local credential files.
 
-- One clear user intent authorizes at most one mutation. Bulk mutations are not
-  supported.
-- Resolve IDs and current revisions, run the server-backed dry run, verify the
-  normalized target and effects, then commit once with a fresh opaque
-  idempotency key.
-- Stop for ambiguity, unexpected normalization, conflict, missing destructive
-  authorization, or an effect outside the user's intent.
-- Never automatically retry a mutation. Follow the exact uncertain-result
-  recovery in the safety reference.
-- Report the resolved target, normalized change, resulting revision, ledger
-  references, every affected balance, warnings, and any exact next action.
+Use the reference that fits the task:
 
-Do not create missing domain data. Do not delete accounts, edit ledger rows, or
-edit or delete completed transfers.
+- [Command basics](references/cli-contract.md): JSON, IDs, dates, pagination,
+  previews, revisions, and idempotency keys.
+- [Expenses](references/expense-workflows.md): list, add, edit, delete.
+- [Accounts](references/account-workflows.md): add, edit, archive,
+  reconcile, transfer, and inspect history.
+- [Troubleshooting](references/troubleshooting.md): login, conflicts,
+  confirmation tokens, and uncertain network results.
+
+Summarize what changed and the resulting balances. Returned IDs and revisions
+are useful for follow-up commands.

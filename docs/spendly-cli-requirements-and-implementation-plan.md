@@ -2,15 +2,24 @@
 
 ## Document Status
 
-- Status: Phases 0-6 complete; Phase 7 implementation verified with external
-  cross-agent evaluation pending; Phase 8 implementation locally verified with
-  production URL and release-link handoff pending Phase 9
-- Last updated: 2026-09-05
+- Status: Phases 0-6 complete; Phase 7 implementation and installation verified;
+  independent agent response evaluations are optional; Phases 8, 8.5, and 8.6
+  complete; Phase 8.7 repository hardening complete with hosted CI,
+  release-ready source handoff pending; Phase 8.8 guided
+  interactive input implementation and local gates complete; Phase 8.9 human CLI UX
+  implementation and targeted real-terminal retest complete with current
+  automated local gates passing; Phase 8.10 manual interactive verification
+  complete, including findings F01-F18; Phase 8.11 MCP reuse readiness and its
+  post-refactor local integration check are complete; Phase 8.12 Raycast reuse
+  readiness is complete before Phase 9
+- Last updated: 2026-10-01
 - Target branch: `feature/spendly-cli`
 - Package location: `apps/cli`
 - npm package and executable: `spendly`
-- Initial release: `spendly@0.1.0` on the npm `next` tag
-- Stable release target: `spendly@1.0.0` on the npm `latest` tag
+- Initial release: `spendly@0.1.0`, first verified on the npm `next` tag and
+  then promoted unchanged to the default `latest` tag
+- Version policy: continue with `0.1.x`, `0.2.x`, and later `0.x` releases until
+  real user adoption proves the CLI contract is ready for `1.0.0`
 
 ## 1. Executive Summary
 
@@ -31,11 +40,13 @@ operations, and emits a stable machine contract. The backend remains the final
 authority for ownership, normalization, idempotency, concurrency, and deletion
 confirmation.
 
-Version 1 provides full CRUD for individual expenses, account-aware expense
-tracking, and the account operations already supported by Spendly Web: create,
-edit, archive, reactivate, set default, adjust balance, and transfer. It also
+The initial release lets users add, view, edit, and delete individual expenses, supports
+account-aware expense tracking, and provides the account operations already
+supported by Spendly Web: add, edit, archive, reactivate, make default, adjust
+balance, and transfer. It also
 provides read-only account activity and account-type context. It does not
-provide bulk mutations or mutation commands for cycles, categories, category
+provides no bulk mutations except the approved guided atomic Archive/Reactivate
+account selection, and no mutation commands for cycles, categories, category
 types, account types, or tags.
 
 ## 2. Goals
@@ -48,16 +59,18 @@ types, account types, or tags.
 - Keep Convex as the source of truth and preserve existing Spendly Web behavior.
 - Make machine output, errors, exit codes, and pagination deterministic.
 - Prevent duplicate mutations when agents explicitly retry a request.
-- Prevent stale updates and deletions from overwriting newer changes.
+- Prevent stale edits and deletions from overwriting newer changes.
 - Make every mutation previewable through the same input contract used to
   commit it.
 - Require a server-backed, short-lived confirmation capability for deletion.
-- Keep expense and account balances synchronized when an expense is created,
+- Keep expense and account balances synchronized when an expense is added,
   edited, moved, unassigned, or deleted.
 - Establish a backend contract that can later be reused by an MCP server.
 - Publish searchable, task-oriented CLI documentation alongside Spendly Web.
+- Show users when a committed change came from the CLI and distinguish an
+  explicitly declared AI-agent invocation from direct human CLI use.
 
-## 3. Non-Goals for Version 1
+## 3. Non-Goals for the Initial Release
 
 - Replacing Spendly Web or reproducing its visual planning experience.
 - Natural-language parsing inside the CLI.
@@ -72,8 +85,9 @@ types, account types, or tags.
   agents, or machine-to-machine access.
 - Windows support.
 - An MCP server.
-- A persistent mutation audit table. Sentry and PostHog may be designed later
-  as observability systems, but version 1 does not claim a durable audit trail.
+- A general persistent mutation audit table. The initial release stores only bounded
+  source provenance on the affected expense, account, transfer, and ledger
+  records; it does not claim a complete historical audit trail.
 - Treating public documentation as a substitute for live CLI help, versioned
   JSON schemas, or backend validation.
 
@@ -82,9 +96,9 @@ types, account types, or tags.
 ### 4.1 Local AI Agent
 
 The Phase 0 verified user runs Codex or Claude Code on a trusted macOS
-computer. Linux remains a version 1 target pending native credential-store and
+computer. Linux remains an initial-release target pending native credential-store and
 packaged-install validation. The agent follows the Spendly skill and always
-invokes the CLI with `--json` and `--non-interactive`.
+invokes the CLI with `--agent`, `--json`, and `--non-interactive`.
 
 ### 4.2 Human CLI User
 
@@ -93,9 +107,9 @@ default; JSON is opt-in.
 
 ### 4.3 Runtime
 
-- Node.js 20 or newer.
+- Node.js 22 or newer. Release CI covers Node.js 22 and 24 on macOS and Linux.
 - macOS is the currently verified platform.
-- Linux remains a version 1 target, but support must not be claimed until its
+- Linux remains an initial-release target, but support must not be claimed until its
   native credential-store and packaged-install gates pass.
 - Windows is deferred until Credential Manager, browser callback, filesystem,
   packaging, and agent tests exist.
@@ -121,6 +135,9 @@ default; JSON is opt-in.
 10. **Documentation authority:** public examples are checked against the built
     CLI; installed `--help`, versioned JSON schemas, and backend validation
     remain authoritative.
+11. **Visible provenance:** committed CLI changes identify direct CLI versus
+    explicitly declared AI-agent use in Spendly Web without implying verified
+    agent identity.
 
 ## 6. Current Spendly Baseline
 
@@ -179,20 +196,28 @@ behavior includes:
 - Location: `apps/cli` in the pnpm workspace.
 - Language: TypeScript.
 - Command parser: Commander 14.
+- Human prompt layer: `@clack/prompts`, introduced in Phase 8.8 without changing
+  the Commander flag or JSON contracts.
 - Build: `tsc` producing Node.js ESM.
 - Test runner: Vitest using its Node environment.
 - Formatting and linting: repository Ultracite/Biome standards.
 
 ### 7.3 Release Strategy
 
-1. Publish `spendly@0.1.0` using npm tag `next` after all local development
-   gates pass.
-2. Test the installed package outside the monorepo on macOS and Linux.
-3. Resolve beta findings.
-4. Publish `spendly@1.0.0` using npm tag `latest` only after authentication and
-   mutation-safety acceptance criteria pass.
+1. Publish the exact `spendly@0.1.0` version, with no prerelease suffix, using
+   the npm `next` tag after all local development gates pass.
+2. Test that installed package outside the monorepo on macOS and Linux.
+3. Resolve release-blocking findings. Because npm versions are immutable, any
+   code change requires a higher `0.x` version and a new candidate.
+4. Promote the unchanged, validated `spendly@0.1.0` package from `next` to the
+   default `latest` tag; do not rebuild or republish it.
+5. Publish compatible fixes as `0.1.x` and substantial or contract-changing
+   releases as `0.2.0`, `0.3.0`, and later `0.x` versions.
+6. Consider `1.0.0` only after real-world usage shows that the CLI command and
+   machine-readable contracts are dependable enough for a deliberate stability
+   commitment.
 
-There is no production beta allowlist because Spendly currently has very few
+There is no production release allowlist because Spendly currently has very few
 users. Backend authorization and ownership checks still apply to every user.
 
 ## 8. Authentication and Environment Requirements
@@ -218,7 +243,7 @@ spendly auth logout
 - Time out the callback after five minutes.
 - Keep the Clerk consent screen enabled.
 - Do not support device flow, pasted tokens, client secrets, deploy keys,
-  headless login, or CI login in version 1.
+  headless login, or CI login in the initial release.
 
 ### 8.3 Session Lifetime
 
@@ -254,7 +279,7 @@ spendly auth logout
 The user must have opened Spendly Web at least once. If Clerk authentication
 succeeds but no Spendly backend user exists, return `ACCOUNT_SETUP_REQUIRED`
 and the production Web URL. The CLI does not bootstrap users or onboarding
-data in version 1.
+data in the initial release.
 
 ### 8.7 Production and Development Isolation
 
@@ -392,9 +417,15 @@ Import files directly; do not add barrel files solely for re-exports.
 - Human-readable output is the default for every command.
 - JSON is enabled only with explicit `--json`.
 - Agents and scripts must pass both `--json` and `--non-interactive`.
+- AI agents must also pass `--agent`. Do not infer AI use from JSON or
+  non-interactive mode; direct scripts remain identified as CLI use.
 - Do not automatically switch output contracts based on TTY detection.
 - `--non-interactive` prohibits prompts and fails when required input is
   unresolved.
+- Phase 8.8 may add explicit `--interactive` guided input for human TTY use.
+  It must conflict with `--json`, `--non-interactive`, and `--agent`; fully
+  specified commands remain non-prompting except for permanent expense
+  deletion.
 - Support `--no-color` and respect `NO_COLOR`.
 - Unknown options and malformed values fail before a network request.
 - `--help` and `--version` work without authentication.
@@ -555,12 +586,12 @@ spendly account-types list [--include-archived]
 ### 13.1 Commands
 
 ```text
-spendly expenses create [inputs] [--dry-run]
-spendly expenses update <expense-id> [inputs] [--dry-run]
+spendly expenses add [inputs] [--dry-run]
+spendly expenses edit <expense-id> [inputs] [--dry-run]
 spendly expenses delete <expense-id> [--dry-run]
 ```
 
-There are no separate `preview-create`, `preview-update`, or `preview-delete`
+There are no separate `preview-add`, `preview-edit`, or `preview-delete`
 commands.
 
 ### 13.2 Dry Run
@@ -569,11 +600,11 @@ commands.
 - Run server-side ownership, normalization, selector, cycle, revision, and
   validation logic.
 - Perform no expense write.
-- Create and update dry runs return the normalized proposed resource; update
+- Add and edit dry runs return the normalized proposed resource; edit
   also returns before and after values.
 - Delete dry run returns the exact expense, its revision, and a deletion
   confirmation token.
-- A clear user instruction authorizes one create or update; the skill previews
+- A clear user instruction authorizes one add or edit; the skill previews
   internally, commits, and reports the result.
 - Stop for ambiguity, unexpected normalization, bulk intent, or deletion.
 
@@ -593,16 +624,16 @@ The idempotency table is a correctness mechanism, not an audit log.
 
 ### 13.4 Optimistic Concurrency
 
-- Every new expense starts with a revision, and every Web or CLI update
+- Every new expense starts with a revision, and every Web or CLI edit
   increments it.
 - Reads and dry runs return the revision.
-- Update and delete commit only if the expected revision still matches.
+- Edit and delete commit only if the expected revision still matches.
 - A mismatch returns a conflict and performs no write.
 - Humans may have revision handling performed transparently by the CLI.
 - Non-interactive agents must receive and submit the revision explicitly, for
   example through `--if-revision`.
 
-### 13.5 Create
+### 13.5 Add
 
 - Required: `--amount`.
 - Optional: `--date`, `--spent-on`, `--category-id`, `--category`,
@@ -618,7 +649,7 @@ The idempotency table is a correctness mechanism, not an audit log.
 - Return normalized values, currency, category source, tag IDs, cycle, revision,
   account assignment and source, account balance effect, and expense ID.
 
-### 13.6 Update
+### 13.6 Edit
 
 - Require an expense ID.
 - Omitted fields remain unchanged.
@@ -643,21 +674,20 @@ The idempotency table is a correctness mechanism, not an audit log.
 
 ### 13.7 Delete
 
-Deletion is permanent and has no trash or restore command in version 1.
+Deletion is permanent and has no trash or restore command in the initial release.
 
 Non-interactive flow:
 
-1. Run `spendly expenses delete <id> --dry-run --json --non-interactive`.
+1. Run
+   `spendly --agent --json --non-interactive expenses delete <id> --dry-run`.
 2. Receive the exact expense, revision, and confirmation token.
 3. Commit with the token, expected revision, and idempotency key:
 
 ```bash
-spendly expenses delete <id> \
+spendly --agent --json --non-interactive expenses delete <id> \
   --confirmation-token <token> \
   --if-revision <revision> \
-  --idempotency-key <key> \
-  --json \
-  --non-interactive
+  --idempotency-key <key>
 ```
 
 The confirmation token must be:
@@ -676,8 +706,8 @@ confirmation. The backend hard-deletes only after successful confirmation.
 ### 14.1 Commands
 
 ```text
-spendly accounts create [inputs] [--dry-run]
-spendly accounts update <account-id> [inputs] [--dry-run]
+spendly accounts add [inputs] [--dry-run]
+spendly accounts edit <account-id> [inputs] [--dry-run]
 spendly accounts archive <account-id> [--dry-run]
 spendly accounts reactivate <account-id> [--dry-run]
 spendly accounts set-default <account-id> [--dry-run]
@@ -687,13 +717,13 @@ spendly accounts transfer [inputs] [--dry-run]
 
 Every account mutation uses the shared dry-run, idempotency, output, retry, and
 ownership rules. Non-interactive commits require a stable idempotency key. An
-update, archive, reactivate, set-default, or balance adjustment requires the
+edit, archive, reactivate, set-default, or balance adjustment requires the
 expected account revision; a transfer requires expected revisions for both
 accounts.
 
-### 14.2 Create and Update
+### 14.2 Add and Edit
 
-- Create requires `--name`, `--account-type-id` or one exact
+- Add requires `--name`, `--account-type-id` or one exact
   `--account-type`, and `--starting-balance`.
 - The name is trimmed and cannot be empty. Account names are not required to be
   unique, so an ambiguous human name selector fails with candidates.
@@ -703,8 +733,8 @@ accounts.
   currency override and never converts balances.
 - The first created account becomes the default and marks pending account setup
   as completed.
-- Update may change name or select another active account type. Opening balance,
-  current balance, currency, and ledger entries are not edited through update.
+- Edit may change name or select another active account type. Opening balance,
+  current balance, currency, and ledger entries are not changed through edit.
 - An archived type remains visible on existing accounts but cannot be assigned
   to a new account or selected during reassignment.
 
@@ -717,7 +747,7 @@ accounts.
 - Reactivate makes the account eligible for new expenses and same-currency
   transfers again; it does not automatically make it default.
 - `set-default` accepts only an active account owned by the authenticated user.
-- These commands are lifecycle mutations, not permanent deletion. Version 1
+- These commands are lifecycle mutations, not permanent deletion. The initial release
   exposes no account delete command because the merged backend has no safe
   account-delete contract.
 
@@ -746,7 +776,7 @@ accounts.
   become negative but the dry run must warn before commit.
 - Commit atomically creates one transfer record, a negative `transfer_out`
   ledger entry, and a positive `transfer_in` entry.
-- Transfers do not affect expense-cycle spending. Version 1 does not edit or
+- Transfers do not affect expense-cycle spending. The initial release does not edit or
   delete completed transfers; corrections use an explicit compensating
   transfer.
 
@@ -754,7 +784,7 @@ accounts.
 
 ### 15.1 Amount and Currency
 
-- Mirror Spendly Web's current numeric amount model in version 1.
+- Mirror Spendly Web's current numeric amount model in the initial release.
 - Parse ordinary base-10 decimal input.
 - Require an amount of at least `0.01`.
 - Reject zero, negatives, `NaN`, infinity, and scientific notation.
@@ -799,7 +829,7 @@ accounts.
 
 ### 15.5 Category Inference
 
-When category is omitted on create, assign one only when every condition holds:
+When category is omitted while adding, assign one only when every condition holds:
 
 1. `spentOn` is present.
 2. Matching uses trimmed, case-insensitive exact text.
@@ -814,7 +844,7 @@ knowledge.
 ### 15.6 Tags
 
 - Never infer or automatically create tags.
-- Omitted tags mean no tags on create and no change on update.
+- Omitted tags mean no tags when adding and no change when editing.
 - Unknown or ambiguous tags stop the mutation.
 - Historical tags are not copied automatically.
 
@@ -829,7 +859,7 @@ knowledge.
   otherwise the user's current currency, defaulting to `USD`.
 - Current balance is a denormalized cache maintained only through ledger-backed
   mutations. The CLI never writes it or a ledger row directly.
-- Expense create subtracts the amount from the selected account. Expense update
+- Adding an expense subtracts the amount from the selected account. Editing it
   applies only the balance delta or reverses the old account before applying the
   new one. Expense delete restores the amount, including for an archived
   historical account.
@@ -843,7 +873,7 @@ knowledge.
 - Read-only commands may retry temporary network or service failures up to
   three attempts with bounded exponential backoff.
 - `--no-retry` disables read retries.
-- The CLI does not automatically retry mutations in version 1.
+- The CLI does not automatically retry mutations in the initial release.
 - Convex may internally retry deterministic queries and mutations.
 - If a mutation has an uncertain transport result, return a retryable error.
   The caller may explicitly repeat the command with the same idempotency key.
@@ -859,7 +889,7 @@ knowledge.
 - Claude Code.
 
 Other agents may use the documented JSON contract but are not officially
-tested in version 1.
+tested in the initial release.
 
 ### 17.2 Distribution
 
@@ -888,13 +918,14 @@ contains no credentials or user financial data.
 
 ### 17.3 Required Workflow
 
-1. Verify `spendly --version` and `spendly auth status --json`.
-2. Load `spendly context --json`.
+1. Verify `spendly --version` and
+   `spendly --agent --json --non-interactive auth status`.
+2. Load `spendly --agent --json --non-interactive context`.
 3. Resolve user intent without inventing dates, currencies, categories, tags,
    accounts, account types, balances, or transfer endpoints.
 4. Generate a stable idempotency key for each intended mutation and reuse it
    only for retries of that same intent.
-5. Run the mutation with `--dry-run --json --non-interactive`.
+5. Run the mutation with `--agent --dry-run --json --non-interactive`.
 6. Stop for ambiguity, conflict, unexpected normalization, or deletion without
    explicit user intent.
 7. Commit the expense or account mutation and report the normalized result,
@@ -921,7 +952,7 @@ contains no credentials or user financial data.
 
 ### 18.2 Required Information Architecture
 
-The version 1 documentation must include:
+The initial-release documentation must include:
 
 1. Overview and supported use cases.
 2. Installation, update, version, and uninstall instructions.
@@ -969,14 +1000,15 @@ material when exact flags or response fields are needed.
   account verification before publish.
 - Do not send expense payloads, tokens, or credentials to future Sentry or
   PostHog integrations.
-- Treat source labels such as interactive or non-interactive as informational,
-  never as an authorization boundary.
+- Treat Web, CLI, and explicitly declared AI-agent source labels as
+  informational, never as verified identity or an authorization boundary.
 
 ## 20. Testing Requirements
 
 ### 20.1 Unit Tests
 
 - Commander parsing and local validation.
+- Explicit `--agent` parsing and commit-only provenance injection.
 - Amount, date, and timezone normalization.
 - JSON envelopes and exit-code mapping.
 - Selector normalization and ambiguity.
@@ -992,8 +1024,10 @@ material when exact flags or response fields are needed.
 - Missing-user and authentication behavior.
 - Cross-user ownership enforcement.
 - Web and CLI revision increments.
+- Web, direct-CLI, and agent-CLI provenance across expenses, accounts,
+  transfers, and generated ledger entries, including legacy missing fields.
 - Dry-run and commit normalization parity.
-- Idempotent create, update, and delete replay.
+- Idempotent add, edit, and delete replay.
 - Conflict when a key is reused with different input.
 - Thirty-day idempotency expiry behavior.
 - Revision conflicts under concurrent updates.
@@ -1002,10 +1036,10 @@ material when exact flags or response fields are needed.
 - Cursor pagination without duplicates or omissions.
 - Inclusive CLI date filters and exclusive cycle boundaries.
 - Account and account-type ownership enforcement.
-- Account create/update/archive/reactivate/default lifecycle.
+- Account add/edit/archive/reactivate/default lifecycle.
 - Opening, expense, manual-adjustment, transfer-out, and transfer-in ledger
   entries with cached-balance parity.
-- Expense create, update, move, clear, and delete balance synchronization.
+- Expense add, edit, move, clear, and delete balance synchronization.
 - Archived-account, archived-type, same-account, and cross-currency guards.
 - Idempotent account mutation replay and stale account/transfer revision
   conflicts.
@@ -1015,14 +1049,16 @@ material when exact flags or response fields are needed.
 - Browser login through a random loopback port.
 - Token refresh within 30 days and reauthentication after 30 days.
 - Correct keychain namespace and explicit file fallback.
+- Agent-tagged expense and transfer commits displaying accessible bot
+  indicators in the matching reactive Web views.
 - `ACCOUNT_SETUP_REQUIRED` for an authenticated Clerk user missing in Spendly.
 - Context returns the same user and currency as Web.
 - Context and account reads return the same active accounts, default, type
   metadata, currency-grouped totals, and balances as Web.
-- Complete dry-run and commit for create and update.
-- Complete account create, edit, default, adjustment, transfer, archive, and
+- Complete dry-run and commit for add and edit.
+- Complete account add, edit, default, adjustment, transfer, archive, and
   reactivate lifecycle with ledger verification.
-- Account-aware expense create, move, clear, and delete with balance
+- Account-aware expense add, move, clear, and delete with balance
   verification.
 - Explicit mutation rerun using the same idempotency key after a simulated
   uncertain response.
@@ -1033,6 +1069,11 @@ material when exact flags or response fields are needed.
 - Codex and Claude Code skill evaluations.
 
 ## 21. Implementation Plan
+
+Checked phase items below mean their repository or development scope is
+complete. They do not imply production acceptance. Production OAuth,
+deployment, migration, npm publication, clean-user verification, and stable
+promotion remain gated by Phases 8.7 through 8.12 and Phase 9.
 
 ### Phase 0: Decisions and Authentication Spike
 
@@ -1051,7 +1092,9 @@ token authenticates the correct Spendly user through `ConvexHttpClient`.
 - [x] Approve dry-run, idempotency, revisions, and deletion confirmation.
 - [x] Approve currency, amount, date, cycle, selector, inference, and tag rules.
 - [x] Approve Codex and Claude Code skill distribution through skills.sh.
-- [x] Approve `0.1.0`/`next` beta and `1.0.0`/`latest` stable strategy.
+- [x] Approve an unsuffixed `0.1.0` release: verify it on `next`, promote the
+      unchanged package to `latest`, and remain below `1.0.0` until real usage
+      proves the CLI contract is stable.
 - [x] Defer persistent audit storage and future Sentry/PostHog design.
 - [x] Create the development Clerk public OAuth application.
 - [x] Add the matching strict development Convex auth provider.
@@ -1061,6 +1104,9 @@ token authenticates the correct Spendly user through `ConvexHttpClient`.
 - [x] Defer the native Linux Secret Service canary to pre-release platform
       validation; do not claim Linux support until it passes.
 - [x] Complete a security review of the authentication spike.
+
+Implementation and verification evidence is recorded in
+[Spendly CLI Phase 0: Decisions and Technical Spikes](spendly-cli-phase-0.md).
 
 ### Phase 1: CLI Foundation
 
@@ -1075,6 +1121,9 @@ token authenticates the correct Spendly user through `ConvexHttpClient`.
 - [x] Add redacted `--debug`, `--json`, `--non-interactive`, `--no-color`,
       `--no-retry`, help, and version behavior.
 - [x] Verify a packed tarball outside the repository.
+
+Implementation and verification evidence is recorded in
+[Spendly CLI Phase 1: CLI Foundation](spendly-cli-phase-1.md).
 
 ### Phase 2: Authentication
 
@@ -1102,7 +1151,7 @@ Implementation and verification evidence is recorded in
 - [x] Add account revisions and bind transfer previews to both account
       revisions.
 - [x] Add the 30-day idempotency table and cleanup job.
-- [x] Add server-backed create and update dry runs.
+- [x] Add server-backed add and edit dry runs.
 - [x] Add five-minute single-use deletion confirmation capabilities.
 - [x] Add deterministic cursor pagination and required indexes.
 - [x] Add the aggregated context query.
@@ -1130,15 +1179,15 @@ Implementation and local verification evidence is recorded in
 
 ### Phase 5: Expense Mutations
 
-- [x] Implement create and `create --dry-run`.
-- [x] Implement update, explicit clear flags, and `update --dry-run`.
+- [x] Implement add and `add --dry-run`.
+- [x] Implement edit, explicit clear flags, and `edit --dry-run`.
 - [x] Implement delete dry run and confirmed permanent delete.
 - [x] Implement local-date resolution and category-history inference.
 - [x] Implement interactive key generation and non-interactive key requirement.
 - [x] Implement revision handling and conflict guidance.
 - [x] Implement account selection, default-account resolution, unassigned
       expenses, and the account expense filter.
-- [x] Verify expense create, edit, move, clear, and delete ledger effects.
+- [x] Verify expense add, edit, move, clear, and delete ledger effects.
 - [x] Implement uncertain-result recovery without automatic mutation retry.
 - [x] Pass the complete expense lifecycle end to end on development.
 
@@ -1147,7 +1196,7 @@ Implementation and verification evidence is recorded in
 
 ### Phase 6: Account Mutations
 
-- [x] Implement account create and update with active account-type validation.
+- [x] Implement account add and edit with active account-type validation.
 - [x] Implement archive, reactivate, and set-default.
 - [x] Implement absolute-balance adjustment with delta preview and ledger entry.
 - [x] Implement same-currency transfer with two-account revision checks.
@@ -1170,7 +1219,6 @@ Implementation and verification evidence is recorded in
 - [x] Test global skills.sh installation for Codex and Claude Code.
 - [x] Run the automated agent evaluation suite and review for personal-data
       leakage.
-- [ ] Run independent Codex and Claude Code response evaluations.
 
 Implementation and current verification evidence is recorded in
 [Spendly CLI Phase 7: Spendly Skill](spendly-cli-phase-7.md).
@@ -1186,39 +1234,475 @@ contain only synthetic data.
       and styles without regressing existing Web routes.
 - [x] Add the public `/docs/cli` layout, page route, navigation tree, table of
       contents, and search endpoint.
-- [x] Create the approved overview, installation, authentication, CLI contract,
-      expense, account, transfer, agent-skill, privacy, and troubleshooting
-      pages.
+- [x] Create the approved eight-page task-oriented navigation covering Quick
+      start, AI agents and the machine contract, expenses, accounts and
+      transfers, cycles, categories, tags, privacy, and troubleshooting.
 - [x] Add command-reference generation or validation against the production CLI
       build and versioned JSON schemas.
 - [x] Ensure every public example uses synthetic data and no development or
       credential material is included in the generated site.
-- [ ] Add documentation metadata, canonical URLs, sitemap entries, and links
-      from the Spendly marketing navigation, npm README, and CLI help.
+- [x] Add documentation metadata, canonical URLs, sitemap entries, and links
+      from the Spendly marketing navigation.
 - [x] Verify the production Web build, search, keyboard navigation, responsive
       layout, copy buttons, internal links, and representative command examples.
 
-Metadata, canonical URLs, sitemap entries, and marketing navigation are
-implemented. The npm README and CLI-help links remain intentionally pending
-until Phase 9 establishes the stable production documentation URL.
+All Phase 8 repository implementation and local verification items are
+complete. The production documentation deployment and verification of its npm
+README, installed CLI help, and skills.sh links remain under Phase 9.
 
 The approved implementation design and verification checklist are recorded in
 [Spendly CLI Phase 8: Fumadocs Documentation](spendly-cli-phase-8.md).
 
+### Phase 8.5: Manual Development Verification
+
+Exit criterion: every safe live scenario is completed against the configured
+development Clerk and Convex environment, independently confirmed through CLI
+reads and Spendly Web, and cleaned up without deleting account history.
+
+- [x] Verify CLI, Web, Clerk, and backend development configuration alignment.
+- [x] Sync current backend functions to the development Convex deployment.
+- [x] Pass backend and CLI lint, type, test, package, and documentation gates.
+- [x] User completes browser login for the source-only development CLI.
+- [x] Agent completes JSON `--non-interactive` reads, account workflows, expense
+      workflows, replay, conflict, and error-code scenarios.
+- [x] User completes human-readable output, exact-name, automatic mutation
+      input, browser-state, confirmation-prompt, and logout checks.
+- [x] Agent restores the original default state and archives all test accounts.
+
+Exact commands, data-impact boundaries, cleanup, and the manual result checklist
+are recorded in
+[Spendly CLI Phase 8.5: Manual Development Verification](spendly-cli-phase-8.5.md).
+
+### Phase 8.6: Action Provenance in Spendly Web
+
+Exit criterion: every committed CLI mutation records direct CLI or explicitly
+declared AI-agent provenance, and Spendly Web displays a compact, accessible
+source indicator on the relevant expense, account, or ledger surface without
+changing the versioned CLI output contract.
+
+- [x] Add a global `--agent` flag; never infer agent use from `--json` or
+      `--non-interactive`.
+- [x] Store optional create/last-change provenance on expenses and accounts and
+      immutable provenance on account transfers and account transactions.
+- [x] Pass `web`, `cli`, or `cli_agent` through every shared commit path while
+      leaving reads, previews, failed writes, and historical records unlabeled.
+- [x] Include provenance in idempotency fingerprints and preserve it on replay.
+- [x] Add a shared accessible Web indicator using `Bot` for agent CLI writes
+      and `SquareTerminal` for direct CLI writes.
+- [x] Show the indicator in expense list/detail/recent activity, account
+      list/detail, and account ledger activity without adding a table column.
+- [x] Update the Spendly skill and public AI-agent docs to use
+      `--agent --json --non-interactive`.
+- [x] Pass backend, CLI, Web, packaging, documentation, accessibility,
+      responsive-browser, and live development provenance checks.
+
+The approved data contract, action matrix, UI placement, edge cases, and
+verification plan are recorded in
+[Spendly CLI Phase 8.6: Action Provenance in Spendly Web](spendly-cli-phase-8.6.md).
+
+### Phase 8.7: Pre-release Hardening and Release Readiness
+
+Exit criterion: the exact release candidate, supported-runtime policy,
+dependency strategy, production runbooks, publishing controls, recovery plan,
+skill evaluation, and documentation are internally consistent and verified
+before any production deployment or npm publication begins.
+
+- [x] Move the supported CLI runtime from end-of-life Node.js 20 to Node.js 22
+      or newer and verify the supported LTS matrix.
+- [x] Make installed production dependencies and the packed manifest
+      reproducible, and enforce one synchronized CLI/package/release version.
+- [x] Define production authentication, backward-compatible deployment,
+      resumable migration, cleanup-cron verification, rollback, and synthetic
+      smoke-test runbooks.
+- [x] Approve protected npm trusted publishing, first-publication bootstrap,
+      later staged approval, provenance, signature verification, Git tagging,
+      and release-note controls.
+- [x] Add the complete non-production release CI and tarball gates before Phase
+      9 performs external release actions.
+- [x] Align normative agent instructions on
+      `--agent --json --non-interactive` and refresh stale Phase 7, Phase 8,
+      main-plan, root README, telemetry, support, and release-channel copy.
+- [x] Keep the npm package, Git release, default-branch skill, skills.sh bundle,
+      installed help, and public documentation on one compatible contract.
+
+The complete boundary, decisions, and verification checklist are recorded in
+[Spendly CLI Phase 8.7: Pre-release Hardening and Release Readiness](spendly-cli-phase-8.7.md).
+Production execution and recovery procedures are defined in the
+[Spendly CLI release runbook](spendly-cli-release-runbook.md).
+
+### Phase 8.8: Guided Interactive Inputs
+
+Exit criterion: every applicable human CLI workflow has a discoverable,
+terminal-native guided path using stable-ID selects, tag and field
+multiselects, validated text/date inputs, server previews, and safe
+confirmations, while all existing flags remain compatible and JSON,
+`--non-interactive`, and `--agent` execution provably never prompt.
+
+- [x] Add pinned direct `@clack/prompts` and matching `@clack/core` runtime
+      dependencies while retaining Commander for routing and the stable
+      explicit-flag contract.
+- [x] Add an explicit `--interactive` command launcher and command-specific
+      guided mode with strict TTY, stream, color, cancellation, and incompatible
+      global-option handling.
+- [x] Add stable-ID single and searchable selects for expense, account,
+      account-type, cycle, and category selectors, with scoped active/archived,
+      cycle, and currency eligibility.
+- [x] Add checkbox-style multiselects for tags, expense filters, and fields to
+      update, including preselected current values and explicit keep/clear
+      states.
+- [x] Add validated text and local-date inputs for amounts, balances, names,
+      descriptions, notes, and dates by reusing the existing domain parsers.
+- [x] Route every fully guided mutation through its existing server preview,
+      display normalized targets and balance/ledger effects, and confirm the
+      exact preview before commit; permanent or destructive choices default to
+      No.
+- [x] Preserve explicit flags, name ambiguity errors, revisions, idempotency,
+      deletion tokens, JSON schemas, exit codes, and backend enforcement.
+- [x] Add injected prompt-adapter tests, package and dependency verification,
+      and refreshed human documentation without changing the Spendly agent
+      contract.
+- [x] Hand the implemented Phase 8.8 interaction baseline to Phase 8.9; final
+      human terminal verification is consolidated in Phase 8.10.
+
+The current input audit, approved prompt semantics, complete command matrix,
+safety boundaries, implementation architecture, and verification plan are
+recorded in
+[Spendly CLI Phase 8.8: Guided Interactive Inputs](spendly-cli-phase-8.8.md).
+
+### Phase 8.9: Human CLI UX Polish
+
+Exit criterion: the implemented CLI lets a first-time human discover guided
+mode, navigate prompts
+without relying on color, understand responsive results and pagination,
+distinguish previews from saved mutations, and recover from common errors while
+the versioned JSON/backend contract remains unchanged and the public command
+vocabulary matches Spendly Web.
+
+- [x] Finish the approved Add/Edit Spendly Web vocabulary, including
+      `Add this account?` confirmation; preserve JSON envelopes,
+      exit-code meanings, stdout/stderr boundaries, stable-ID rules, mutation
+      safety invariants, and opt-in `--interactive` behavior.
+- [x] Improve root, group, and leaf help with grouped discovery, guided and
+      flag-based examples, accurate defaults, safe typo suggestions, and
+      zsh/bash/fish completion.
+- [x] Standardize select, radio, multiselect, checkbox, disabled, and search
+      states with non-color focus; add second-level launcher Back navigation,
+      static single-select rows without checkbox markers plus accepted-label
+      feedback, static multiselect accepted-label feedback, normalized prompt
+      punctuation, progress, review/edit, loading, cancellation, selected
+      counts, and large-list viewport behavior.
+- [x] Replace fixed-width human tables with responsive 40-, 80-, and 120-column
+      layouts; consistently format money, dates, status, IDs, descriptions, and
+      transaction types.
+- [x] Normalize legacy timezone aliases such as `Asia/Calcutta` to the modern
+      `Asia/Kolkata` name in default human output without changing date
+      calculations, timezone semantics, or machine output.
+- [x] Make active filters, result counts, continuation state, cursors, and
+      contextual empty states visible in human list output and guided flows.
+- [x] Resolve resource-backed filters to human names in human output, and omit
+      opaque cursor continuation commands after guided-mode Done while
+      preserving stable IDs and cursors in machine and non-interactive output.
+- [x] Redesign mutation output around a prominent preview-only banner, focused
+      field diff, balance/ledger effects, one-warning-per-line hierarchy, safe
+      confirmations, concise success summaries, and one useful next action.
+- [x] Replace raw resource IDs, internal ledger tokens, and ID-oriented labels
+      in default human mutation previews and success results with readable
+      expense targets, financial effects, and resolved category, account,
+      cycle, tag, and ledger labels; retain stable IDs in machine,
+      explicit-detail, and intentional copyable-command output.
+- [x] Treat a human default-No/declined destructive confirmation as successful
+      cancellation with no write and exit code 0; retain confirmation-required
+      errors for non-interactive contract violations.
+- [x] Show the resolved currency in guided starting-balance, desired-balance,
+      and transfer-amount prompt titles before accepting monetary input.
+- [x] Add guided Archive/Reactivate account multiselect with one combined
+      preview, per-account revision validation, one default-No confirmation, and
+      an atomic all-or-nothing commit; preserve explicit single-account and JSON
+      contracts.
+- [x] Select account/source/destination before guided balance or transfer money
+      inputs, use action-specific Make default/Archive/Reactivate copy and
+      focused diffs, and move stable IDs out of default human account previews.
+- [x] Show stable error codes with field-aware recovery, including in-flow
+      Change date/Choose another cycle/Cancel handling for a guided summary date
+      with no cycle; improve authentication
+      waiting/status/logout states, and preserve the uncertain-mutation rule.
+- [x] Add screen-reader/static mode, ASCII and `TERM=dumb` fallbacks, robust
+      `--no-color` behavior, terminal-height handling, and cursor/raw-mode
+      restoration coverage.
+- [x] Refresh installed help, npm README, public docs, troubleshooting, and
+      validators; pass automated, PTY, accessibility, package, and
+      representative first-time-user checks.
+
+The complete audit, decisions, per-command improvements, implementation order,
+and verification matrix are recorded in
+[Spendly CLI Phase 8.9: Human CLI UX Polish](spendly-cli-phase-8.9.md).
+
+### Phase 8.10: Manual Interactive Terminal Verification
+
+Exit criterion met: the maintainer reconciled every public command family
+against real-terminal usability, existing development end-to-end evidence, and
+current automated commit contracts; cleaned up disposable test state; recorded
+non-sensitive evidence; and reverified all 18 corrected findings.
+
+- [x] Verify root discovery and the Add/Edit Spendly Web vocabulary in help and
+      the guided launcher.
+- [x] Verify visible focus before selection, arrow/Space/Enter behavior,
+      date-segment focus, validation, Escape, and prompt cancellation.
+- [x] Verify no-color, static `--accessible`/`ACCESSIBLE=1`, `TERM=dumb`, and
+      screen-reader behavior in a real terminal.
+- [x] Exercise every guided read command, resource selector, filter builder,
+      include-archived choice, and user-controlled pagination path.
+- [x] Exercise expense add/edit/delete dry runs and cancel their live
+      confirmations, including the no-cycle category explanation,
+      onboarding currency, ID-free selector hints, and readable human preview
+      targets instead of raw stable IDs.
+- [x] Exercise account add/edit/lifecycle/adjustment/transfer dry runs and
+      cancel representative live confirmations, including eligibility and
+      warning states.
+- [x] Reconcile every public function against current manual prompt/preview/read
+      evidence, earlier committed development records, and focused automated
+      commit tests; do not repeat successful mutations solely to duplicate
+      evidence. Archive any disposable accounts created during verification.
+- [x] Confirm real-terminal authentication login/status and automated coverage
+      for logout, refresh, browser callback, credential removal, and shell
+      completion; retain the automated suite as the 40/80/120-column layout gate.
+- [x] Inspect loading, delayed-request feedback, typo recovery, no-color output,
+      and terminal cleanup.
+- [x] Record the supported-runtime manual pass, functional reconciliation,
+      targeted retest, and resolution of all blocking findings.
+
+The exact commands, expected behavior, no-write safety boundary, and evidence
+record are in
+[Spendly CLI Phase 8.10: Manual Interactive Terminal Verification](spendly-cli-phase-8.10.md).
+
+### Phase 8.11: MCP Reuse Readiness
+
+Exit criterion: every CLI read, preview, and commit is called through a typed,
+headless operation layer that is also exercised by a non-shipping MCP
+`2026-07-28` TypeScript SDK v2 compatibility harness, without changing the
+released CLI contract or shipping an MCP server.
+
+- [x] Extract structured operations from Commander, Clack, CLI authentication,
+      progress, rendering, and process streams.
+- [x] Inject an authenticated backend gateway, optional abort signal, progress
+      sink, and adapter-owned invocation origin; keep local-date and
+      idempotency-key generation in the invoking adapter.
+- [x] Share Zod input/output schemas, domain parsing, and typed errors without
+      coupling the core to either the CLI or MCP SDK.
+- [x] Keep `cli/v1` backward compatible while extracting backend wrapper logic
+      that a future MCP namespace can call without importing CLI-specific code.
+- [x] Prove representative paginated read, resource read, mutation preview, and
+      commit handlers reuse the exact same operations through an MCP v2
+      compatibility harness excluded from the production package.
+- [x] Verify MCP JSON Schema 2020-12 structured results, tool-error mapping,
+      private financial caching, stdout purity, and practical cancellation.
+- [x] Preserve dry-run/commit parity, revisions, idempotency, deletion handles,
+      ledger effects, stable IDs, CLI output, and accurate provenance.
+- [x] Re-run local CLI/backend/Web integration gates and the affected Phase 8.10
+      terminal paths against the current post-refactor checkout; the Phase 9
+      publication-candidate freeze remains separate.
+
+The protocol research, reuse audit, target architecture, implementation order,
+and verification matrix are recorded in
+[Spendly CLI Phase 8.11: MCP Reuse Readiness](spendly-cli-phase-8.11.md).
+
+### Phase 8.12: Raycast Reuse Readiness
+
+Exit criterion: the same headless operation service can be invoked from a
+Raycast-owned adapter, with a separate native UI and OAuth boundary, without
+adding Raycast code or dependencies to the CLI artifact.
+
+- [x] Review the current Raycast manifest, managed Node/TypeScript runtime,
+      native React UI, pagination, OAuth, encrypted storage, Store review, and
+      publication model.
+- [x] Audit every major CLI layer and identify the operation, schema, gateway,
+      cancellation, provenance, UI, authentication, and packaging boundaries.
+- [x] Add a trusted `raycast` invocation origin and prove commit decoration does
+      not alter preview inputs or couple the core to CLI provenance.
+- [x] Map the initial overview, expense, and account commands to native List,
+      Detail, Form, ActionPanel, Alert, and Toast surfaces.
+- [x] Define a separate Clerk public-client and Raycast PKCE/token-storage
+      design; prohibit the CLI loopback callback and native keyring in the
+      extension.
+- [x] Record the public Store packaging decision gate: publish a versioned
+      shared package, generate a hash-verified source snapshot, or prove a
+      private-store workspace package. Reject direct `apps/cli` imports,
+      `workspace:*` in a public extension, hand-maintained forks, and spawning
+      the CLI.
+- [x] Keep Raycast dependencies, entrypoints, UI, OAuth, and publication out of
+      the initial CLI release.
+- [x] Run focused operation tests, CLI typecheck, formatting, and diff checks.
+
+The research, reuse audit, command mapping, authentication design, packaging
+gate, and future implementation order are recorded in
+[Spendly CLI Phase 8.12: Raycast Reuse Readiness](spendly-cli-phase-8.12.md).
+
 ### Phase 9: Packaging and Release
 
-- [ ] Add CI for format, lint, typecheck, tests, package build, and tarball
-      inspection.
-- [ ] Add macOS and Linux test coverage.
-- [ ] Verify `npm whoami` and package availability immediately before publish.
-- [ ] Generate npm provenance and dependency-audit results.
-- [ ] Verify development end-to-end gates before merge.
-- [ ] Deploy `/docs/cli` and verify its stable production URL.
-- [ ] Publish `spendly@0.1.0` with tag `next`.
-- [ ] Verify clean global installation and production login.
-- [ ] Verify the published package, CLI help, and skills.sh bundle link to the
-      production documentation.
-- [ ] Resolve beta findings before publishing `1.0.0` with tag `latest`.
+Phase 9 has two explicit gates. Part 1 ends when the unsuffixed `0.1.0` package
+is published on `next` from a reproducible, production-only release. Part 2
+proves that a user can discover, install, authenticate, and safely use that
+exact package before Spendly promotes it unchanged to the default `latest` tag.
+
+Phase 9 starts only after Phases 8.7, 8.8, 8.9, 8.10, 8.11, and 8.12 hand off a
+reviewed, release-ready source baseline containing the guided input layer,
+maintainer-verified human CLI UX, the proven headless operation boundary, and
+the recorded MCP and Raycast reuse contracts. Phase 9 adds the approved public
+package metadata and production identifiers, reruns every affected gate, and
+then freezes the immutable publication candidate. No source or package change
+is allowed after that freeze.
+
+The detailed operator sequence, including the one-time first-publication
+bootstrap and exact npmjs.com settings, is authoritative in the
+[Spendly CLI release runbook](spendly-cli-release-runbook.md). No npm version,
+dist-tag, package setting, token, GitHub environment, production deployment, or
+production test data may be created before the applicable checklist item below
+is ready and reviewed.
+
+#### Part 0: Production Configuration and Publication Candidate Freeze
+
+- [ ] Receive the reviewed Phase 8.7 through Phase 8.12 source baseline with all
+      remaining non-production and human-terminal gates
+      complete.
+- [ ] Provision the production Clerk OAuth public client and approved Convex,
+      Clerk, Web, and documentation endpoints. Compile only public production
+      identifiers into the CLI, set `authReady` to `true`, and prove that no
+      development selector, endpoint, credential, or secret enters the build.
+- [ ] Select and approve the public software license, add the root license file
+      and npm `license` metadata, remove `private: true`, and make release
+      metadata validation reject a private or unlicensed package.
+- [ ] Put the stable production `/docs/cli` URL and exact initial-release
+      instructions in the npm README, installed CLI help, default-branch skill,
+      and public Web documentation before the candidate freeze.
+- [ ] Create `.github/workflows/cli-publish.yml` on the default branch. It must
+      use a GitHub-hosted runner, Node.js 24, npm 11.15 or newer,
+      `contents: read`, `id-token: write`, and the `cli-release` environment;
+      it must download and publish the recorded candidate tarball without
+      rebuilding it.
+- [ ] On GitHub, create the `cli-release` environment before either release
+      workflow runs. Restrict deployment to `master` and approved `v*` release
+      tags, configure an available trusted reviewer where practical, and keep
+      every publish secret scoped to this environment only.
+- [ ] Rerun the complete Phase 8.7 release suite and every check affected by the
+      production configuration, public manifest, documentation, or workflow.
+      Review and merge the exact release commit to `master`, then run the
+      candidate workflow and record the commit, `0.1.0` version, workflow run,
+      tarball filename, `SOURCE_COMMIT`, and SHA-256. This is the immutable
+      publication candidate.
+- [ ] Confirm the npm maintainer account has a verified email, account 2FA and
+      recoverable second-factor setup, and working interactive access. Record
+      only the `npm whoami` username and pass/fail state.
+
+#### Part 1: Package and Release
+
+Exit criterion: `spendly@0.1.0` is published on the npm `next` tag with verified
+provenance, production configuration, documentation, and macOS/Linux release
+evidence.
+
+- [ ] Confirm the immutable candidate contains the approved public npm manifest:
+      license, README, repository, homepage, bugs, keywords, supported Node
+      engine, publish guardrails, and only the files required by the installed
+      CLI.
+- [ ] Deploy `/docs/cli` and verify its stable public production URL, signed-out
+      access, search, redirects, and agreement with the already-frozen npm
+      README, installed CLI help, and skills.sh-facing content.
+- [ ] Run the Phase 8.7 release CI gates for formatting, linting, explicit
+      CLI/backend/Web typechecks, automated tests, production builds,
+      documentation validation, dependency audit, and tarball inspection.
+- [ ] Run the supported Node version matrix on macOS and Linux, including the
+      native keychain/Secret Service canary and an isolated tarball install
+      outside the monorepo; advertise Linux support only after it passes.
+- [ ] Repeat the full development end-to-end acceptance flow before production
+      deployment, then verify the frozen publication commit is unchanged,
+      reviewed, version-consistent, and contains no secrets or stale build
+      output.
+- [ ] Deploy the release-compatible Convex backend and Spendly Web application
+      to production in the approved backward-compatible order; complete every
+      resumable revision/search migration, verify the cleanup cron, CLI facade,
+      Clerk issuer/audience, public documentation, and Web provenance views,
+      and record non-personal deployment evidence before making the package
+      available.
+- [ ] Verify the maintainer account and ownership with `npm whoami`, confirm the
+      unscoped `spendly` package name is publishable, and independently verify
+      the approved first-publication workflow, environment, 2FA, temporary-token
+      scope, and provenance controls immediately before publishing.
+- [ ] Recheck that the unscoped `spendly` name is unclaimed immediately before
+      the first publish. A registry `404` is only a point-in-time availability
+      check; the name is claimed only by a successful publication.
+- [ ] On npmjs.com, create one short-lived granular bootstrap token for the first
+      publication only: one-day expiry, package permission `Read and write
+      (publish and stage)`, all packages because `spendly` does not yet exist,
+      no organization permission, and bypass 2FA enabled. Store it only as the
+      `NPM_TOKEN` secret in the protected `cli-release` GitHub environment.
+- [ ] Inspect the final `npm pack` contents and metadata, generate the production
+      dependency-audit result, and have the approved GitHub-hosted workflow
+      publish the recorded tarball as `spendly@0.1.0` with `--tag next`,
+      `--access public`, and provenance. Do not publish from a developer laptop
+      or rebuild the artifact.
+- [ ] Verify the registry version, `next` dist-tag, integrity/provenance record,
+      `npm audit signatures`, package contents, README, and clean installation
+      from npm.
+- [ ] After the package page exists, configure npm trusted publishing with
+      GitHub user `akhilesh-dalvi`, repository `spendly`, workflow filename
+      `cli-publish.yml`, environment `cli-release`, and stage-only permission.
+      npm does not validate these fields when saved, so check spelling and case
+      against the committed workflow.
+- [ ] On npmjs.com, change Publishing access to `Require two-factor
+      authentication and disallow tokens`; then delete the GitHub `NPM_TOKEN`
+      secret and revoke the bootstrap token. Record pass/fail only, never the
+      token or recovery information.
+
+#### Part 2: User Availability and Default-Channel Promotion
+
+Exit criterion: a new user can follow the public documentation from a clean
+supported computer, sign in to production, use Spendly safely as a human or
+through Codex/Claude Code, and install the validated `0.1.0` release from npm's
+default `latest` tag.
+
+- [ ] On clean macOS and Linux environments, globally install `spendly@next`
+      from npm and verify `spendly --version`, top-level help, nested help,
+      human-readable output, JSON output, and documented error exit codes.
+- [ ] Complete production browser login, status, refresh, 30-day expiry, and
+      logout checks; also verify the documented `ACCOUNT_SETUP_REQUIRED` path
+      for a user who has not completed Spendly Web setup.
+- [ ] Run representative production read and mutation workflows for expenses,
+      accounts, adjustments, and transfers, then reconcile balances, ledger
+      entries, and direct-CLI versus AI-agent provenance in Spendly Web.
+- [ ] Install the public Spendly skill through skills.sh in clean Codex and
+      Claude Code environments and verify that both use the published CLI,
+      stable documentation, `--agent --json --non-interactive`, and the approved
+      mutation-safety workflow.
+- [ ] Update the public quick start from release-preview wording to the exact live
+      install and sign-in flow, and verify every npm README, CLI-help, skill, and
+      Web documentation link works for signed-out users.
+- [ ] Publish clear supported-platform, Node-version, privacy, troubleshooting,
+      issue-reporting, upgrade, and uninstall guidance without collecting
+      credentials or financial payloads in reports.
+- [ ] Monitor and triage `0.1.0` installation, authentication, native credential
+      store, command-contract, and documentation findings. If code changes are
+      required, publish a higher `0.x` candidate on `next` and repeat the
+      affected release and user checks.
+- [ ] Resolve all release-blocking findings and rerun the initial-release
+      acceptance criteria on the exact package selected for promotion.
+- [ ] From an interactively authenticated maintainer session with 2FA, run
+      `npm dist-tag add spendly@0.1.0 latest` and verify with
+      `npm dist-tag ls spendly`. Trusted-publisher OIDC is limited to publishing
+      and staging and is not the authorization path for this tag change.
+- [ ] Verify a clean default `npm install --global spendly`, production login,
+      core workflows, skill usage, documentation links, and the final npm
+      dist-tags. Do not rebuild, republish, or publish `1.0.0` as part of Phase
+      9.
+
+#### Later `0.x` Publications
+
+- [ ] Publish later `0.x` candidates from `cli-publish.yml` with trusted
+      publishing and `npm stage publish --tag next`; do not restore a long-lived
+      npm write token.
+- [ ] Review the staged package contents and malware-scan state on npmjs.com,
+      approve or reject it with maintainer 2FA, and repeat the affected clean
+      installation and user-availability checks before changing `latest`.
+- [ ] Use `0.1.x` for compatible fixes and a later `0.x` minor for substantial
+      features or contract changes. Treat every published version as immutable.
 
 ### Later Phases
 
@@ -1232,10 +1716,14 @@ The approved implementation design and verification checklist are recorded in
 - [ ] Add permanent account deletion only after the backend defines eligibility,
       history preservation, confirmation, and recovery behavior.
 - [ ] Design safe mutations for cycles, categories, category types, and tags.
-- [ ] Evaluate export and MCP surfaces that reuse `cli/v1`.
+- [ ] Implement and release the MCP server from the Phase 8.11 shared operation
+      boundary and the then-current MCP specification.
+- [ ] Implement and release the Spendly Raycast extension from the Phase 8.12
+      boundary, beginning with a read-only native prototype and separate Clerk
+      public-client proof.
 - [ ] Design a product-wide trash system only if both Web and CLI adopt it.
 
-## 22. Version 1 Acceptance Criteria
+## 22. Initial Release Acceptance Criteria
 
 - [ ] A source checkout authenticates against Clerk and Convex development
       without weakening issuer or audience checks.
@@ -1243,25 +1731,41 @@ The approved implementation design and verification checklist are recorded in
       production browser login without copying a secret.
 - [ ] A missing Spendly backend user receives `ACCOUNT_SETUP_REQUIRED`.
 - [ ] Humans receive readable output by default; JSON requires `--json`.
+- [ ] Humans can use guided stable-ID selects, tag and field multiselects,
+      validated text/date inputs, and preview-backed confirmations for every
+      applicable command without removing the equivalent explicit flags.
+- [ ] Human help exposes both guided and flag-based paths, and guided prompts
+      make focus, selection, progress, loading, cancellation, and review/edit
+      state understandable without relying on color.
+- [ ] Human lists remain readable at supported terminal widths and visibly
+      report active filters, result counts, continuation state, and contextual
+      empty states.
+- [ ] Human mutation output clearly separates preview from commit, emphasizes
+      changed fields and balance effects, and renders warnings, success, stable
+      error codes, and safe recovery actions consistently.
+- [ ] JSON, `--non-interactive`, `--agent`, piped, and non-TTY execution never
+      renders or waits on an interactive prompt.
 - [ ] JSON stdout contains exactly one parseable versioned document.
-- [ ] Agents use `--json --non-interactive` and stable IDs.
+- [ ] Agents use `--agent --json --non-interactive` and stable IDs.
+- [ ] Agent mutations also use `--agent`; direct CLI and AI-agent commits show
+      distinct accessible provenance indicators in Spendly Web.
 - [ ] Omitted dates resolve to the computer's local date and report timezone.
 - [ ] Category inference occurs only under the approved history rule.
 - [ ] Tags are never inferred or created.
-- [ ] An agent can list, get, create, update, and permanently delete one expense.
+- [ ] An agent can list, get, add, edit, and permanently delete one expense.
 - [ ] An agent can list and inspect accounts, account transactions, and account
       types.
-- [ ] An agent can create, edit, archive, reactivate, and make an account
+- [ ] An agent can add, edit, archive, reactivate, and make an account
       default without mutating account types or deleting history.
 - [ ] Balance adjustment records only the difference between cached and desired
       balances; same-currency transfer updates both accounts atomically.
-- [ ] Account-backed expense create, update, move, clear, and delete keep cached
+- [ ] Account-backed expense add, edit, move, clear, and delete keep cached
       balances and ledger history synchronized.
 - [ ] Archived accounts remain readable but reject new expenses, adjustments,
       and transfers.
 - [ ] Dry run and commit share normalization and validation.
 - [ ] Reusing an idempotency key cannot create a duplicate within 30 days.
-- [ ] A stale update or delete cannot overwrite a newer revision.
+- [ ] A stale edit or delete cannot overwrite a newer revision.
 - [ ] A non-interactive delete cannot commit without a valid short-lived token.
 - [ ] Cross-user IDs cannot be read or mutated.
 - [ ] Mutation transport failures are not automatically retried.
@@ -1269,13 +1773,17 @@ The approved implementation design and verification checklist are recorded in
 - [ ] The npm tarball exposes production only and contains no secrets or
       development configuration.
 - [ ] The package works outside the monorepo on macOS and Linux.
-- [ ] The skills.sh-installed skill passes Codex and Claude Code evaluations.
 - [ ] `/docs/cli` is public, searchable, responsive, and accessible without a
       Spendly account.
 - [ ] Public command examples and flags pass automated checks against the
       production CLI build and contain only synthetic data.
 - [ ] The npm package, CLI help, and Spendly skill link to the stable CLI
       documentation URL.
+- [ ] Every CLI read, preview, and commit uses the typed headless operation
+      boundary proven by the non-shipping MCP v2 compatibility harness.
+- [ ] The MCP compatibility harness and SDK remain outside the production CLI
+      tarball and dependency graph, while affected Phase 8.10 checks pass after
+      the extraction.
 
 ## 23. Remaining Technical Decisions
 
@@ -1290,6 +1798,8 @@ be made during their phase and validated with tests:
   fingerprint stored by the CLI facade.
 - The exact backoff constants for safe read retries.
 - The package provenance and CI provider configuration.
+- The eventual local STDIO versus remote Streamable HTTP MCP deployment model,
+  authorization scopes, and MCP-specific provenance presentation.
 
 Any discovery that requires weakening the approved authentication, ownership,
 idempotency, revision, deletion, privacy, or environment boundaries requires a
@@ -1297,23 +1807,26 @@ new product decision.
 
 ## 24. Risks and Mitigations
 
-| Risk                                             | Impact                                        | Mitigation                                                                 |
-| ------------------------------------------------ | --------------------------------------------- | -------------------------------------------------------------------------- |
-| OAuth token audience is incompatible with Convex | CLI cannot authenticate safely                | Make the real development proof a merge gate; never weaken audience checks |
-| Agent retry creates a duplicate                  | Incorrect financial history                   | Require server idempotency and explicit same-key retry                     |
-| Web edit races with an agent                     | Newer data is overwritten                     | Increment and require expense revisions across Web and CLI                 |
-| Deletion targets stale data                      | Permanent data loss                           | Require a five-minute single-use token bound to ID and revision            |
-| Duplicate names resolve incorrectly              | Misclassified expense                         | Require IDs for agents and one exact scoped match for humans               |
-| Machine timezone differs from user intent        | Wrong date or cycle                           | Report local timezone and stop when wording or detection is uncertain      |
-| Currency is interpreted as conversion            | Historical values appear incorrect            | Mirror Web's user-level display model and never convert                    |
-| Expense or adjustment bypasses the ledger        | Cached balance and history diverge            | Share ledger helpers across Web and CLI and test cached-balance parity     |
-| Transfer targets the wrong or stale account      | Two balances are corrupted                    | Require IDs for agents, dry run, idempotency, and both account revisions   |
-| Archived account receives new activity           | Closed financial history changes unexpectedly | Reject new expense assignment, adjustment, and transfer server-side        |
-| Tokens leak through files or output              | Account compromise                            | Use keychain, explicit secure fallback, redaction, and leakage tests       |
-| Published package reaches development            | Data or auth isolation failure                | Bake production configuration into releases and keep dev source-only       |
-| Skill and CLI contracts drift                    | Agent performs unsafe or invalid calls        | Version JSON, release together, and run Codex/Claude evaluations           |
-| Public CLI documentation drifts from the binary  | Users run invalid or unsafe commands          | Validate documented commands against the production CLI build in CI        |
-| Documentation exposes private configuration      | Credentials or internal endpoints leak        | Use synthetic fixtures and scan generated output before deployment         |
+| Risk                                             | Impact                                             | Mitigation                                                                                                 |
+| ------------------------------------------------ | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| OAuth token audience is incompatible with Convex | CLI cannot authenticate safely                     | Make the real development proof a merge gate; never weaken audience checks                                 |
+| Agent retry creates a duplicate                  | Incorrect financial history                        | Require server idempotency and explicit same-key retry                                                     |
+| Web edit races with an agent                     | Newer data is overwritten                          | Increment and require expense revisions across Web and CLI                                                 |
+| Deletion targets stale data                      | Permanent data loss                                | Require a five-minute single-use token bound to ID and revision                                            |
+| Duplicate names resolve incorrectly              | Misclassified expense                              | Require IDs for agents and one exact scoped match for humans                                               |
+| Machine timezone differs from user intent        | Wrong date or cycle                                | Report local timezone and stop when wording or detection is uncertain                                      |
+| Currency is interpreted as conversion            | Historical values appear incorrect                 | Mirror Web's user-level display model and never convert                                                    |
+| Expense or adjustment bypasses the ledger        | Cached balance and history diverge                 | Share ledger helpers across Web and CLI and test cached-balance parity                                     |
+| Transfer targets the wrong or stale account      | Two balances are corrupted                         | Require IDs for agents, dry run, idempotency, and both account revisions                                   |
+| Archived account receives new activity           | Closed financial history changes unexpectedly      | Reject new expense assignment, adjustment, and transfer server-side                                        |
+| Tokens leak through files or output              | Account compromise                                 | Use keychain, explicit secure fallback, redaction, and leakage tests                                       |
+| Published package reaches development            | Data or auth isolation failure                     | Bake production configuration into releases and keep dev source-only                                       |
+| Skill and CLI contracts drift                    | Agent performs unsafe or invalid calls             | Version JSON, release together, and run Codex/Claude evaluations                                           |
+| Public CLI documentation drifts from the binary  | Users run invalid or unsafe commands               | Validate documented commands against the production CLI build in CI                                        |
+| Documentation exposes private configuration      | Credentials or internal endpoints leak             | Use synthetic fixtures and scan generated output before deployment                                         |
+| A prompt selects the wrong financial resource    | Expense or account history is changed incorrectly  | Submit stable IDs, show disambiguating context, preview mutations, and never auto-select ambiguous targets |
+| Interactive prompts break scripts or JSON output | Automation hangs or stdout becomes unparsable      | Gate on explicit human TTY eligibility and prove machine modes never prompt                                |
+| CLI orchestration cannot be reused by MCP        | Future MCP work duplicates safety logic and drifts | Extract a typed headless operation layer and prove it with a non-shipping MCP v2 harness before release    |
 
 ## 25. References
 
@@ -1329,5 +1842,9 @@ new product decision.
 - [Fumadocs quick start](https://www.fumadocs.dev/docs)
 - [Fumadocs Next.js installation](https://www.fumadocs.dev/docs/manual-installation/next)
 - [Fumadocs search](https://www.fumadocs.dev/docs/search)
-- [Spendly documentation index](README.md)
+- [Clack prompts](https://bomb.sh/docs/clack/packages/prompts/)
+- [MCP `2026-07-28` specification](https://modelcontextprotocol.io/specification/2026-07-28)
+- [MCP `2026-07-28` changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog)
+- [MCP TypeScript SDK v2](https://ts.sdk.modelcontextprotocol.io/v2/)
+- [Spendly repository README](../README.md)
 - [Spendly backend documentation](../packages/backend/convex/README.md)

@@ -1,9 +1,12 @@
 import type { Command } from "commander";
 
 export interface GlobalOptions {
+	accessible: boolean;
+	agent: boolean;
 	allowFileStorage: boolean;
 	color: boolean;
 	debug: boolean;
+	interactive: boolean;
 	json: boolean;
 	nonInteractive: boolean;
 	retry: boolean;
@@ -20,6 +23,7 @@ export const resolveGlobalOptions = (
 	const options = command.optsWithGlobals<GlobalOptions>();
 	return {
 		...options,
+		accessible: options.accessible || environment.ACCESSIBLE === "1",
 		color: options.color && environment.NO_COLOR === undefined && !options.json,
 	};
 };

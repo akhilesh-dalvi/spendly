@@ -30,9 +30,9 @@ No CLI code should be merged or published until the technical proof passes.
 
 ### 2.1 Audience and Scope
 
-- Version 1 is local-agent-first and remains usable by humans.
+- The initial release is local-agent-first and remains usable by humans.
 - Official agent support: Codex and Claude Code.
-- Version 1 provides full CRUD for individual expenses.
+- The initial release provides full CRUD for individual expenses.
 - Bulk mutations are excluded.
 - Accounts can be listed, inspected, created, edited, archived, reactivated,
   made default, reconciled through balance adjustments, and used in transfers.
@@ -48,9 +48,10 @@ No CLI code should be merged or published until the technical proof passes.
 
 ### 2.2 Platforms and Toolchain
 
-- Node.js 20 or newer.
+- Phase 0 originally validated Node.js 20 or newer. The current pre-release
+  support policy supersedes that baseline with Node.js 22 or newer.
 - macOS is verified for Phase 0.
-- Linux remains a version 1 target, but its native credential-store and package
+- Linux remains an initial-release target, but its native credential-store and package
   validation are deferred and must pass before Linux support is claimed.
 - Windows deferred.
 - Commander 14.
@@ -64,10 +65,13 @@ No CLI code should be merged or published until the technical proof passes.
 - Executable: `spendly`.
 - Do not use `@spendly/cli`; the project does not control the `@spendly` scope.
 - No npm organization is required.
-- First release: `spendly@0.1.0` with npm tag `next`.
-- Stable target: `spendly@1.0.0` with npm tag `latest`.
-- No production beta allowlist is needed because there are currently almost no
-  users.
+- First release: unsuffixed `spendly@0.1.0`, verified first with npm tag `next`
+  and then promoted unchanged to the default `latest` tag.
+- Continue with `0.1.x` fixes and later `0.x` feature or contract releases until
+  real user adoption proves the CLI is ready for a deliberate `1.0.0` stability
+  commitment.
+- No production release allowlist is needed because there are currently almost
+  no users.
 
 ### 2.4 Agent Skill Distribution
 
@@ -103,7 +107,7 @@ may set `DISABLE_TELEMETRY=1` when installing.
   expiry.
 - Keep the Clerk consent screen enabled.
 - No device flow, pasted tokens, client secrets, deploy keys, or headless login
-  in version 1.
+  in the initial release.
 
 ### 3.2 Authorization Lifetime
 
@@ -306,7 +310,9 @@ completion of the current macOS-scoped Phase 0.
 
 - Human-readable output is always the default.
 - JSON requires explicit `--json`.
-- Agents use `--json --non-interactive`.
+- Agents use `--agent --json --non-interactive`. The original Phase 0 proof
+  predated provenance labeling, so its historical commands did not include
+  `--agent`.
 - Do not infer machine mode from TTY state.
 - JSON stdout contains exactly one document.
 - Redacted debug diagnostics may use stderr only with `--debug`.
@@ -386,7 +392,7 @@ Failure:
 - Token is single-use and bound to user, configured deployment, expense ID, and
   revision. The configured deployment is production in the published package.
 - A changed expense invalidates the token.
-- Deletion is permanent in version 1; there is no trash or restore command.
+- Deletion is permanent in the initial release; there is no trash or restore command.
 
 ### 7.4 Retries
 
@@ -401,7 +407,7 @@ Failure:
 
 ### 8.1 Amount and Currency
 
-- Match Web's JavaScript-number storage in version 1.
+- Match Web's JavaScript-number storage in the initial release.
 - Accept ordinary base-10 decimal input of at least `0.01`.
 - Reject zero, negatives, non-finite values, and scientific notation.
 - Do not enforce two fractional digits.
@@ -487,12 +493,12 @@ Failure:
   expenses may remain linked to archived accounts.
 - Account names need not be unique. Non-interactive agents use IDs; humans may
   use an exact name only when it resolves to one account.
-- Archive and reactivate preserve history. Version 1 has no permanent account
+- Archive and reactivate preserve history. The initial release has no permanent account
   delete, transfer edit/delete, or direct ledger-entry mutation command.
 
 ## 9. Observability Decision
 
-Do not build a persistent mutation audit table in version 1. Remove claims that
+Do not build a persistent mutation audit table in the initial release. Remove claims that
 the release provides a durable audit trail.
 
 Sentry and PostHog may be added later. Their future design must not send expense
@@ -549,7 +555,7 @@ payloads. Provider observability does not replace idempotency or authorization.
 - [x] Document account management, ledger reads, expense assignment, balance
       adjustment, and transfer scope after the accounts backend merge.
 - [x] Document account types as read-only and account deletion as excluded from
-      version 1.
+      the initial release.
 - [x] Confirm browser PKCE login and five-minute random loopback callback.
 - [x] Confirm 30-day authorization and logout scope.
 - [x] Confirm keychain-first and explicit secure file fallback.
@@ -558,10 +564,12 @@ payloads. Provider observability does not replace idempotency or authorization.
 - [x] Confirm JSON envelope, exit codes, and output-mode behavior.
 - [x] Confirm dry-run, idempotency, revisions, deletion token, and retry policy.
 - [x] Confirm currency, amount, date, cycle, selector, category, and tag rules.
-- [x] Confirm no persistent audit table in version 1.
+- [x] Confirm no persistent audit table in the initial release.
 - [x] Confirm Codex and Claude Code skill distribution through skills.sh.
-- [x] Confirm npm `next` beta followed by `latest` stable.
-- [x] Confirm no production beta allowlist.
+- [x] Confirm unsuffixed `0.1.0` verification on `next`, followed by promotion
+      of the unchanged package to `latest`, with later releases remaining in
+      `0.x` until the contract is proven stable through real usage.
+- [x] Confirm no production release allowlist.
 - [x] Confirm Web-first backend-user setup.
 
 ### Technical Proof

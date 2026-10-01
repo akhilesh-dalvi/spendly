@@ -110,12 +110,17 @@ const verifyStoredIdentity = async (
 
 const writeAuthSuccess = (
 	data: unknown,
+	human: string,
 	context: AuthCommandContext,
 	runtime: CliRuntime
 ): void => {
 	const meta =
 		context.warnings.length > 0 ? { warnings: context.warnings } : {};
-	writeSuccess(data, { globalOptions: context.globalOptions, runtime }, meta);
+	writeSuccess(
+		context.globalOptions.json ? data : human,
+		{ globalOptions: context.globalOptions, runtime },
+		meta
+	);
 };
 
 const getRevocationStatus = (result: {
@@ -128,12 +133,30 @@ const getRevocationStatus = (result: {
 	return result.revocationConfirmed ? "confirmed" : "not-confirmed";
 };
 
+const getLogoutMessage = (result: {
+	hadSession: boolean;
+	revocationConfirmed: boolean;
+}): string => {
+	if (!result.hadSession) {
+		return "Already signed out. No local Spendly credentials were found.";
+	}
+	if (result.revocationConfirmed) {
+		return "Signed out of Spendly. Local credentials were removed.";
+	}
+	return "Local credentials removed; remote revocation was not confirmed.";
+};
+
 export const runAuthKeychainTest = (
 	command: Command,
 	runtime: CliRuntime
 ): Promise<void> => {
 	const context = getAuthContext(command, runtime);
-	writeAuthSuccess(runKeychainSmokeTest(), context, runtime);
+	writeAuthSuccess(
+		runKeychainSmokeTest(),
+		"Credential store check passed.",
+		context,
+		runtime
+	);
 	return Promise.resolve();
 };
 
@@ -156,6 +179,13 @@ export const runAuthLogin = async (
 		);
 	}
 
+	if (!context.globalOptions.json) {
+		runtime.stderr.write(
+			options.browser
+				? "Opening a browser and waiting for Spendly sign-in...\n"
+				: "Waiting for Spendly sign-in on this computer...\n"
+		);
+	}
 	await login({
 		config: context.config,
 		openBrowser: options.browser ? undefined : async () => false,
@@ -169,12 +199,22 @@ export const runAuthLogin = async (
 					"The browser could not be opened; retry without --json to receive the same-machine authorization URL"
 				);
 			}
-			runtime.stderr.write(`Open this URL on this computer:\n${url}\n`);
+			runtime.stderr.write(
+				`Open this URL on this computer. Do not share it:\n${url}\n`
+			);
 		},
 		store: context.store,
 	});
 	const proof = await verifyStoredIdentity(context);
-	writeAuthSuccess({ authenticated: true, ...proof }, context, runtime);
+	writeAuthSuccess(
+		{ authenticated: true, ...proof },
+		[
+			"Signed in to Spendly.",
+			`Currency: ${proof.currency ?? "not configured"}`,
+		].join("\n"),
+		context,
+		runtime
+	);
 };
 
 export const runAuthLogout = async (
@@ -195,6 +235,7 @@ export const runAuthLogout = async (
 			localCredentialsRemoved: true,
 			remoteRevocation: getRevocationStatus(result),
 		},
+		getLogoutMessage(result),
 		context,
 		runtime
 	);
@@ -208,6 +249,7 @@ export const runAuthRefreshTest = async (
 	const proof = await verifyStoredIdentity(context, { forceRefresh: true });
 	writeAuthSuccess(
 		{ authenticated: true, refreshConfirmed: true, ...proof },
+		"Spendly session refresh confirmed.",
 		context,
 		runtime
 	);
@@ -219,5 +261,13 @@ export const runAuthStatus = async (
 ): Promise<void> => {
 	const context = getAuthContext(command, runtime);
 	const proof = await verifyStoredIdentity(context);
-	writeAuthSuccess({ authenticated: true, ...proof }, context, runtime);
+	writeAuthSuccess(
+		{ authenticated: true, ...proof },
+		[
+			"Signed in to Spendly.",
+			`Currency: ${proof.currency ?? "not configured"}`,
+		].join("\n"),
+		context,
+		runtime
+	);
 };

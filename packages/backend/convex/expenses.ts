@@ -3,6 +3,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, type QueryCtx, query } from "./_generated/server";
 import { resolveAccountTypeMetadata } from "./accountTypeHelpers";
 import { nullableResolvedAccountTypeFields } from "./accountTypeValidators";
+import { actionSourceValidator } from "./domain/actionSource";
 import {
 	commitExpenseCreate,
 	commitExpenseDelete,
@@ -23,9 +24,11 @@ const expenseDocumentFields = {
 	amount: v.number(),
 	categoryId: v.optional(v.id("categories")),
 	createdAt: v.number(),
+	createdSource: v.optional(actionSourceValidator),
 	cycleId: v.optional(v.id("expense_cycles")),
 	date: v.string(),
 	revision: v.optional(v.number()),
+	lastModifiedSource: v.optional(actionSourceValidator),
 	spentOn: v.optional(v.string()),
 	tagIds: v.optional(v.array(v.id("tags"))),
 	userId: v.id("users"),
@@ -319,6 +322,7 @@ export const create = mutation({
 		const prepared = await prepareExpenseCreate(ctx, { input: args, user });
 		const expense = await commitExpenseCreate(ctx, {
 			prepared,
+			source: "web",
 			userId: user._id,
 		});
 		return presentExpenseDocument(expense);
@@ -343,7 +347,9 @@ export const update = mutation({
 			input: args,
 			user,
 		});
-		return presentExpenseDocument(await commitExpenseUpdate(ctx, prepared));
+		return presentExpenseDocument(
+			await commitExpenseUpdate(ctx, prepared, "web")
+		);
 	},
 });
 
@@ -354,6 +360,7 @@ export const remove = mutation({
 		const user = await getCurrentUser(ctx);
 		await commitExpenseDelete(ctx, {
 			expenseId: args.id,
+			source: "web",
 			userId: user._id,
 		});
 		return { success: true as const };

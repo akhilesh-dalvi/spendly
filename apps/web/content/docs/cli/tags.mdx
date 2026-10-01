@@ -1,0 +1,46 @@
+---
+title: Tags
+description: Find tags, attach them to expenses, and filter by them.
+---
+
+Tags add labels such as Travel or Work to expenses. One expense can have
+several tags. Tags are created and managed in Spendly Web.
+
+## Find existing tags
+
+```bash
+spendly tags list
+```
+
+The list shows each tag's name and ID. Reuse an existing tag that fits what
+you're recording.
+
+## Tag an expense
+
+Use your own tag names in these examples:
+
+```bash
+spendly expenses add --amount 12.50 --spent-on "Train ticket" \
+  --tag "Travel" --dry-run
+```
+
+To set tags on an existing expense, copy its ID from `expenses list`:
+
+```bash
+spendly expenses edit EXPENSE_ID --tag "Travel" --tag "Work" --dry-run
+```
+
+Remove `--dry-run` to save. When editing, supplied tags replace the expense's
+current tags, so include every tag you want to keep. `--clear-tags` removes
+all tags. New expenses have no tags unless you supply them.
+
+## Filter by tags
+
+```bash
+spendly expenses list --tag "Travel"
+spendly expenses list --tag "Travel" --tag "Work"
+```
+
+Repeating `--tag` finds expenses with all the specified tags. Run
+`spendly expenses list --help` for more filters or `spendly tags --help`
+for tag commands.

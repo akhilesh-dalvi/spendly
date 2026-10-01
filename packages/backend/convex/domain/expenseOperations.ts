@@ -8,6 +8,7 @@ import {
 	validateAccountOwnership,
 	validateCategoryOwnership,
 } from "../helpers";
+import type { ActionSource } from "./actionSource";
 import { resolveLocalDate } from "./dates";
 import { assertRevision, INITIAL_REVISION, nextRevision } from "./revisions";
 
@@ -296,6 +297,7 @@ export const commitExpenseCreate = async (
 	ctx: MutationCtx,
 	options: {
 		prepared: PreparedExpenseCreate;
+		source: ActionSource;
 		userId: Id<"users">;
 		now?: number;
 	}
@@ -306,10 +308,12 @@ export const commitExpenseCreate = async (
 		amount: options.prepared.amount,
 		categoryId: options.prepared.categoryId,
 		createdAt: now,
+		createdSource: options.source,
 		cycleId: options.prepared.cycleId,
 		date: options.prepared.date,
 		normalizedSpentOn: normalizeSpentOnForSearch(options.prepared.spentOn),
 		revision: INITIAL_REVISION,
+		lastModifiedSource: options.source,
 		spentOn: options.prepared.spentOn,
 		tagIds:
 			options.prepared.tagIds.length > 0 ? options.prepared.tagIds : undefined,
@@ -324,6 +328,7 @@ export const commitExpenseCreate = async (
 			note: options.prepared.spentOn,
 			type: "expense",
 			userId: options.userId,
+			source: options.source,
 		});
 	}
 	const expense = await ctx.db.get(expenseId);
@@ -407,7 +412,8 @@ export const prepareExpenseUpdate = async (
 
 const applyExpenseAccountBalanceUpdate = async (
 	ctx: MutationCtx,
-	options: PreparedExpenseUpdate
+	options: PreparedExpenseUpdate,
+	source: ActionSource
 ): Promise<void> => {
 	const { before, after } = options;
 	if (before.accountId === after.accountId) {
@@ -427,6 +433,7 @@ const applyExpenseAccountBalanceUpdate = async (
 			note: after.spentOn,
 			type: "expense",
 			userId: after.userId,
+			source,
 		});
 		return;
 	}
@@ -440,6 +447,7 @@ const applyExpenseAccountBalanceUpdate = async (
 			note: "Expense moved from account",
 			type: "expense",
 			userId: after.userId,
+			source,
 		});
 	}
 	if (after.accountId) {
@@ -451,21 +459,23 @@ const applyExpenseAccountBalanceUpdate = async (
 			note: after.spentOn,
 			type: "expense",
 			userId: after.userId,
+			source,
 		});
 	}
 };
 
 export const commitExpenseUpdate = async (
 	ctx: MutationCtx,
-	prepared: PreparedExpenseUpdate
+	prepared: PreparedExpenseUpdate,
+	source: ActionSource
 ): Promise<Doc<"expenses">> => {
 	const {
 		_creationTime: _ignoredCreationTime,
 		_id,
 		...updates
 	} = prepared.after;
-	await ctx.db.patch(_id, updates);
-	await applyExpenseAccountBalanceUpdate(ctx, prepared);
+	await ctx.db.patch(_id, { ...updates, lastModifiedSource: source });
+	await applyExpenseAccountBalanceUpdate(ctx, prepared, source);
 	const expense = await ctx.db.get(_id);
 	if (!expense) {
 		throw new ConvexError("EXPENSE_NOT_FOUND");
@@ -478,6 +488,7 @@ export const commitExpenseDelete = async (
 	options: {
 		expectedRevision?: number;
 		expenseId: Id<"expenses">;
+		source: ActionSource;
 		userId: Id<"users">;
 	}
 ): Promise<{ expenseId: Id<"expenses">; revision: number }> => {
@@ -502,6 +513,7 @@ export const commitExpenseDelete = async (
 			note: "Expense deleted",
 			type: "expense",
 			userId: options.userId,
+			source: options.source,
 		});
 	}
 	await ctx.db.delete(expense._id);

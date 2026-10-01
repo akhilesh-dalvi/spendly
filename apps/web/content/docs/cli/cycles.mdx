@@ -1,0 +1,43 @@
+---
+title: Cycles
+description: Find your spending periods and see a summary for each one.
+---
+
+A cycle is a spending period with its own dates, categories, and budget.
+Cycles are set up in Spendly Web; the CLI helps you find and inspect them.
+
+## Find a cycle
+
+```bash
+spendly cycles current
+spendly cycles list
+```
+
+To find the cycle that contains a particular date:
+
+```bash
+spendly cycles current --date 2026-09-05
+```
+
+The end date shown in the cycle list is exclusive: the cycle ends before that
+date begins. If no cycle contains the date, check your cycle setup in Spendly Web.
+
+## See spending and budget
+
+```bash
+spendly summary --current
+```
+
+The summary shows spent, planned, and remaining amounts, with a category
+breakdown. To inspect a different cycle, copy its ID from `cycles list`:
+
+```bash
+spendly summary --cycle-id CYCLE_ID
+spendly expenses list --cycle-id CYCLE_ID
+```
+
+Replace `CYCLE_ID` with the ID you copied. The summary covers the whole cycle;
+the expense list is paginated.
+
+Continue to [Categories](/docs/cli/categories) to see the categories in a cycle,
+or run `spendly cycles --help` for available commands.

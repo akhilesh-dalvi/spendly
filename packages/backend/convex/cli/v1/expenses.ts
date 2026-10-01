@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../../_generated/dataModel";
 import { mutation, query } from "../../_generated/server";
+import { resolveCliActionSource } from "../../domain/actionSource";
 import { validateLocalDate } from "../../domain/dates";
 import {
 	commitExpenseCreate,
@@ -276,13 +277,15 @@ export const previewCreate = query({
 export const create = mutation({
 	args: {
 		...expenseCreateInputValidator,
+		agent: v.optional(v.boolean()),
 		idempotencyKey: v.string(),
 	},
 	returns: expenseCreateResultValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
-			const { idempotencyKey, ...input } = args;
+			const { agent, idempotencyKey, ...input } = args;
+			const source = resolveCliActionSource(agent);
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
 					const prepared = await prepareExpenseCreate(ctx, { input, user });
@@ -295,6 +298,7 @@ export const create = mutation({
 					);
 					const expense = await commitExpenseCreate(ctx, {
 						prepared,
+						source,
 						userId: user._id,
 					});
 					return {
@@ -306,7 +310,7 @@ export const create = mutation({
 				},
 				key: idempotencyKey,
 				operation: "expenses.create",
-				request: input,
+				request: { ...input, source },
 				userId: user._id,
 			});
 		}),
@@ -346,6 +350,7 @@ export const previewUpdate = query({
 export const update = mutation({
 	args: {
 		...expenseUpdateInputValidator,
+		agent: v.optional(v.boolean()),
 		expectedRevision: v.number(),
 		expenseId: v.id("expenses"),
 		idempotencyKey: v.string(),
@@ -354,7 +359,8 @@ export const update = mutation({
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
-			const { expenseId, idempotencyKey, ...input } = args;
+			const { agent, expenseId, idempotencyKey, ...input } = args;
+			const source = resolveCliActionSource(agent);
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
 					const prepared = await prepareExpenseUpdate(ctx, {
@@ -367,7 +373,7 @@ export const update = mutation({
 						user,
 						getUpdateBalanceDeltas(prepared)
 					);
-					const expense = await commitExpenseUpdate(ctx, prepared);
+					const expense = await commitExpenseUpdate(ctx, prepared, source);
 					return {
 						...(await presentExpense(ctx, expense, user)),
 						accountEffects,
@@ -375,7 +381,7 @@ export const update = mutation({
 				},
 				key: idempotencyKey,
 				operation: "expenses.update",
-				request: { expenseId, ...input },
+				request: { expenseId, ...input, source },
 				userId: user._id,
 			});
 		}),
@@ -426,6 +432,7 @@ export const previewDelete = mutation({
 
 export const remove = mutation({
 	args: {
+		agent: v.optional(v.boolean()),
 		confirmationToken: v.id("cli_deletion_confirmations"),
 		expectedRevision: v.number(),
 		expenseId: v.id("expenses"),
@@ -439,6 +446,7 @@ export const remove = mutation({
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
+			const source = resolveCliActionSource(args.agent);
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
 					const confirmation = await ctx.db.get(args.confirmationToken);
@@ -476,6 +484,7 @@ export const remove = mutation({
 					await commitExpenseDelete(ctx, {
 						expectedRevision: args.expectedRevision,
 						expenseId: args.expenseId,
+						source,
 						userId: user._id,
 					});
 					await ctx.db.patch(confirmation._id, { usedAt: now });
@@ -491,6 +500,7 @@ export const remove = mutation({
 					confirmationToken: args.confirmationToken,
 					expectedRevision: args.expectedRevision,
 					expenseId: args.expenseId,
+					source,
 				},
 				userId: user._id,
 			});

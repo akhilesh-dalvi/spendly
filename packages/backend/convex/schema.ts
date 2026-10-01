@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { accountTypeBalanceNatureValidator } from "./accountTypeValidators";
+import { actionSourceValidator } from "./domain/actionSource";
 
 export default defineSchema({
 	users: defineTable({
@@ -98,6 +99,8 @@ export default defineSchema({
 		currency: v.optional(v.string()),
 		isArchived: v.optional(v.boolean()),
 		createdAt: v.number(),
+		createdSource: v.optional(actionSourceValidator),
+		lastModifiedSource: v.optional(actionSourceValidator),
 		updatedAt: v.optional(v.number()),
 		revision: v.optional(v.number()),
 	})
@@ -113,6 +116,7 @@ export default defineSchema({
 		date: v.string(),
 		note: v.optional(v.string()),
 		createdAt: v.number(),
+		source: v.optional(actionSourceValidator),
 	})
 		.index("by_userId_date", ["userId", "date"])
 		.index("by_fromAccountId", ["fromAccountId"])
@@ -135,6 +139,7 @@ export default defineSchema({
 		expenseId: v.optional(v.id("expenses")),
 		transferId: v.optional(v.id("account_transfers")),
 		createdAt: v.number(),
+		source: v.optional(actionSourceValidator),
 	})
 		.index("by_accountId_date", ["accountId", "date"])
 		.index("by_accountId_date_createdAt", ["accountId", "date", "createdAt"])
@@ -153,6 +158,8 @@ export default defineSchema({
 		normalizedSpentOn: v.optional(v.string()),
 		tagIds: v.optional(v.array(v.id("tags"))),
 		createdAt: v.number(),
+		createdSource: v.optional(actionSourceValidator),
+		lastModifiedSource: v.optional(actionSourceValidator),
 		revision: v.optional(v.number()),
 	})
 		.index("by_cycleId", ["cycleId"])

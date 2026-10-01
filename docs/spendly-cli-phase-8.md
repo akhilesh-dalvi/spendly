@@ -3,8 +3,7 @@
 ## Status
 
 - Status: Implementation complete and locally verified; the stable production
-  URL and npm/CLI link handoff remain Phase 9 release work, while Phase 7's
-  unavailable Claude Code response evaluation remains a release gate
+  URL and npm/CLI link handoff remain Phase 9 release work
 - Approved: 2026-09-05
 - Branch: `feature/spendly-cli`
 - Depends on: stable CLI command/JSON contracts and the completed Spendly skill
@@ -32,7 +31,7 @@ npm release remain Phase 9.
 - Use Fumadocs MDX for typed local content and Fumadocs UI for navigation,
   table of contents, code blocks, and search.
 - Use Fumadocs' built-in search initially. Do not add an external search vendor
-  for the version 1 documentation corpus.
+  for the initial-release documentation corpus.
 - Use a dedicated `(docs)` route group so the docs can have a documentation
   layout without inheriting authenticated application chrome.
 - Reuse Spendly branding, typography, shared metadata conventions, and links
@@ -53,14 +52,12 @@ boundaries should remain:
 apps/web/
   content/docs/cli/
     index.mdx
-    installation.mdx
-    authentication.mdx
-    cli-contract.mdx
+    ai-agents.mdx
     expenses.mdx
     accounts.mdx
-    transfers.mdx
-    agent-skill.mdx
-    privacy.mdx
+    cycles.mdx
+    categories.mdx
+    tags.mdx
     troubleshooting.mdx
     meta.json
   src/app/(docs)/docs/cli/
@@ -88,7 +85,12 @@ Task pages should explain the safe end-to-end workflow before presenting an
 exhaustive option list. Command-reference sections should remain concise and
 link to related safety behavior.
 
-### Required Pages
+### Required Coverage
+
+The public information architecture uses eight task-oriented pages. Installation
+and authentication live in Quick start; the machine contract and privacy
+boundary live in AI agents; transfers live in Accounts. Redirects preserve the
+six superseded page URLs.
 
 - Overview and supported operations.
 - Installation, updating, version checking, and uninstalling.
@@ -103,7 +105,8 @@ link to related safety behavior.
 - Same-currency transfers and negative-balance warnings.
 - Dry runs, idempotency keys, revisions, ambiguity, conflicts, and uncertain
   mutation-result recovery.
-- Spendly skill installation and the `--json --non-interactive` agent contract.
+- Spendly skill installation and the
+  `--agent --json --non-interactive` agent contract.
 - Privacy, security boundaries, and troubleshooting.
 
 ### Source of Truth
@@ -145,9 +148,10 @@ Browser verification must cover:
 2. Add MDX/source configuration and the shared provider/styles.
 3. Add public docs routes, layout, navigation, and built-in search.
 4. Establish Spendly visual styling and responsive behavior.
-5. Author overview, installation, authentication, and CLI-contract pages.
-6. Author expense, account, transfer, agent-skill, privacy, and troubleshooting
-   pages from shipped code, tests, schemas, and live help.
+5. Author Quick start and AI agents, including installation, authentication,
+   machine contract, safety, and privacy boundaries.
+6. Author expense, account and transfer, cycle, category, tag, and
+   troubleshooting coverage from shipped code, tests, schemas, and live help.
 7. Add command, schema, leakage, link, and production-build checks.
 8. Run browser verification and fix accessibility or responsive issues.
 9. Add canonical metadata, sitemap entries, and product navigation links.
@@ -170,15 +174,25 @@ Browser verification must cover:
 - [x] Command and JSON examples pass automated contract checks.
 - [x] Public content and generated output pass leakage scanning.
 - [x] Production build and browser verification pass.
-- [ ] Metadata, sitemap, canonical URLs, and product navigation are complete.
-      Page metadata, canonical URLs, sitemap entries, and marketing navigation
-      are implemented; npm README and CLI-help links wait for the stable URL.
-- [ ] The production documentation URL is ready for npm and skills.sh links in
-      Phase 9.
+- [x] Page metadata, canonical URLs, sitemap entries, and marketing navigation
+      are complete.
+
+All repository implementation and local verification criteria for Phase 8 are
+satisfied. Public production deployment and signed-out production verification
+remain Phase 9 acceptance gates.
+
+## Phase 9 Handoff
+
+These are release tasks, not incomplete Phase 8 work:
+
+- Deploy the Web application and record the stable production documentation
+  URL.
+- Verify the prepared npm README, installed CLI help, and skills.sh-facing
+  content against that deployed stable URL.
 
 ## Implementation Evidence
 
-Implemented on 2026-09-05:
+Implemented on 2026-09-05 and refined on 2026-09-09:
 
 - Locked `fumadocs-core@16.15.7`, `fumadocs-ui@16.15.7`,
   `fumadocs-mdx@15.4.0`, and `@types/mdx@2.0.14` without changing the CLI's
@@ -186,29 +200,38 @@ Implemented on 2026-09-05:
 - Added the MDX source, shared provider and components, public catch-all route,
   navigation tree, table of contents, built-in search endpoint, metadata,
   canonical URLs, sitemap entries, and marketing navigation.
-- Added all ten approved task-oriented pages under
+- Added the approved eight-page task-oriented navigation under
   `apps/web/content/docs/cli`, using synthetic identifiers and examples only.
+  Six superseded page URLs have permanent redirects into the consolidated
+  content.
 - Added `pnpm --dir apps/web docs:validate`, which first builds the CLI and then
   checks the navigation/frontmatter contract, live command paths and options,
-  JSON schemas, internal links, and leakage boundaries.
+  required global and safety contract coverage, success and error JSON schemas,
+  internal links, and leakage boundaries.
 - Added `/docs(.*)` to the Clerk public-route matcher so documentation does not
   require authentication.
 
-Verification completed on 2026-09-05:
+Verification refreshed on 2026-09-09:
 
-- `pnpm --dir apps/web docs:validate` passed: 10 pages, 61 command examples,
+- `pnpm --dir apps/web docs:validate` passed: eight pages, 57 command examples,
   two JSON examples, internal links, and leakage boundaries.
 - `pnpm --dir apps/web exec tsc --noEmit` passed.
 - Focused Biome checks and `git diff --check` passed.
-- `pnpm --dir apps/web build` passed with all ten `/docs/cli` paths statically
+- `pnpm --dir apps/web build` passed with all eight `/docs/cli` paths statically
   generated and `/api/docs/search` available.
 - Browser checks passed at `http://localhost:3001/docs/cli`: desktop and 390px
   mobile layouts, zero page-level horizontal overflow, responsive sidebar,
   table of contents, keyboard focus, copy feedback, light/dark themes, and a
-  `transfer` search that navigated to `/docs/cli/transfers`.
+  `tags` search that navigated to `/docs/cli/tags`. The legacy
+  `/docs/cli/cli-contract` URL redirected to the machine contract in AI agents.
 - The browser console had no application errors. The only warning was Clerk's
   expected development-key notice.
 
-Phase 9 must deploy the Web application, record the stable production URL, and
-then add that URL to the npm README, installed CLI help, and skills.sh-facing
-content before publishing the beta.
+Phase 8.5 provides the authenticated development proof. Phase 8.6 adds visible
+CLI/AI-agent action provenance in Spendly Web. Phase 8.7 hardens the candidate,
+Phase 8.8 adds guided human inputs, Phase 8.9 polishes the complete human CLI
+experience, Phase 8.10 records maintainer-owned real-terminal verification, and
+Phase 8.11 proves the CLI operations are reusable by a future MCP adapter.
+Phase 8.12 proves the same operations fit a future native Raycast adapter and
+records its separate OAuth and public Store packaging boundaries. Phase 9 then
+owns the handoff tasks above before publishing the initial release.

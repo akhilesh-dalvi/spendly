@@ -15,6 +15,7 @@ import {
 	prepareDefaultAccount,
 	prepareTransfer,
 } from "../../domain/accountOperations";
+import { resolveCliActionSource } from "../../domain/actionSource";
 import { executeIdempotentMutation } from "../../domain/idempotency";
 import { INITIAL_REVISION } from "../../domain/revisions";
 import { getCurrentUser, validateAccountOwnership } from "../../helpers";
@@ -34,6 +35,7 @@ import {
 const DEFAULT_PAGE_SIZE = 50;
 const MAXIMUM_PAGE_SIZE = 100;
 const MAXIMUM_ACCOUNTS = 1000;
+const MAXIMUM_BATCH_ACCOUNTS = 100;
 
 const normalizeLimit = (limit: number | undefined): number => {
 	const resolved = limit ?? DEFAULT_PAGE_SIZE;
@@ -164,6 +166,7 @@ export const previewCreate = mutation({
 export const create = mutation({
 	args: {
 		accountTypeId: v.id("account_types"),
+		agent: v.optional(v.boolean()),
 		date: v.string(),
 		idempotencyKey: v.string(),
 		name: v.string(),
@@ -173,7 +176,8 @@ export const create = mutation({
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
-			const { idempotencyKey, ...input } = args;
+			const { agent, idempotencyKey, ...input } = args;
+			const source = resolveCliActionSource(agent);
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
 					const prepared = await prepareAccountCreate(ctx, { ...input, user });
@@ -181,6 +185,7 @@ export const create = mutation({
 						ctx,
 						{
 							prepared,
+							source,
 							user,
 						}
 					);
@@ -192,7 +197,7 @@ export const create = mutation({
 				},
 				key: idempotencyKey,
 				operation: "accounts.create",
-				request: input,
+				request: { ...input, source },
 				userId: user._id,
 			});
 		}),
@@ -229,6 +234,7 @@ export const update = mutation({
 	args: {
 		accountId: v.id("accounts"),
 		accountTypeId: v.optional(v.id("account_types")),
+		agent: v.optional(v.boolean()),
 		expectedRevision: v.number(),
 		idempotencyKey: v.string(),
 		name: v.optional(v.string()),
@@ -237,19 +243,21 @@ export const update = mutation({
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
-			const { accountId, idempotencyKey, ...input } = args;
+			const { accountId, agent, idempotencyKey, ...input } = args;
+			const source = resolveCliActionSource(agent);
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
 					const account = await commitAccountUpdate(ctx, {
 						accountId,
 						input,
+						source,
 						userId: user._id,
 					});
 					return await presentAccount(ctx, account, user);
 				},
 				key: idempotencyKey,
 				operation: "accounts.update",
-				request: { accountId, ...input },
+				request: { accountId, ...input, source },
 				userId: user._id,
 			});
 		}),
@@ -307,19 +315,117 @@ export const previewReactivate = mutation({
 		),
 });
 
+const lifecycleBatchAccountValidator = v.object({
+	accountId: v.id("accounts"),
+	expectedRevision: v.number(),
+});
+
+const validateLifecycleBatch = <Account extends { accountId: unknown }>(
+	accounts: readonly Account[]
+): void => {
+	if (accounts.length === 0 || accounts.length > MAXIMUM_BATCH_ACCOUNTS) {
+		throw new ConvexError("INVALID_INPUT");
+	}
+	const uniqueIds = new Set(
+		accounts.map((account) => String(account.accountId))
+	);
+	if (uniqueIds.size !== accounts.length) {
+		throw new ConvexError("INVALID_INPUT");
+	}
+};
+
+const previewArchiveBatchHandler = async (
+	ctx: Parameters<typeof prepareAccountArchive>[0],
+	args: {
+		accounts: Array<{
+			accountId: Parameters<typeof prepareAccountArchive>[1]["accountId"];
+			expectedRevision: number;
+		}>;
+		isArchived: boolean;
+	}
+) => {
+	validateLifecycleBatch(args.accounts);
+	const user = await getCurrentUser(ctx);
+	const prepared = await Promise.all(
+		args.accounts.map(
+			async (account) =>
+				await prepareAccountArchive(ctx, {
+					...account,
+					isArchived: args.isArchived,
+					user,
+				})
+		)
+	);
+	const archivesDefault =
+		args.isArchived &&
+		args.accounts.some(
+			(account) => account.accountId === user.defaultAccountId
+		);
+	const afterUser = archivesDefault
+		? { ...user, defaultAccountId: undefined }
+		: user;
+	return await Promise.all(
+		prepared.map(async (preview) => ({
+			after: await presentAccount(ctx, preview.after, afterUser),
+			before: await presentAccount(ctx, preview.before, user),
+		}))
+	);
+};
+
+const accountUpdatePreviewArrayValidator = v.array(
+	v.object({
+		after: accountSummaryValidator,
+		before: accountSummaryValidator,
+	})
+);
+
+export const previewArchiveBatch = mutation({
+	args: { accounts: v.array(lifecycleBatchAccountValidator) },
+	returns: accountUpdatePreviewArrayValidator,
+	handler: async (ctx, args) =>
+		await withCliErrors(
+			async () =>
+				await previewArchiveBatchHandler(ctx, {
+					...args,
+					isArchived: true,
+				})
+		),
+});
+
+export const previewReactivateBatch = mutation({
+	args: { accounts: v.array(lifecycleBatchAccountValidator) },
+	returns: accountUpdatePreviewArrayValidator,
+	handler: async (ctx, args) =>
+		await withCliErrors(
+			async () =>
+				await previewArchiveBatchHandler(ctx, {
+					...args,
+					isArchived: false,
+				})
+		),
+});
+
 const commitArchive = async (
 	ctx: Parameters<typeof commitAccountArchive>[0],
 	args: {
 		accountId: Parameters<typeof commitAccountArchive>[1]["accountId"];
+		agent?: boolean;
 		expectedRevision: number;
 		idempotencyKey: string;
 		isArchived: boolean;
 	}
 ) => {
 	const user = await getCurrentUser(ctx);
+	const source = resolveCliActionSource(args.agent);
 	return await executeIdempotentMutation(ctx, {
 		execute: async () => {
-			const account = await commitAccountArchive(ctx, { ...args, user });
+			const account = await commitAccountArchive(ctx, {
+				accountId: args.accountId,
+				expectedRevision: args.expectedRevision,
+				isArchived: args.isArchived,
+				source,
+				user,
+			});
 			const currentUser = (await ctx.db.get(user._id)) ?? user;
 			return await presentAccount(ctx, account, currentUser);
 		},
@@ -328,6 +434,7 @@ const commitArchive = async (
 		request: {
 			accountId: args.accountId,
 			expectedRevision: args.expectedRevision,
+			source,
 		},
 		userId: user._id,
 	});
@@ -335,6 +442,7 @@ const commitArchive = async (
 
 const lifecycleCommitArgs = {
 	accountId: v.id("accounts"),
+	agent: v.optional(v.boolean()),
 	expectedRevision: v.number(),
 	idempotencyKey: v.string(),
 } as const;
@@ -354,6 +462,86 @@ export const reactivate = mutation({
 	handler: async (ctx, args) =>
 		await withCliErrors(
 			async () => await commitArchive(ctx, { ...args, isArchived: false })
+		),
+});
+
+const commitArchiveBatch = async (
+	ctx: Parameters<typeof commitAccountArchive>[0],
+	args: {
+		accounts: Array<{
+			accountId: Parameters<typeof commitAccountArchive>[1]["accountId"];
+			expectedRevision: number;
+		}>;
+		agent?: boolean;
+		idempotencyKey: string;
+		isArchived: boolean;
+	}
+) => {
+	validateLifecycleBatch(args.accounts);
+	const user = await getCurrentUser(ctx);
+	const source = resolveCliActionSource(args.agent);
+	return await executeIdempotentMutation(ctx, {
+		execute: async () => {
+			await Promise.all(
+				args.accounts.map(
+					async (account) =>
+						await prepareAccountArchive(ctx, {
+							...account,
+							isArchived: args.isArchived,
+							user,
+						})
+				)
+			);
+			const updatedAccounts: Awaited<
+				ReturnType<typeof commitAccountArchive>
+			>[] = [];
+			for (const account of args.accounts) {
+				updatedAccounts.push(
+					await commitAccountArchive(ctx, {
+						...account,
+						isArchived: args.isArchived,
+						source,
+						user,
+					})
+				);
+			}
+			const currentUser = (await ctx.db.get(user._id)) ?? user;
+			return await Promise.all(
+				updatedAccounts.map(
+					async (account) => await presentAccount(ctx, account, currentUser)
+				)
+			);
+		},
+		key: args.idempotencyKey,
+		operation: args.isArchived
+			? "accounts.archiveBatch"
+			: "accounts.reactivateBatch",
+		request: { accounts: args.accounts, source },
+		userId: user._id,
+	});
+};
+
+const lifecycleBatchCommitArgs = {
+	accounts: v.array(lifecycleBatchAccountValidator),
+	agent: v.optional(v.boolean()),
+	idempotencyKey: v.string(),
+} as const;
+
+export const archiveBatch = mutation({
+	args: lifecycleBatchCommitArgs,
+	returns: v.array(accountSummaryValidator),
+	handler: async (ctx, args) =>
+		await withCliErrors(
+			async () => await commitArchiveBatch(ctx, { ...args, isArchived: true })
+		),
+});
+
+export const reactivateBatch = mutation({
+	args: lifecycleBatchCommitArgs,
+	returns: v.array(accountSummaryValidator),
+	handler: async (ctx, args) =>
+		await withCliErrors(
+			async () => await commitArchiveBatch(ctx, { ...args, isArchived: false })
 		),
 });
 
@@ -380,9 +568,15 @@ export const setDefault = mutation({
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
+			const source = resolveCliActionSource(args.agent);
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
-					const account = await commitDefaultAccount(ctx, { ...args, user });
+					const account = await commitDefaultAccount(ctx, {
+						accountId: args.accountId,
+						expectedRevision: args.expectedRevision,
+						source,
+						user,
+					});
 					return await presentAccount(ctx, account, {
 						...user,
 						defaultAccountId: account._id,
@@ -393,6 +587,7 @@ export const setDefault = mutation({
 				request: {
 					accountId: args.accountId,
 					expectedRevision: args.expectedRevision,
+					source,
 				},
 				userId: user._id,
 			});
@@ -428,6 +623,7 @@ export const previewBalanceAdjustment = mutation({
 export const adjustBalance = mutation({
 	args: {
 		...adjustmentArgs,
+		agent: v.optional(v.boolean()),
 		expectedRevision: v.number(),
 		idempotencyKey: v.string(),
 	},
@@ -435,7 +631,8 @@ export const adjustBalance = mutation({
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
-			const { idempotencyKey, ...input } = args;
+			const { agent, idempotencyKey, ...input } = args;
+			const source = resolveCliActionSource(agent);
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
 					const prepared = await prepareBalanceAdjustment(ctx, {
@@ -444,7 +641,8 @@ export const adjustBalance = mutation({
 					});
 					const { account, transaction } = await commitBalanceAdjustment(
 						ctx,
-						prepared
+						prepared,
+						source
 					);
 					return {
 						account: await presentAccount(ctx, account, user),
@@ -458,7 +656,7 @@ export const adjustBalance = mutation({
 				},
 				key: idempotencyKey,
 				operation: "accounts.adjustBalance",
-				request: input,
+				request: { ...input, source },
 				userId: user._id,
 			});
 		}),
@@ -498,6 +696,7 @@ export const previewTransfer = mutation({
 export const transfer = mutation({
 	args: {
 		...transferArgs,
+		agent: v.optional(v.boolean()),
 		expectedFromRevision: v.number(),
 		expectedToRevision: v.number(),
 		idempotencyKey: v.string(),
@@ -506,11 +705,12 @@ export const transfer = mutation({
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
-			const { idempotencyKey, ...input } = args;
+			const { agent, idempotencyKey, ...input } = args;
+			const source = resolveCliActionSource(agent);
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
 					const prepared = await prepareTransfer(ctx, { ...input, user });
-					const result = await commitTransfer(ctx, prepared);
+					const result = await commitTransfer(ctx, prepared, source);
 					return {
 						amount: result.transfer.amount,
 						currency: prepared.currency,
@@ -526,7 +726,7 @@ export const transfer = mutation({
 				},
 				key: idempotencyKey,
 				operation: "accounts.transfer",
-				request: input,
+				request: { ...input, source },
 				userId: user._id,
 			});
 		}),

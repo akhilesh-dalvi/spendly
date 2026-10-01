@@ -32,8 +32,10 @@ export const writeError = (error: CliError, options: OutputOptions): void => {
 		return;
 	}
 	writeTerminalError({
+		code: error.code,
 		color: options.globalOptions.color,
 		message: redactText(error.message),
+		retryable: error.retryable,
 		stderr: options.runtime.stderr,
 	});
 };

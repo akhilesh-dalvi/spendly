@@ -1,0 +1,52 @@
+name: Build CLI release candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact package version to build
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  release-candidate:
+    name: Verified non-production artifact
+    environment: cli-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - name: Require the requested version
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: node apps/cli/scripts/verify-release-metadata.mjs "--expected-version=${RELEASE_VERSION}"
+      - name: Verify packed package
+        run: pnpm --dir apps/cli pack:verify
+      - name: Create the only release tarball
+        run: |
+          mkdir release-artifacts
+          npm pack --ignore-scripts --pack-destination ../../release-artifacts
+        working-directory: apps/cli
+      - name: Record artifact integrity and source commit
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          sha256sum "release-artifacts/spendly-${RELEASE_VERSION}.tgz" > release-artifacts/SHA256SUMS
+          git rev-parse HEAD > release-artifacts/SOURCE_COMMIT
+      - name: Confirm build did not change tracked files
+        run: git diff --exit-code
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spendly-${{ inputs.version }}-${{ github.sha }}
+          path: release-artifacts/
+          if-no-files-found: error
+          retention-days: 30

@@ -80,6 +80,12 @@ const validateEvaluationManifest = (manifest) => {
 				evaluation.expectations.length >= 4,
 			`Evaluation ${evaluation.id} needs behavioral expectations`
 		);
+		assert(
+			evaluation.expectations.some((expectation) =>
+				expectation.includes("--agent --json --non-interactive")
+			),
+			`Evaluation ${evaluation.id} must check the complete agent invocation`
+		);
 	}
 
 	assert(

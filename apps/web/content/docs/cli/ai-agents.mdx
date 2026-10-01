@@ -1,0 +1,192 @@
+---
+title: AI agents
+description: Connect the Spendly skill to your local agent and start with a simple request.
+---
+
+The Spendly skill helps an AI agent find commands, look up your existing data,
+and use the CLI. The agent runs the `spendly` command on your computer.
+
+## Install the skill
+
+When the initial release is available, complete [Quick start](/docs/cli) so the
+CLI is installed and signed in. Then choose your agent:
+
+### Codex
+
+```bash
+npx skills add akhilesh-dalvi/spendly --skill spendly --global --agent codex
+```
+
+### Claude Code
+
+```bash
+npx skills add akhilesh-dalvi/spendly --skill spendly --global --agent claude-code
+```
+
+The `--global` option makes the skill available across your projects. Start a
+new agent session after installation. You can check the installation with:
+
+```bash
+npx skills list --global
+```
+
+These commands use the [skills installer](https://github.com/vercel-labs/skills).
+The local agent needs access to your installed CLI, network access, and the
+CLI sign-in from Quick start.
+
+The skills installer may collect anonymous installation telemetry. Prefix an
+install or update command with `DISABLE_TELEMETRY=1` to opt out:
+
+```bash
+DISABLE_TELEMETRY=1 npx skills add akhilesh-dalvi/spendly --skill spendly --global --agent codex
+```
+
+## Try a request
+
+Start by asking the agent to read your data:
+
+> Use the Spendly skill to show my account balances and spending this cycle.
+
+Then try a specific change:
+
+> Record 18.75 for lunch today from my Daily checking account. Show me a preview first.
+
+> Change yesterday's coffee expense to 4.50.
+
+> Move 100 from Daily checking to Savings.
+
+Use your actual account names and amounts in your Spendly currency. If several
+records match, give the agent enough detail to identify the one you mean.
+
+## How the agent uses the CLI
+
+The skill points the agent to command help and existing categories, tags, and
+accounts. It uses JSON output to read results:
+
+```bash
+spendly expenses add --help
+spendly --agent --json --non-interactive context
+spendly --agent --json --non-interactive accounts list
+```
+
+For changes, `--dry-run` previews the result. The skill explains how to save it
+using the IDs, revisions, and write keys the CLI needs. You can ask for a preview
+without saving, or ask the agent to make the change and summarize the result.
+
+The global `--agent` flag explicitly declares that the CLI is being operated by
+an AI agent. Committed changes then receive a small bot indicator in Spendly Web.
+Spendly does not guess from JSON or non-interactive mode because humans and
+scripts use those modes too. The indicator describes how the action reached
+Spendly; it is not verified agent identity and does not change authorization.
+
+## Machine-readable CLI contract
+
+Global options may go before or after the selected command. The examples put
+machine-mode options first so the execution mode is obvious.
+
+| Option                 | Behavior                                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------------------------ |
+| `--help`               | Shows help for the selected command without requiring sign-in.                                         |
+| `--version`            | Prints the installed CLI version.                                                                      |
+| `--accessible`         | Uses static numbered prompts for screen-reader-friendly human interaction.                             |
+| `--agent`              | Marks committed mutations as AI-agent initiated for display in Spendly Web.                            |
+| `--json`               | Writes one versioned JSON document to stdout.                                                          |
+| `--non-interactive`    | Disables prompts and requires stable IDs for mutation selectors.                                       |
+| `--debug`              | Adds redacted diagnostic details to stderr.                                                            |
+| `--no-color`           | Disables terminal color without changing JSON.                                                         |
+| `--no-retry`           | Disables the bounded retries used by read commands.                                                    |
+| `--allow-file-storage` | Allows the owner to opt into plaintext credential storage when the OS credential store is unavailable. |
+
+A successful JSON response has this envelope:
+
+```json
+{
+  "schemaVersion": 1,
+  "data": { "example": "synthetic value" },
+  "meta": {}
+}
+```
+
+An error uses the same schema version and a stable error code:
+
+```json
+{
+  "schemaVersion": 1,
+  "error": {
+    "code": "INVALID_INPUT",
+    "details": {},
+    "message": "A required value is missing",
+    "retryable": false
+  }
+}
+```
+
+JSON mode writes exactly one document to stdout. Prompts, colors, progress, and
+extra warnings stay out of that stream. Help requested with `--json` is returned
+in `data.help`; diagnostics appear only on stderr when `--debug` is set.
+
+### Exit codes
+
+| Code | Meaning                                             |
+| ---- | --------------------------------------------------- |
+| `0`  | Success                                             |
+| `1`  | Unexpected internal failure                         |
+| `2`  | Invalid command, input, or unresolved selector      |
+| `3`  | Authentication required, expired, or denied         |
+| `4`  | Resource not found                                  |
+| `5`  | Revision, idempotency, or domain conflict           |
+| `6`  | Deletion confirmation required, invalid, or expired |
+| `7`  | Temporary network or service failure                |
+
+The JSON error code gives a more specific recovery reason than the process exit
+code.
+
+### IDs, dates, and pages
+
+Agents should use stable IDs returned by list or get commands. Human commands
+may use names, but matching only trims surrounding whitespace and compares exact
+text case-insensitively. Spendly never uses fuzzy matching or silently chooses
+the first ambiguous result; ambiguity performs no write.
+
+Dates use `YYYY-MM-DD`, and date ranges include both endpoints. When a date is
+omitted, the CLI detects the computer's IANA timezone and reports the effective
+local date in context. Supply an explicit date if timezone detection fails.
+
+Expense lists and account history can return an opaque `nextCursor`. Pass it
+unchanged as `--cursor`; do not decode, edit, or invent cursors. Use summary
+commands for totals instead of adding paginated rows yourself.
+
+## Mutation safeguards
+
+- A `--dry-run` resolves inputs and reports balance effects without writing.
+- Commit the same normalized inputs with a fresh, opaque idempotency key and
+  the current revision or revisions required by the command.
+- Expense deletion requires a single-use token bound to that expense and
+  revision. It expires after five minutes.
+- A stale revision, unknown selector, or ambiguous selector performs no write.
+- Write commands are never retried automatically. After an uncertain result,
+  inspect current state first. Only an explicitly requested recovery may repeat
+  the identical command with its original idempotency key; stop if the result
+  is still unknown.
+
+## Trusted-computer and privacy boundary
+
+Use the skill only with a local Codex or Claude Code session on a computer you
+trust. The initial release does not support hosted agents or CI, service accounts, device
+authorization, or delegated third-party access. The skill contains instructions
+only; it does not contain credentials.
+
+Never ask an agent to inspect or share credential-store entries, the plaintext
+credential fallback, OAuth URLs or tokens, environment variables, or request
+headers. Financial data is sent only to the configured Spendly services. The
+skill installer and documentation search do not receive account data, and raw
+CLI JSON should not be pasted into unrelated external services.
+
+The backend derives the signed-in identity and enforces ownership on every
+operation; knowing an ID does not grant access. It also remains authoritative
+for normalization, revisions, idempotency, and atomic account and ledger
+updates.
+
+If the agent cannot find `spendly`, check that it runs on the computer where you
+installed the CLI. For sign-in or other errors, see
+[Troubleshooting](/docs/cli/troubleshooting).

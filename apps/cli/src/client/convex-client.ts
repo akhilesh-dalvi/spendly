@@ -6,6 +6,10 @@ import { z } from "zod";
 import { createCredentialStore } from "../auth/credential-store.js";
 import { getActiveSession } from "../auth/session.js";
 import type { AuthReadyRuntimeConfig } from "../config.js";
+import {
+	createSpendlyOperations,
+	type SpendlyOperations,
+} from "../core/operations.js";
 import { CliError, type CliErrorCode } from "../errors.js";
 import { resolveGlobalOptions } from "../options.js";
 import type { BackendMutation, BackendQuery, CliRuntime } from "../runtime.js";
@@ -193,6 +197,7 @@ export interface BackendCommandContext {
 		functionName: string,
 		args: Readonly<Record<string, unknown>>
 	) => Promise<Result>;
+	operations: SpendlyOperations;
 	warnings: string[];
 }
 
@@ -249,30 +254,43 @@ export const createBackendCommandContext = async (
 		backend = createConvexQuery(config, session.idToken);
 	}
 
+	const mutation = async <Result>(
+		functionName: string,
+		args: Readonly<Record<string, unknown>>
+	): Promise<Result> => {
+		try {
+			return await backend.mutation<Result>(functionName, args);
+		} catch (error) {
+			throw toBackendCliError(error);
+		}
+	};
+	const query = async <Result>(
+		functionName: string,
+		args: Readonly<Record<string, unknown>>
+	) =>
+		await queryWithRetry<Result>({
+			args,
+			functionName,
+			query: backend.query,
+			retry: globalOptions.retry,
+			sleep: runtime.sleep,
+		});
 	return {
 		dispose: backend.dispose,
 		globalOptions,
-		mutation: async <Result>(
-			functionName: string,
-			args: Readonly<Record<string, unknown>>
-		): Promise<Result> => {
-			try {
-				return await backend.mutation<Result>(functionName, args);
-			} catch (error) {
-				throw toBackendCliError(error);
-			}
-		},
-		query: async <Result>(
-			functionName: string,
-			args: Readonly<Record<string, unknown>>
-		) =>
-			await queryWithRetry<Result>({
-				args,
-				functionName,
-				query: backend.query,
-				retry: globalOptions.retry,
-				sleep: runtime.sleep,
-			}),
+		mutation,
+		operations: createSpendlyOperations({
+			commitProvenance: {
+				decorate: (args, origin) => ({
+					...args,
+					...(origin === "cli_agent" ? { agent: true } : {}),
+				}),
+				origin: globalOptions.agent ? "cli_agent" : "cli",
+			},
+			mutation,
+			query,
+		}),
+		query,
 		warnings,
 	};
 };

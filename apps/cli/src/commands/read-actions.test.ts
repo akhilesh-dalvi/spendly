@@ -27,7 +27,7 @@ const expensePageFixture = readFixture("expense-page");
 const resourcesFixture = readFixture("resources") as Record<string, unknown>;
 const accountsFixture = readFixture("accounts") as Record<string, unknown>;
 
-const createTestRuntime = (backendQuery: BackendQuery) => {
+const createTestRuntime = (backendQuery: BackendQuery, columns?: number) => {
 	let stderr = "";
 	let stdout = "";
 	const runtime: CliRuntime = {
@@ -43,6 +43,7 @@ const createTestRuntime = (backendQuery: BackendQuery) => {
 			},
 		},
 		stdout: {
+			columns,
 			write: (value) => {
 				stdout += value;
 			},
@@ -93,6 +94,45 @@ const createFixtureQuery =
 	};
 
 describe("Phase 4 read commands", () => {
+	it("renders a narrow expense list with visible pagination", async () => {
+		const testRuntime = createTestRuntime(createFixtureQuery(), 40);
+
+		const exitCode = await runCli(["expenses", "list"], testRuntime.runtime);
+
+		expect(exitCode).toBe(CLI_EXIT_CODE.success);
+		expect(testRuntime.getStdout()).toContain("DATE    : 2026-09-02");
+		expect(testRuntime.getStdout()).toContain(
+			"Showing 1. More results are available."
+		);
+		expect(testRuntime.getStdout()).toContain(
+			"Next page: spendly expenses list --cursor cursor-next"
+		);
+	});
+
+	it("distinguishes filtered empty expenses from an empty account", async () => {
+		const testRuntime = createTestRuntime(
+			createFixtureQuery({
+				"cli/v1/expenses:list": {
+					hasMore: false,
+					items: [],
+					nextCursor: null,
+				},
+			})
+		);
+
+		const exitCode = await runCli(
+			["expenses", "list", "--from", "2026-09-01"],
+			testRuntime.runtime
+		);
+
+		expect(exitCode).toBe(CLI_EXIT_CODE.success);
+		expect(testRuntime.getStdout()).toContain(
+			"No expenses match these filters."
+		);
+		expect(testRuntime.getStdout()).toContain("Filters: from: 2026-09-01");
+		expect(testRuntime.getStdout()).toContain("Showing 0. End of results.");
+	});
+
 	it("writes one context JSON document with the machine-local date", async () => {
 		const calls: Array<{
 			args: Readonly<Record<string, unknown>>;
@@ -202,7 +242,7 @@ describe("Phase 4 read commands", () => {
 
 		expect(exitCode).toBe(CLI_EXIT_CODE.success);
 		expect(testRuntime.getStdout()).toContain("Account: Daily Wallet");
-		expect(testRuntime.getStdout()).toContain("Balance: INR 1250.00");
+		expect(testRuntime.getStdout()).toContain("Balance: INR 1,250.00");
 		expect(testRuntime.getStderr()).toBe("");
 		expect(calls.map((call) => call.name)).toEqual([
 			"cli/v1/accounts:list",
@@ -234,7 +274,9 @@ describe("Phase 4 read commands", () => {
 		);
 
 		expect(exitCode).toBe(CLI_EXIT_CODE.success);
-		expect(calls.at(-1)).toEqual({
+		expect(
+			calls.findLast((call) => call.name === "cli/v1/expenses:list")
+		).toEqual({
 			args: {
 				accountId: "account-wallet",
 				categoryId: "category-food",

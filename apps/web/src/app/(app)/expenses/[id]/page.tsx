@@ -8,6 +8,7 @@ import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { use, useState } from "react";
 import { toast } from "sonner";
+import { ActionSourceIndicator } from "@/components/action-source-indicator";
 import { ExpenseForm } from "@/components/expense-form";
 import { Loader } from "@/components/loader";
 import {
@@ -65,9 +66,15 @@ export default function ExpenseDetailPage({
 			<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 				<div>
 					<h1 className="font-bold text-3xl tracking-tight">Edit Expense</h1>
-					<p className="text-muted-foreground text-sm">
-						Created on {format(parseISO(expense.date), "MMM d, yyyy")}
-					</p>
+					<div className="flex items-center gap-1.5 text-muted-foreground text-sm">
+						<ActionSourceIndicator
+							action={(expense.revision ?? 1) > 1 ? "updated" : "added"}
+							source={expense.lastModifiedSource ?? expense.createdSource}
+						/>
+						<span>
+							Created on {format(parseISO(expense.date), "MMM d, yyyy")}
+						</span>
+					</div>
 				</div>
 				<AlertDialog
 					onOpenChange={setIsDeleteDialogOpen}

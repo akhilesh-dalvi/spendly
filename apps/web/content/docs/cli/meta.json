@@ -2,14 +2,12 @@
   "title": "Spendly CLI",
   "pages": [
     "index",
-    "installation",
-    "authentication",
-    "cli-contract",
+    "ai-agents",
     "expenses",
     "accounts",
-    "transfers",
-    "agent-skill",
-    "privacy",
+    "cycles",
+    "categories",
+    "tags",
     "troubleshooting"
   ]
 }

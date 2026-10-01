@@ -10,18 +10,18 @@
   [Spendly CLI Requirements and Implementation Plan](spendly-cli-requirements-and-implementation-plan.md)
 
 The Phase 6 backend is published to the configured development Convex
-deployment. The authenticated CLI passed account creation, update, archive,
+deployment. The authenticated CLI passed account addition, edit, archive,
 reactivation, default selection, balance adjustment, transfer, and an
 account-backed expense lifecycle.
 
 ## Implemented
 
-- Added account create and server-backed dry run with required exact account
+- Added account add and server-backed dry run with required exact account
   type selection, signed opening balance, local ledger date, normalized name,
   inherited currency, first-account default behavior, and opening-ledger ID.
-- Added account update and dry run for name and active account-type changes.
+- Added account edit and dry run for name and active account-type changes.
   Opening/current balances, currency, and ledger history cannot be edited
-  through update.
+  through edit.
 - Added archive, reactivate, and set-default previews and commits. Archiving a
   default account clears the preference; reactivation does not restore it.
 - Added absolute balance adjustment with signed decimal input, exact delta,
@@ -45,8 +45,8 @@ account-backed expense lifecycle.
 ## Command Surface
 
 ```text
-spendly accounts create --name <name> --account-type-id <id> --starting-balance <balance> [--date YYYY-MM-DD] [--dry-run]
-spendly accounts update <account-id-or-name> [--name <name>] [--account-type-id <id>] [--dry-run]
+spendly accounts add --name <name> --account-type-id <id> --starting-balance <balance> [--date YYYY-MM-DD] [--dry-run]
+spendly accounts edit <account-id-or-name> [--name <name>] [--account-type-id <id>] [--dry-run]
 spendly accounts archive <account-id-or-name> [--dry-run]
 spendly accounts reactivate <account-id-or-name> [--dry-run]
 spendly accounts set-default <account-id-or-name> [--dry-run]
@@ -55,8 +55,9 @@ spendly accounts transfer --from-account-id <id> --to-account-id <id> --amount <
 ```
 
 Humans may replace account and account-type IDs with the exact name options
-shown by each command's help. Agents use `--json --non-interactive` with stable
-IDs, revisions, and idempotency keys.
+shown by each command's help. Agents use
+`--agent --json --non-interactive` with stable IDs, revisions, and idempotency
+keys.
 
 ## Verification
 
@@ -103,8 +104,7 @@ Passed against the configured development Clerk and Convex projects:
   first creation key returned the original account and ledger entry.
 - Previewed and committed account rename, archive, reactivate, and set-default
   transitions with revisions 1 through 5.
-- Previewed and committed an absolute balance adjustment from INR 1,000 to INR
-  900. The result returned delta -100 and its ledger ID.
+- Previewed and committed an absolute balance adjustment from INR 1,000 to INR 900. The result returned delta -100 and its ledger ID.
 - Previewed and committed an INR 200 transfer. Source/destination balances
   became INR 700 and INR 300, revisions advanced independently, and the result
   returned the transfer plus both ledger IDs.

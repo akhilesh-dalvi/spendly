@@ -107,6 +107,7 @@ export const remove = mutation({
 		for (const exp of expenses) {
 			if (exp.tagIds?.includes(args.tagId)) {
 				await ctx.db.patch(exp._id, {
+					lastModifiedSource: "web",
 					revision: nextRevision(exp.revision),
 					tagIds: exp.tagIds.filter((id) => id !== args.tagId),
 				});

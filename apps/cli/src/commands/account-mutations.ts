@@ -6,10 +6,10 @@ export const registerAccountMutationCommands = (
 	runtime: CliRuntime
 ): void => {
 	accounts
-		.command("create")
-		.description("Create an account or preview its opening ledger entry")
-		.requiredOption("--name <name>", "account name")
-		.requiredOption("--starting-balance <balance>", "opening account balance")
+		.command("add")
+		.description("Add an account or preview its opening ledger entry")
+		.option("--name <name>", "account name")
+		.option("--starting-balance <balance>", "opening account balance")
 		.addOption(
 			new Option("--account-type-id <id>", "stable account type ID").conflicts(
 				"accountType"
@@ -22,18 +22,16 @@ export const registerAccountMutationCommands = (
 		)
 		.option("--date <date>", "opening ledger date in YYYY-MM-DD")
 		.option("--idempotency-key <key>", "stable key for this intended commit")
-		.option("--dry-run", "validate and preview without creating the account")
+		.option("--dry-run", "validate and preview without adding the account")
 		.action(async (options, command: Command) => {
-			const { runAccountCreate } = await import(
-				"./account-mutation-actions.js"
-			);
-			await runAccountCreate(options, command, runtime);
+			const { runAccountAdd } = await import("./account-mutation-actions.js");
+			await runAccountAdd(options, command, runtime);
 		});
 
 	accounts
-		.command("update")
-		.description("Update an account name or active account type")
-		.argument("<account>", "stable account ID or exact human name")
+		.command("edit")
+		.description("Edit an account name or active account type")
+		.argument("[account]", "stable account ID or exact human name")
 		.option("--name <name>", "new account name")
 		.addOption(
 			new Option("--account-type-id <id>", "stable account type ID").conflicts(
@@ -47,12 +45,10 @@ export const registerAccountMutationCommands = (
 		)
 		.option("--if-revision <revision>", "expected current account revision")
 		.option("--idempotency-key <key>", "stable key for this intended commit")
-		.option("--dry-run", "validate and preview without updating the account")
-		.action(async (account: string, options, command: Command) => {
-			const { runAccountUpdate } = await import(
-				"./account-mutation-actions.js"
-			);
-			await runAccountUpdate(account, options, command, runtime);
+		.option("--dry-run", "validate and preview without saving changes")
+		.action(async (account: string | undefined, options, command: Command) => {
+			const { runAccountEdit } = await import("./account-mutation-actions.js");
+			await runAccountEdit(account, options, command, runtime);
 		});
 
 	for (const [name, description] of [
@@ -63,29 +59,31 @@ export const registerAccountMutationCommands = (
 		accounts
 			.command(name)
 			.description(description)
-			.argument("<account>", "stable account ID or exact human name")
+			.argument("[account]", "stable account ID or exact human name")
 			.option("--if-revision <revision>", "expected current account revision")
 			.option("--idempotency-key <key>", "stable key for this intended commit")
 			.option("--dry-run", "validate and preview without committing")
-			.action(async (account: string, options, command: Command) => {
-				const { runAccountLifecycle } = await import(
-					"./account-mutation-actions.js"
-				);
-				await runAccountLifecycle(name, account, options, command, runtime);
-			});
+			.action(
+				async (account: string | undefined, options, command: Command) => {
+					const { runAccountLifecycle } = await import(
+						"./account-mutation-actions.js"
+					);
+					await runAccountLifecycle(name, account, options, command, runtime);
+				}
+			);
 	}
 
 	accounts
 		.command("adjust-balance")
 		.description("Set an account to an absolute balance with a ledger entry")
-		.argument("<account>", "stable account ID or exact human name")
-		.requiredOption("--balance <balance>", "desired absolute balance")
+		.argument("[account]", "stable account ID or exact human name")
+		.option("--balance <balance>", "desired absolute balance")
 		.option("--date <date>", "ledger date in YYYY-MM-DD")
 		.option("--note <note>", "ledger note")
 		.option("--if-revision <revision>", "expected current account revision")
 		.option("--idempotency-key <key>", "stable key for this intended commit")
 		.option("--dry-run", "validate and preview without changing the balance")
-		.action(async (account: string, options, command: Command) => {
+		.action(async (account: string | undefined, options, command: Command) => {
 			const { runBalanceAdjustment } = await import(
 				"./account-mutation-actions.js"
 			);
@@ -95,7 +93,7 @@ export const registerAccountMutationCommands = (
 	accounts
 		.command("transfer")
 		.description("Transfer funds atomically between active accounts")
-		.requiredOption("--amount <amount>", "positive decimal transfer amount")
+		.option("--amount <amount>", "positive decimal transfer amount")
 		.addOption(
 			new Option(
 				"--from-account-id <id>",

@@ -23,6 +23,7 @@ import {
 	prepareBalanceAdjustment,
 	prepareTransfer,
 } from "./domain/accountOperations";
+import { actionSourceValidator } from "./domain/actionSource";
 import { getCurrentUser, validateAccountOwnership } from "./helpers";
 
 const accountTransactionValidator = v.object({
@@ -44,6 +45,7 @@ const accountTransactionValidator = v.object({
 	expenseId: v.optional(v.id("expenses")),
 	transferId: v.optional(v.id("account_transfers")),
 	createdAt: v.number(),
+	source: v.optional(actionSourceValidator),
 });
 
 const accountDocumentFields = {
@@ -51,10 +53,12 @@ const accountDocumentFields = {
 	_creationTime: v.number(),
 	accountTypeId: v.id("account_types"),
 	createdAt: v.number(),
+	createdSource: v.optional(actionSourceValidator),
 	currency: v.optional(v.string()),
 	currentBalance: v.number(),
 	isArchived: v.optional(v.boolean()),
 	name: v.string(),
+	lastModifiedSource: v.optional(actionSourceValidator),
 	revision: v.optional(v.number()),
 	startingBalance: v.number(),
 	updatedAt: v.optional(v.number()),
@@ -71,6 +75,7 @@ const accountTransferValidator = v.object({
 	_creationTime: v.number(),
 	amount: v.number(),
 	createdAt: v.number(),
+	source: v.optional(actionSourceValidator),
 	date: v.string(),
 	fromAccountId: v.id("accounts"),
 	note: v.optional(v.string()),
@@ -247,7 +252,11 @@ export const create = mutation({
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const prepared = await prepareAccountCreate(ctx, { ...args, user });
-		const { account } = await commitAccountCreate(ctx, { prepared, user });
+		const { account } = await commitAccountCreate(ctx, {
+			prepared,
+			source: "web",
+			user,
+		});
 		return await resolveAccount(ctx, account, user._id);
 	},
 });
@@ -265,6 +274,7 @@ export const update = mutation({
 		const account = await commitAccountUpdate(ctx, {
 			accountId: args.accountId,
 			input: args,
+			source: "web",
 			userId: user._id,
 		});
 		return await resolveAccount(ctx, account, user._id);
@@ -293,7 +303,12 @@ export const createOnboardingAccount = mutation({
 			startingBalance: args.openingBalance,
 			user,
 		});
-		const { account } = await commitAccountCreate(ctx, { now, prepared, user });
+		const { account } = await commitAccountCreate(ctx, {
+			now,
+			prepared,
+			source: "web",
+			user,
+		});
 
 		await ctx.db.patch(user._id, {
 			accountsOnboardingStatus: "completed",
@@ -314,7 +329,11 @@ export const archive = mutation({
 	returns: resolvedAccountValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
-		const account = await commitAccountArchive(ctx, { ...args, user });
+		const account = await commitAccountArchive(ctx, {
+			...args,
+			source: "web",
+			user,
+		});
 		return await resolveAccount(ctx, account, user._id);
 	},
 });
@@ -330,7 +349,7 @@ export const updateBalance = mutation({
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const prepared = await prepareBalanceAdjustment(ctx, { ...args, user });
-		const { account } = await commitBalanceAdjustment(ctx, prepared);
+		const { account } = await commitBalanceAdjustment(ctx, prepared, "web");
 		return await resolveAccount(ctx, account, user._id);
 	},
 });
@@ -351,7 +370,7 @@ export const transfer = mutation({
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const prepared = await prepareTransfer(ctx, { ...args, user });
-		const result = await commitTransfer(ctx, prepared);
+		const result = await commitTransfer(ctx, prepared, "web");
 		return {
 			fromAccount: await resolveAccount(ctx, result.fromAccount, user._id),
 			toAccount: await resolveAccount(ctx, result.toAccount, user._id),

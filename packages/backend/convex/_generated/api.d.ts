@@ -27,6 +27,7 @@ import type * as cli_v1_validators from "../cli/v1/validators.js";
 import type * as crons from "../crons.js";
 import type * as cycles from "../cycles.js";
 import type * as domain_accountOperations from "../domain/accountOperations.js";
+import type * as domain_actionSource from "../domain/actionSource.js";
 import type * as domain_dates from "../domain/dates.js";
 import type * as domain_expenseOperations from "../domain/expenseOperations.js";
 import type * as domain_idempotency from "../domain/idempotency.js";
@@ -64,6 +65,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   cycles: typeof cycles;
   "domain/accountOperations": typeof domain_accountOperations;
+  "domain/actionSource": typeof domain_actionSource;
   "domain/dates": typeof domain_dates;
   "domain/expenseOperations": typeof domain_expenseOperations;
   "domain/idempotency": typeof domain_idempotency;

@@ -1,6 +1,6 @@
 # Spendly
 
-Spendly is a personal expense tracking monorepo built around custom expense cycles, categories, accounts, tags, and comparison views. The web app and Convex backend are the main active parts of the project today, with the native Expo app present in the repo for later work.
+Spendly is a personal expense tracking monorepo built around custom expense cycles, categories, accounts, tags, and comparison views. The Web app, Convex backend, and local-first CLI are active parts of the project; the native Expo app remains available for later work.
 
 ## Product principles
 
@@ -27,6 +27,7 @@ Spendly is a personal expense tracking monorepo built around custom expense cycl
 spendly/
 ├── apps/
 │   ├── web/                 # Next.js web app
+│   ├── cli/                 # Node.js CLI for people and local AI agents
 │   └── native/              # Expo / React Native app
 ├── packages/
 │   ├── backend/             # Convex workspace
@@ -39,8 +40,8 @@ spendly/
 
 ## Requirements
 
-- Node.js 20+
-- pnpm 10+
+- Node.js 22+
+- pnpm 11.21.0
 - A Convex account/project
 - A Clerk application
 
@@ -90,6 +91,10 @@ Useful scoped commands:
 pnpm dev:web
 pnpm dev:server
 pnpm dev:native
+pnpm dev:cli
+pnpm check-types:cli
+pnpm test:cli
+pnpm pack:cli
 pnpm build
 pnpm check-types
 ```
@@ -121,10 +126,11 @@ pnpm check-types
 
 ## Current Project Focus
 
-- `apps/web` and `packages/backend` are the primary active surfaces
+- `apps/web`, `apps/cli`, and `packages/backend` are the primary active surfaces
 - `apps/native` exists in the monorepo but is intentionally a later phase
 - For in-flight feature specs, use `docs/features/` (see `docs/README.md`)
 - Schema and API details live in `packages/backend/convex/schema.ts` and the Convex function files
+- User-facing CLI guidance lives at [Spendly CLI docs](https://spendly.akhileshdalvi.com/docs/cli); release work is tracked in [the CLI implementation plan](docs/spendly-cli-requirements-and-implementation-plan.md)
 
 ## Notes
 

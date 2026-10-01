@@ -11,9 +11,12 @@ const cliEntry = join(repositoryDirectory, "apps/cli/dist/index.js");
 const cliSchemas = join(repositoryDirectory, "apps/cli/dist/domain/schemas.js");
 
 const GLOBAL_OPTIONS = new Set([
+	"--accessible",
+	"--agent",
 	"--allow-file-storage",
 	"--debug",
 	"--help",
+	"--interactive",
 	"--json",
 	"--no-color",
 	"--no-retry",
@@ -31,15 +34,41 @@ const COMMAND_GROUPS = new Set([
 ]);
 const REQUIRED_PAGES = [
 	"index",
-	"installation",
-	"authentication",
-	"cli-contract",
+	"ai-agents",
 	"expenses",
 	"accounts",
-	"transfers",
-	"agent-skill",
-	"privacy",
+	"cycles",
+	"categories",
+	"tags",
 	"troubleshooting",
+];
+const REQUIRED_COMMAND_PATHS = [
+	"context",
+	"summary",
+	"completion",
+	"auth login",
+	"auth status",
+	"auth logout",
+	"expenses get",
+	"expenses list",
+	"expenses add",
+	"expenses edit",
+	"expenses delete",
+	"accounts list",
+	"accounts get",
+	"accounts transactions",
+	"accounts add",
+	"accounts edit",
+	"accounts archive",
+	"accounts reactivate",
+	"accounts set-default",
+	"accounts adjust-balance",
+	"accounts transfer",
+	"cycles list",
+	"cycles current",
+	"categories list",
+	"tags list",
+	"account-types list",
 ];
 const LEAKAGE_PATTERNS = [
 	{ label: "authorization header", pattern: /authorization:\s*bearer\s+/iu },
@@ -54,6 +83,29 @@ const LEAKAGE_PATTERNS = [
 		label: "JWT-shaped value",
 		pattern: /\beyJ[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]+\b/iu,
 	},
+];
+const REQUIRED_CONTRACT_PATTERNS = [
+	{ label: "explicit agent provenance", pattern: /global `--agent` flag/iu },
+	{ label: "exact non-fuzzy selector behavior", pattern: /fuzzy matching/iu },
+	{ label: "IANA timezone behavior", pattern: /IANA timezone/iu },
+	{
+		label: "opaque pagination cursor behavior",
+		pattern: /opaque `nextCursor`/u,
+	},
+	{ label: "deletion-token lifetime", pattern: /valid for five minutes/iu },
+	{
+		label: "negative-balance transfer warning",
+		pattern: /NEGATIVE_SOURCE_BALANCE/u,
+	},
+	{ label: "uncertain-write stop rule", pattern: /outcome as unknown/iu },
+	{ label: "trusted-computer boundary", pattern: /hosted agents or CI/iu },
+	{ label: "backend ownership boundary", pattern: /enforces ownership/iu },
+];
+const RETIRED_COMMAND_PATTERNS = [
+	/spendly expenses create\b/u,
+	/spendly expenses update\b/u,
+	/spendly accounts create\b/u,
+	/spendly accounts update\b/u,
 ];
 
 const assert = (condition, message) => {
@@ -91,6 +143,9 @@ const getCommandPath = (tokens, file) => {
 	const commandPath = [rootCommand];
 	if (COMMAND_GROUPS.has(rootCommand)) {
 		const subcommand = tokens[tokenIndex + 1];
+		if (subcommand === "--help") {
+			return commandPath;
+		}
 		assert(
 			subcommand && !subcommand.startsWith("-"),
 			`Missing subcommand after ${rootCommand} in ${file}`
@@ -138,6 +193,25 @@ const getHelp = (commandPath) => {
 	return help;
 };
 
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+
+const assertCommandPathExists = (commandPath, file) => {
+	if (commandPath.length === 0) {
+		return;
+	}
+	const commandName = commandPath.at(-1);
+	assert(commandName, `Missing command path in ${file}`);
+	const parentHelp = getHelp(commandPath.slice(0, -1));
+	const commandPattern = new RegExp(
+		`^\\s{2}${escapeRegex(commandName)}(?:\\s|\\[|<)`,
+		"mu"
+	);
+	assert(
+		commandPattern.test(parentHelp),
+		`${file} uses unknown command ${commandPath.join(" ")}`
+	);
+};
+
 const meta = JSON.parse(
 	readFileSync(join(contentDirectory, "meta.json"), "utf8")
 );
@@ -165,10 +239,15 @@ const { jsonErrorEnvelopeSchema, jsonSuccessEnvelopeSchema } = await import(
 );
 let checkedCommands = 0;
 let checkedJsonExamples = 0;
+let checkedJsonErrorExamples = 0;
+let checkedJsonSuccessExamples = 0;
+const documentationContent = [];
+const documentedCommandPaths = new Set();
 
 for (const file of mdxFiles) {
 	const displayPath = relative(repositoryDirectory, file);
 	const content = readFileSync(file, "utf8");
+	documentationContent.push(content);
 	const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---/u)?.[1];
 	assert(frontmatter, `Missing frontmatter in ${displayPath}`);
 	assert(
@@ -183,6 +262,12 @@ for (const file of mdxFiles) {
 	for (const { label, pattern } of LEAKAGE_PATTERNS) {
 		assert(!pattern.test(content), `${displayPath} contains a ${label}`);
 	}
+	for (const pattern of RETIRED_COMMAND_PATTERNS) {
+		assert(
+			!pattern.test(content),
+			`${displayPath} contains retired create/update command vocabulary`
+		);
+	}
 
 	for (const match of content.matchAll(
 		/\]\((\/docs\/cli(?:\/[a-z0-9-]+)?)\)/gu
@@ -196,6 +281,10 @@ for (const file of mdxFiles) {
 	for (const command of getSpendlyCommands(content)) {
 		const tokens = tokenize(command);
 		const commandPath = getCommandPath(tokens, displayPath);
+		assertCommandPathExists(commandPath, displayPath);
+		if (commandPath.length > 0) {
+			documentedCommandPaths.add(commandPath.join(" "));
+		}
 		const help = getHelp(commandPath);
 		for (const option of tokens.filter((token) => token.startsWith("--"))) {
 			assert(
@@ -210,16 +299,42 @@ for (const file of mdxFiles) {
 		const value = JSON.parse(block);
 		if ("error" in value) {
 			jsonErrorEnvelopeSchema.parse(value);
+			checkedJsonErrorExamples += 1;
 		} else {
 			jsonSuccessEnvelopeSchema.parse(value);
+			checkedJsonSuccessExamples += 1;
 		}
 		checkedJsonExamples += 1;
 	}
 }
 
 assert(checkedCommands > 0, "CLI docs must contain checked Spendly commands");
-assert(checkedJsonExamples > 0, "CLI docs must contain checked JSON examples");
+for (const commandPath of REQUIRED_COMMAND_PATHS) {
+	assert(
+		documentedCommandPaths.has(commandPath),
+		`CLI docs do not exercise command ${commandPath}`
+	);
+}
+assert(
+	checkedJsonSuccessExamples > 0,
+	"CLI docs must contain a checked JSON success-envelope example"
+);
+assert(
+	checkedJsonErrorExamples > 0,
+	"CLI docs must contain a checked JSON error-envelope example"
+);
+
+const combinedDocumentation = documentationContent.join("\n");
+for (const option of GLOBAL_OPTIONS) {
+	assert(
+		combinedDocumentation.includes(option),
+		`CLI docs must explain global option ${option}`
+	);
+}
+for (const { label, pattern } of REQUIRED_CONTRACT_PATTERNS) {
+	assert(pattern.test(combinedDocumentation), `CLI docs must cover ${label}`);
+}
 
 process.stdout.write(
-	`Validated ${mdxFiles.length} CLI docs pages, ${checkedCommands} commands, ${checkedJsonExamples} JSON examples, links, and leakage boundaries.\n`
+	`Validated ${mdxFiles.length} CLI docs pages, ${documentedCommandPaths.size} command paths, ${checkedCommands} examples, ${checkedJsonExamples} JSON examples, links, and leakage boundaries.\n`
 );

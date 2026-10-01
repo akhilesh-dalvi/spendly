@@ -28,8 +28,10 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.11",
+    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/server": "2.0.0",
     "@spendly/config": "workspace:*",
-    "lint-staged": "latest",
+    "lint-staged": "17.5.1",
     "turbo": "^2.6.3",
     "typescript": "catalog:",
     "ultracite": "7.0.11"

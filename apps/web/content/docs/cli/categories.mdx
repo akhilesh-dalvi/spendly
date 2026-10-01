@@ -1,0 +1,52 @@
+---
+title: Categories
+description: Find existing categories and use them to organize expenses.
+---
+
+Categories group expenses within a cycle, such as Food or Transport. Check what
+already exists before considering a new category. Categories are created and
+managed in Spendly Web.
+
+## List categories
+
+Find the cycle for your expense, then copy its ID:
+
+```bash
+spendly cycles current
+spendly categories list --cycle-id CYCLE_ID
+```
+
+Replace `CYCLE_ID` with the returned ID. For an older expense, use
+`spendly cycles current --date 2026-09-05` to find its cycle instead.
+The category list shows names, planned amounts, and IDs.
+
+## Use a category
+
+Use an existing category name when adding an expense:
+
+```bash
+spendly expenses add --amount 18.75 --spent-on "Lunch" \
+  --category "Food" --dry-run
+```
+
+To change an existing expense, use its ID from `expenses list`:
+
+```bash
+spendly expenses edit EXPENSE_ID --category "Food" --dry-run
+```
+
+Replace the name and ID with your own values. Remove `--dry-run` to save.
+The category must belong to the expense's cycle.
+
+To remove its category, use `expenses edit EXPENSE_ID --clear-category`.
+To find expenses without a category:
+
+```bash
+spendly expenses list --uncategorized
+```
+
+If an explicit command omits a category while adding an expense, Spendly may
+use one from matching description history; otherwise the expense stays
+uncategorized. Guided mode always asks you to choose a visible category or
+`Uncategorized`. Run
+`spendly categories --help` for category commands.

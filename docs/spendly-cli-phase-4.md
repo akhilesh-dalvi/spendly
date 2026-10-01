@@ -59,8 +59,9 @@ spendly account-types list [--include-archived]
 ```
 
 Expense, cycle, category, tag, and account read commands also accept the exact
-human-name options documented in their command help. Scripts and agents use
-`--json --non-interactive` with stable IDs.
+human-name options documented in their command help. Agents use
+`--agent --json --non-interactive` with stable IDs; direct human scripts omit
+`--agent` so they are not mislabeled.
 
 ## Verification
 

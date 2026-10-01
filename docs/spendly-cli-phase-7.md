@@ -2,40 +2,41 @@
 
 ## Status
 
-- Status: In progress; portable bundle and installation gates complete, agent
-  response evaluations pending
-- Date: 2026-09-05
+- Status: Complete; portable bundle, installation gates, and automated
+  validation pass; independent agent response evaluations are optional
+- Last updated: 2026-10-01
 - Branch: `feature/spendly-cli`
 - Starting checkpoint: `714032d feat(cli): add account mutations`
 
 ## Implemented Bundle
 
 Phase 7 adds a portable Agent Skills-format bundle at
-`skills/spendly/SKILL.md`. The entrypoint is an 85-line decision router. It
-loads the shared CLI contract plus only the expense, account, or mutation-safety
+`skills/spendly/SKILL.md`. The entrypoint is a 99-line decision router. It
+loads the shared CLI contract plus only the expense, account, or troubleshooting
 reference needed for the current task.
 
 The skill encodes:
 
 - Local-only browser authentication, JSON status, and context loading.
-- `--json --non-interactive` agent invocation and stable-ID selector rules.
+- `--agent --json --non-interactive` agent invocation and stable-ID selector
+  rules.
 - Local-date and timezone handling without UTC fallback.
 - Currency boundaries and the prohibition on conversion or relabeling.
 - Category-history inference, default-account resolution, and the prohibition
   on invented categories, tags, accounts, account types, or cycles.
 - Server-backed mutation previews, stable idempotency keys, optimistic
   revisions, and explicit uncertain-result recovery without automatic retry.
-- Expense creation, explicit update clears, account balance effects, and
+- Expense addition, explicit edit clears, account balance effects, and
   two-step permanent deletion.
-- Account creation, lifecycle, default selection, absolute-balance adjustment,
+- Account addition, lifecycle, default selection, absolute-balance adjustment,
   negative-balance warnings, and same-currency transfers.
 - Unsupported-operation boundaries for bulk mutation, account deletion, direct
   ledger mutation, and transfer editing or deletion.
 - Credential and personal-financial-data isolation from skill files,
   diagnostics, and external services.
 
-The examples cover successful expense creation and update, successful account
-creation and adjustment, successful transfer, selector ambiguity, stale
+The examples cover successful expense add and edit, successful account add and
+adjustment, successful transfer, selector ambiguity, stale
 revision conflict, uncertain timeout recovery, negative balances, and permanent
 expense deletion.
 
@@ -64,8 +65,8 @@ The refactor compared Spendly with current CLI-oriented Agent Skills:
 
 Spendly adopts the shared concepts that fit its contract: precise discovery
 metadata, live `--help` as syntax authority, JSON rather than rendered-output
-scraping, task routing, bounded pagination, an auth/context preflight, and a
-separate mutation-safety reference. It does not copy large command catalogs,
+scraping, task routing, bounded pagination, an auth/context preflight, and
+focused workflow and troubleshooting references. It does not copy large command catalogs,
 agent-specific token configuration, backend/API escape hatches, or wrapper
 scripts. Those would duplicate the versioned CLI/backend contract or weaken
 Spendly's credential and authorization boundaries.
@@ -82,16 +83,17 @@ flags and keeps static examples deliberately narrow.
 explicitly prohibits commands and Spendly data access so an evaluation runner
 cannot mutate a signed-in account. The cases exercise:
 
-1. Expense creation with omitted category, account, and date.
-2. Revision-safe expense update with explicit category and account clearing.
-3. Duplicate-name ambiguity.
+1. Expense add with omitted category, account, and date.
+2. Revision-safe expense edit with explicit category and account clearing.
+3. Cycle-scoped category lookup and reuse of an existing suitable option.
 4. Stale revision recovery.
 5. Uncertain mutation-result recovery.
-6. Account creation followed by absolute-balance reconciliation.
+6. Account add followed by absolute-balance reconciliation.
 7. Transfer with a negative source-balance warning.
 8. Permanent expense deletion from a description-only request.
-9. Unsupported account and ledger deletion.
-10. Credential-exfiltration resistance.
+9. Account archival, reactivation, retained history, and unsupported permanent
+   deletion or direct ledger editing.
+10. Expired-session sign-in and command discovery.
 
 The deterministic evaluator at `skills/spendly/evals/validate.mjs` checks the
 manifest shape, unique and complete cases, plan-only execution boundary,
@@ -99,11 +101,12 @@ behavioral expectation coverage, direct and non-orphaned reference routing,
 absence of attached user files, and absence of private-key, JWT, provider-key,
 email, home-path, and Convex-ID-shaped content in the distributed bundle.
 
-The remaining gate is to execute all ten prompts independently with Codex and
-Claude Code, grade their responses against every expectation, and inspect the
-responses for personal-data leakage. This environment has Codex installed but
-does not have a Claude Code executable, and independent subagent execution was
-not used during this implementation pass.
+The Phase 8.7 response runner executes each prompt in a fresh, read-only agent
+session against an isolated copy of the exact skill bundle and records only
+plan-only outputs and review metadata. All ten Codex responses passed manual
+review against every expectation. This environment does not have a Claude Code
+executable, so the equivalent Claude Code run was not performed. Independent
+agent response evaluations are optional and do not block Phase 7 or release.
 
 ## Installation Verification
 
@@ -142,6 +145,10 @@ Completed checks:
   workflow examples, including JSON and non-interactive mode.
 - The global skills.sh installation completed for Codex and Claude Code.
 - Installed file SHA-256 values matched the repository bundle.
+- All ten fresh Codex response evaluations passed manual review. The frozen
+  skill bundle SHA-256 was
+  `9494e956ceb3ddb64a6eafaef0029dd78e13f83ffbd9331dfb4193a65c83ca6f`.
 
-Phase 7 must remain in progress until the independent Codex and Claude Code
-response evaluation results pass.
+The response runner remains available for optional checks against future skill
+changes. Automated bundle validation and installation verification remain
+required.

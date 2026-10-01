@@ -4,62 +4,61 @@ import {
 	type BackendCommandContext,
 	createBackendCommandContext,
 } from "../client/convex-client.js";
+import type { OperationName } from "../core/operations.js";
 import { CliError } from "../errors.js";
+import { resolveGlobalOptions } from "../options.js";
+import {
+	renderHumanLines,
+	resolveHumanRenderOptions,
+} from "../output/human.js";
 import { writeSuccess } from "../output/index.js";
+import { startBackendProgress } from "../output/progress.js";
 import type { CliRuntime } from "../runtime.js";
 
 export const queryParsed = async <Output>(
 	context: BackendCommandContext,
-	functionName: string,
+	operationName: OperationName,
 	args: Readonly<Record<string, unknown>>,
-	schema: z.ZodType<Output>
+	_schema: z.ZodType<Output>
 ): Promise<Output> =>
-	schema.parse(await context.query<unknown>(functionName, args));
+	(await context.operations.invoke(operationName, args)) as Output;
 
 export const mutationParsed = async <Output>(options: {
 	args: Readonly<Record<string, unknown>>;
 	context: BackendCommandContext;
 	idempotencyKey?: string;
-	name: string;
+	name: OperationName;
 	schema: z.ZodType<Output>;
 }): Promise<Output> => {
-	try {
-		return options.schema.parse(
-			await options.context.mutation<unknown>(options.name, options.args)
-		);
-	} catch (error) {
-		if (error instanceof CliError && error.code === "NETWORK_ERROR") {
-			throw new CliError(
-				"NETWORK_ERROR",
-				options.idempotencyKey
-					? "The mutation outcome is uncertain; repeat the same command with the same idempotency key"
-					: "The mutation outcome is uncertain; repeat the preview command",
-				{
-					cause: error,
-					details: {
-						...(options.idempotencyKey
-							? { idempotencyKey: options.idempotencyKey }
-							: {}),
-						outcome: "unknown",
-					},
-					retryable: true,
-				}
-			);
-		}
-		throw error;
-	}
+	return (await options.context.operations.invoke(
+		options.name,
+		options.args
+	)) as Output;
 };
+
+export const commitParsed = async <Output>(options: {
+	args: Readonly<Record<string, unknown>>;
+	context: BackendCommandContext;
+	idempotencyKey?: string;
+	name: OperationName;
+	schema: z.ZodType<Output>;
+}): Promise<Output> => await mutationParsed(options);
 
 export const withBackend = async (
 	command: Command,
 	runtime: CliRuntime,
 	operation: (context: BackendCommandContext) => Promise<void>
 ): Promise<void> => {
-	const context = await createBackendCommandContext(command, runtime);
+	const globalOptions = resolveGlobalOptions(command, runtime.environment);
+	const stopProgress = startBackendProgress(globalOptions, runtime);
+	let context: BackendCommandContext | undefined;
 	try {
+		context = await createBackendCommandContext(command, runtime);
+		stopProgress();
 		await operation(context);
 	} finally {
-		context.dispose();
+		stopProgress();
+		context?.dispose();
 	}
 };
 
@@ -70,8 +69,16 @@ export const writeMutationSuccess = (options: {
 	meta: Readonly<Record<string, unknown>>;
 	runtime: CliRuntime;
 }): void => {
+	const humanOutput =
+		options.meta.dryRun === true
+			? `PREVIEW ONLY - no changes were saved.\n\n${options.human}`
+			: options.human;
+	const human = renderHumanLines(
+		humanOutput.split("\n"),
+		resolveHumanRenderOptions(options.runtime.stdout)
+	);
 	writeSuccess(
-		options.context.globalOptions.json ? options.data : options.human,
+		options.context.globalOptions.json ? options.data : human,
 		{
 			globalOptions: options.context.globalOptions,
 			runtime: options.runtime,

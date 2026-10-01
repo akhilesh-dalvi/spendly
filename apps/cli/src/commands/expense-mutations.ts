@@ -11,9 +11,9 @@ export const registerExpenseMutationCommands = (
 	runtime: CliRuntime
 ): void => {
 	expenses
-		.command("create")
-		.description("Create an expense or preview the normalized result")
-		.requiredOption("--amount <amount>", "positive decimal amount")
+		.command("add")
+		.description("Add an expense or preview the normalized result")
+		.option("--amount <amount>", "positive decimal amount")
 		.option("--date <date>", "local date in YYYY-MM-DD")
 		.option("--spent-on <text>", "expense description")
 		.option("--category-id <id>", "stable category ID")
@@ -45,16 +45,14 @@ export const registerExpenseMutationCommands = (
 		.option("--idempotency-key <key>", "stable key for this intended commit")
 		.option("--dry-run", "validate and preview without writing")
 		.action(async (options, command: Command) => {
-			const { runExpenseCreate } = await import(
-				"./expense-mutation-actions.js"
-			);
-			await runExpenseCreate(options, command, runtime);
+			const { runExpenseAdd } = await import("./expense-mutation-actions.js");
+			await runExpenseAdd(options, command, runtime);
 		});
 
 	expenses
-		.command("update")
-		.description("Update an expense or preview the before/after result")
-		.argument("<expense-id>", "stable expense ID")
+		.command("edit")
+		.description("Edit an expense or preview the before/after result")
+		.argument("[expense-id]", "stable expense ID")
 		.option("--amount <amount>", "positive decimal amount")
 		.option("--date <date>", "local date in YYYY-MM-DD")
 		.addOption(
@@ -105,25 +103,29 @@ export const registerExpenseMutationCommands = (
 		.option("--if-revision <revision>", "expected current expense revision")
 		.option("--idempotency-key <key>", "stable key for this intended commit")
 		.option("--dry-run", "validate and preview without writing")
-		.action(async (expenseId: string, options, command: Command) => {
-			const { runExpenseUpdate } = await import(
-				"./expense-mutation-actions.js"
-			);
-			await runExpenseUpdate(expenseId, options, command, runtime);
-		});
+		.action(
+			async (expenseId: string | undefined, options, command: Command) => {
+				const { runExpenseEdit } = await import(
+					"./expense-mutation-actions.js"
+				);
+				await runExpenseEdit(expenseId, options, command, runtime);
+			}
+		);
 
 	expenses
 		.command("delete")
 		.description("Permanently delete an expense using a confirmation preview")
-		.argument("<expense-id>", "stable expense ID")
+		.argument("[expense-id]", "stable expense ID")
 		.option("--confirmation-token <token>", "token returned by --dry-run")
 		.option("--if-revision <revision>", "expected current expense revision")
 		.option("--idempotency-key <key>", "stable key for this intended deletion")
 		.option("--dry-run", "return the deletion confirmation without deleting")
-		.action(async (expenseId: string, options, command: Command) => {
-			const { runExpenseDelete } = await import(
-				"./expense-mutation-actions.js"
-			);
-			await runExpenseDelete(expenseId, options, command, runtime);
-		});
+		.action(
+			async (expenseId: string | undefined, options, command: Command) => {
+				const { runExpenseDelete } = await import(
+					"./expense-mutation-actions.js"
+				);
+				await runExpenseDelete(expenseId, options, command, runtime);
+			}
+		);
 };

@@ -1,18 +1,17 @@
+import type { Readable, Writable } from "node:stream";
 import type { RuntimeConfig } from "./config.js";
+import type { BackendOperation } from "./core/operations.js";
+import type { InteractivePrompter } from "./input/types.js";
 
 export interface OutputWriter {
+	columns?: number;
+	isTTY?: boolean;
 	write(value: string): unknown;
 }
 
-export type BackendQuery = <Result>(
-	functionName: string,
-	args: Readonly<Record<string, unknown>>
-) => Promise<Result>;
+export type BackendQuery = BackendOperation;
 
-export type BackendMutation = <Result>(
-	functionName: string,
-	args: Readonly<Record<string, unknown>>
-) => Promise<Result>;
+export type BackendMutation = BackendOperation;
 
 export interface CliRuntime {
 	backendMutation?: BackendMutation;
@@ -22,6 +21,9 @@ export interface CliRuntime {
 	environment: NodeJS.ProcessEnv;
 	getConfig: () => RuntimeConfig;
 	now?: () => Date;
+	promptInput?: Readable & { isTTY?: boolean };
+	promptOutput?: Writable & { columns?: number; isTTY?: boolean };
+	prompter?: InteractivePrompter;
 	randomIdempotencyKey?: () => string;
 	sleep?: (milliseconds: number) => Promise<void>;
 	stderr: OutputWriter;
@@ -37,6 +39,8 @@ export const createProcessRuntime = (
 	developmentTools: options.developmentTools ?? false,
 	environment,
 	getConfig: typeof config === "function" ? config : () => config,
+	promptInput: process.stdin,
+	promptOutput: process.stderr,
 	stderr: process.stderr,
 	stdout: process.stdout,
 });
