@@ -18,6 +18,11 @@ jobs:
   quality:
     name: Quality and contract gates
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_CONVEX_URL: https://ci-placeholder.convex.cloud
+      # Synthetic public key for clerk.example.com; no live Clerk application.
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
+      NEXT_PUBLIC_SITE_URL: https://spendly.example.com
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -52,10 +57,14 @@ jobs:
         run: pnpm --dir apps/cli test
       - name: Typecheck and test backend
         run: |
-          pnpm --dir packages/backend exec tsc --noEmit
+          pnpm exec tsc --noEmit -p packages/backend/convex/tsconfig.json
           pnpm --dir packages/backend test:once
+      - name: Generate Web route types
+        run: pnpm --dir apps/web exec next typegen
       - name: Typecheck Web
-        run: pnpm --dir apps/web exec tsc --noEmit
+        run: |
+          pnpm exec tsc --noEmit -p apps/web/tsconfig.json
+          pnpm exec tsc --noEmit -p packages/env/tsconfig.json
       - name: Validate skill and public documentation
         run: |
           node skills/spendly/evals/validate.mjs

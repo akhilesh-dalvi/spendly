@@ -28,13 +28,15 @@ and Phase 8.11 documents retain the maintainer's terminal evidence.
 ## Remaining handoff and operator inputs
 
 - The source baseline still needs review and hosted macOS/Linux CI evidence.
+- Draft PR: https://github.com/akhilesh-dalvi/spendly/pull/9. The existing CLI
+  work has been checkpointed and `master`'s documentation conflicts resolved.
 - The GitHub repository currently has no CLI workflows on its default branch
   and no `cli-release` environment. The release runbook requires that
   environment to exist before running the candidate or publish workflow.
 - Production authentication needs the approved Clerk OAuth public client ID.
   The compiled configuration still has `authReady: false` and `clientId: null`.
-- Reconcile the worktree with `master`'s approved license before finalizing
-  public npm metadata.
+- The worktree now includes `master`'s approved AGPL-3.0-only root license;
+  public npm metadata still needs to be finalized.
 - Complete the protected environment, publication workflow, public docs,
   npm account checks, and final candidate freeze from the Part 0 checklist.
 
