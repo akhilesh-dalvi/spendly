@@ -27,7 +27,9 @@ and Phase 8.11 documents retain the maintainer's terminal evidence.
 
 ## Remaining handoff and operator inputs
 
-- The source baseline still needs review and hosted macOS/Linux CI evidence.
+- The source baseline still needs review. Hosted macOS/Linux CI passed on
+  Node.js 22 and 24; the optional Convex CLI OAuth fix is awaiting fresh hosted
+  checks and a successful Vercel preview. All 44 backend tests pass locally.
 - Draft PR: https://github.com/akhilesh-dalvi/spendly/pull/9. The existing CLI
   work has been checkpointed and `master`'s documentation conflicts resolved.
 - The GitHub repository currently has no CLI workflows on its default branch
