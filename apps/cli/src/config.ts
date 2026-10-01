@@ -42,11 +42,9 @@ export type AuthReadyRuntimeConfig = Extract<
 >;
 
 // Public production endpoints are intentionally compiled into the npm package.
-// An approved production Clerk OAuth client ID is not available in the checkout;
-// until it is supplied, auth commands fail locally before making a request.
 export const PRODUCTION_CONFIG = runtimeConfigSchema.parse({
-	authReady: false,
-	clientId: null,
+	authReady: true,
+	clientId: "T99oHEemr0oToUZU",
 	convexUrl: "https://successful-donkey-782.convex.cloud",
 	environment: "production",
 	issuer: "https://clerk.spendly.akhileshdalvi.com",

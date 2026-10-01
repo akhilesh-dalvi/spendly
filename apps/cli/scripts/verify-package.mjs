@@ -9,7 +9,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const packageDirectory = join(scriptDirectory, "..");
@@ -175,6 +175,18 @@ try {
 		{
 			cwd: consumerDirectory,
 		}
+	);
+	const installedConfigUrl = pathToFileURL(
+		join(consumerDirectory, "node_modules", "spendly", "dist", "config.js")
+	);
+	const { PRODUCTION_CONFIG: installedConfig } = await import(
+		installedConfigUrl.href
+	);
+	assert(
+		installedConfig.authReady === true &&
+			installedConfig.clientId === "T99oHEemr0oToUZU" &&
+			installedConfig.environment === "production",
+		"Installed CLI must enable authentication with the approved public production client ID"
 	);
 
 	const binaryPath = join(consumerDirectory, "node_modules", ".bin", "spendly");

@@ -25,18 +25,49 @@ Local source-baseline checks on 2026-10-01 passed:
 Independent agent response evaluations are optional. The existing Phase 8.10
 and Phase 8.11 documents retain the maintainer's terminal evidence.
 
+## Production authentication evidence
+
+Verified on 2026-10-01; only public identifiers and pass/fail evidence are
+recorded here.
+
+- Source baseline PR https://github.com/akhilesh-dalvi/spendly/pull/9 merged
+  as `a1a165b1bf628bce5e2e63234294ea5dcfd0ad08`. Its quality gate, macOS/Linux
+  Node.js 22/24 matrix, and Vercel preview passed.
+- Production Clerk OAuth app `Spendly CLI` uses public client ID
+  `T99oHEemr0oToUZU`, consent, required PKCE S256, and only `openid`, `profile`,
+  `email`, and `offline_access`. The registered loopback callback is
+  `http://127.0.0.1/callback`; the actual random-port callback passed.
+- Approved issuer: `https://clerk.spendly.akhileshdalvi.com`. Approved Convex
+  deployment: `https://successful-donkey-782.convex.cloud`. Approved Web URL:
+  `https://spendly.akhileshdalvi.com`. Public `/docs/cli` returned HTTP 200
+  while signed out.
+- Set and read back `CLERK_CLI_OAUTH_CLIENT_ID` in that production Convex
+  deployment. Deployed the unchanged, reviewed baseline backend successfully
+  with explicit typechecking; the Web audience remains configured.
+- The CLI now compiles `authReady: true` and the approved public client ID.
+  Production typechecks, all 169 CLI tests, and isolated tarball verification
+  passed on Node.js 22 and 24. The installed-package verifier checks the client
+  ID and rejects development configuration and secret-shaped contents.
+- CLI development and backend typechecks, all 44 backend tests, focused
+  Ultracite/Biome, and `git diff --check` passed on Node.js 24.
+- Live production authentication passed with native macOS Keychain storage:
+  browser login, exact issuer/audience validation, Convex subject-to-user
+  matching, forced refresh, logout with confirmed provider revocation, revoked
+  refresh-token rejection, and local credential removal.
+- A simulated 30-day authorization expiry required fresh login and cleared
+  local credentials. This was a clock-based expiry check, not 30 elapsed days.
+  No financial data was created and the test credentials were removed.
+
+This verifies the current source configuration, not a frozen publication
+artifact. Repeat the required authentication checks against the final candidate;
+the separate production `ACCOUNT_SETUP_REQUIRED` user check is still pending.
+
 ## Remaining handoff and operator inputs
 
-- The source baseline still needs review. Hosted macOS/Linux CI passed on
-  Node.js 22 and 24; the optional Convex CLI OAuth fix is awaiting fresh hosted
-  checks and a successful Vercel preview. All 44 backend tests pass locally.
-- Draft PR: https://github.com/akhilesh-dalvi/spendly/pull/9. The existing CLI
-  work has been checkpointed and `master`'s documentation conflicts resolved.
-- The GitHub repository currently has no CLI workflows on its default branch
-  and no `cli-release` environment. The release runbook requires that
-  environment to exist before running the candidate or publish workflow.
-- Production authentication needs the approved Clerk OAuth public client ID.
-  The compiled configuration still has `authReady: false` and `clientId: null`.
+- The production CLI configuration change needs review and merge.
+- CLI CI and candidate workflows are now on the default branch. Create the
+  `cli-release` environment before running the candidate or publish workflow;
+  the publication workflow is still pending.
 - The worktree now includes `master`'s approved AGPL-3.0-only root license;
   public npm metadata still needs to be finalized.
 - Complete the protected environment, publication workflow, public docs,
