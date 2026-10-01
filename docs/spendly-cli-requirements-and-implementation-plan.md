@@ -1564,7 +1564,7 @@ is ready and reviewed.
 - [ ] Receive the reviewed Phase 8.7 through Phase 8.12 source baseline with all
       remaining non-production and human-terminal gates
       complete.
-- [ ] Provision the production Clerk OAuth public client and approved Convex,
+- [x] Provision the production Clerk OAuth public client and approved Convex,
       Clerk, Web, and documentation endpoints. Compile only public production
       identifiers into the CLI, set `authReady` to `true`, and prove that no
       development selector, endpoint, credential, or secret enters the build.
