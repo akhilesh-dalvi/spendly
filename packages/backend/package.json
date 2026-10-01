@@ -1,8 +1,8 @@
 {
   "name": "@spendly/backend",
   "version": "1.0.0",
+  "private": true,
   "description": "",
-  "license": "ISC",
   "author": "",
   "scripts": {
     "dev": "convex dev",

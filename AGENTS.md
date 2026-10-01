@@ -90,16 +90,23 @@ Write code that is **accessible, performant, type-safe, and maintainable**. Focu
 **Next.js:**
 
 - Use Next.js `<Image>` component for images
-- Use `next/head` or App Router metadata API for head elements
+- Use the App Router metadata API for document metadata
 - Use Server Components for async data fetching instead of async Client Components
 
 **React 19+:**
 
 - Use ref as a prop instead of `React.forwardRef`
 
-**Solid/Svelte/Vue/Qwik:**
+---
 
-- Use `class` and `for` attributes (not `className` or `htmlFor`)
+## Project workflow
+
+Read and follow [`CONTRIBUTING.md`](CONTRIBUTING.md) for the shared GitHub
+Issues, project-status, documentation, branch, and pull-request workflow.
+
+Keep the workflow lightweight: use GitHub as the single source of truth, keep
+at most one major issue in progress, and do not create or modify GitHub issues
+unless the user explicitly requests that external action.
 
 ---
 

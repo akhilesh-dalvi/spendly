@@ -1,6 +1,14 @@
 # Security Policy
 
+Spendly handles personal financial activity, so protecting user data is a
+priority. We appreciate responsible reports that help keep the project and its
+users safe.
+
 ## Supported versions
+
+Security fixes are applied to the latest version of Spendly on the `master`
+branch and to the official hosted application. Older commits, forks, and
+third-party deployments are not supported.
 
 Spendly CLI has not been published yet. During initial-release verification,
 only the newest `0.x` version on the npm `next` tag will receive security fixes.
@@ -8,15 +16,58 @@ After the validated package moves to the default `latest` tag, the newest
 version there will be supported; older versions may be deprecated when a
 security correction is available.
 
-## Report a vulnerability privately
+## Reporting a vulnerability
 
-Do not open a public issue for suspected vulnerabilities. Use
-[GitHub private vulnerability reporting](https://github.com/akhilesh-dalvi/spendly/security/advisories/new).
+Do not disclose suspected vulnerabilities in a public issue, discussion, pull
+request, or social media post.
 
-Include the affected Spendly version, operating system, Node.js version,
-reproduction steps using synthetic data, and the security impact. Do not send
+Report them privately through
+[GitHub's private vulnerability reporting](https://github.com/akhilesh-dalvi/spendly/security/advisories/new).
+
+Include as much of the following as possible:
+
+- A description of the vulnerability and its potential impact
+- The affected page, endpoint, component, or file
+- For CLI reports, the Spendly version, operating system, and Node.js version
+- Reproduction steps or a minimal proof of concept
+- Any conditions required to reproduce the issue
+- A suggested remediation, if you have one
+
+Use synthetic data for reproduction. Do not include personal financial data,
 access or refresh tokens, OAuth URLs, authorization headers, credential-store
-contents, environment files, personal financial data, or Convex/Clerk secrets.
+contents, environment files, or Convex/Clerk secrets.
 
-Use [public GitHub issues](https://github.com/akhilesh-dalvi/spendly/issues) for
-non-security bugs and documentation problems.
+We aim to acknowledge reports within three business days. After reviewing the
+report, we will share our assessment and, when applicable, expected remediation
+steps. Please allow reasonable time for a fix before publishing details.
+
+## Responsible research
+
+When investigating a potential vulnerability:
+
+- Access only accounts and data that you own or have explicit permission to use
+- Stop testing and report the issue if you encounter another user's data
+- Do not modify or delete data that is not your own
+- Do not disrupt the service, degrade availability, or run denial-of-service
+  tests
+- Do not use social engineering, spam, or automated scanning against the hosted
+  application
+- Make a good-faith effort to avoid privacy violations and unnecessary data
+  exposure
+
+Good-faith research that follows this policy will not result in legal action
+from the Spendly project. We will work with reporters to understand and resolve
+valid findings, and we will credit them if they wish to be acknowledged.
+
+## Out of scope
+
+The following are generally out of scope unless they demonstrate a concrete
+security impact on Spendly:
+
+- Vulnerabilities in Clerk, Convex, Vercel, or another third-party service that
+  are not caused by Spendly's configuration or integration
+- Missing security headers without a working exploit
+- Clickjacking on pages without sensitive actions
+- Self-XSS or issues that require executing code in your own browser session
+- Reports based only on an automated dependency or vulnerability scan
+- Attacks requiring physical access to a user's device
