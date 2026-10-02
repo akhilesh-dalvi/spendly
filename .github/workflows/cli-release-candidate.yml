@@ -47,7 +47,7 @@ jobs:
         run: pnpm --dir apps/cli pack:verify
       - name: Create the only release tarball
         run: |
-          mkdir release-artifacts
+          mkdir -p ../../release-artifacts
           npm pack --ignore-scripts --pack-destination ../../release-artifacts
         working-directory: apps/cli
       - name: Record artifact integrity and source commit
