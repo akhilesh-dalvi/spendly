@@ -70,3 +70,26 @@ jobs:
           path: release-artifacts/
           if-no-files-found: error
           retention-days: 30
+
+  release-tag:
+    name: Tag the verified release commit
+    needs: release-candidate
+    environment: cli-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # This job installs no dependencies and receives no npm credentials.
+      - name: Create or verify the immutable version tag
+        run: node apps/cli/scripts/create-release-tag.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          RELEASE_VERSION: ${{ inputs.version }}

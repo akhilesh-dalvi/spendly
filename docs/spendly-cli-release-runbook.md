@@ -134,17 +134,36 @@ test the workflow: bootstrap publication and OIDC staging change npm state.
 1. Run the complete CLI, backend, Web, documentation, skill, dependency,
    leakage, package, macOS, Linux, Node.js 22, and Node.js 24 gates against the
    production-configured source.
-2. Review and merge that exact commit to `master`. Create the matching immutable
-   Git tag and GitHub Release identity without publishing an npm package.
+2. Review and merge that exact commit to `master` and wait for its complete
+   CLI readiness suite to pass.
 3. Run `.github/workflows/cli-release-candidate.yml` with version `0.1.0` from
-   the reviewed commit. Download the artifact and preserve its `SHA256SUMS` and
-   `SOURCE_COMMIT`.
+   the reviewed commit and approve its protected jobs. After the artifact is
+   verified and uploaded, a separate job automatically creates `v0.1.0` at that
+   exact commit. Download the artifact and preserve its `SHA256SUMS` and
+   `SOURCE_COMMIT`. Create the GitHub Release and release notes using that
+   existing tag (`gh release create v0.1.0 --verify-tag`); do not publish npm yet.
 4. Confirm the embedded package version, installed `spendly --version`, tarball
    filename, tag, release notes, source commit, and hashes agree. This artifact
    is the immutable publication candidate.
 5. Keep the candidate tarball, `SHA256SUMS`, and `SOURCE_COMMIT` together. Stop
    if the publish-workflow input, current `master`, tag, GitHub Release, package
    version, or recorded hash disagrees.
+
+Every later release follows the same naming rule: package `0.1.1` produces
+`v0.1.1`, package `0.2.0` produces `v0.2.0`, and so on within the approved `0.x`
+release policy. Update the package and shrinkwrap versions together before
+merging; the workflow checks that its version input matches the package.
+Only the separate tagging job has `contents: write`. Build and npm publication
+jobs retain their existing permissions, and the tagging job installs no
+package dependencies or npm credentials.
+
+Rerunning the candidate workflow reuses an existing tag only if it resolves to
+the same commit, including annotated tags. A tag at a different commit stops
+the workflow; select a new version instead of moving or deleting the tag.
+The tag identifies the frozen source candidate and can therefore exist before
+npm publication or staging approval. Failed candidate builds create no tag,
+and a successful candidate run now requires successful tagging. The publish
+workflow still verifies that tag against the recorded source before publishing.
 
 ### npm Maintainer Account
 
