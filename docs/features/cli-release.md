@@ -119,10 +119,12 @@ publication, or final candidate freeze was performed in this preparation pass.
 3. Verify your npm email, enable account 2FA, retain recoverable second-factor
    access, and complete interactive `npm login` / `npm whoami`. Record only the
    username and pass/fail state, never credentials or recovery codes.
-4. Follow the runbook to create the matching `v0.1.0` Git tag and GitHub Release
-   for the reviewed commit. Run `cli-release-candidate.yml` from that unchanged
-   `master` with version `0.1.0`; download and retain the tarball, `SHA256SUMS`,
-   and `SOURCE_COMMIT` together and record its workflow run ID.
+4. Run `cli-release-candidate.yml` from the unchanged reviewed `master` with
+   version `0.1.0`. Its final protected job automatically creates `v0.1.0` at
+   that exact commit and never moves an existing tag. Download and retain the
+   tarball, `SHA256SUMS`, and `SOURCE_COMMIT` together and record the workflow run
+   ID. Create the matching GitHub Release and notes using the existing tag.
+   Subsequent versions receive matching `v<VERSION>` tags through the same flow.
 5. Part 1 then verifies the frozen artifact against production, including the
    pending `ACCOUNT_SETUP_REQUIRED` fresh-user check and native Linux credential
    storage. Only after the applicable gates pass should the short-lived
