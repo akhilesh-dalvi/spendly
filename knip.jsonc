@@ -1,0 +1,21 @@
+{
+  "$schema": "https://unpkg.com/knip@6.39.0/schema-jsonc.json",
+  "workspaces": {
+    ".": {
+      // Standalone evaluation scripts are also invoked directly by contributors.
+      "entry": ["skills/spendly/evals/*.mjs"],
+      // The CI parser resolves this workspace-qualified command at the root;
+      // Next.js is installed and checked in apps/web, not in this workspace.
+      "ignoreBinaries": ["next"]
+    },
+    "apps/cli": {
+      // The development build has a separate source entry behind generated output.
+      "entry": ["development/index.ts"]
+    },
+    "packages/backend": {
+      "typescript": {
+        "config": ["convex/tsconfig.json"]
+      }
+    }
+  }
+}
