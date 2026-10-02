@@ -51,6 +51,8 @@ temp
 
 # Local tooling artifacts
 chrome-devtools/
+.lefthook-hooks/
+lefthook-local.yml
 
 # Spendly CLI source-checkout development configuration
 apps/cli/.env.local

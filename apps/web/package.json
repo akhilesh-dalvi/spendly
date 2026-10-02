@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "check-types": "next typegen && tsc --noEmit",
     "dev": "next dev --port 3001",
     "build": "next build",
     "docs:validate": "npm --prefix ../cli run build && node scripts/validate-cli-docs.mjs",
