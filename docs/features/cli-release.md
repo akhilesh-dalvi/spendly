@@ -62,15 +62,72 @@ This verifies the current source configuration, not a frozen publication
 artifact. Repeat the required authentication checks against the final candidate;
 the separate production `ACCOUNT_SETUP_REQUIRED` user check is still pending.
 
+## Part 0 repository preparation (2026-10-02)
+
+Production authentication is merged into `master` through PR
+https://github.com/akhilesh-dalvi/spendly/pull/10 at
+`80655a5d2ab7470bf80b966d7a39491214e25751`; its hosted CLI readiness workflow
+passed. The earlier note that authentication still needed merging is resolved.
+
+The working branch now includes:
+
+- Public `spendly@0.1.0` package metadata with `AGPL-3.0-only`, a packaged copy
+  of the approved root license, and checks rejecting private, unlicensed, or
+  inconsistent packages. Dependency versions are unchanged.
+- Exact-version installation instructions and the production documentation URL
+  in the npm README, installed help, skill, and Web docs. Publication remains
+  described as pending.
+- `cli-publish.yml`, which verifies the candidate run, source commit, release
+  tag, GitHub Release, tarball name, SHA-256, and embedded package metadata.
+  Its protected job publishes the existing tarball without rebuilding it.
+  Bootstrap credentials are available only to the first-publication step;
+  later versions use stage-only OIDC.
+- A candidate workflow restricted to `master` after successful hosted release
+  CI, with checks rejecting a moved source commit.
+
+Local verification passed on this working branch:
+
+- CLI production typecheck, all 194 tests, and isolated tarball installation
+  on macOS with Node.js 22.23.2 and 24.21.0. The 25 added regression cases cover
+  artifact tampering, mismatched metadata, source drift, candidate-run identity,
+  and public manifest requirements.
+- CLI development, backend, and environment typechecks; all 44 backend tests.
+- Web production build with the same synthetic public configuration used in CI.
+- Documentation validation: 8 pages, 27 command paths, 71 examples, and 2 JSON
+  examples. Skill evaluation manifest, reference routing, leakage validation,
+  and skill structure checks passed.
+- Release metadata, package dry run, actual tarball verification, focused
+  Biome, and `git diff --check`.
+- Both release workflows passed actionlint 1.7.12 (without optional ShellCheck).
+- CLI production dependency audit: zero vulnerabilities. Repository production
+  audit: one low finding and no moderate, high, or critical findings.
+
+These are local source checks, not hosted CI evidence for this new diff. No
+production login, financial mutation, GitHub settings change, deployment, npm
+publication, or final candidate freeze was performed in this preparation pass.
+
 ## Remaining handoff and operator inputs
 
-- The production CLI configuration change needs review and merge.
-- CLI CI and candidate workflows are now on the default branch. Create the
-  `cli-release` environment before running the candidate or publish workflow;
-  the publication workflow is still pending.
-- The worktree now includes `master`'s approved AGPL-3.0-only root license;
-  public npm metadata still needs to be finalized.
-- Complete the protected environment, publication workflow, public docs,
-  npm account checks, and final candidate freeze from the Part 0 checklist.
+1. Review and merge the repository preparation changes into `master`. Wait for
+   the full hosted CLI readiness suite, including macOS/Linux and Node.js 22/24,
+   and verify the deployed public docs. Complete the source-handoff acceptance
+   against the recorded Phase 8.10/8.11 terminal evidence; do not treat old
+   evidence as final-candidate verification.
+2. Create the GitHub `cli-release` environment with `master` and approved `v*`
+   deployment rules and an available trusted reviewer where practical. Keep npm
+   secrets environment-scoped; do not create the bootstrap token yet.
+3. Verify your npm email, enable account 2FA, retain recoverable second-factor
+   access, and complete interactive `npm login` / `npm whoami`. Record only the
+   username and pass/fail state, never credentials or recovery codes.
+4. Follow the runbook to create the matching `v0.1.0` Git tag and GitHub Release
+   for the reviewed commit. Run `cli-release-candidate.yml` from that unchanged
+   `master` with version `0.1.0`; download and retain the tarball, `SHA256SUMS`,
+   and `SOURCE_COMMIT` together and record its workflow run ID.
+5. Part 1 then verifies the frozen artifact against production, including the
+   pending `ACCOUNT_SETUP_REQUIRED` fresh-user check and native Linux credential
+   storage. Only after the applicable gates pass should the short-lived
+   bootstrap token be created and the publish workflow approved. Continue with
+   token removal, trusted-publisher setup, clean-user checks, and promotion as
+   specified in the runbook.
 
 Delete this temporary note when the CLI release ships.

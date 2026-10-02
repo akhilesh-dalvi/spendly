@@ -1,0 +1,140 @@
+name: Publish verified CLI candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run:
+        description: Successful candidate workflow run ID
+        required: true
+        type: string
+      source_commit:
+        description: Reviewed full master commit SHA
+        required: true
+        type: string
+      version:
+        description: Exact stable 0.x package version
+        required: true
+        type: string
+      tarball:
+        description: Recorded tarball filename (spendly-VERSION.tgz)
+        required: true
+        type: string
+      sha256:
+        description: Recorded tarball SHA-256
+        required: true
+        type: string
+      bootstrap:
+        description: First publication of spendly@0.1.0 only (temporary environment token)
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cli-publication
+  cancel-in-progress: false
+
+env:
+  CANDIDATE_RUN: ${{ inputs.candidate_run }}
+  SOURCE_COMMIT: ${{ inputs.source_commit }}
+  RELEASE_VERSION: ${{ inputs.version }}
+  TARBALL: ${{ inputs.tarball }}
+  SHA256: ${{ inputs.sha256 }}
+
+jobs:
+  prepare:
+    name: Verify and retrieve the recorded candidate
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify source, release identity, CI, and candidate run
+        run: node apps/cli/scripts/verify-release-source.mjs publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: spendly-${{ inputs.version }}-${{ inputs.source_commit }}
+          path: release-artifacts
+          run-id: ${{ inputs.candidate_run }}
+          github-token: ${{ github.token }}
+      - name: Verify candidate bytes and embedded metadata
+        run: node apps/cli/scripts/verify-release-artifact.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-publication-candidate
+          path: release-artifacts/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Publish the unchanged tarball on next
+    needs: prepare
+    environment: cli-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: Install the reviewed npm publishing toolchain
+        run: npm install --global npm@11.15.0 --ignore-scripts
+      # Same-run downloads use the artifact runtime token, not actions: read.
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-publication-candidate
+          path: release-artifacts
+      - name: Recheck release identity after environment approval
+        run: node apps/cli/scripts/verify-release-source.mjs identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Recheck the exact publication bytes
+        run: node apps/cli/scripts/verify-release-artifact.mjs
+      - name: Require the correct first-publication or staged mode
+        env:
+          BOOTSTRAP: ${{ inputs.bootstrap }}
+        run: |
+          node --input-type=module <<'NODE'
+          const bootstrap = process.env.BOOTSTRAP === "true";
+          if (bootstrap !== (process.env.RELEASE_VERSION === "0.1.0")) {
+            throw new Error("Only the initial 0.1.0 release may use bootstrap; later releases must use OIDC staging");
+          }
+          const response = await fetch("https://registry.npmjs.org/spendly");
+          if (bootstrap ? response.status !== 404 : response.status !== 200) {
+            throw new Error("Unexpected npm package state; verify availability and ownership before continuing");
+          }
+          NODE
+      - name: Bootstrap the first public version with provenance
+        if: inputs.bootstrap
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          test -n "$NODE_AUTH_TOKEN" || { echo 'Missing protected bootstrap token'; exit 1; }
+          npm publish "release-artifacts/$TARBALL" --tag next --access public --provenance --ignore-scripts
+      - name: Stage later versions through the trusted publisher
+        if: ${{ !inputs.bootstrap }}
+        run: npm stage publish "release-artifacts/$TARBALL" --tag next --access public --provenance --ignore-scripts
+      - name: Record publication identity
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from "node:fs";
+          const { RELEASE_VERSION, SOURCE_COMMIT, CANDIDATE_RUN, TARBALL, SHA256 } = process.env;
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            `spendly@${RELEASE_VERSION}\n\nSource: ${SOURCE_COMMIT}\n\nCandidate run: ${CANDIDATE_RUN}\n\nTarball: ${TARBALL}\n\nSHA-256: ${SHA256}\n\nChannel: next (staged releases still require npm approval).\n`);
+          NODE

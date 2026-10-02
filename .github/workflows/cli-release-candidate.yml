@@ -10,20 +10,34 @@ on:
 
 permissions:
   contents: read
+  actions: read
+
+concurrency:
+  group: cli-release-candidate
+  cancel-in-progress: false
 
 jobs:
   release-candidate:
-    name: Verified non-production artifact
+    name: Freeze verified publication candidate
+    if: github.ref == 'refs/heads/master'
     environment: cli-release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: pnpm
           registry-url: https://registry.npmjs.org
+      - name: Require reviewed master and successful release CI
+        run: node apps/cli/scripts/verify-release-source.mjs candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          RELEASE_VERSION: ${{ inputs.version }}
       - run: pnpm install --frozen-lockfile
       - name: Require the requested version
         env:
@@ -44,6 +58,12 @@ jobs:
           git rev-parse HEAD > release-artifacts/SOURCE_COMMIT
       - name: Confirm build did not change tracked files
         run: git diff --exit-code
+      - name: Confirm master still identifies this candidate
+        run: node apps/cli/scripts/verify-release-source.mjs candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          RELEASE_VERSION: ${{ inputs.version }}
       - uses: actions/upload-artifact@v4
         with:
           name: spendly-${{ inputs.version }}-${{ github.sha }}

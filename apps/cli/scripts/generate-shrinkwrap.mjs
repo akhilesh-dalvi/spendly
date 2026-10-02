@@ -18,6 +18,7 @@ const generationManifest = {
 	name: packageMetadata.name,
 	version: packageMetadata.version,
 	private: true,
+	license: packageMetadata.license,
 	engines: packageMetadata.engines,
 	dependencies: packageMetadata.dependencies,
 };

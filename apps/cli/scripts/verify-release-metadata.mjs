@@ -25,6 +25,30 @@ const assert = (condition, message) => {
 };
 
 assert(packageMetadata.name === "spendly", "Unexpected npm package name");
+assert(!("private" in packageMetadata), "Public package must omit private");
+assert(
+	packageMetadata.license === "AGPL-3.0-only",
+	"Package must use the approved AGPL-3.0-only license"
+);
+assert(
+	readFileSync(join(packageDirectory, "LICENSE"), "utf8") ===
+		readFileSync(join(packageDirectory, "../../LICENSE"), "utf8"),
+	"Package license must match the repository license"
+);
+assert(
+	packageMetadata.homepage === "https://spendly.akhileshdalvi.com/docs/cli",
+	"Package homepage must link to production CLI docs"
+);
+assert(
+	packageMetadata.bugs?.url ===
+		"https://github.com/akhilesh-dalvi/spendly/issues",
+	"Package bugs URL must match the public repository"
+);
+assert(
+	packageMetadata.bin?.spendly === "dist/index.js",
+	"Package binary must use the production entrypoint"
+);
+
 assert(
 	exactVersionPattern.test(packageMetadata.version),
 	"Package version must be an exact semantic version"
@@ -50,8 +74,8 @@ assert(
 );
 assert(
 	JSON.stringify(packageMetadata.files) ===
-		JSON.stringify(["dist", "npm-shrinkwrap.json"]),
-	"Published files must be limited to dist and npm-shrinkwrap.json"
+		JSON.stringify(["dist", "npm-shrinkwrap.json", "LICENSE", "README.md"]),
+	"Published files must include only production output, shrinkwrap, license, and README"
 );
 assert(
 	packageMetadata.publishConfig?.registry === "https://registry.npmjs.org/" &&
@@ -83,6 +107,10 @@ assert(
 );
 assert(shrinkwrap.lockfileVersion === 3, "npm shrinkwrap must use lockfile v3");
 const shrinkwrapRoot = shrinkwrap.packages?.[""];
+assert(
+	shrinkwrapRoot?.license === packageMetadata.license,
+	"Shrinkwrap license must match package.json"
+);
 assert(
 	shrinkwrapRoot !== undefined,
 	"npm shrinkwrap is missing its root package"

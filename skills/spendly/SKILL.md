@@ -9,6 +9,13 @@ Use `spendly` to work with the user's Spendly data from their local computer.
 
 ## Get started
 
+Public documentation: [Spendly CLI](https://spendly.akhileshdalvi.com/docs/cli).
+The initial `0.1.0` release is awaiting publication. Once it is published on
+`next`, install that exact version with `npm install --global spendly@0.1.0`
+on Node.js 22 or newer. After release validation and promotion to `latest`,
+users can install with `npm install --global spendly`. A missing npm version
+means publication is still pending; do not substitute an unrelated package.
+
 ```bash
 spendly --version
 spendly --agent --json --non-interactive auth status

@@ -12,7 +12,7 @@
   complete, including findings F01-F18; Phase 8.11 MCP reuse readiness and its
   post-refactor local integration check are complete; Phase 8.12 Raycast reuse
   readiness is complete before Phase 9
-- Last updated: 2026-10-01
+- Last updated: 2026-10-02
 - Target branch: `feature/spendly-cli`
 - Package location: `apps/cli`
 - npm package and executable: `spendly`
@@ -1568,7 +1568,7 @@ is ready and reviewed.
       Clerk, Web, and documentation endpoints. Compile only public production
       identifiers into the CLI, set `authReady` to `true`, and prove that no
       development selector, endpoint, credential, or secret enters the build.
-- [ ] Select and approve the public software license, add the root license file
+- [x] Select and approve the public software license, add the root license file
       and npm `license` metadata, remove `private: true`, and make release
       metadata validation reject a private or unlicensed package.
 - [ ] Put the stable production `/docs/cli` URL and exact initial-release
@@ -1592,6 +1592,12 @@ is ready and reviewed.
 - [ ] Confirm the npm maintainer account has a verified email, account 2FA and
       recoverable second-factor setup, and working interactive access. Record
       only the `npm whoami` username and pass/fail state.
+
+Repository preparation for the remaining documentation and publication workflow
+items is implemented on the working branch. Those checkboxes stay open until
+the changes reach `master` and the public docs deployment is verified. See
+`docs/features/cli-release.md` for current verification and the remaining
+maintainer steps. The final candidate has not been frozen or published.
 
 #### Part 1: Package and Release
 
