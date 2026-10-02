@@ -7,6 +7,9 @@
   ],
   "type": "module",
   "scripts": {
+    "prepare": "node scripts/install-hooks.mjs",
+    "hooks:install": "node scripts/install-hooks.mjs",
+    "hooks:test": "node --test scripts/install-hooks.test.mjs",
     "dev": "turbo dev",
     "build": "turbo build",
     "check-types": "turbo check-types",
@@ -32,13 +35,14 @@
     "@modelcontextprotocol/server": "2.0.0",
     "@spendly/config": "workspace:*",
     "lint-staged": "17.5.1",
+    "lefthook": "2.1.16",
     "turbo": "^2.6.3",
     "typescript": "catalog:",
     "ultracite": "7.0.11"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,json,jsonc,css,scss,md,mdx}": [
-      "pnpm dlx ultracite fix"
+    "*.{js,jsx,mjs,cjs,ts,tsx,mts,cts,json,jsonc,css,scss}": [
+      "pnpm exec biome check --write --no-errors-on-unmatched --files-ignore-unknown=true"
     ]
   },
   "packageManager": "pnpm@11.21.0"

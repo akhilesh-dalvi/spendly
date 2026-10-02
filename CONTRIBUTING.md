@@ -85,10 +85,40 @@ sync. Never edit generated Convex files by hand.
 
 ## Verification
 
+### Local Git hooks
+
+`pnpm install` installs Lefthook's pre-commit and pre-push hooks for the current
+checkout. Run it separately in each new worktree. To repair an existing
+installation, run `pnpm hooks:install`.
+
+Pre-commit runs lint-staged with the installed Biome binary and the repository's
+Ultracite presets. It formats and lints staged JavaScript, TypeScript, JSON, and
+CSS files, preserving unstaged changes in partially staged files. Markdown and
+MDX are outside Biome's supported formats and are not processed by this hook.
+
+Pre-push runs checks for affected workspaces in parallel: web and environment
+typechecks, backend typechecks and tests, and CLI production/development
+typechecks and tests. Backend changes also check its web and CLI consumers;
+shared configuration and dependency changes check all workspaces. The rules
+live in `lefthook.yml`. Production builds, dependency audits, and package
+verification remain in CI. Web checks generate Next.js route types and require
+the public Convex and Clerk settings from `apps/web/.env.local` or the shell.
+
+Installation uses worktree-specific Git configuration and generates ignored
+hooks in `.lefthook-hooks/`. It preserves other checkouts' hook paths and skips
+CI, production installs, source archives without `.git`, and `LEFTHOOK=0`.
+The package's automatic installer is disabled so the root installer owns this
+worktree setup. Use `LEFTHOOK=0` for a deliberate one-command bypass, for example
+`LEFTHOOK=0 git commit`, and still run the relevant checks before merging.
+
+### Manual checks
+
 Run checks proportional to the change. The main repository checks are:
 
 ```bash
 pnpm dlx ultracite check
+pnpm check-types
+pnpm hooks:test
 pnpm exec tsc --noEmit -p apps/web/tsconfig.json
 pnpm exec tsc --noEmit -p packages/backend/convex/tsconfig.json
 pnpm exec tsc --noEmit -p packages/env/tsconfig.json

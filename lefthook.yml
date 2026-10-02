@@ -1,0 +1,50 @@
+# Always resolve the pinned runner from the current worktree.
+lefthook: pnpm exec lefthook
+# Installation belongs to the worktree-aware prepare script.
+no_auto_install: true
+glob_matcher: doublestar
+
+pre-commit:
+  jobs:
+    - name: staged-lint
+      run: pnpm exec lint-staged
+
+pre-push:
+  parallel: true
+  jobs:
+    - name: web-types
+      glob:
+        - apps/web/**
+        - packages/backend/**
+        - packages/env/**
+        - packages/config/**
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - tsconfig.json
+        - turbo.json
+        - lefthook.yml
+      run: pnpm --filter web --filter @spendly/env check-types
+    - name: backend-checks
+      glob:
+        - packages/backend/**
+        - packages/config/**
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - tsconfig.json
+        - turbo.json
+        - lefthook.yml
+      run: pnpm --dir packages/backend check-types && pnpm --dir packages/backend test:once
+    - name: cli-checks
+      glob:
+        - apps/cli/**
+        - packages/backend/**
+        - packages/config/**
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - tsconfig.json
+        - turbo.json
+        - lefthook.yml
+      run: pnpm --dir apps/cli check-types && pnpm --dir apps/cli check-types:development && pnpm --dir apps/cli test
