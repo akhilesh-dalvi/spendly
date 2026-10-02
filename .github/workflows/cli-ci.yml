@@ -33,6 +33,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Verify worktree hook installation
         run: pnpm hooks:test
+      - name: Check import and dependency declarations
+        run: pnpm knip:check --reporter github-actions
+      - name: Report unused code and dependencies
+        run: pnpm knip:report --reporter github-actions
       - name: Check release metadata and dependency lock
         run: pnpm --dir apps/cli release:check
       - name: Audit production dependencies
@@ -44,6 +48,7 @@ jobs:
           pnpm exec biome check
           scripts
           package.json
+          knip.jsonc
           apps/cli/src
           apps/cli/scripts
           apps/cli/package.json

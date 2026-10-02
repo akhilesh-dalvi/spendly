@@ -12,6 +12,22 @@ pre-commit:
 pre-push:
   parallel: true
   jobs:
+    - name: knip
+      glob:
+        - apps/**
+        - packages/**
+        - scripts/**
+        - skills/spendly/**
+        - .github/**
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - tsconfig.json
+        - turbo.json
+        - biome.json
+        - knip.jsonc
+        - lefthook.yml
+      run: pnpm knip:check
     - name: web-types
       glob:
         - apps/web/**
