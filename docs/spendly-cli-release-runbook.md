@@ -45,6 +45,10 @@ stability.
    and public Store packaging boundaries; accepted the `raycast` provenance
    origin; and added no Raycast dependency or entrypoint to the CLI tarball.
 
+The historical baseline candidate runs above are non-production evidence. The
+current candidate workflow is restricted to reviewed `master` with successful
+CLI release CI and now freezes the production publication candidate.
+
 Phases 8.7 through 8.12 hand off a reviewed source baseline, not the publishable
 tarball. Phase 9 may make only the production-configuration, public-package,
 documentation, and publication-workflow changes listed below. Those changes
@@ -87,6 +91,32 @@ security and publishing state.
      publish that tarball without running a build or changing tracked files; and
    - use a temporary `NPM_TOKEN` fallback only for the first publication, then
      use npm trusted-publisher OIDC for later releases.
+
+The publish workflow has two jobs. `prepare` has `contents: read` and
+`actions: read` to verify the successful candidate run and download its artifact.
+It uploads the verified bytes as a same-run artifact. The protected `publish`
+job has only `contents: read` and `id-token: write`; it downloads those bytes,
+rechecks their hash, embedded metadata, current `master`, and release tag after
+approval, and never builds or installs the candidate. Only the bootstrap publish
+step receives `NPM_TOKEN` through `NODE_AUTH_TOKEN`.
+
+Dispatch `cli-publish.yml` from `master` with these recorded inputs:
+
+| Input | Value |
+| --- | --- |
+| `candidate_run` | Successful `cli-release-candidate.yml` run ID |
+| `source_commit` | Full reviewed `master` commit SHA, also in `SOURCE_COMMIT` |
+| `version` | `0.1.0` for the initial release |
+| `tarball` | `spendly-0.1.0.tgz` for the initial release |
+| `sha256` | Exact lowercase SHA-256 from `SHA256SUMS` |
+| `bootstrap` | `true` only for first publication; `false` for later `0.x` releases |
+
+Both release workflows must run from `master`. A successful CLI readiness
+push run on that same commit is required; a passing PR run alone is insufficient.
+The publish workflow also requires `v<VERSION>` to identify that commit and a
+published GitHub Release with release notes. If `master` changes, prepare and
+review a new candidate before proceeding. Never dispatch publication merely to
+test the workflow: bootstrap publication and OIDC staging change npm state.
 
 ### Protected GitHub Environment
 
@@ -286,8 +316,8 @@ Then complete all of these steps in the same maintenance window:
 
 ### Promote the Validated Package to `latest`
 
-Trusted-publisher OIDC authorizes `npm publish` and `npm stage publish`; it does
-not authorize dist-tag changes. After the exact package passes the complete
+This runbook configures the trusted publisher for staging only, without direct
+publication or dist-tag permissions. After the exact package passes the complete
 user-availability gate, use an interactive maintainer session with 2FA:
 
 ```bash

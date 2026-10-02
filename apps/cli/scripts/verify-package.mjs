@@ -26,6 +26,7 @@ const npmCacheDirectory = join(verificationDirectory, "npm-cache");
 const maximumTarballBytes = 5 * 1024 * 1024;
 const allowedPackageFiles = new Set([
 	"package/README.md",
+	"package/LICENSE",
 	"package/npm-shrinkwrap.json",
 	"package/package.json",
 ]);
@@ -99,11 +100,24 @@ try {
 		entryList.includes("package/npm-shrinkwrap.json"),
 		"Tarball is missing npm-shrinkwrap.json"
 	);
+	for (const requiredFile of allowedPackageFiles) {
+		assert(
+			entryList.includes(requiredFile),
+			`Tarball is missing ${requiredFile}`
+		);
+	}
+	assert(
+		run("tar", ["-xOf", tarballPath, "package/LICENSE"]) ===
+			readFileSync(join(packageDirectory, "../../LICENSE"), "utf8"),
+		"Packed license differs from the approved repository license"
+	);
 	const packedMetadata = JSON.parse(
 		run("tar", ["-xOf", tarballPath, "package/package.json"])
 	);
 	assert(
-		packedMetadata.name === packageMetadata.name &&
+		!("private" in packedMetadata) &&
+			packedMetadata.license === "AGPL-3.0-only" &&
+			packedMetadata.name === packageMetadata.name &&
 			packedMetadata.version === packageMetadata.version,
 		"Packed package identity differs from the source manifest"
 	);
@@ -205,7 +219,8 @@ try {
 
 	const help = run(binaryPath, ["--help"], { cwd: verificationDirectory });
 	assert(
-		help.includes("Usage: spendly"),
+		help.includes("Usage: spendly") &&
+			help.includes("https://spendly.akhileshdalvi.com/docs/cli"),
 		"Installed binary did not render help"
 	);
 	const jsonHelp = JSON.parse(

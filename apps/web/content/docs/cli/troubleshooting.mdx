@@ -17,9 +17,9 @@ make sure the `bin` folder under the printed npm prefix is on your `PATH`,
 then open a new terminal. An AI agent needs the CLI available in its own
 terminal environment too.
 
-If npm reports that `spendly@next` is missing, the initial `0.1.0` release has
-not entered public verification yet. Production sign-in is also pending;
-reinstalling will not enable it.
+If npm reports that `spendly@0.1.0` is missing, the initial `0.1.0` release has
+not entered public verification yet. Wait for publication before installing;
+repeated installation attempts will not make the package available.
 
 ## The shell runs words from the output as commands
 
@@ -102,7 +102,7 @@ run the deletion preview again to get a current one.
 During release verification, update the CLI and skill with:
 
 ```bash
-npm install --global spendly@next
+npm install --global spendly@0.1.0
 npx skills update spendly --global
 ```
 

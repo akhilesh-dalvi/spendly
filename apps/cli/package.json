@@ -1,7 +1,6 @@
 {
   "name": "spendly",
   "version": "0.1.0",
-  "private": true,
   "description": "Spendly command-line interface",
   "type": "module",
   "repository": {
@@ -21,7 +20,9 @@
   ],
   "files": [
     "dist",
-    "npm-shrinkwrap.json"
+    "npm-shrinkwrap.json",
+    "LICENSE",
+    "README.md"
   ],
   "bin": {
     "spendly": "dist/index.js"
@@ -64,5 +65,6 @@
     "@types/node": "24.12.2",
     "typescript": "5.9.3",
     "vitest": "3.2.7"
-  }
+  },
+  "license": "AGPL-3.0-only"
 }

@@ -267,7 +267,7 @@ const createProgram = (
 		)
 		.addHelpText(
 			"after",
-			"\nGuided mode: spendly --interactive\nFor command-specific guidance: spendly <command> --help"
+			"\nGuided mode: spendly --interactive\nFor command-specific guidance: spendly <command> --help\nDocumentation: https://spendly.akhileshdalvi.com/docs/cli\nInitial release (once published on next): npm install --global spendly@0.1.0"
 		)
 		.showSuggestionAfterError(true)
 		.showHelpAfterError(false)
