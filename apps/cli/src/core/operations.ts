@@ -481,9 +481,9 @@ export type BackendOperation = <Result>(
 	context?: OperationRequestContext
 ) => Promise<Result>;
 
-export type InvocationOrigin = "cli" | "cli_agent" | "mcp" | "raycast";
+type InvocationOrigin = "cli" | "cli_agent" | "mcp" | "raycast";
 
-export interface CommitProvenanceAdapter {
+interface CommitProvenanceAdapter {
 	decorate: (
 		args: Readonly<Record<string, unknown>>,
 		origin: InvocationOrigin

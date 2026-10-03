@@ -54,8 +54,7 @@ export const createMarketingTitle = (title: string): string => {
 	return `${SITE_NAME} | ${title}`;
 };
 
-export const createAppTitle = (title: string): string =>
-	`${title} | ${SITE_NAME}`;
+const createAppTitle = (title: string): string => `${title} | ${SITE_NAME}`;
 
 export const createAppMetadata = ({ title }: AppMetadataInput): Metadata => ({
 	title: createAppTitle(title),

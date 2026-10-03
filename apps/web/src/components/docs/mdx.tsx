@@ -7,5 +7,3 @@ export const getMDXComponents = (
 	...defaultMdxComponents,
 	...components,
 });
-
-export const useMDXComponents = getMDXComponents;

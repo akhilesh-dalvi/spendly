@@ -1,6 +1,6 @@
 import type { Id } from "@spendly/backend/convex/_generated/dataModel";
 
-export interface CompareCategoryRow {
+interface CompareCategoryRow {
 	categoryName: string;
 	spent: number;
 	planned: number | null;

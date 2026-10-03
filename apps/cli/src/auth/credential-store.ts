@@ -82,7 +82,7 @@ const parseStoredSession = (value: string, location: string): StoredSession => {
 	return result.data;
 };
 
-export class KeychainCredentialStore implements CredentialStore {
+class KeychainCredentialStore implements CredentialStore {
 	readonly #entry: Entry;
 
 	constructor(namespace: string) {

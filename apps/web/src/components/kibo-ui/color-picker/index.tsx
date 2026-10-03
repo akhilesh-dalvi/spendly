@@ -1,7 +1,6 @@
 "use client";
 
 import Color from "color";
-import { PipetteIcon } from "lucide-react";
 import { Slider } from "radix-ui";
 import {
 	type ComponentProps,
@@ -15,7 +14,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
 	Select,
@@ -43,7 +41,7 @@ const ColorPickerContext = createContext<ColorPickerContextValue | undefined>(
 	undefined
 );
 
-export const useColorPicker = () => {
+const useColorPicker = () => {
 	const context = useContext(ColorPickerContext);
 
 	if (!context) {
@@ -266,71 +264,6 @@ export const ColorPickerHue = ({
 			</Slider.Track>
 			<Slider.Thumb className="block h-4 w-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50" />
 		</Slider.Root>
-	);
-};
-
-export type ColorPickerAlphaProps = ComponentProps<typeof Slider.Root>;
-
-export const ColorPickerAlpha = ({
-	className,
-	...props
-}: ColorPickerAlphaProps) => {
-	const { alpha, setAlpha } = useColorPicker();
-
-	return (
-		<Slider.Root
-			className={cn("relative flex h-4 w-full touch-none", className)}
-			max={100}
-			onValueChange={([alpha]) => setAlpha(alpha)}
-			step={1}
-			value={[alpha]}
-			{...props}
-		>
-			<Slider.Track className="relative my-0.5 h-3 w-full grow rounded-full bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uCTZhw1gGGYhAGBZIA/nYDCgBDAm9BGDWAAJyRCgLaBCAAgXwixzAS0pgAAAABJRU5ErkJggg==')] bg-center bg-repeat-x dark:bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAALklEQVR4nGP8+vWrCAMewM3N/QafPBM+SWLAqAGDwQBGQgoIpZOB98KoAVQwAADxzQcSVIRCfQAAAABJRU5ErkJggg==')]">
-				<div className="absolute inset-0 rounded-full bg-gradient-to-r from-transparent to-black/50 dark:to-white/50" />
-				<Slider.Range className="absolute h-full rounded-full bg-transparent" />
-			</Slider.Track>
-			<Slider.Thumb className="block h-4 w-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50" />
-		</Slider.Root>
-	);
-};
-
-export type ColorPickerEyeDropperProps = ComponentProps<typeof Button>;
-
-export const ColorPickerEyeDropper = ({
-	className,
-	...props
-}: ColorPickerEyeDropperProps) => {
-	const { setHue, setSaturation, setLightness, setAlpha } = useColorPicker();
-
-	const handleEyeDropper = async () => {
-		try {
-			// @ts-expect-error - EyeDropper API is experimental
-			const eyeDropper = new EyeDropper();
-			const result = await eyeDropper.open();
-			const color = Color(result.sRGBHex);
-			const [h, s, l] = color.hsl().array();
-
-			setHue(h);
-			setSaturation(s);
-			setLightness(l);
-			setAlpha(100);
-		} catch (error) {
-			console.error("EyeDropper failed:", error);
-		}
-	};
-
-	return (
-		<Button
-			className={cn("shrink-0 text-muted-foreground", className)}
-			onClick={handleEyeDropper}
-			size="icon"
-			type="button"
-			variant="outline"
-			{...props}
-		>
-			<PipetteIcon size={16} />
-		</Button>
 	);
 };
 

@@ -91,26 +91,12 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
 	);
 }
 
-function TableCaption({
-	className,
-	...props
-}: React.ComponentProps<"caption">) {
-	return (
-		<caption
-			className={cn("mt-4 text-muted-foreground text-sm", className)}
-			data-slot="table-caption"
-			{...props}
-		/>
-	);
-}
-
 export {
 	Table,
-	TableHeader,
 	TableBody,
+	TableCell,
 	TableFooter,
 	TableHead,
+	TableHeader,
 	TableRow,
-	TableCell,
-	TableCaption,
 };

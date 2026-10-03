@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 
-export interface GlobalOptions {
+interface GlobalOptions {
 	accessible: boolean;
 	agent: boolean;
 	allowFileStorage: boolean;

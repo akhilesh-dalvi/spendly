@@ -11,7 +11,7 @@
     "hooks:install": "node scripts/install-hooks.mjs",
     "hooks:test": "node --test scripts/install-hooks.test.mjs",
     "knip": "knip",
-    "knip:check": "knip --include unlisted,unresolved,binaries,catalog,catalogReferences --treat-config-hints-as-errors",
+    "knip:check": "knip --treat-config-hints-as-errors",
     "knip:report": "knip --no-exit-code",
     "knip:production": "knip --production",
     "dev": "turbo dev",
@@ -27,11 +27,6 @@
     "dev:web": "turbo -F web dev",
     "dev:server": "turbo -F @spendly/backend dev",
     "dev:setup": "turbo -F @spendly/backend dev:setup"
-  },
-  "dependencies": {
-    "@spendly/env": "workspace:*",
-    "dotenv": "catalog:",
-    "zod": "catalog:"
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.11",

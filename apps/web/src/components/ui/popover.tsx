@@ -1,12 +1,6 @@
 "use client";
 
-import {
-	Anchor,
-	Content,
-	Portal,
-	Root,
-	Trigger,
-} from "@radix-ui/react-popover";
+import { Content, Portal, Root, Trigger } from "@radix-ui/react-popover";
 import type * as React from "react";
 
 import { cn } from "@/lib/utils";
@@ -44,49 +38,4 @@ function PopoverContent({
 	);
 }
 
-function PopoverAnchor({ ...props }: React.ComponentProps<typeof Anchor>) {
-	return <Anchor data-slot="popover-anchor" {...props} />;
-}
-
-function PopoverHeader({ className, ...props }: React.ComponentProps<"div">) {
-	return (
-		<div
-			className={cn("flex flex-col gap-1 text-sm", className)}
-			data-slot="popover-header"
-			{...props}
-		/>
-	);
-}
-
-function PopoverTitle({ className, ...props }: React.ComponentProps<"h2">) {
-	return (
-		<div
-			className={cn("font-medium", className)}
-			data-slot="popover-title"
-			{...props}
-		/>
-	);
-}
-
-function PopoverDescription({
-	className,
-	...props
-}: React.ComponentProps<"p">) {
-	return (
-		<p
-			className={cn("text-muted-foreground", className)}
-			data-slot="popover-description"
-			{...props}
-		/>
-	);
-}
-
-export {
-	Popover,
-	PopoverTrigger,
-	PopoverContent,
-	PopoverAnchor,
-	PopoverHeader,
-	PopoverTitle,
-	PopoverDescription,
-};
+export { Popover, PopoverContent, PopoverTrigger };
