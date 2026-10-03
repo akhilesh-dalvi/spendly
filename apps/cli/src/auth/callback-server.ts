@@ -12,7 +12,7 @@ const CALLBACK_RESPONSE_HEADERS = {
 	"x-content-type-options": "nosniff",
 } as const;
 
-export interface CallbackResult {
+interface CallbackResult {
 	code: string;
 }
 

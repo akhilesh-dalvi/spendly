@@ -14,7 +14,7 @@ const formatScalar = (value: unknown): string => {
 	return String(value);
 };
 
-export const renderTerminalData = (data: unknown): string => {
+const renderTerminalData = (data: unknown): string => {
 	if (!(data && typeof data === "object") || Array.isArray(data)) {
 		return typeof data === "string" ? data : JSON.stringify(data, null, 2);
 	}

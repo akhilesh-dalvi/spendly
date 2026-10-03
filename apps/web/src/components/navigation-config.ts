@@ -12,7 +12,7 @@ import {
 	WalletCards,
 } from "lucide-react";
 
-export type NavMatchMode = "exact" | "prefix";
+type NavMatchMode = "exact" | "prefix";
 
 export interface NavSubItem {
 	title: string;
@@ -82,7 +82,7 @@ export const MANAGEMENT_NAV_ITEMS = [
 	},
 ] as const satisfies readonly NavItem[];
 
-export const SETTINGS_NAV_ITEM = {
+const SETTINGS_NAV_ITEM = {
 	title: "Settings",
 	url: "/settings",
 	icon: Settings,

@@ -1,7 +1,7 @@
 import type { Doc } from "@spendly/backend/convex/_generated/dataModel";
 import { formatCurrency } from "@/lib/utils";
 
-export type AccountTypeBalanceNature = Doc<"account_types">["balanceNature"];
+type AccountTypeBalanceNature = Doc<"account_types">["balanceNature"];
 
 export type ResolvedAccount = Doc<"accounts"> & {
 	accountTypeBalanceNature: AccountTypeBalanceNature;

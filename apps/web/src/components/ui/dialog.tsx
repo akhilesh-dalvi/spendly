@@ -31,12 +31,6 @@ function DialogPortal({
 	return <DialogPortalPrimitive data-slot="dialog-portal" {...props} />;
 }
 
-function DialogClose({
-	...props
-}: ComponentPropsWithoutRef<typeof DialogClosePrimitive>) {
-	return <DialogClosePrimitive data-slot="dialog-close" {...props} />;
-}
-
 function DialogOverlay({
 	className,
 	...props
@@ -155,13 +149,10 @@ function DialogDescription({
 
 export {
 	Dialog,
-	DialogClose,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
-	DialogOverlay,
-	DialogPortal,
 	DialogTitle,
 	DialogTrigger,
 };

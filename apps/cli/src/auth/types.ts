@@ -3,7 +3,7 @@ import { httpsUrlSchema } from "../config.js";
 
 const MAX_CREDENTIAL_LENGTH = 20_000;
 
-export const oauthTokenSetSchema = z
+const oauthTokenSetSchema = z
 	.object({
 		expiresAt: z.number().int().nonnegative().finite(),
 		idToken: z.string().min(1).max(MAX_CREDENTIAL_LENGTH),

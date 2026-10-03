@@ -3,7 +3,7 @@ import { expenseSchema } from "./read-schemas.js";
 
 const idSchema = z.string().min(1);
 
-export const accountBalanceEffectSchema = z.object({
+const accountBalanceEffectSchema = z.object({
 	accountId: idSchema,
 	accountName: z.string(),
 	balanceAfter: z.number().finite(),

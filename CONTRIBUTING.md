@@ -100,8 +100,9 @@ Pre-push runs checks for affected workspaces in parallel: web and environment
 typechecks, backend typechecks and tests, and CLI production/development
 typechecks and tests. Backend changes also check its web and CLI consumers;
 shared configuration and dependency changes check all workspaces. The rules
-live in `lefthook.yml`. A Knip job checks import and dependency declarations
-across the whole repository when source, tooling, or configuration files change.
+live in `lefthook.yml`. A Knip job checks unused code, exports, dependencies,
+and import declarations across the whole repository when source, tooling, or
+configuration files change.
 Production builds, dependency audits, and package verification remain in CI.
 Web checks generate Next.js route types and require
 the public Convex and Clerk settings from `apps/web/.env.local` or the shell.
@@ -122,24 +123,24 @@ There are no separate plugin packages to install. `knip.jsonc` adds the CLI's
 development source entry, standalone evaluation scripts, and the backend's
 nested TypeScript configuration.
 
-Run `pnpm knip:check` for the checks enforced by pre-push and CI: unlisted
-dependencies, unresolved imports, missing command binaries, unused catalog
-entries, and unresolved catalog references. Stale configuration hints also fail
-this command. The hook's file patterns decide
-whether to run; analysis still covers the entire repository. Pre-commit keeps
-using Biome and lint-staged.
+Run `pnpm knip:check` for the full analysis enforced by pre-push and CI: unused
+files, exports, types, dependencies, duplicate exports, unlisted dependencies,
+unresolved imports, missing command binaries, unused catalog entries, and
+unresolved catalog references. Stale configuration hints also fail this command.
+The hook's file patterns decide whether to run; analysis still covers the entire
+repository. Pre-commit keeps using Biome and lint-staged.
 
-Run `pnpm knip:report` for the complete advisory report. Existing unused files,
-exports, types, dependencies, and duplicate exports remain visible without
-blocking pushes while they are reviewed. Configuration and execution errors
-still fail the report command. CI publishes both the enforced checks and the
-advisory findings as GitHub annotations.
+Run `pnpm knip:report` to inspect the same findings without a failing exit code.
+Configuration and execution errors still fail the report command. CI publishes
+both the enforced checks and the report as GitHub annotations.
 
 `pnpm knip` runs the full analysis with a failing exit code for findings.
 `pnpm knip:production` adds a separate view of shipped code; it does not replace
-the default analysis of tests and tooling. Resolve findings or document narrow,
-intentional exceptions before adding their categories to `knip:check`. Avoid
-blanket ignores and automatic deletion of files or dependencies without review.
+the default analysis of tests and tooling. It can flag release scripts and
+exports referenced only by tests, so check the full repository graph before
+removing them. Keep the full report clean by resolving findings or documenting
+narrow, intentional exceptions. Avoid blanket ignores and automatic deletion of
+files or dependencies without review.
 
 ### Manual checks
 
