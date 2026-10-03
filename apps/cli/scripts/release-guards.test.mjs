@@ -46,9 +46,9 @@ const createArtifact = (overrides = {}) => {
 	};
 	writeFileSync(metadataPath, JSON.stringify(metadata));
 	const environment = {
-		RELEASE_VERSION: "0.1.0",
+		RELEASE_VERSION: "0.1.1",
 		SOURCE_COMMIT: "a".repeat(40),
-		TARBALL: "spendly-0.1.0.tgz",
+		TARBALL: "spendly-0.1.1.tgz",
 	};
 	const tarball = join(artifactDirectory, environment.TARBALL);
 	execFileSync("tar", ["-czf", tarball, "-C", contents, "package"]);
@@ -73,7 +73,7 @@ describe("publication artifact guards", () => {
 		expect(
 			verifyReleaseArtifact(fixture.environment, fixture.artifactDirectory)
 				.version
-		).toBe("0.1.0");
+		).toBe("0.1.1");
 		expect(readFileSync(fixture.tarball)).toEqual(before);
 	});
 	it("rejects tampered tarballs even when the recorded checksum is unchanged", () => {
@@ -118,7 +118,7 @@ describe("publication artifact guards", () => {
 		const fixture = createArtifact();
 		expect(() =>
 			verifyReleaseArtifact(
-				{ ...fixture.environment, TARBALL: "../spendly-0.1.0.tgz" },
+				{ ...fixture.environment, TARBALL: "../spendly-0.1.1.tgz" },
 				fixture.artifactDirectory
 			)
 		).toThrow("Unexpected tarball filename");
@@ -139,7 +139,7 @@ const createSourceFixture = () => {
 		GITHUB_REF: "refs/heads/master",
 		GITHUB_SHA: commit,
 		SOURCE_COMMIT: commit,
-		RELEASE_VERSION: "0.1.0",
+		RELEASE_VERSION: "0.1.1",
 		CANDIDATE_RUN: "42",
 	};
 	const run = {
@@ -152,9 +152,9 @@ const createSourceFixture = () => {
 	};
 	const responses = {
 		"commits/master": { sha: commit },
-		"commits/refs%2Ftags%2Fv0.1.0": { sha: commit },
-		"releases/tags/v0.1.0": {
-			tag_name: "v0.1.0",
+		"commits/refs%2Ftags%2Fv0.1.1": { sha: commit },
+		"releases/tags/v0.1.1": {
+			tag_name: "v0.1.1",
 			draft: false,
 			body: "Release notes",
 		},
@@ -184,8 +184,8 @@ describe("hosted release identity guards", () => {
 	});
 	it("checks the candidate gate before a GitHub Release exists", async () => {
 		const fixture = createSourceFixture();
-		fixture.responses["commits/refs%2Ftags%2Fv0.1.0"] = undefined;
-		fixture.responses["releases/tags/v0.1.0"] = undefined;
+		fixture.responses["commits/refs%2Ftags%2Fv0.1.1"] = undefined;
+		fixture.responses["releases/tags/v0.1.1"] = undefined;
 		await expect(
 			verifyReleaseSource(fixture.environment, fixture.request, "candidate")
 		).resolves.toBeUndefined();
@@ -209,7 +209,7 @@ describe("hosted release identity guards", () => {
 	});
 	it("rejects a tag pointing at another commit", async () => {
 		const fixture = createSourceFixture();
-		fixture.responses["commits/refs%2Ftags%2Fv0.1.0"].sha = "b".repeat(40);
+		fixture.responses["commits/refs%2Ftags%2Fv0.1.1"].sha = "b".repeat(40);
 		await expect(
 			verifyReleaseSource(fixture.environment, fixture.request, "publish")
 		).rejects.toThrow("Release tag");

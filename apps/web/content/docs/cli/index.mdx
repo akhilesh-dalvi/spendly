@@ -6,7 +6,7 @@ description: Set up Spendly, then use it from your terminal or with an AI agent.
 Spendly CLI lets you track expenses and manage account balances from your
 terminal using the same data as Spendly Web.
 
-The initial `0.1.0` release is not available yet. The setup steps below are for
+The initial `0.1.1` release is not available yet. The setup steps below are for
 that upcoming release. Production authentication is configured, but npm
 installation must wait until the package is published.
 
@@ -16,16 +16,16 @@ You'll need Node.js 22 or newer and a Spendly account. macOS is the currently
 verified platform; Linux verification is planned, and Windows is not supported
 in the initial release. Install only on a computer you trust. During release
 verification, once the package is published on `next`, install the exact
-`0.1.0` version in your terminal:
+`0.1.1` version in your terminal:
 
 ```bash
-npm install --global spendly@0.1.0
+npm install --global spendly@0.1.1
 spendly --version
 ```
 
 This makes the `spendly` command available in your terminal.
 
-The `next` tag is a temporary verification channel for the unsuffixed `0.1.0`
+The `next` tag is a temporary verification channel for the unsuffixed `0.1.1`
 package. After that unchanged package passes production checks, it moves to the
 default `latest` channel and users can install it with
 `npm install --global spendly`. Spendly will continue with `0.x` releases until

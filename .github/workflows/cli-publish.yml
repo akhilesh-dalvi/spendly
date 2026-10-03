@@ -24,7 +24,7 @@ on:
         required: true
         type: string
       bootstrap:
-        description: First publication of spendly@0.1.0 only (temporary environment token)
+        description: First publication of spendly@0.1.1 only (temporary environment token)
         required: true
         default: false
         type: boolean
@@ -109,17 +109,7 @@ jobs:
       - name: Require the correct first-publication or staged mode
         env:
           BOOTSTRAP: ${{ inputs.bootstrap }}
-        run: |
-          node --input-type=module <<'NODE'
-          const bootstrap = process.env.BOOTSTRAP === "true";
-          if (bootstrap !== (process.env.RELEASE_VERSION === "0.1.0")) {
-            throw new Error("Only the initial 0.1.0 release may use bootstrap; later releases must use OIDC staging");
-          }
-          const response = await fetch("https://registry.npmjs.org/spendly");
-          if (bootstrap ? response.status !== 404 : response.status !== 200) {
-            throw new Error("Unexpected npm package state; verify availability and ownership before continuing");
-          }
-          NODE
+        run: node apps/cli/scripts/verify-publication-mode.mjs
       - name: Bootstrap the first public version with provenance
         if: inputs.bootstrap
         env:

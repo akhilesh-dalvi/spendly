@@ -1,5 +1,9 @@
 # Spendly CLI Phase 0: Decisions and Technical Spikes
 
+The release-version decision recorded here is historical. The Phase 9
+[release runbook](spendly-cli-release-runbook.md) now targets `0.1.1` after
+superseding the frozen, unpublished `0.1.0` candidate without moving its tag.
+
 ## Status
 
 - Phase: Complete for the current macOS scope; Linux validation deferred
@@ -65,8 +69,8 @@ No CLI code should be merged or published until the technical proof passes.
 - Executable: `spendly`.
 - Do not use `@spendly/cli`; the project does not control the `@spendly` scope.
 - No npm organization is required.
-- First release: unsuffixed `spendly@0.1.0`, verified first with npm tag `next`
-  and then promoted unchanged to the default `latest` tag.
+- Original first-release decision: unsuffixed `spendly@0.1.0`, verified first
+  with npm tag `next` and then promoted unchanged to the default `latest` tag.
 - Continue with `0.1.x` fixes and later `0.x` feature or contract releases until
   real user adoption proves the CLI is ready for a deliberate `1.0.0` stability
   commitment.

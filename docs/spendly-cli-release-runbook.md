@@ -13,13 +13,20 @@ same exact SemVer. Build one tarball in the protected `cli-release` GitHub
 environment, record its SHA-256 and source commit, and publish that artifact
 without rebuilding it. A published version is immutable.
 
-The initial public version is exactly `spendly@0.1.0`, with no prerelease
+The initial public version is exactly `spendly@0.1.1`, with no prerelease
 suffix. Publish it first with the npm `next` tag, complete the production and
 clean-user checks against that exact artifact, and then move the unchanged
 package to the default `latest` tag. Continue with `0.1.x` fixes and later `0.x`
 feature or contract releases. Phase 9 does not publish `1.0.0`; that milestone
 requires a later decision supported by real user adoption and contract
 stability.
+
+The original `0.1.0` candidate was frozen but never published to npm. Its
+`v0.1.0` tag remains at `73b593f7345caaa55399b1f74785b463205709e9`.
+After `master` advanced, the source-drift guard invalidated it for publication.
+The approved replacement is `0.1.1`; it is still the first npm publication and
+therefore uses bootstrap rather than OIDC staging. Never move `v0.1.0` or reuse
+its verification as evidence that the replacement artifact passed.
 
 ## Phase 8.7 through Phase 8.12 Source Baseline Gate
 
@@ -106,8 +113,8 @@ Dispatch `cli-publish.yml` from `master` with these recorded inputs:
 | --- | --- |
 | `candidate_run` | Successful `cli-release-candidate.yml` run ID |
 | `source_commit` | Full reviewed `master` commit SHA, also in `SOURCE_COMMIT` |
-| `version` | `0.1.0` for the initial release |
-| `tarball` | `spendly-0.1.0.tgz` for the initial release |
+| `version` | `0.1.1` for the initial release |
+| `tarball` | `spendly-0.1.1.tgz` for the initial release |
 | `sha256` | Exact lowercase SHA-256 from `SHA256SUMS` |
 | `bootstrap` | `true` only for first publication; `false` for later `0.x` releases |
 
@@ -136,12 +143,12 @@ test the workflow: bootstrap publication and OIDC staging change npm state.
    production-configured source.
 2. Review and merge that exact commit to `master` and wait for its complete
    CLI readiness suite to pass.
-3. Run `.github/workflows/cli-release-candidate.yml` with version `0.1.0` from
+3. Run `.github/workflows/cli-release-candidate.yml` with version `0.1.1` from
    the reviewed commit and approve its protected jobs. After the artifact is
-   verified and uploaded, a separate job automatically creates `v0.1.0` at that
+   verified and uploaded, a separate job automatically creates `v0.1.1` at that
    exact commit. Download the artifact and preserve its `SHA256SUMS` and
    `SOURCE_COMMIT`. Create the GitHub Release and release notes using that
-   existing tag (`gh release create v0.1.0 --verify-tag`); do not publish npm yet.
+   existing tag (`gh release create v0.1.1 --verify-tag`); do not publish npm yet.
 4. Confirm the embedded package version, installed `spendly --version`, tarball
    filename, tag, release notes, source commit, and hashes agree. This artifact
    is the immutable publication candidate.
@@ -149,8 +156,8 @@ test the workflow: bootstrap publication and OIDC staging change npm state.
    if the publish-workflow input, current `master`, tag, GitHub Release, package
    version, or recorded hash disagrees.
 
-Every later release follows the same naming rule: package `0.1.1` produces
-`v0.1.1`, package `0.2.0` produces `v0.2.0`, and so on within the approved `0.x`
+Every later release follows the same naming rule: package `0.1.2` produces
+`v0.1.2`, package `0.2.0` produces `v0.2.0`, and so on within the approved `0.x`
 release policy. Update the package and shrinkwrap versions together before
 merging; the workflow checks that its version input matches the package.
 Only the separate tagging job has `contents: write`. Build and npm publication
@@ -238,8 +245,8 @@ approved the cleanup check; record aggregate deletion counts only.
 ## Production Smoke-test Account
 
 Use a dedicated release account with no maintainer history. Name synthetic
-records with the version and run date, for example `CLI RC 0.1.0 checking` and
-`CLI RC 0.1.0 lunch`. Use small non-sensitive amounts in one currency.
+records with the version and run date, for example `CLI RC 0.1.1 checking` and
+`CLI RC 0.1.1 lunch`. Use small non-sensitive amounts in one currency.
 
 Allowed smoke mutations are one expense add/edit/delete, one account
 add/edit/archive/reactivate/default change, one balance adjustment, and
@@ -256,9 +263,11 @@ them instead of trying to erase history. Keep only aggregate pass/fail evidence.
 
 ### First Publication Bootstrap
 
-The initial `spendly@0.1.0` publish cannot use npm trusted publishing or staged
-publishing because the package does not exist yet. Bootstrap it once from the
-approved GitHub-hosted workflow so the first package still receives provenance.
+The initial `spendly@0.1.1` publish cannot use npm trusted publishing or staged
+publishing because the package does not exist yet. The publication-mode guard
+permits bootstrap only for `0.1.1`, rejects the superseded `0.1.0`, and requires
+the registry to return 404. Bootstrap it once from the approved GitHub-hosted
+workflow so the first package still receives provenance.
 
 1. On npmjs.com, open **Profile → Access Tokens → Generate New Token** and use:
    - name: `spendly-first-publication`;
@@ -278,13 +287,13 @@ approved GitHub-hosted workflow so the first package still receives provenance.
 4. Publish the downloaded tarball, not the package directory:
 
    ```bash
-   npm publish "release-artifacts/spendly-0.1.0.tgz" \
+   npm publish "release-artifacts/spendly-0.1.1.tgz" \
      --tag next \
      --access public \
      --provenance
    ```
 
-5. Verify `spendly@0.1.0`, the `next` tag, public access, repository link,
+5. Verify `spendly@0.1.1`, the `next` tag, public access, repository link,
    provenance, integrity, tarball files, README, and clean global installation.
    Run `npm audit signatures` from the clean installed package.
 
@@ -341,11 +350,11 @@ user-availability gate, use an interactive maintainer session with 2FA:
 
 ```bash
 npm login
-npm dist-tag add spendly@0.1.0 latest
+npm dist-tag add spendly@0.1.1 latest
 npm dist-tag ls spendly
 ```
 
-Confirm both `next` and `latest` resolve to `0.1.0`, then verify a clean default
+Confirm both `next` and `latest` resolve to `0.1.1`, then verify a clean default
 `npm install --global spendly`. Do not rebuild or republish the package during
 promotion. For later releases, substitute the exact validated `0.x` version.
 
