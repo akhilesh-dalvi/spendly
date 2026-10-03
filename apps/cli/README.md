@@ -3,11 +3,11 @@
 Spendly CLI lets you track expenses and manage Spendly accounts from a trusted
 local terminal or through a local AI agent.
 
-The initial `0.1.0` release is awaiting publication. Once it is published on
+The initial `0.1.1` release is awaiting publication. Once it is published on
 `next` for release verification, install the exact version on Node.js 22 or newer:
 
 ```bash
-npm install --global spendly@0.1.0
+npm install --global spendly@0.1.1
 spendly --version
 spendly auth login
 ```

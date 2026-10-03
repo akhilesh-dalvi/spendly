@@ -16,7 +16,7 @@
 - Target branch: `feature/spendly-cli`
 - Package location: `apps/cli`
 - npm package and executable: `spendly`
-- Initial release: `spendly@0.1.0`, first verified on the npm `next` tag and
+- Initial release: `spendly@0.1.1`, first verified on the npm `next` tag and
   then promoted unchanged to the default `latest` tag
 - Version policy: continue with `0.1.x`, `0.2.x`, and later `0.x` releases until
   real user adoption proves the CLI contract is ready for `1.0.0`
@@ -204,12 +204,12 @@ behavior includes:
 
 ### 7.3 Release Strategy
 
-1. Publish the exact `spendly@0.1.0` version, with no prerelease suffix, using
+1. Publish the exact `spendly@0.1.1` version, with no prerelease suffix, using
    the npm `next` tag after all local development gates pass.
 2. Test that installed package outside the monorepo on macOS and Linux.
 3. Resolve release-blocking findings. Because npm versions are immutable, any
    code change requires a higher `0.x` version and a new candidate.
-4. Promote the unchanged, validated `spendly@0.1.0` package from `next` to the
+4. Promote the unchanged, validated `spendly@0.1.1` package from `next` to the
    default `latest` tag; do not rebuild or republish it.
 5. Publish compatible fixes as `0.1.x` and substantial or contract-changing
    releases as `0.2.0`, `0.3.0`, and later `0.x` versions.
@@ -1092,7 +1092,8 @@ token authenticates the correct Spendly user through `ConvexHttpClient`.
 - [x] Approve dry-run, idempotency, revisions, and deletion confirmation.
 - [x] Approve currency, amount, date, cycle, selector, inference, and tag rules.
 - [x] Approve Codex and Claude Code skill distribution through skills.sh.
-- [x] Approve an unsuffixed `0.1.0` release: verify it on `next`, promote the
+- [x] Approve an unsuffixed `0.x` release (originally `0.1.0`; replacement
+      `0.1.1` approved after candidate source drift): verify it on `next`, promote the
       unchanged package to `latest`, and remain below `1.0.0` until real usage
       proves the CLI contract is stable.
 - [x] Defer persistent audit storage and future Sentry/PostHog design.
@@ -1539,7 +1540,7 @@ gate, and future implementation order are recorded in
 
 ### Phase 9: Packaging and Release
 
-Phase 9 has two explicit gates. Part 1 ends when the unsuffixed `0.1.0` package
+Phase 9 has two explicit gates. Part 1 ends when the unsuffixed `0.1.1` package
 is published on `next` from a reproducible, production-only release. Part 2
 proves that a user can discover, install, authenticate, and safely use that
 exact package before Spendly promotes it unchanged to the default `latest` tag.
@@ -1571,37 +1572,49 @@ is ready and reviewed.
 - [x] Select and approve the public software license, add the root license file
       and npm `license` metadata, remove `private: true`, and make release
       metadata validation reject a private or unlicensed package.
-- [ ] Put the stable production `/docs/cli` URL and exact initial-release
+- [x] Put the stable production `/docs/cli` URL and original `0.1.0` preview
       instructions in the npm README, installed CLI help, default-branch skill,
-      and public Web documentation before the candidate freeze.
-- [ ] Create `.github/workflows/cli-publish.yml` on the default branch. It must
+      and public Web documentation.
+- [ ] Merge and deploy matching `0.1.1` preview instructions across those
+      surfaces, then reverify them before the replacement candidate freeze.
+- [x] Create `.github/workflows/cli-publish.yml` on the default branch. It must
       use a GitHub-hosted runner, Node.js 24, npm 11.15 or newer,
       `contents: read`, `id-token: write`, and the `cli-release` environment;
       it must download and publish the recorded candidate tarball without
       rebuilding it.
-- [ ] On GitHub, create the `cli-release` environment before either release
+- [x] On GitHub, create the `cli-release` environment before either release
       workflow runs. Restrict deployment to `master` and approved `v*` release
       tags, configure an available trusted reviewer where practical, and keep
       every publish secret scoped to this environment only.
 - [ ] Rerun the complete Phase 8.7 release suite and every check affected by the
       production configuration, public manifest, documentation, or workflow.
       Review and merge the exact release commit to `master`, then run the
-      candidate workflow and record the commit, `0.1.0` version, workflow run,
+      candidate workflow and record the commit, `0.1.1` version, workflow run,
       tarball filename, `SOURCE_COMMIT`, and SHA-256. This is the immutable
       publication candidate.
 - [ ] Confirm the npm maintainer account has a verified email, account 2FA and
       recoverable second-factor setup, and working interactive access. Record
       only the `npm whoami` username and pass/fail state.
 
-Repository preparation for the remaining documentation and publication workflow
-items is implemented on the working branch. Those checkboxes stay open until
-the changes reach `master` and the public docs deployment is verified. See
-`docs/features/cli-release.md` for current verification and the remaining
-maintainer steps. The final candidate has not been frozen or published.
+The documentation links, publication workflow, and protected environment are
+already in place. Candidate `0.1.0` was frozen successfully in run
+[37050681992](https://github.com/akhilesh-dalvi/spendly/actions/runs/37050681992)
+at `73b593f7345caaa55399b1f74785b463205709e9`, and `v0.1.0` remains immutable.
+It was never published to npm. `master` subsequently advanced, so the approved
+initial-publication target is now `0.1.1`. The new freeze and source-handoff
+items remain open until the replacement commit passes their complete gates.
+Versioned public instructions must be reverified after this change deploys.
+
+The old artifact passed macOS production authentication, refresh, revocation,
+and simulated 30-day expiry checks. These results do not certify `0.1.1`.
+The separate missing-backend-user check, native Linux credential-store proof,
+production migrations and smoke evidence, and npm maintainer readiness remain
+unverified. See `docs/features/cli-release.md` for the artifact record and
+remaining operator inputs. Neither candidate has been published to npm.
 
 #### Part 1: Package and Release
 
-Exit criterion: `spendly@0.1.0` is published on the npm `next` tag with verified
+Exit criterion: `spendly@0.1.1` is published on the npm `next` tag with verified
 provenance, production configuration, documentation, and macOS/Linux release
 evidence.
 
@@ -1642,7 +1655,7 @@ evidence.
       `NPM_TOKEN` secret in the protected `cli-release` GitHub environment.
 - [ ] Inspect the final `npm pack` contents and metadata, generate the production
       dependency-audit result, and have the approved GitHub-hosted workflow
-      publish the recorded tarball as `spendly@0.1.0` with `--tag next`,
+      publish the recorded tarball as `spendly@0.1.1` with `--tag next`,
       `--access public`, and provenance. Do not publish from a developer laptop
       or rebuild the artifact.
 - [ ] Verify the registry version, `next` dist-tag, integrity/provenance record,
@@ -1662,7 +1675,7 @@ evidence.
 
 Exit criterion: a new user can follow the public documentation from a clean
 supported computer, sign in to production, use Spendly safely as a human or
-through Codex/Claude Code, and install the validated `0.1.0` release from npm's
+through Codex/Claude Code, and install the validated `0.1.1` release from npm's
 default `latest` tag.
 
 - [ ] On clean macOS and Linux environments, globally install `spendly@next`
@@ -1684,14 +1697,14 @@ default `latest` tag.
 - [ ] Publish clear supported-platform, Node-version, privacy, troubleshooting,
       issue-reporting, upgrade, and uninstall guidance without collecting
       credentials or financial payloads in reports.
-- [ ] Monitor and triage `0.1.0` installation, authentication, native credential
+- [ ] Monitor and triage `0.1.1` installation, authentication, native credential
       store, command-contract, and documentation findings. If code changes are
       required, publish a higher `0.x` candidate on `next` and repeat the
       affected release and user checks.
 - [ ] Resolve all release-blocking findings and rerun the initial-release
       acceptance criteria on the exact package selected for promotion.
 - [ ] From an interactively authenticated maintainer session with 2FA, run
-      `npm dist-tag add spendly@0.1.0 latest` and verify with
+      `npm dist-tag add spendly@0.1.1 latest` and verify with
       `npm dist-tag ls spendly`. Trusted-publisher OIDC is limited to publishing
       and staging and is not the authorization path for this tag change.
 - [ ] Verify a clean default `npm install --global spendly`, production login,

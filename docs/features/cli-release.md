@@ -5,7 +5,8 @@
 ## Goal
 
 Complete Phase 9 Part 0's source handoff, production configuration, public
-package metadata, and immutable publication candidate for `spendly@0.1.0`.
+package metadata, and replacement publication candidate for `spendly@0.1.1`.
+The superseded `v0.1.0` tag must remain unchanged.
 Follow `docs/spendly-cli-release-runbook.md` for the operator sequence.
 
 ## Current evidence
@@ -58,8 +59,8 @@ recorded here.
   local credentials. This was a clock-based expiry check, not 30 elapsed days.
   No financial data was created and the test credentials were removed.
 
-This verifies the current source configuration, not a frozen publication
-artifact. Repeat the required authentication checks against the final candidate;
+This historical evidence verifies the October 1 source configuration, not a
+frozen publication artifact. Repeat authentication against the replacement candidate;
 the separate production `ACCOUNT_SETUP_REQUIRED` user check is still pending.
 
 ## Part 0 repository preparation (2026-10-02)
@@ -69,7 +70,7 @@ https://github.com/akhilesh-dalvi/spendly/pull/10 at
 `80655a5d2ab7470bf80b966d7a39491214e25751`; its hosted CLI readiness workflow
 passed. The earlier note that authentication still needed merging is resolved.
 
-The working branch now includes:
+The October 2 repository preparation, subsequently merged into `master`, included:
 
 - Public `spendly@0.1.0` package metadata with `AGPL-3.0-only`, a packaged copy
   of the approved root license, and checks rejecting private, unlicensed, or
@@ -85,7 +86,7 @@ The working branch now includes:
 - A candidate workflow restricted to `master` after successful hosted release
   CI, with checks rejecting a moved source commit.
 
-Local verification passed on this working branch:
+Local verification passed on that preparation branch:
 
 - CLI production typecheck, all 194 tests, and isolated tarball installation
   on macOS with Node.js 22.23.2 and 24.21.0. The 25 added regression cases cover
@@ -102,34 +103,86 @@ Local verification passed on this working branch:
 - CLI production dependency audit: zero vulnerabilities. Repository production
   audit: one low finding and no moderate, high, or critical findings.
 
-These are local source checks, not hosted CI evidence for this new diff. No
+These were local source checks from that preparation pass. No
 production login, financial mutation, GitHub settings change, deployment, npm
 publication, or final candidate freeze was performed in this preparation pass.
 
+## Frozen 0.1.0 candidate and supersession (2026-10-03)
+
+- The protected `cli-release` environment exists, allows `master` and `v*`,
+  and requires the maintainer's approval. The publication and automatic tagging
+  workflows are on `master`. The candidate packaging-path fix shipped in
+  [PR #15](https://github.com/akhilesh-dalvi/spendly/pull/15).
+- [Candidate run 37050681992](https://github.com/akhilesh-dalvi/spendly/actions/runs/37050681992)
+  passed both build and tagging jobs. Source and unchanged `v0.1.0` tag:
+  `73b593f7345caaa55399b1f74785b463205709e9`.
+- Retained artifact: `spendly-0.1.0.tgz`; SHA-256:
+  `60bdcbfcaeaa04a99fcb132e59aec70489bd3963e1a27b21222da5257258b469`.
+  Downloaded checksum, embedded metadata, source record, isolated installation,
+  installed `0.1.0` version, and help were verified. Public `/docs/cli` loaded
+  while signed out.
+- Tests imported the installed artifact's unchanged authentication modules on
+  macOS with Node.js 24.21.0 and isolated native Keychain entries. Browser login,
+  PKCE flow, invalid callback state rejection, wrong issuer/audience/nonce
+  rejection, forced refresh, Clerk-to-Convex identity matching, logout,
+  provider revocation, revoked-refresh rejection, and local cleanup passed.
+- A simulated 30-day clock boundary required login, removed local credentials,
+  and revoked the refresh token. This was not a 30-day elapsed test.
+- The attempted fresh-account login resolved to the existing identity. The
+  maintainer confirmed only that account is available. `ACCOUNT_SETUP_REQUIRED`
+  remains unverified; no missing-user pass is claimed. Authentication checks
+  created no financial records. Test sessions were revoked and removed.
+- Temporary raw test files were cleared before resume; the authentication
+  results above were recovered from captured command output. The artifact was
+  downloaded and its identity verified again afterward.
+- [PR #16](https://github.com/akhilesh-dalvi/spendly/pull/16) advanced `master` to
+  `36d42b8034c913f7101b12e75fbe4be2dfbd6316`, including CLI source changes.
+  The source-drift guard therefore blocks publishing the old candidate.
+  No GitHub Release or npm publication was created.
+
+The approved replacement is `0.1.1`, including its manifest, shrinkwrap,
+versioned installation guidance, and first-publication guard. Keep `v0.1.0`
+where it is. The old test results are historical evidence and do not certify
+`0.1.1`; its source commit, candidate run, checksum, and production results
+will be recorded only after the new gates pass.
+
+## Replacement preparation verification (2026-10-03)
+
+Local checks on Node.js 24.21.0 passed: CLI production and development
+typechecks, all 220 tests (including 16 publication-mode cases), isolated
+`spendly-0.1.1.tgz` installation and command contracts, full Knip, focused Biome,
+and `git diff --check`. CLI production dependency audit reported zero
+vulnerabilities. The docs validator checked 8 pages, 27 command paths, 71
+examples, and 2 JSON examples; skill validation covered 10 evaluations.
+Both release workflows passed actionlint 1.7.12 with optional ShellCheck
+integration disabled. Hosted macOS/Linux and Node.js 22/24 checks, post-merge
+CI, the protected candidate freeze, and production acceptance are still pending.
+
 ## Remaining handoff and operator inputs
 
-1. Review and merge the repository preparation changes into `master`. Wait for
-   the full hosted CLI readiness suite, including macOS/Linux and Node.js 22/24,
-   and verify the deployed public docs. Complete the source-handoff acceptance
-   against the recorded Phase 8.10/8.11 terminal evidence; do not treat old
-   evidence as final-candidate verification.
-2. Create the GitHub `cli-release` environment with `master` and approved `v*`
-   deployment rules and an available trusted reviewer where practical. Keep npm
-   secrets environment-scoped; do not create the bootstrap token yet.
-3. Verify your npm email, enable account 2FA, retain recoverable second-factor
-   access, and complete interactive `npm login` / `npm whoami`. Record only the
-   username and pass/fail state, never credentials or recovery codes.
-4. Run `cli-release-candidate.yml` from the unchanged reviewed `master` with
-   version `0.1.0`. Its final protected job automatically creates `v0.1.0` at
-   that exact commit and never moves an existing tag. Download and retain the
-   tarball, `SHA256SUMS`, and `SOURCE_COMMIT` together and record the workflow run
-   ID. Create the matching GitHub Release and notes using the existing tag.
-   Subsequent versions receive matching `v<VERSION>` tags through the same flow.
-5. Part 1 then verifies the frozen artifact against production, including the
-   pending `ACCOUNT_SETUP_REQUIRED` fresh-user check and native Linux credential
-   storage. Only after the applicable gates pass should the short-lived
-   bootstrap token be created and the publish workflow approved. Continue with
-   token removal, trusted-publisher setup, clean-user checks, and promotion as
-   specified in the runbook.
+1. Review and merge the `0.1.1` preparation, then wait for the full hosted suite
+   on that exact `master` commit. Reconcile the Phase 8.10/8.11 human-terminal
+   evidence with affected source changes; do not mark the source handoff complete
+   from the old candidate alone. Reverify the deployed `0.1.1` public docs.
+2. Run `cli-release-candidate.yml` with version `0.1.1` and approve its protected
+   jobs. Retain the tarball, `SHA256SUMS`, `SOURCE_COMMIT`, and workflow run ID.
+   Confirm automatic `v0.1.1` creation and prepare its matching GitHub Release.
+   Avoid merging further changes into `master` between freeze and publication;
+   a moved source requires another reviewed version and candidate.
+3. Verify the replacement's production authentication and missing-user path.
+   The latter needs a different identity with no Spendly backend record; a
+   different login method for the same identity does not satisfy it. Native
+   Linux Secret Service verification is also pending; CI installation alone
+   does not prove it. Obtain a dedicated account for financial smoke tests.
+4. Verify release-compatible deployments, resumable revision/search migrations,
+   cleanup cron, documentation, provenance views, and required end-to-end gates.
+   Earlier authentication success does not establish completion of these items.
+5. The maintainer must verify npm email, 2FA/recovery, and interactive
+   `npm login` / `npm whoami`. Record only username and pass/fail. Do not create
+   the bootstrap token until the applicable release gates pass.
+6. Follow the runbook for first publication of `0.1.1` on `next`, token removal,
+   trusted publishing, clean-user tests, and eventual promotion to `latest`.
+   No npm publication, token creation, or promotion is authorized by merely
+   preparing or freezing the replacement candidate.
 
 Delete this temporary note when the CLI release ships.
