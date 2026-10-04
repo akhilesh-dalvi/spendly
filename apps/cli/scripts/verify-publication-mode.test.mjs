@@ -8,36 +8,38 @@ const environment = (version, bootstrap) => ({
 });
 
 describe("publication mode", () => {
-	it("bootstraps 0.1.1 only when no public package exists", async () => {
+	it("bootstraps 0.1.2 only when no public package exists", async () => {
 		const request = vi.fn(async () => ({ status: 404 }));
 		await expect(
-			verifyPublicationMode(environment("0.1.1", "true"), request)
+			verifyPublicationMode(environment("0.1.2", "true"), request)
 		).resolves.toBeUndefined();
 		expect(request).toHaveBeenCalledWith("https://registry.npmjs.org/spendly");
 	});
 	it.each([
-		"true",
-		"false",
-	])("rejects the superseded candidate with bootstrap=%s before registry access", async (bootstrap) => {
+		["0.1.0", "true"],
+		["0.1.0", "false"],
+		["0.1.1", "true"],
+		["0.1.1", "false"],
+	])("rejects superseded %s with bootstrap=%s before registry access", async (version, bootstrap) => {
 		const request = vi.fn();
 		await expect(
-			verifyPublicationMode(environment("0.1.0", bootstrap), request)
-		).rejects.toThrow("superseded 0.1.0");
+			verifyPublicationMode(environment(version, bootstrap), request)
+		).rejects.toThrow(`superseded ${version}`);
 		expect(request).not.toHaveBeenCalled();
 	});
 	it.each([
-		["0.1.1", "false"],
-		["0.1.2", "true"],
+		["0.1.2", "false"],
+		["0.1.3", "true"],
 		["0.2.0", "true"],
 	])("rejects version %s in bootstrap mode %s", async (version, bootstrap) => {
 		const request = vi.fn();
 		await expect(
 			verifyPublicationMode(environment(version, bootstrap), request)
-		).rejects.toThrow("Only the initial 0.1.1");
+		).rejects.toThrow("Only the initial 0.1.2");
 		expect(request).not.toHaveBeenCalled();
 	});
 	it.each([
-		"0.1.2",
+		"0.1.3",
 		"0.2.0",
 	])("allows OIDC staging for %s when the package exists", async (version) => {
 		await expect(
@@ -50,14 +52,14 @@ describe("publication mode", () => {
 		200, 401, 429, 500,
 	])("refuses bootstrap on registry status %s", async (status) => {
 		await expect(
-			verifyPublicationMode(environment("0.1.1", "true"), async () => ({
+			verifyPublicationMode(environment("0.1.2", "true"), async () => ({
 				status,
 			}))
 		).rejects.toThrow("Unexpected npm package state");
 	});
 	it("refuses OIDC staging before the package exists", async () => {
 		await expect(
-			verifyPublicationMode(environment("0.1.2", "false"), async () => ({
+			verifyPublicationMode(environment("0.1.3", "false"), async () => ({
 				status: 404,
 			}))
 		).rejects.toThrow("Unexpected npm package state");
@@ -69,7 +71,7 @@ describe("publication mode", () => {
 	])("rejects ambiguous bootstrap input %s", async (bootstrap) => {
 		const request = vi.fn();
 		await expect(
-			verifyPublicationMode(environment("0.1.1", bootstrap), request)
+			verifyPublicationMode(environment("0.1.2", bootstrap), request)
 		).rejects.toThrow("explicitly true or false");
 		expect(request).not.toHaveBeenCalled();
 	});

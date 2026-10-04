@@ -6,7 +6,7 @@ import {
 } from "./verify-release-artifact.mjs";
 
 // This stays fixed after bootstrap; later versions must use OIDC staging.
-const FIRST_PUBLIC_VERSION = "0.1.1";
+const FIRST_PUBLIC_VERSION = "0.1.2";
 
 export const verifyPublicationMode = async (environment, request = fetch) => {
 	validateReleaseInputs(environment);
@@ -15,8 +15,8 @@ export const verifyPublicationMode = async (environment, request = fetch) => {
 		"Bootstrap must be explicitly true or false"
 	);
 	assertRelease(
-		environment.RELEASE_VERSION !== "0.1.0",
-		"The superseded 0.1.0 candidate must not be published"
+		!["0.1.0", "0.1.1"].includes(environment.RELEASE_VERSION),
+		`The superseded ${environment.RELEASE_VERSION} candidate must not be published`
 	);
 	const bootstrap = environment.BOOTSTRAP === "true";
 	assertRelease(
