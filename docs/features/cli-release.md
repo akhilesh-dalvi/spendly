@@ -5,8 +5,8 @@
 ## Goal
 
 Complete Phase 9 Part 0's source handoff, production configuration, public
-package metadata, and replacement publication candidate for `spendly@0.1.1`.
-The superseded `v0.1.0` tag must remain unchanged.
+package metadata, and replacement publication candidate for `spendly@0.1.2`.
+The superseded `v0.1.0` and `v0.1.1` tags must remain unchanged.
 Follow `docs/spendly-cli-release-runbook.md` for the operator sequence.
 
 ## Current evidence
@@ -158,31 +158,55 @@ Both release workflows passed actionlint 1.7.12 with optional ShellCheck
 integration disabled. Hosted macOS/Linux and Node.js 22/24 checks, post-merge
 CI, the protected candidate freeze, and production acceptance are still pending.
 
+## Frozen 0.1.1 candidate and publication-path failure (2026-10-04)
+
+[PR #17](https://github.com/akhilesh-dalvi/spendly/pull/17) merged as
+`fd38265ec3d52046b4510adc9deaf887510a9f24`. All seven PR checks and the
+post-merge CLI readiness suite passed. Production Web documentation deployed.
+[Candidate run 37134077156](https://github.com/akhilesh-dalvi/spendly/actions/runs/37134077156)
+passed both protected jobs and created immutable `v0.1.1` at that commit.
+
+- Tarball: `spendly-0.1.1.tgz`; SHA-256:
+  `bfceb0f72e880866c90fa98a54b8dfba907d9dba843f13c6c49294cd59ba1b63`.
+- Downloaded artifact identity, checksum, embedded metadata, isolated install,
+  installed version, JSON help, production configuration, and native macOS
+  credential-store canary passed.
+- The maintainer accepted prior `0.1.0` authentication evidence and waived a
+  repeat after source review found only unused-export removals, with unchanged
+  authentication runtime logic. Fresh-user and native Linux credential-store
+  checks remain unverified.
+- The matching GitHub Release was published. The maintainer confirmed verified
+  npm email and 2FA and added `NPM_TOKEN` to the protected environment.
+- [Publication run 37207697687](https://github.com/akhilesh-dalvi/spendly/actions/runs/37207697687)
+  passed source and artifact checks, then failed before registry publication:
+  npm interpreted `release-artifacts/spendly-0.1.1.tgz` as a GitHub repository.
+  npm requires an explicit `./` prefix for a relative tarball path. The registry
+  still returned 404 for `spendly` after the failure.
+
+The recovery fixes both bootstrap and staged tarball paths. The source-drift
+and immutable-tag checks remain intact, so the next candidate is `0.1.2`.
+Bootstrap is restricted to this replacement; both old versions are rejected.
+CLI authentication runtime logic and dependencies remain unchanged.
+
+Local recovery checks passed on Node.js 24.21.0: all 224 CLI tests (including
+an actual npm dry run using the workflow's bootstrap argument), both CLI
+typechecks, packed installation and command contracts, full Knip, focused
+Ultracite, actionlint, documentation and skill validators, and `git diff --check`.
+A separate dry run with the pinned npm 11.15.0 confirmed local tarball resolution.
+No registry publication occurred during these checks.
+
 ## Remaining handoff and operator inputs
 
-1. Review and merge the `0.1.1` preparation, then wait for the full hosted suite
-   on that exact `master` commit. Reconcile the Phase 8.10/8.11 human-terminal
-   evidence with affected source changes; do not mark the source handoff complete
-   from the old candidate alone. Reverify the deployed `0.1.1` public docs.
-2. Run `cli-release-candidate.yml` with version `0.1.1` and approve its protected
-   jobs. Retain the tarball, `SHA256SUMS`, `SOURCE_COMMIT`, and workflow run ID.
-   Confirm automatic `v0.1.1` creation and prepare its matching GitHub Release.
-   Avoid merging further changes into `master` between freeze and publication;
-   a moved source requires another reviewed version and candidate.
-3. Verify the replacement's production authentication and missing-user path.
-   The latter needs a different identity with no Spendly backend record; a
-   different login method for the same identity does not satisfy it. Native
-   Linux Secret Service verification is also pending; CI installation alone
-   does not prove it. Obtain a dedicated account for financial smoke tests.
-4. Verify release-compatible deployments, resumable revision/search migrations,
-   cleanup cron, documentation, provenance views, and required end-to-end gates.
-   Earlier authentication success does not establish completion of these items.
-5. The maintainer must verify npm email, 2FA/recovery, and interactive
-   `npm login` / `npm whoami`. Record only username and pass/fail. Do not create
-   the bootstrap token until the applicable release gates pass.
-6. Follow the runbook for first publication of `0.1.1` on `next`, token removal,
-   trusted publishing, clean-user tests, and eventual promotion to `latest`.
-   No npm publication, token creation, or promotion is authorized by merely
-   preparing or freezing the replacement candidate.
+1. Merge the publication-path recovery, wait for hosted readiness on its exact
+   `master` commit, and verify deployed `0.1.2` installation instructions.
+2. Freeze `0.1.2` through the protected candidate workflow, preserve its source
+   and checksum records, verify its automatic tag, and create its GitHub Release.
+   Avoid merging further changes between freeze and publication.
+3. Publish that unchanged tarball on `next` through the protected workflow.
+   Verify registry integrity and provenance, then remove the GitHub bootstrap
+   secret and revoke the npm token. Configure the runbook's trusted publisher.
+4. Complete remaining fresh-user, native Linux, production smoke and migration,
+   and clean-user acceptance evidence before declaring the entire release
+   accepted or promoting it to `latest`.
 
 Delete this temporary note when the CLI release ships.

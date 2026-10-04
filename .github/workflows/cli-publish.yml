@@ -24,7 +24,7 @@ on:
         required: true
         type: string
       bootstrap:
-        description: First publication of spendly@0.1.1 only (temporary environment token)
+        description: First publication of spendly@0.1.2 only (temporary environment token)
         required: true
         default: false
         type: boolean
@@ -116,10 +116,10 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           test -n "$NODE_AUTH_TOKEN" || { echo 'Missing protected bootstrap token'; exit 1; }
-          npm publish "release-artifacts/$TARBALL" --tag next --access public --provenance --ignore-scripts
+          npm publish "./release-artifacts/$TARBALL" --tag next --access public --provenance --ignore-scripts
       - name: Stage later versions through the trusted publisher
         if: ${{ !inputs.bootstrap }}
-        run: npm stage publish "release-artifacts/$TARBALL" --tag next --access public --provenance --ignore-scripts
+        run: npm stage publish "./release-artifacts/$TARBALL" --tag next --access public --provenance --ignore-scripts
       - name: Record publication identity
         run: |
           node --input-type=module <<'NODE'

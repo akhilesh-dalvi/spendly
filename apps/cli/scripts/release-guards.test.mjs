@@ -16,6 +16,9 @@ import { verifyReleaseArtifact } from "./verify-release-artifact.mjs";
 import { verifyReleaseSource } from "./verify-release-source.mjs";
 
 const packageDirectory = join(dirname(fileURLToPath(import.meta.url)), "..");
+const bootstrapPublishPattern = /npm publish "([^"]+)"/u;
+const stagedPublishPattern = /npm stage publish "([^"]+)"/u;
+const relativePathPattern = /^\.\//u;
 const temporaryDirectories = [];
 const createDirectory = () => {
 	const directory = mkdtempSync(join(tmpdir(), "spendly-release-test-"));
@@ -46,9 +49,9 @@ const createArtifact = (overrides = {}) => {
 	};
 	writeFileSync(metadataPath, JSON.stringify(metadata));
 	const environment = {
-		RELEASE_VERSION: "0.1.1",
+		RELEASE_VERSION: "0.1.2",
 		SOURCE_COMMIT: "a".repeat(40),
-		TARBALL: "spendly-0.1.1.tgz",
+		TARBALL: "spendly-0.1.2.tgz",
 	};
 	const tarball = join(artifactDirectory, environment.TARBALL);
 	execFileSync("tar", ["-czf", tarball, "-C", contents, "package"]);
@@ -67,13 +70,59 @@ const createArtifact = (overrides = {}) => {
 };
 
 describe("publication artifact guards", () => {
+	it("resolves the workflow's bootstrap argument as a local tarball", () => {
+		const fixture = createArtifact();
+		const before = readFileSync(fixture.tarball);
+		const workflow = readFileSync(
+			join(packageDirectory, "../../.github/workflows/cli-publish.yml"),
+			"utf8"
+		);
+		const argument = workflow.match(bootstrapPublishPattern)?.[1];
+		expect(argument).toBeDefined();
+		const result = spawnSync(
+			"npm",
+			[
+				"publish",
+				argument.replace("$TARBALL", fixture.environment.TARBALL),
+				"--dry-run",
+				"--ignore-scripts",
+				"--provenance=false",
+				"--json",
+			],
+			{
+				cwd: dirname(fixture.artifactDirectory),
+				encoding: "utf8",
+				timeout: 10_000,
+			}
+		);
+		expect(result.status, result.stderr).toBe(0);
+		const output = JSON.parse(result.stdout);
+		const publication = Array.isArray(output)
+			? output[0]
+			: (output.spendly ?? output);
+		expect(publication).toMatchObject({
+			name: "spendly",
+			version: fixture.environment.RELEASE_VERSION,
+		});
+		expect(readFileSync(fixture.tarball)).toEqual(before);
+	});
+	it("uses the same local tarball argument for bootstrap and staging", () => {
+		const workflow = readFileSync(
+			join(packageDirectory, "../../.github/workflows/cli-publish.yml"),
+			"utf8"
+		);
+		const bootstrap = workflow.match(bootstrapPublishPattern)?.[1];
+		const staged = workflow.match(stagedPublishPattern)?.[1];
+		expect(bootstrap).toMatch(relativePathPattern);
+		expect(staged).toBe(bootstrap);
+	});
 	it("accepts the recorded artifact without changing its bytes", () => {
 		const fixture = createArtifact();
 		const before = readFileSync(fixture.tarball);
 		expect(
 			verifyReleaseArtifact(fixture.environment, fixture.artifactDirectory)
 				.version
-		).toBe("0.1.1");
+		).toBe("0.1.2");
 		expect(readFileSync(fixture.tarball)).toEqual(before);
 	});
 	it("rejects tampered tarballs even when the recorded checksum is unchanged", () => {
@@ -118,7 +167,7 @@ describe("publication artifact guards", () => {
 		const fixture = createArtifact();
 		expect(() =>
 			verifyReleaseArtifact(
-				{ ...fixture.environment, TARBALL: "../spendly-0.1.1.tgz" },
+				{ ...fixture.environment, TARBALL: "../spendly-0.1.2.tgz" },
 				fixture.artifactDirectory
 			)
 		).toThrow("Unexpected tarball filename");
@@ -139,7 +188,7 @@ const createSourceFixture = () => {
 		GITHUB_REF: "refs/heads/master",
 		GITHUB_SHA: commit,
 		SOURCE_COMMIT: commit,
-		RELEASE_VERSION: "0.1.1",
+		RELEASE_VERSION: "0.1.2",
 		CANDIDATE_RUN: "42",
 	};
 	const run = {
@@ -152,9 +201,9 @@ const createSourceFixture = () => {
 	};
 	const responses = {
 		"commits/master": { sha: commit },
-		"commits/refs%2Ftags%2Fv0.1.1": { sha: commit },
-		"releases/tags/v0.1.1": {
-			tag_name: "v0.1.1",
+		"commits/refs%2Ftags%2Fv0.1.2": { sha: commit },
+		"releases/tags/v0.1.2": {
+			tag_name: "v0.1.2",
 			draft: false,
 			body: "Release notes",
 		},
@@ -184,8 +233,8 @@ describe("hosted release identity guards", () => {
 	});
 	it("checks the candidate gate before a GitHub Release exists", async () => {
 		const fixture = createSourceFixture();
-		fixture.responses["commits/refs%2Ftags%2Fv0.1.1"] = undefined;
-		fixture.responses["releases/tags/v0.1.1"] = undefined;
+		fixture.responses["commits/refs%2Ftags%2Fv0.1.2"] = undefined;
+		fixture.responses["releases/tags/v0.1.2"] = undefined;
 		await expect(
 			verifyReleaseSource(fixture.environment, fixture.request, "candidate")
 		).resolves.toBeUndefined();
@@ -209,7 +258,7 @@ describe("hosted release identity guards", () => {
 	});
 	it("rejects a tag pointing at another commit", async () => {
 		const fixture = createSourceFixture();
-		fixture.responses["commits/refs%2Ftags%2Fv0.1.1"].sha = "b".repeat(40);
+		fixture.responses["commits/refs%2Ftags%2Fv0.1.2"].sha = "b".repeat(40);
 		await expect(
 			verifyReleaseSource(fixture.environment, fixture.request, "publish")
 		).rejects.toThrow("Release tag");

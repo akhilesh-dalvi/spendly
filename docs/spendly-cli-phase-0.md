@@ -1,8 +1,9 @@
 # Spendly CLI Phase 0: Decisions and Technical Spikes
 
 The release-version decision recorded here is historical. The Phase 9
-[release runbook](spendly-cli-release-runbook.md) now targets `0.1.1` after
-superseding the frozen, unpublished `0.1.0` candidate without moving its tag.
+[release runbook](spendly-cli-release-runbook.md) now targets `0.1.2` after
+superseding the frozen, unpublished `0.1.0` and `0.1.1` candidates without
+moving their tags.
 
 ## Status
 
