@@ -14,10 +14,12 @@ environment, record its SHA-256 and source commit, and publish that artifact
 without rebuilding it. A published version is immutable.
 
 The initial public version is exactly `spendly@0.1.2`, with no prerelease
-suffix. Publish it first with the npm `next` tag, complete the production and
-clean-user checks against that exact artifact, and then move the unchanged
-package to the default `latest` tag. Continue with `0.1.x` fixes and later `0.x`
-feature or contract releases. Phase 9 does not publish `1.0.0`; that milestone
+suffix. It was published with `--tag next`. npm also assigned `latest` on the
+first publication, and an authenticated removal attempt returned HTTP 400.
+Complete the production and clean-user checks against that exact artifact
+before recording default-channel acceptance. Later candidates must pass those
+checks before moving the unchanged package to `latest`. Continue with `0.1.x`
+fixes and later `0.x` feature or contract releases. Phase 9 does not publish `1.0.0`; that milestone
 requires a later decision supported by real user adoption and contract
 stability.
 
@@ -28,8 +30,11 @@ The `0.1.1` replacement was frozen at
 `fd38265ec3d52046b4510adc9deaf887510a9f24`, but its publication failed before
 reaching npm: the tarball argument lacked the explicit `./` prefix and npm
 interpreted it as a GitHub repository. The corrected workflow requires a new
-source freeze, so the first-publication target is `0.1.2`. It still uses
-bootstrap rather than OIDC staging. Never move `v0.1.0` or `v0.1.1`.
+source freeze, so the first-publication target was `0.1.2`. Its bootstrap
+publication succeeded in [run 37218324799](https://github.com/akhilesh-dalvi/spendly/actions/runs/37218324799).
+Trusted publishing is now configured for stage-only releases, and the temporary
+publishing secret and npm token have been removed. Never move `v0.1.0`,
+`v0.1.1`, or `v0.1.2`.
 
 The maintainer accepted the successful `0.1.0` production authentication
 results after review confirmed unchanged authentication runtime logic, and
@@ -304,6 +309,12 @@ workflow so the first package still receives provenance.
 5. Verify `spendly@0.1.2`, the `next` tag, public access, repository link,
    provenance, integrity, tarball files, README, and clean global installation.
    Run `npm audit signatures` from the clean installed package.
+6. Record all observed dist-tags. npm's first publication receives `latest` as
+   well as the requested tag, as confirmed in [npm/cli #8490](https://github.com/npm/cli/issues/8490).
+   For `0.1.2`, removing `latest` with maintainer 2FA returned HTTP 400. Do not
+   infer release acceptance from this registry state or unpublish the immutable
+   package to simulate a `next`-only first release. Continue the pending checks
+   using `spendly@0.1.2`; later candidates use `next` before explicit promotion.
 
 ### Trusted Publisher and Token Removal
 
@@ -319,15 +330,29 @@ on npmjs.com under **Packages → spendly → Settings → Trusted publishing**:
 | Environment name | `cli-release` |
 | Allowed actions | `npm stage publish` only |
 
-npm does not validate these values when they are saved. Compare spelling, case,
-and the workflow extension against the committed default-branch file. If they
-are wrong, delete the trusted-publisher connection and create it again; existing
-connections are not editable.
+The browser form does not validate these values when saved. Compare spelling,
+case, and the workflow extension against the committed default-branch file.
+Alternatively, npm 11.15 or newer supports native CLI configuration with
+interactive maintainer 2FA:
+
+```bash
+npm trust github spendly --file cli-publish.yml \
+  --repo akhilesh-dalvi/spendly --env cli-release \
+  --allow-stage-publish --no-allow-publish --yes
+```
+
+The CLI validates configuration fields; its successful response must name the
+expected identity and stage-only permission. Do not create a second connection
+if the correct one already exists. The first real later release must still prove
+OIDC staging end to end. See [npm trust](https://docs.npmjs.com/cli/v11/commands/npm-trust/)
+and [trusted publishing](https://docs.npmjs.com/trusted-publishers/).
 
 Then complete all of these steps in the same maintenance window:
 
 1. Under **Settings → Publishing access**, select **Require two-factor
-   authentication and disallow tokens**, then save with interactive 2FA.
+   authentication and disallow tokens**, then save with interactive 2FA. The
+   CLI equivalent is `npm access set mfa=publish spendly`; `automation` would
+   allow token overrides and is not the selected policy.
 2. Delete `NPM_TOKEN` from the GitHub `cli-release` environment.
 3. Revoke `spendly-first-publication` from npm **Access Tokens**.
 4. Confirm no repository, environment, organization, or personal write token
@@ -353,8 +378,12 @@ Then complete all of these steps in the same maintenance window:
 ### Promote the Validated Package to `latest`
 
 This runbook configures the trusted publisher for staging only, without direct
-publication or dist-tag permissions. After the exact package passes the complete
-user-availability gate, use an interactive maintainer session with 2FA:
+publication or dist-tag permissions. npm already assigned `latest` to the
+initial `0.1.2` publication; its presence does not complete the user-availability
+gate. After that gate passes, verify and record initial default-channel
+acceptance. For later candidates, use an interactive maintainer session with
+2FA to promote the exact validated version. Substitute that later version for
+`0.1.2` in the example below:
 
 ```bash
 npm login

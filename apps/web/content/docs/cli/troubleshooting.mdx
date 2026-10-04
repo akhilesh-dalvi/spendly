@@ -17,9 +17,23 @@ make sure the `bin` folder under the printed npm prefix is on your `PATH`,
 then open a new terminal. An AI agent needs the CLI available in its own
 terminal environment too.
 
-If npm reports that `spendly@0.1.2` is missing, the initial `0.1.2` release has
-not entered public verification yet. Wait for publication before installing;
-repeated installation attempts will not make the package available.
+`spendly@0.1.2` is published. If npm reports that it is missing, check the exact
+version against the public npm registry:
+
+```bash
+npm view spendly@0.1.2 version --registry=https://registry.npmjs.org/
+```
+
+If this prints `0.1.2`, retry the pinned installation from that same registry:
+
+```bash
+npm install --global spendly@0.1.2 --registry=https://registry.npmjs.org/
+```
+
+If the lookup or installation still fails, use npm's error code to check your
+network, proxy, or registry authentication settings. Report the error code and
+redacted message through [GitHub issues](https://github.com/akhilesh-dalvi/spendly/issues)
+if the problem persists.
 
 ## The shell runs words from the output as commands
 
@@ -106,12 +120,12 @@ npm install --global spendly@0.1.2
 npx skills update spendly --global
 ```
 
-The initial unsuffixed `0.1.2` package uses the `next` channel only while it is
-being verified. After that unchanged package moves to the default `latest`
-channel, switch with `npm install --global spendly`. Check `spendly --version`
-after every update. Spendly supports Node.js 22 or newer on the platforms listed
-in Quick start and will remain below `1.0.0` until real usage proves its CLI
-contract is stable.
+npm assigned both `next` and `latest` to the first `0.1.2` publication while
+release verification remains incomplete. Keep using the pinned version above
+during verification. After release acceptance, switch with
+`npm install --global spendly`. Check `spendly --version` after every update.
+Spendly supports Node.js 22 or newer on the platforms listed in Quick start and
+will remain below `1.0.0` until real usage proves its CLI contract is stable.
 
 To remove the CLI:
 

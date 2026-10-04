@@ -1544,7 +1544,9 @@ gate, and future implementation order are recorded in
 Phase 9 has two explicit gates. Part 1 ends when the unsuffixed `0.1.2` package
 is published on `next` from a reproducible, production-only release. Part 2
 proves that a user can discover, install, authenticate, and safely use that
-exact package before Spendly promotes it unchanged to the default `latest` tag.
+exact package before Spendly records default-channel acceptance. npm assigned
+`latest` automatically on the initial publication; later releases require
+explicit promotion of the validated package.
 
 Phase 9 starts only after Phases 8.7, 8.8, 8.9, 8.10, 8.11, and 8.12 hand off a
 reviewed, release-ready source baseline containing the guided input layer,
@@ -1576,7 +1578,7 @@ is ready and reviewed.
 - [x] Put the stable production `/docs/cli` URL and original `0.1.0` preview
       instructions in the npm README, installed CLI help, default-branch skill,
       and public Web documentation.
-- [ ] Merge and deploy matching `0.1.2` preview instructions across those
+- [x] Merge and deploy matching `0.1.2` preview instructions across those
       surfaces, then reverify them before the replacement candidate freeze.
 - [x] Create `.github/workflows/cli-publish.yml` on the default branch. It must
       use a GitHub-hosted runner, Node.js 24, npm 11.15 or newer,
@@ -1593,7 +1595,7 @@ is ready and reviewed.
       candidate workflow and record the commit, `0.1.2` version, workflow run,
       tarball filename, `SOURCE_COMMIT`, and SHA-256. This is the immutable
       publication candidate.
-- [ ] Confirm the npm maintainer account has a verified email, account 2FA and
+- [x] Confirm the npm maintainer account has a verified email, account 2FA and
       recoverable second-factor setup, and working interactive access. Record
       only the `npm whoami` username and pass/fail state.
 
@@ -1605,18 +1607,32 @@ It was never published to npm. `master` subsequently advanced and `0.1.1` was
 frozen in run [37134077156](https://github.com/akhilesh-dalvi/spendly/actions/runs/37134077156)
 at `fd38265ec3d52046b4510adc9deaf887510a9f24`. Its publication failed before
 reaching npm because the tarball path lacked `./`. Both tags remain unchanged;
-the corrected workflow's initial-publication target is now `0.1.2`. The new freeze and source-handoff
-items remain open until the replacement commit passes their complete gates.
-Versioned public instructions must be reverified after this change deploys.
+the corrected workflow published `0.1.2` from master commit
+`11c239d36b5b5d06bed42ac84e02ad863fe90972` after hosted readiness passed.
+[Candidate run 37208868121](https://github.com/akhilesh-dalvi/spendly/actions/runs/37208868121)
+froze `v0.1.2`; [publication run 37218324799](https://github.com/akhilesh-dalvi/spendly/actions/runs/37218324799)
+published its unchanged tarball. SHA-256:
+`1fb9a5be9bf1fed6fa4cef77fdb348d222783f3e64e2c64086e004379a66d3e7`.
+The complete source-handoff gate remains open where human acceptance evidence
+is missing; passing hosted checks and publishing do not close those gaps.
 
 The old artifact passed macOS production authentication, refresh, revocation,
 and simulated 30-day expiry checks. The maintainer accepted those results and
 waived repeating authentication after review confirmed unchanged runtime logic.
 The separate missing-backend-user check, native Linux credential-store proof,
 production migrations and smoke evidence remain unverified. The maintainer
-confirmed verified npm email and 2FA and added the temporary protected publishing
-secret. See `docs/features/cli-release.md` for the artifact record and remaining
-operator inputs. No candidate has been published to npm.
+confirmed verified npm email and 2FA. Registry integrity, provenance, signatures,
+and clean macOS installation passed. Stage-only trusted publishing is configured;
+the package requires 2FA without token overrides, the temporary GitHub secret
+is gone, and bootstrap-token revocation was independently verified.
+
+Both `next` and `latest` point to `0.1.2`; npm assigned both on the first
+publication. The maintainer requested `next` until remaining acceptance is
+complete, but removal of `latest` with 2FA returned HTTP 400. See
+[npm/cli #8490](https://github.com/npm/cli/issues/8490) and
+`docs/features/cli-release.md`. Default-channel acceptance remains open.
+The frozen npm README and help retain preview wording; updated source and Web
+docs record the published state without altering the immutable package.
 
 #### Part 1: Package and Release
 
@@ -1624,14 +1640,14 @@ Exit criterion: `spendly@0.1.2` is published on the npm `next` tag with verified
 provenance, production configuration, documentation, and macOS/Linux release
 evidence.
 
-- [ ] Confirm the immutable candidate contains the approved public npm manifest:
+- [x] Confirm the immutable candidate contains the approved public npm manifest:
       license, README, repository, homepage, bugs, keywords, supported Node
       engine, publish guardrails, and only the files required by the installed
       CLI.
 - [ ] Deploy `/docs/cli` and verify its stable public production URL, signed-out
       access, search, redirects, and agreement with the already-frozen npm
       README, installed CLI help, and skills.sh-facing content.
-- [ ] Run the Phase 8.7 release CI gates for formatting, linting, explicit
+- [x] Run the Phase 8.7 release CI gates for formatting, linting, explicit
       CLI/backend/Web typechecks, automated tests, production builds,
       documentation validation, dependency audit, and tarball inspection.
 - [ ] Run the supported Node version matrix on macOS and Linux, including the
@@ -1647,32 +1663,33 @@ evidence.
       Clerk issuer/audience, public documentation, and Web provenance views,
       and record non-personal deployment evidence before making the package
       available.
-- [ ] Verify the maintainer account and ownership with `npm whoami`, confirm the
+- [x] Verify the maintainer account and ownership with `npm whoami`, confirm the
       unscoped `spendly` package name is publishable, and independently verify
       the approved first-publication workflow, environment, 2FA, temporary-token
       scope, and provenance controls immediately before publishing.
-- [ ] Recheck that the unscoped `spendly` name is unclaimed immediately before
+- [x] Recheck that the unscoped `spendly` name is unclaimed immediately before
       the first publish. A registry `404` is only a point-in-time availability
       check; the name is claimed only by a successful publication.
-- [ ] On npmjs.com, create one short-lived granular bootstrap token for the first
+- [x] On npmjs.com, create one short-lived granular bootstrap token for the first
       publication only: one-day expiry, package permission `Read and write
       (publish and stage)`, all packages because `spendly` does not yet exist,
       no organization permission, and bypass 2FA enabled. Store it only as the
       `NPM_TOKEN` secret in the protected `cli-release` GitHub environment.
-- [ ] Inspect the final `npm pack` contents and metadata, generate the production
+- [x] Inspect the final `npm pack` contents and metadata, generate the production
       dependency-audit result, and have the approved GitHub-hosted workflow
       publish the recorded tarball as `spendly@0.1.2` with `--tag next`,
       `--access public`, and provenance. Do not publish from a developer laptop
       or rebuild the artifact.
-- [ ] Verify the registry version, `next` dist-tag, integrity/provenance record,
+- [x] Verify the registry version, `next` dist-tag, integrity/provenance record,
       `npm audit signatures`, package contents, README, and clean installation
       from npm.
-- [ ] After the package page exists, configure npm trusted publishing with
+- [x] After the package page exists, configure npm trusted publishing with
       GitHub user `akhilesh-dalvi`, repository `spendly`, workflow filename
       `cli-publish.yml`, environment `cli-release`, and stage-only permission.
-      npm does not validate these fields when saved, so check spelling and case
-      against the committed workflow.
-- [ ] On npmjs.com, change Publishing access to `Require two-factor
+      Compare spelling and case against the committed workflow. Native
+      `npm trust github` creation passed; end-to-end OIDC staging remains a
+      gate for the next real release.
+- [x] On npmjs.com, change Publishing access to `Require two-factor
       authentication and disallow tokens`; then delete the GitHub `NPM_TOKEN`
       secret and revoke the bootstrap token. Record pass/fail only, never the
       token or recovery information.
@@ -1709,10 +1726,12 @@ default `latest` tag.
       affected release and user checks.
 - [ ] Resolve all release-blocking findings and rerun the initial-release
       acceptance criteria on the exact package selected for promotion.
-- [ ] From an interactively authenticated maintainer session with 2FA, run
-      `npm dist-tag add spendly@0.1.2 latest` and verify with
-      `npm dist-tag ls spendly`. Trusted-publisher OIDC is limited to publishing
-      and staging and is not the authorization path for this tag change.
+- [ ] After all user-availability checks pass, verify `npm dist-tag ls spendly`
+      and record initial default-channel acceptance. npm already assigned
+      `latest` to `0.1.2`; no explicit promotion is needed for this version.
+      For later candidates, run `npm dist-tag add spendly@<VERSION> latest`
+      through an interactive maintainer session with 2FA. Trusted-publisher
+      OIDC does not authorize dist-tag changes.
 - [ ] Verify a clean default `npm install --global spendly`, production login,
       core workflows, skill usage, documentation links, and the final npm
       dist-tags. Do not rebuild, republish, or publish `1.0.0` as part of Phase
