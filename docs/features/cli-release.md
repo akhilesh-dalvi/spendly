@@ -195,18 +195,67 @@ Ultracite, actionlint, documentation and skill validators, and `git diff --check
 A separate dry run with the pinned npm 11.15.0 confirmed local tarball resolution.
 No registry publication occurred during these checks.
 
+## Published 0.1.2 and publishing cleanup (2026-10-04)
+
+[PR #18](https://github.com/akhilesh-dalvi/spendly/pull/18) merged as
+`11c239d36b5b5d06bed42ac84e02ad863fe90972`. The exact master commit passed
+[hosted readiness run 37208727405](https://github.com/akhilesh-dalvi/spendly/actions/runs/37208727405),
+including the macOS/Linux Node.js 22/24 matrix. Deployed signed-out quick-start
+and troubleshooting pages returned 200 and described `0.1.2`.
+
+- [Candidate run 37208868121](https://github.com/akhilesh-dalvi/spendly/actions/runs/37208868121)
+  passed both protected jobs and created immutable `v0.1.2` at that commit.
+- Tarball: `spendly-0.1.2.tgz`; SHA-256:
+  `1fb9a5be9bf1fed6fa4cef77fdb348d222783f3e64e2c64086e004379a66d3e7`.
+- Downloaded artifact identity, checksum, manifest, shrinkwrap, isolated install,
+  installed version, JSON help, production configuration, and native macOS
+  credential-store canary passed. Authentication files were byte-identical to
+  the previous candidate; the maintainer's prior authentication waiver applies.
+- [Publication run 37218324799](https://github.com/akhilesh-dalvi/spendly/actions/runs/37218324799)
+  published those unchanged bytes with `--tag next`, public access, and signed
+  provenance. Registry SHA-256 and integrity matched the frozen tarball.
+  Provenance matched the source commit, repository, workflow, and publication
+  run; `npm audit signatures` verified 53 registry signatures and 46 attestations.
+  A clean global registry installation, version, JSON help, and all installed
+  nested dependency versions against the shrinkwrap passed.
+- npm maintainer identity: `akhileshdalvi`; interactive access, verified email,
+  and 2FA passed. The protected GitHub `NPM_TOKEN` secret was removed; a fresh
+  environment-secret listing was empty. The `spendly-first-publication` npm
+  token was revoked through native npm CLI, and a fresh token listing confirmed
+  no matching token remains. No credential values are retained in this record.
+- Native `npm trust github` creation succeeded with repository
+  `akhilesh-dalvi/spendly`, workflow `cli-publish.yml`, environment `cli-release`,
+  and stage-only permission. `npm access set mfa=publish spendly` succeeded
+  with maintainer 2FA, requiring 2FA without token overrides. The next actual
+  release must prove OIDC staging; configuration alone does not prove it.
+- The [GitHub Release](https://github.com/akhilesh-dalvi/spendly/releases/tag/v0.1.2)
+  preserves the frozen assets and publication verification record.
+
+npm assigned both `next` and `latest` to `0.1.2` despite `--tag next`. The
+maintainer requested `next` until acceptance is complete. A native authenticated
+`npm dist-tag rm spendly latest` attempt returned HTTP 400; both tags remain.
+[npm's contributor confirms the initial dual-tag behavior](https://github.com/npm/cli/issues/8490).
+This registry state is not release acceptance. The published README and help
+retain their frozen preview wording; source docs are being corrected for the
+published state, without replacing the `0.1.2` tarball or tags.
+
 ## Remaining handoff and operator inputs
 
-1. Merge the publication-path recovery, wait for hosted readiness on its exact
-   `master` commit, and verify deployed `0.1.2` installation instructions.
-2. Freeze `0.1.2` through the protected candidate workflow, preserve its source
-   and checksum records, verify its automatic tag, and create its GitHub Release.
-   Avoid merging further changes between freeze and publication.
-3. Publish that unchanged tarball on `next` through the protected workflow.
-   Verify registry integrity and provenance, then remove the GitHub bootstrap
-   secret and revoke the npm token. Configure the runbook's trusted publisher.
-4. Complete remaining fresh-user, native Linux, production smoke and migration,
-   and clean-user acceptance evidence before declaring the entire release
-   accepted or promoting it to `latest`.
+1. Merge and deploy the documentation correction, then verify the live
+   quick-start and troubleshooting pages describe the published candidate and
+   remaining acceptance accurately. The frozen npm README and installed help
+   remain unchanged until a later version; use the stable public docs.
+2. Complete the fresh-user `ACCOUNT_SETUP_REQUIRED` check using an account
+   without Spendly Web setup. The maintainer currently has only an existing
+   account available, so this result remains unverified.
+3. Obtain native Linux credential-store and clean Linux installation evidence;
+   hosted automated matrix results do not establish native desktop storage.
+4. Complete production smoke and migration evidence, representative financial
+   workflows with Web reconciliation and provenance, and clean Codex/Claude Code
+   skill acceptance before declaring Part 2 complete. Prior authentication
+   results and simulated 30-day expiry are accepted evidence, not new tests.
+5. Record default-channel acceptance only after the remaining gates pass.
+   Later `0.x` releases must use OIDC staging with no npm write token and explicit
+   `latest` promotion after acceptance.
 
-Delete this temporary note when the CLI release ships.
+Delete this temporary note when the CLI release is fully accepted.
