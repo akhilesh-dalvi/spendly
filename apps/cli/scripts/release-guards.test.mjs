@@ -85,6 +85,8 @@ describe("publication artifact guards", () => {
 				"publish",
 				argument.replace("$TARBALL", fixture.environment.TARBALL),
 				"--dry-run",
+				// Test local path resolution even after this version is published.
+				"--force",
 				"--ignore-scripts",
 				"--provenance=false",
 				"--json",
