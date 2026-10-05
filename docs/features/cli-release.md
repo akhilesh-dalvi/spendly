@@ -1,11 +1,11 @@
 # Feature: CLI production release
 
-**Status:** in progress
+**Status:** initial macOS read smoke complete; broader validation deferred
 
 ## Goal
 
-Complete the remaining Phase 9 live acceptance for the published
-`spendly@0.1.2` package and record default-channel acceptance on macOS.
+Record the practical macOS acceptance evidence for published `spendly@0.1.2`
+and retain the maintainer-deferred validation as unverified follow-up work.
 The `v0.1.0`, `v0.1.1`, and `v0.1.2` tags and published bytes remain immutable.
 Follow `docs/spendly-cli-release-runbook.md` for the operator sequence.
 
@@ -274,34 +274,51 @@ Fresh verification against the published package and public surfaces passed:
   prior trusted-publisher creation, 2FA policy, bootstrap-token revocation, and
   signature/provenance results remain accepted evidence for unchanged bytes.
 
-The checklist now separates completed publication work, outstanding initial
-acceptance, and recurring later-release procedures. Duplicate installs and full
-workflow reruns, a real 30-day wait, repeated accepted authentication, another
+The checklist separates completed publication work, the maintainer-approved
+practical initial scope, deferred validation, and recurring later releases.
+Duplicate installs and full workflow reruns, a real 30-day wait, repeated accepted authentication, another
 initial `latest` mutation, and a dummy OIDC-test release are unnecessary.
 
-## Remaining handoff and operator inputs
+## Actual skill use and scope decision (2026-10-05)
 
-1. Complete the fresh-user `ACCOUNT_SETUP_REQUIRED` check using an account
-   without Spendly Web setup. The maintainer currently has only an existing
-   account available, so this result remains unverified.
-2. Verify all three production revision/search migrations to final `isDone: true`
-   and the live hourly `clean expired CLI capabilities` cron. Working read
-   endpoints and source configuration do not establish these states.
-3. Complete representative financial workflows in a dedicated synthetic account,
-   reconciling balances, ledger entries, and CLI/agent provenance with Web.
-4. Observe clean Codex and Claude Code sessions using the installed public skill
-   for a production read and mutation preview. Installation and static contract
-   validation do not establish agent behavior; full committed mutation matrices
-   need not be repeated through both agents.
-5. Resolve any findings, rerun affected checks, and record default-channel
-   acceptance only after these gates pass. Prior authentication results and
-   simulated 30-day expiry are accepted evidence, not new tests.
+The maintainer explicitly requested using the local `$spendly` skill for whatever
+could be viewed, chose not to require exhaustive verification now, and will
+address later findings as they arise. This Codex session loaded the user-selected
+skill and read references, discovered installed command help, and used only the
+local `spendly@0.1.2` CLI with `--agent --json --non-interactive`.
+
+Ten distinct read commands passed: authentication status, context, accounts,
+cycles, categories selected by current cycle ID, tags, account types,
+current-cycle expenses, expense detail selected by a returned ID, and summary.
+Identity matching, expense detail/list amount and revision, cycle/category ID
+consistency, and the complete current-cycle expense page versus summary total
+passed. The summary correctly includes an uncategorized bucket even when the
+category list is empty. Categories without an explicit cycle correctly returned
+`NON_INTERACTIVE_INPUT_REQUIRED` and exit 2; the ID-selected command succeeded.
+No bug was found in the exercised read scope. Only pass/fail evidence is retained;
+no personal values or identifiers, credentials, or financial writes were recorded.
+
+This establishes actual Codex read-only skill use with the signed-in account.
+It does not establish fresh-session or Claude Code execution, mutation previews
+or commits, account detail/ledger behavior without an account, fresh-user setup,
+or production administrative state. The maintainer chose to proceed with initial
+macOS availability on this practical evidence and defer the following exercises;
+no unchecked exercise is represented as passed.
+
+## Deferred validation
+
+- Fresh-user `ACCOUNT_SETUP_REQUIRED` using an identity without Spendly Web setup.
+- Aggregate completion evidence for all three production migrations and live
+  cleanup-cron state; this is an evidence gap, not proof migrations are unnecessary.
+- Synthetic financial mutations and Web reconciliation of balances, ledger, and
+  CLI/agent provenance; account detail/ledger reads had no active account to select.
+- Skill-driven mutation previews and actual fresh Claude Code skill use.
 
 Before advertising Linux support, obtain native Secret Service, authentication,
 and clean-user installation evidence; hosted matrix results do not establish
 native desktop storage. On the next actual `0.x` release, prove OIDC staging
 without an npm write token, inspect scans and bytes, approve with maintainer 2FA,
-and explicitly promote to `latest` after acceptance. Neither is an additional
-publication required for initial macOS acceptance.
+and explicitly promote to `latest` after affected checks and acceptance. Neither
+requires an additional publication for initial macOS availability.
 
-Delete this temporary note when the CLI release is fully accepted.
+Delete this temporary note when the release audit ships.

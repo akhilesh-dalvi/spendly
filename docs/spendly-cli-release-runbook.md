@@ -16,11 +16,14 @@ without rebuilding it. A published version is immutable.
 The initial public version is exactly `spendly@0.1.2`, with no prerelease
 suffix. It was published with `--tag next`. npm also assigned `latest` on the
 first publication, and an authenticated removal attempt returned HTTP 400.
-Complete the production and clean-user checks against that exact artifact
-before recording default-channel acceptance. Later candidates must pass those
-checks before moving the unchanged package to `latest`. Continue with `0.1.x`
-fixes and later `0.x` feature or contract releases. Phase 9 does not publish `1.0.0`; that milestone
-requires a later decision supported by real user adoption and contract
+On 2026-10-05 the maintainer accepted practical macOS installation,
+authentication, production reads, and actual Codex `$spendly` read-only skill
+use, choosing to defer broader validation and address later findings as they
+arise. Deferred exercises remain unverified in Phase 9 Part 2; this scope decision
+does not prove every workflow. Later candidates require affected checks and
+explicit acceptance before moving the unchanged package to `latest`. Continue
+with `0.1.x` fixes and later `0.x` feature or contract releases. Phase 9 does not
+publish `1.0.0`; that milestone requires a later decision supported by real user adoption and contract
 stability.
 
 The original `0.1.0` candidate was frozen but never published to npm. Its
@@ -318,8 +321,9 @@ workflow so the first package still receives provenance.
    well as the requested tag, as confirmed in [npm/cli #8490](https://github.com/npm/cli/issues/8490).
    For `0.1.2`, removing `latest` with maintainer 2FA returned HTTP 400. Do not
    infer release acceptance from this registry state or unpublish the immutable
-   package to simulate a `next`-only first release. Continue the pending checks
-   using `spendly@0.1.2`; later candidates use `next` before explicit promotion.
+   package to simulate a `next`-only first release. The initial macOS scope
+   decision and deferred validation are recorded in Phase 9 Part 2; later
+   candidates use `next` before explicit promotion.
 
 ### Trusted Publisher and Token Removal
 
@@ -384,9 +388,10 @@ Then complete all of these steps in the same maintenance window:
 
 This runbook configures the trusted publisher for staging only, without direct
 publication or dist-tag permissions. npm already assigned `latest` to the
-initial `0.1.2` publication; its presence does not complete the user-availability
-gate. After that gate passes, verify and record initial default-channel
-acceptance. For later candidates, use an interactive maintainer session with
+initial `0.1.2` publication; its presence is not user-availability evidence.
+The maintainer's practical macOS acceptance and deferred broader checks are
+recorded in Phase 9 Part 2. No further tag mutation is needed for `0.1.2`.
+For later candidates, use an interactive maintainer session with
 2FA to promote the exact validated version. Substitute that later version for
 `0.1.2` in the example below:
 
