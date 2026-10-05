@@ -30,6 +30,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { reportError } from "@/lib/report-error";
 
 export default function ExpenseDetailModal({
 	params,
@@ -60,6 +61,7 @@ export default function ExpenseDetailModal({
 			toast.success("Expense deleted");
 			handleOpenChange(false);
 		} catch (error) {
+			reportError(error, { feature: "expenses", operation: "delete" });
 			toast.error(
 				error instanceof Error ? error.message : "Failed to delete expense"
 			);

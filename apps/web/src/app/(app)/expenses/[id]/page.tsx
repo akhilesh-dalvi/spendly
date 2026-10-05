@@ -23,6 +23,7 @@ import {
 	AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { reportError } from "@/lib/report-error";
 
 export default function ExpenseDetailPage({
 	params,
@@ -47,6 +48,7 @@ export default function ExpenseDetailPage({
 			toast.success("Expense deleted");
 			router.push("/expenses");
 		} catch (error) {
+			reportError(error, { feature: "expenses", operation: "delete" });
 			toast.error(
 				error instanceof Error ? error.message : "Failed to delete expense"
 			);

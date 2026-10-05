@@ -19,7 +19,14 @@
       "env": [
         "NEXT_PUBLIC_CONVEX_URL",
         "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
-        "NEXT_PUBLIC_SITE_URL"
+        "NEXT_PUBLIC_SITE_URL",
+        "NEXT_PUBLIC_SENTRY_DSN",
+        "NEXT_PUBLIC_SENTRY_ENABLED",
+        "NEXT_PUBLIC_SENTRY_ENVIRONMENT",
+        "NEXT_PUBLIC_SENTRY_RELEASE",
+        "SENTRY_RELEASE",
+        "VERCEL_ENV",
+        "VERCEL_GIT_COMMIT_SHA"
       ],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": [".next/types/**", ".source/**"]
@@ -34,6 +41,44 @@
     "dev:setup": {
       "cache": false,
       "persistent": true
+    },
+    "web#build": {
+      "cache": false,
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": [".next/**", ".source/**"],
+      "env": [
+        "NEXT_PUBLIC_SENTRY_DSN",
+        "NEXT_PUBLIC_SENTRY_ENABLED",
+        "NEXT_PUBLIC_SENTRY_ENVIRONMENT",
+        "NEXT_PUBLIC_SENTRY_RELEASE",
+        "SENTRY_RELEASE",
+        "VERCEL_ENV",
+        "VERCEL_GIT_COMMIT_SHA",
+        "NEXT_PUBLIC_CONVEX_URL",
+        "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+        "NEXT_PUBLIC_SITE_URL",
+        "SENTRY_ORG",
+        "SENTRY_PROJECT"
+      ],
+      "passThroughEnv": ["SENTRY_AUTH_TOKEN"]
+    },
+    "web#dev": {
+      "cache": false,
+      "persistent": true,
+      "env": [
+        "NEXT_PUBLIC_SENTRY_DSN",
+        "NEXT_PUBLIC_SENTRY_ENABLED",
+        "NEXT_PUBLIC_SENTRY_ENVIRONMENT",
+        "NEXT_PUBLIC_SENTRY_RELEASE",
+        "SENTRY_RELEASE",
+        "VERCEL_ENV",
+        "VERCEL_GIT_COMMIT_SHA",
+        "NEXT_PUBLIC_CONVEX_URL",
+        "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+        "NEXT_PUBLIC_SITE_URL"
+      ],
+      "passThroughEnv": ["CLERK_SECRET_KEY"]
     }
   }
 }

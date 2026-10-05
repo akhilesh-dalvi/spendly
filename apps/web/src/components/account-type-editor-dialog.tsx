@@ -34,6 +34,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { getAccountActionErrorMessage } from "@/lib/accounts";
+import { reportError } from "@/lib/report-error";
 
 type AccountTypeItem = Doc<"account_types">;
 type BalanceNature = AccountTypeItem["balanceNature"];
@@ -135,6 +136,8 @@ export function AccountTypeEditorDialog({
 		setForm((current) => ({ ...current, [key]: value }));
 	};
 
+	const saveOperation = isEditing ? "update" : "create";
+
 	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		const name = form.name.trim();
@@ -169,6 +172,10 @@ export function AccountTypeEditorDialog({
 			onSuccess?.(savedAccountType);
 			onOpenChange(false);
 		} catch (error) {
+			reportError(error, {
+				feature: "account-types",
+				operation: saveOperation,
+			});
 			toast.error(
 				getAccountActionErrorMessage(
 					error,

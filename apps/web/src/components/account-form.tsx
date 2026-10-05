@@ -35,6 +35,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { getAccountActionErrorMessage } from "@/lib/accounts";
+import { reportError } from "@/lib/report-error";
 
 interface AccountFormDefaults {
 	accountTypeId: Id<"account_types">;
@@ -209,6 +210,8 @@ export function AccountForm({
 		setAccountTypeDialogMode(mode);
 	};
 
+	const saveOperation = isEditing ? "update" : "create";
+
 	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		const normalizedName = name.trim();
@@ -257,6 +260,10 @@ export function AccountForm({
 			toast.success("Account created");
 			onSuccess(account._id);
 		} catch (error) {
+			reportError(error, {
+				feature: "accounts",
+				operation: saveOperation,
+			});
 			toast.error(
 				getAccountActionErrorMessage(
 					error,

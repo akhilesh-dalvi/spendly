@@ -44,6 +44,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatAccountMoney, formatTransactionType } from "@/lib/accounts";
+import { reportError } from "@/lib/report-error";
 
 const TRANSACTION_PAGE_SIZE = 50;
 
@@ -102,7 +103,8 @@ export default function AccountDetailPage() {
 		try {
 			await updateDefaultAccount({ accountId });
 			toast.success(`${account.name} is now your default account`);
-		} catch (_error) {
+		} catch (error) {
+			reportError(error, { feature: "accounts", operation: "set-default" });
 			toast.error("Failed to update the default account");
 		} finally {
 			setIsActionPending(false);
@@ -114,7 +116,11 @@ export default function AccountDetailPage() {
 		try {
 			await archiveAccount({ accountId, isArchived });
 			toast.success(isArchived ? "Account archived" : "Account reactivated");
-		} catch (_error) {
+		} catch (error) {
+			reportError(error, {
+				feature: "accounts",
+				operation: isArchived ? "archive" : "reactivate",
+			});
 			toast.error(
 				isArchived
 					? "Failed to archive account"

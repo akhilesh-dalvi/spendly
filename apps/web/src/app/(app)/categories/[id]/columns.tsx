@@ -17,6 +17,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useCurrency } from "@/hooks/use-currency";
+import { reportError } from "@/lib/report-error";
 
 // This type is based on the usage in page.tsx and RecentActivity
 export interface Expense {
@@ -41,7 +42,8 @@ const ActionsCell = ({ expense }: { expense: Expense }) => {
 		try {
 			await deleteExpense({ id: expense._id as Id<"expenses"> });
 			toast.success("Expense deleted");
-		} catch (_error) {
+		} catch (error) {
+			reportError(error, { feature: "expenses", operation: "delete" });
 			toast.error("Failed to delete expense");
 		}
 	};
