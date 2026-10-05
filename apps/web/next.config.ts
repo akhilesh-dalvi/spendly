@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { withSentryConfig } from "@sentry/nextjs/config";
 import { createMDX } from "fumadocs-mdx/next";
 import type { NextConfig } from "next";
+import { getSentryEnvironment } from "./src/lib/sentry-environment";
 
 const withMDX = createMDX();
 
@@ -26,11 +27,7 @@ function getRelease(): string | undefined {
 }
 
 const release = getRelease();
-const environment =
-	process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ||
-	process.env.VERCEL_ENV ||
-	process.env.NODE_ENV ||
-	"development";
+const environment = getSentryEnvironment();
 
 const nextConfig: NextConfig = {
 	env: {

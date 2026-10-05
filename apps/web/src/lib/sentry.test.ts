@@ -1,7 +1,8 @@
 import type { Event, init } from "@sentry/nextjs";
 import { ConvexError } from "convex/values";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { reportError } from "./report-error";
+import { getSentryEnvironment } from "./sentry-environment";
 import { getDiagnosticTags, isExpectedError } from "./sentry-errors";
 import { getSentryOptions } from "./sentry-options";
 import { scrubEnvelope, scrubErrorEvent, scrubSpan } from "./sentry-privacy";
@@ -11,6 +12,38 @@ type SentrySpan = Parameters<
 >[0];
 
 vi.mock("@sentry/nextjs", () => ({ captureException: vi.fn() }));
+
+afterEach(() => {
+	vi.unstubAllEnvs();
+});
+
+describe("Sentry deployment environment", () => {
+	it("keeps local production builds in development", () => {
+		vi.stubEnv("NODE_ENV", "production");
+		vi.stubEnv("VERCEL_ENV", undefined);
+		vi.stubEnv("NEXT_PUBLIC_SENTRY_ENVIRONMENT", undefined);
+		expect(getSentryEnvironment()).toBe("development");
+	});
+
+	it("recognizes a Vercel production deployment", () => {
+		vi.stubEnv("VERCEL_ENV", "production");
+		vi.stubEnv("NEXT_PUBLIC_SENTRY_ENVIRONMENT", undefined);
+		expect(getSentryEnvironment()).toBe("production");
+	});
+
+	it("keeps Vercel previews out of the production environment", () => {
+		vi.stubEnv("NODE_ENV", "production");
+		vi.stubEnv("VERCEL_ENV", "preview");
+		vi.stubEnv("NEXT_PUBLIC_SENTRY_ENVIRONMENT", undefined);
+		expect(getSentryEnvironment()).toBe("preview");
+	});
+
+	it("respects an explicit environment override", () => {
+		vi.stubEnv("VERCEL_ENV", "production");
+		vi.stubEnv("NEXT_PUBLIC_SENTRY_ENVIRONMENT", "test");
+		expect(getSentryEnvironment()).toBe("test");
+	});
+});
 
 describe("Sentry privacy", () => {
 	it("scrubs trace envelope metadata and retains trusted deployment details", () => {

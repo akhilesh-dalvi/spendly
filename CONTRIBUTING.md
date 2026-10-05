@@ -74,8 +74,11 @@ telemetry to the published CLI. Backend stack traces remain in Convex logs.
 Production reporting is enabled by default. Preview and local reporting are off
 unless `NEXT_PUBLIC_SENTRY_ENABLED=true`; set it to `false` to disable reporting
 in any environment. `NEXT_PUBLIC_SENTRY_ENVIRONMENT` overrides the environment
-otherwise derived from `VERCEL_ENV` or `NODE_ENV`. Error sampling is 100% and
-tracing is 10%; Replay, profiling, logs, and custom metrics are disabled.
+otherwise derived from `VERCEL_ENV`, with `development` as the local default
+even for `next build` and `next start`. For production hosting outside Vercel,
+set the environment explicitly or enable reporting with the flag above.
+Error sampling is 100% and tracing is 10%; Replay, profiling, logs, and custom
+metrics are disabled.
 
 Collection and outbound filters in `apps/web/src/lib/sentry-options.ts` and
 `sentry-privacy.ts` exclude identity, cookies, headers, bodies, financial payloads,
@@ -202,6 +205,13 @@ the CLI shrinkwrap without npm resolving the pnpm-only `catalog:` and
 `workspace:` protocols. For manual CLI dependency updates, run
 `pnpm --dir apps/cli shrinkwrap:generate` after updating the manifest and
 workspace lockfile, then run `pnpm --dir apps/cli release:check`.
+
+Renovate's npm tool is pinned to 11.19.0 in `renovate.json` to keep CLI
+shrinkwrap updates working. With npm 12.2.0, the artifact update creates a
+`package-lock.json` alongside the existing `npm-shrinkwrap.json`, and Renovate
+fails when renaming it with `dest already exists`. Before changing this pin,
+verify that npm updates the existing shrinkwrap without creating a second lock
+file, then rerun the CLI release metadata check.
 
 GitHub Dependabot alerts provide vulnerability notifications. Renovate uses
 those alerts to create fix pull requests. The existing CI dependency-review

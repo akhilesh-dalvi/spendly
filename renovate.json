@@ -1,6 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
+  "constraints": {
+    "npm": "11.19.0"
+  },
   "schedule": ["before 6am on monday"],
   "timezone": "Asia/Kolkata",
   "prConcurrentLimit": 5,
