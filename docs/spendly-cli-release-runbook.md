@@ -16,12 +16,16 @@ without rebuilding it. A published version is immutable.
 The initial public version is exactly `spendly@0.1.2`, with no prerelease
 suffix. It was published with `--tag next`. npm also assigned `latest` on the
 first publication, and an authenticated removal attempt returned HTTP 400.
-Complete the production and clean-user checks against that exact artifact
-before recording default-channel acceptance. Later candidates must pass those
-checks before moving the unchanged package to `latest`. Continue with `0.1.x`
-fixes and later `0.x` feature or contract releases. Phase 9 does not publish `1.0.0`; that milestone
-requires a later decision supported by real user adoption and contract
-stability.
+On 2026-10-05 the maintainer accepted practical macOS installation,
+authentication, production reads, and actual Codex `$spendly` read-only skill
+use, choosing to defer broader validation and address later findings as they
+arise. The maintainer explicitly closed the initial-release checklist on that
+date. Unverified exercises remain in the implementation plan's post-release
+validation follow-ups; closure does not prove every workflow. Later candidates
+require affected checks and explicit acceptance before moving the unchanged package to `latest`. Continue
+with `0.1.x` fixes and later `0.x` feature or contract releases. Phase 9 does not
+publish `1.0.0`; that milestone requires a later decision supported by real user
+adoption and contract stability.
 
 The original `0.1.0` candidate was frozen but never published to npm. Its
 `v0.1.0` tag remains at `73b593f7345caaa55399b1f74785b463205709e9`.
@@ -39,9 +43,18 @@ publishing secret and npm token have been removed. Never move `v0.1.0`,
 The maintainer accepted the successful `0.1.0` production authentication
 results after review confirmed unchanged authentication runtime logic, and
 waived repeating those tests. This does not establish the separate fresh-user
-or native Linux credential-storage checks, which remain unverified.
+check, which remains unverified. Initial acceptance is macOS-only, as approved
+by the maintainer on 2026-10-05. Native Linux credential storage, authentication,
+and clean-user installation remain required before Linux support is advertised;
+keep the hosted Linux Node.js 22/24 matrix as an automated release gate.
 
-## Phase 8.7 through Phase 8.12 Source Baseline Gate
+## Historical Phase 8.7 through Phase 8.12 Source Baseline Gate
+
+The original baseline procedure below is retained as historical context. The
+reviewed `0.1.2` source, hosted readiness, and candidate freeze subsequently
+passed. Legacy unrecorded manual handoff sign-off was waived at initial-release
+closure. The [implementation plan](spendly-cli-requirements-and-implementation-plan.md#phase-9-packaging-and-release)
+records the accepted scope; this section does not reopen its checklist.
 
 1. Run `.github/workflows/cli-ci.yml` on Node.js 22 and 24 for macOS and Linux.
 2. Run `.github/workflows/cli-release-candidate.yml` with the exact package
@@ -73,8 +86,9 @@ Phases 8.7 through 8.12 hand off a reviewed source baseline, not the publishable
 tarball. Phase 9 may make only the production-configuration, public-package,
 documentation, and publication-workflow changes listed below. Those changes
 require the complete affected gates to run again before the publication
-candidate is frozen. Any change after that freeze invalidates the artifact and
-requires another complete candidate run.
+candidate is frozen. Changing the source selected for publication requires a
+new candidate run and version; the recorded artifact and tags stay immutable.
+Post-publication documentation changes do not replace the published package.
 
 ## Phase 9 Release Preparation
 
@@ -152,8 +166,9 @@ test the workflow: bootstrap publication and OIDC staging change npm state.
 ### Publication Candidate Freeze
 
 1. Run the complete CLI, backend, Web, documentation, skill, dependency,
-   leakage, package, macOS, Linux, Node.js 22, and Node.js 24 gates against the
-   production-configured source.
+   leakage, package, macOS, hosted Linux, Node.js 22, and Node.js 24 gates against
+   the production-configured source. Native Linux acceptance is required before
+   advertising Linux support, separately from initial macOS acceptance.
 2. Review and merge that exact commit to `master` and wait for its complete
    CLI readiness suite to pass.
 3. Run `.github/workflows/cli-release-candidate.yml` with version `0.1.2` from
@@ -313,8 +328,9 @@ workflow so the first package still receives provenance.
    well as the requested tag, as confirmed in [npm/cli #8490](https://github.com/npm/cli/issues/8490).
    For `0.1.2`, removing `latest` with maintainer 2FA returned HTTP 400. Do not
    infer release acceptance from this registry state or unpublish the immutable
-   package to simulate a `next`-only first release. Continue the pending checks
-   using `spendly@0.1.2`; later candidates use `next` before explicit promotion.
+   package to simulate a `next`-only first release. The initial macOS scope
+   closure is recorded in Phase 9 Part 2, with unverified validation retained as
+   post-release follow-ups; later candidates use `next` before explicit promotion.
 
 ### Trusted Publisher and Token Removal
 
@@ -379,9 +395,11 @@ Then complete all of these steps in the same maintenance window:
 
 This runbook configures the trusted publisher for staging only, without direct
 publication or dist-tag permissions. npm already assigned `latest` to the
-initial `0.1.2` publication; its presence does not complete the user-availability
-gate. After that gate passes, verify and record initial default-channel
-acceptance. For later candidates, use an interactive maintainer session with
+initial `0.1.2` publication; its presence is not user-availability evidence.
+The initial macOS release checklist is closed in Phase 9 Part 2. Unverified
+broader validation remains post-release follow-up work. No further tag mutation
+is needed for `0.1.2`.
+For later candidates, use an interactive maintainer session with
 2FA to promote the exact validated version. Substitute that later version for
 `0.1.2` in the example below:
 

@@ -113,19 +113,17 @@ run the deletion preview again to get a current one.
 
 ## Update or remove the CLI
 
-During release verification, update the CLI and skill with:
+Update the CLI and skill with:
 
 ```bash
-npm install --global spendly@0.1.2
+npm install --global spendly
 npx skills update spendly --global
 ```
 
-npm assigned both `next` and `latest` to the first `0.1.2` publication while
-release verification remains incomplete. Keep using the pinned version above
-during verification. After release acceptance, switch with
-`npm install --global spendly`. Check `spendly --version` after every update.
-Spendly supports Node.js 22 or newer on the platforms listed in Quick start and
-will remain below `1.0.0` until real usage proves its CLI contract is stable.
+Check `spendly --version` after every update. To reinstall the exact initial
+version, use `npm install --global spendly@0.1.2`. Spendly supports Node.js 22 or
+newer on the platforms listed in Quick start and will remain below `1.0.0`
+until real usage proves its CLI contract is stable.
 
 To remove the CLI:
 

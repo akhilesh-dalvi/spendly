@@ -2,23 +2,15 @@
 
 ## Status
 
-- Status: In progress; repository hardening, Phase 8.8 guided interactive
-  inputs, Phase 8.9 human CLI UX polish, Phase 8.10 maintainer terminal
-  verification, Phase 8.11 MCP reuse readiness, and Phase 8.12 Raycast reuse
-  readiness are complete; the hosted CI matrix and release-ready source handoff
-  remain release gates; independent agent response evaluations are optional;
-  Phase 9 owns production configuration and the immutable publication artifact
-- Last updated: 2026-10-01
-- Branch: `feature/spendly-cli`
-- Depends on: completed Phases 0-6, the Phase 7 skill candidate, and completed
-  Phases 8, 8.5, and 8.6
-- Blocks: final Phase 8.8 validation, Phase 8.9 implementation, Phase 8.10
-  manual verification, Phase 8.11 MCP reuse readiness, Phase 8.12 Raycast reuse
-  readiness, and Phase 9 packaging, production deployment, and npm publication
-- Exit criterion: the release candidate, documentation, supported-runtime
-  policy, dependency strategy, production runbooks, publishing controls, and
-  recovery procedures are internally consistent and verified without deploying
-  to production or publishing to npm
+- Status: repository hardening complete; historical readiness record. The initial
+  `0.1.2` release checklist was closed on 2026-10-05 for the maintainer-approved
+  macOS/Codex read scope. Hosted readiness and the publication candidate freeze
+  passed; unrecorded legacy manual handoff sign-off was waived at closure.
+- Last updated: 2026-10-05
+- Original branch: `feature/spendly-cli`
+- Current release record: [Phase 9](spendly-cli-requirements-and-implementation-plan.md#phase-9-packaging-and-release)
+- Earlier implementation and verification evidence below is historical and does
+  not create additional gates for the closed initial release.
 
 ## Boundary
 
@@ -130,17 +122,14 @@ be repeated after all three phases are complete.
       skills.sh cache, installed help, and public documentation remain on a
       compatible contract throughout `0.x` fixes and channel promotion.
 
-### Final Readiness Gate
+### Readiness Handoff Record
 
-- [ ] Pass the complete non-production source-baseline suite and record the
-      commit and artifact hashes: CLI/backend/Web checks, development
-      authentication and workflows, docs validation, skill validation, package
-      installation, and `git diff --check`.
-- [ ] Confirm every Phase 8.7 item and the Phase 8.8, 8.9, and 8.10 human CLI
-      checklists are complete, then hand one reviewed source baseline to Phase 9.
-      Phase 9 must return here if production preparation changes the command,
-      operation, safety, or user-facing contract rather than only the approved
-      release metadata and production identifiers.
+Hosted readiness run `37208727405` and publication candidate run `37208868121`
+passed for `11c239d36b5b5d06bed42ac84e02ad863fe90972`. The frozen `0.1.2`
+artifact and subsequent publication are recorded in Phase 9. Existing human
+terminal evidence remains in Phases 8.9 through 8.11; unrecorded legacy handoff
+sign-off was waived when the maintainer closed the initial-release checklist.
+It is not an outstanding publication task or a newly passing human-test result.
 
 ## Implementation Evidence
 
@@ -174,11 +163,11 @@ services, publishing an npm package, or mutating a production Spendly account:
 
 The Claude Code executable was not available for the recorded evaluation.
 Independent agent response evaluations are optional and do not block release.
-Phases 8.9 through 8.12 now record completed local and terminal checks. The
-hosted CI matrix, reviewed source-baseline commit, and recorded baseline artifact
-hash remain mandatory gates before Phase 9 begins.
+Phases 8.9 through 8.12 record local and terminal evidence. Hosted CI and the
+immutable publication candidate subsequently passed as recorded in Phase 9.
+The current release record supersedes the original handoff gates below.
 
-## Phase 8.8 through Phase 9 Handoff
+## Historical Phase 8.8 through Phase 9 Handoff
 
 Phase 8.8 adds the guided human input layer and repeats the affected hardening
 checks. Phase 8.9 polishes discovery, prompt orientation, responsive output,
