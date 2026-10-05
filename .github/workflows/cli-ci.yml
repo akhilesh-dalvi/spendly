@@ -79,6 +79,8 @@ jobs:
         run: |
           pnpm exec tsc --noEmit -p apps/web/tsconfig.json
           pnpm exec tsc --noEmit -p packages/env/tsconfig.json
+      - name: Test Web monitoring privacy and error handling
+        run: pnpm --dir apps/web test
       - name: Validate skill and public documentation
         run: |
           node skills/spendly/evals/validate.mjs

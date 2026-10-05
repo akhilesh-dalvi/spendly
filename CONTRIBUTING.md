@@ -63,6 +63,45 @@ enabling CLI authentication; an unset value leaves the CLI OAuth provider disabl
 Keep `apps/web/.env.example` and `packages/backend/.env.example` synchronized
 with the environment requirements when configuration changes.
 
+### Web error monitoring
+
+Spendly uses the `spendly-web` Sentry project in the `akhilesh-rl` organization.
+`apps/web/next.config.ts` embeds its public DSN; it is an ingestion identifier,
+not an authentication secret. Set `NEXT_PUBLIC_SENTRY_DSN` to override the project.
+This integration runs in Next.js only and does not require Convex Pro or add
+telemetry to the published CLI. Backend stack traces remain in Convex logs.
+
+Production reporting is enabled by default. Preview and local reporting are off
+unless `NEXT_PUBLIC_SENTRY_ENABLED=true`; set it to `false` to disable reporting
+in any environment. `NEXT_PUBLIC_SENTRY_ENVIRONMENT` overrides the environment
+otherwise derived from `VERCEL_ENV` or `NODE_ENV`. Error sampling is 100% and
+tracing is 10%; Replay, profiling, logs, and custom metrics are disabled.
+
+Collection and outbound filters in `apps/web/src/lib/sentry-options.ts` and
+`sentry-privacy.ts` exclude identity, cookies, headers, bodies, financial payloads,
+raw error messages, breadcrumbs, and arbitrary span attributes. An explicit
+non-routable IP prevents connection-based geolocation for errors. Error stacks,
+route templates, safe operation tags, and available Convex request IDs remain.
+Expected domain failures are filtered explicitly; unknown failures still report.
+Use `reportError` for caught application failures without attaching form values.
+`pnpm --dir apps/web test` verifies these privacy and classification boundaries.
+
+For readable production browser stacks, configure `SENTRY_AUTH_TOKEN` as a
+**build-only secret** in the hosting environment, using Sentry's source-map upload
+permissions (`org:read` and `project:releases`). Never prefix it with
+`NEXT_PUBLIC_` or commit it. The defaults for `SENTRY_ORG` and `SENTRY_PROJECT`
+match the project above and can be overridden. Source-map uploads run only when
+the token exists; uploaded client maps are deleted from the build output.
+
+Releases use `NEXT_PUBLIC_SENTRY_RELEASE`, `SENTRY_RELEASE`,
+`VERCEL_GIT_COMMIT_SHA`, or the checkout's Git SHA, in that order. For a build from
+a source archive without Git, supply `SENTRY_RELEASE`. Turbo tracks the public
+settings and release inputs and passes the upload token only to the web build.
+The web build bypasses Turbo caching so each build uses the current checkout's
+release and performs any configured source-map upload.
+After deploying, verify a controlled error in Sentry has readable file/line
+locations and contains no personal or financial data.
+
 ### Running the project
 
 Start all current development tasks:

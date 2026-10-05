@@ -43,6 +43,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useCurrency } from "@/hooks/use-currency";
+import { reportError } from "@/lib/report-error";
 
 const expenseSchema = z.object({
 	amount: z.number().min(0.01, "Amount must be greater than 0"),
@@ -276,7 +277,10 @@ export function ExpenseForm({
 					onSuccess?.();
 				}
 			} catch (error) {
-				console.error(error);
+				reportError(error, {
+					feature: "expenses",
+					operation: isEditing ? "update" : "create",
+				});
 				toast.error(
 					isEditing ? "Failed to update expense" : "Failed to add expense"
 				);
@@ -604,7 +608,8 @@ function TagMultiSelect({
 			setTimeout(() => {
 				inputRef.current?.focus();
 			}, 0);
-		} catch {
+		} catch (error) {
+			reportError(error, { feature: "tags", operation: "create" });
 			toast.error("Failed to create tag");
 		}
 	};

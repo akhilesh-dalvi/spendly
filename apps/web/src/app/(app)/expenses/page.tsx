@@ -42,6 +42,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { useCurrency } from "@/hooks/use-currency";
+import { reportError } from "@/lib/report-error";
 
 interface Filters {
 	accountId: string;
@@ -587,6 +588,7 @@ function ExpensesPageContent() {
 			await removeExpense({ id: expenseId as Id<"expenses"> });
 			toast.success("Expense deleted");
 		} catch (error) {
+			reportError(error, { feature: "expenses", operation: "delete" });
 			toast.error(
 				error instanceof Error ? error.message : "Failed to delete expense"
 			);

@@ -1,8 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { reportError } from "@/lib/report-error";
 
 export default function GlobalError({
 	error,
@@ -11,11 +11,8 @@ export default function GlobalError({
 	error: Error & { digest?: string };
 	reset: () => void;
 }) {
-	const router = useRouter();
-
 	useEffect(() => {
-		// Log the error to an error reporting service
-		console.error(error);
+		reportError(error, { feature: "app", operation: "render" });
 	}, [error]);
 
 	return (
@@ -40,16 +37,13 @@ export default function GlobalError({
 						</Button>
 						<Button
 							onClick={() => {
-								router.push("/dashboard");
+								window.location.assign("/dashboard");
 							}}
 							variant="outline"
 						>
 							Go to Dashboard
 						</Button>
 					</div>
-					<p className="mt-8 text-muted-foreground text-xs">
-						Error details: {error.message}
-					</p>
 				</div>
 			</body>
 		</html>

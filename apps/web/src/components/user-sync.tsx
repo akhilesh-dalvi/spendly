@@ -4,6 +4,7 @@ import { useUser } from "@clerk/nextjs";
 import { api } from "@spendly/backend/convex/_generated/api";
 import { useMutation } from "convex/react";
 import { useEffect, useRef } from "react";
+import { reportError } from "@/lib/report-error";
 
 export function UserSync() {
 	const { user } = useUser();
@@ -19,7 +20,7 @@ export function UserSync() {
 					email,
 					name: user.fullName || undefined,
 				}).catch((err) => {
-					console.error("Failed to sync user to Convex:", err);
+					reportError(err, { feature: "auth", operation: "sync" });
 					syncRef.current = false;
 				});
 			}

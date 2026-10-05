@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { reportError } from "@/lib/report-error";
 
 export function AccountOnboardingNudge() {
 	const dismissAccountsOnboarding = useMutation(
@@ -18,7 +19,8 @@ export function AccountOnboardingNudge() {
 		setIsDismissing(true);
 		try {
 			await dismissAccountsOnboarding({});
-		} catch (_error) {
+		} catch (error) {
+			reportError(error, { feature: "onboarding", operation: "skip" });
 			toast.error("We couldn't dismiss this reminder. Please try again.");
 			setIsDismissing(false);
 		}

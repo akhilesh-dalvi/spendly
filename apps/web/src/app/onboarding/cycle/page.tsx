@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerWithRange } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { reportError } from "@/lib/report-error";
 import { cn } from "@/lib/utils";
 
 type CyclePreset = "monthly" | "pay-period" | "custom";
@@ -139,7 +140,8 @@ export default function OnboardingCyclePage() {
 				return;
 			}
 			router.push(`/onboarding/accounts?cycleId=${cycleId}`);
-		} catch (_error) {
+		} catch (error) {
+			reportError(error, { feature: "onboarding", operation: "create" });
 			setSaveError(
 				"We couldn't save this cycle. Check that its dates do not overlap another cycle, then try again."
 			);

@@ -29,6 +29,7 @@ import {
 	SUPPORTED_CURRENCIES,
 	type SupportedCurrency,
 } from "@/lib/currencies";
+import { reportError } from "@/lib/report-error";
 import { cn } from "@/lib/utils";
 
 type SetupPath = "free" | "plan";
@@ -78,7 +79,8 @@ export default function OnboardingStartPage() {
 		try {
 			await beginOnboarding({ currency, path: selectedPath });
 			router.push(`/onboarding/cycle?mode=${selectedPath}`);
-		} catch (_error) {
+		} catch (error) {
+			reportError(error, { feature: "onboarding", operation: "start" });
 			setError(
 				"We couldn't save your setup choice. Your selections are still here—please try again."
 			);

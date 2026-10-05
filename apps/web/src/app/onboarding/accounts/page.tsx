@@ -38,6 +38,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { getCurrencySymbol } from "@/lib/currencies";
+import { reportError } from "@/lib/report-error";
 
 const ADD_ACCOUNT_TYPE_VALUE = "__add-account-type__";
 
@@ -135,7 +136,8 @@ export default function OnboardingAccountsPage() {
 			setCustomTypeName("");
 			setCustomTypeNature("asset");
 			setIsAccountTypeDialogOpen(false);
-		} catch (_error) {
+		} catch (error) {
+			reportError(error, { feature: "account-types", operation: "create" });
 			setCustomTypeError(
 				"We couldn't create that account type. Try a different name."
 			);
@@ -174,7 +176,8 @@ export default function OnboardingAccountsPage() {
 			});
 			setCreatedAccount(true);
 			setShowSuccess(true);
-		} catch (_error) {
+		} catch (error) {
+			reportError(error, { feature: "accounts", operation: "create" });
 			setFormError(
 				"We couldn't create your account. Your entries are still here—please try again."
 			);
@@ -189,7 +192,8 @@ export default function OnboardingAccountsPage() {
 			await completeOnboarding({ accountStatus: "skipped" });
 			setCreatedAccount(false);
 			setShowSuccess(true);
-		} catch (_error) {
+		} catch (error) {
+			reportError(error, { feature: "onboarding", operation: "skip" });
 			setFormError("We couldn't skip this step. Please try again.");
 			setIsSkipping(false);
 		}

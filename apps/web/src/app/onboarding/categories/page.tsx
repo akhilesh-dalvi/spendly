@@ -30,6 +30,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { getCurrencySymbol } from "@/lib/currencies";
+import { reportError } from "@/lib/report-error";
 
 interface CategoryDraft {
 	categoryId?: Id<"categories">;
@@ -233,7 +234,8 @@ export default function OnboardingCategoriesPage() {
 		try {
 			await saveCategories({ categories: submissionCategories, cycleId });
 			router.push(`/onboarding/accounts?cycleId=${cycleId}`);
-		} catch (_error) {
+		} catch (error) {
+			reportError(error, { feature: "onboarding", operation: "create" });
 			setError(
 				"We couldn't save your categories. Your entries are still here—please try again."
 			);
@@ -250,7 +252,8 @@ export default function OnboardingCategoriesPage() {
 		try {
 			await advanceOnboarding({ step: "account" });
 			router.push(`/onboarding/accounts?cycleId=${cycleId}`);
-		} catch (_error) {
+		} catch (error) {
+			reportError(error, { feature: "onboarding", operation: "skip" });
 			setError("We couldn't skip category setup. Please try again.");
 			setIsSkipping(false);
 		}

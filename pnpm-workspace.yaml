@@ -9,6 +9,7 @@ allowBuilds:
   msw: false
   sharp: true
 overrides:
+  "brace-expansion@>=5.0.0 <5.0.12": 5.0.12
   "@clerk/clerk-react": 5.61.6
   "@clerk/shared": 3.47.5
   browserslist: 4.28.9

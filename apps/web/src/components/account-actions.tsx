@@ -53,6 +53,7 @@ import {
 	getAccountActionErrorMessage,
 	type ResolvedAccount,
 } from "@/lib/accounts";
+import { reportError } from "@/lib/report-error";
 
 type Account = ResolvedAccount;
 type ActiveDialog = "adjust" | "transfer";
@@ -167,6 +168,7 @@ function BalanceAdjustmentDialog({
 			});
 			onOpenChange(false);
 		} catch (error) {
+			reportError(error, { feature: "accounts", operation: "adjust-balance" });
 			toast.error(
 				getAccountActionErrorMessage(error, "Failed to update the balance")
 			);
@@ -341,6 +343,7 @@ function TransferDialog({
 			});
 			onOpenChange(false);
 		} catch (error) {
+			reportError(error, { feature: "accounts", operation: "transfer" });
 			toast.error(
 				getAccountActionErrorMessage(error, "Failed to record the transfer")
 			);
