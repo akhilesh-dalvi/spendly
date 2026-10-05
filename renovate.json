@@ -1,0 +1,34 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "schedule": ["before 6am on monday"],
+  "timezone": "Asia/Kolkata",
+  "prConcurrentLimit": 5,
+  "automerge": false,
+  "packageRules": [
+    {
+      "matchManagers": ["npm"],
+      "matchDatasources": ["npm"],
+      "minimumReleaseAge": "7 days",
+      "internalChecksFilter": "strict"
+    },
+    {
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["patch"],
+      "groupName": "npm patch updates"
+    },
+    {
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["minor"],
+      "groupName": "npm minor updates"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "groupName": "GitHub Actions non-major updates"
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true
+  }
+}
