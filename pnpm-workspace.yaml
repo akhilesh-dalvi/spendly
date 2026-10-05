@@ -47,3 +47,5 @@ minimumReleaseAgeExclude:
   - lefthook-windows-x64@2.1.16
   - lefthook@2.1.16
   - unbash@4.0.12
+  # Renovate security update: turbo@2.9.14
+  - turbo@2.9.14
