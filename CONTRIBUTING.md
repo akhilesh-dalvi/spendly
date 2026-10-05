@@ -142,6 +142,45 @@ removing them. Keep the full report clean by resolving findings or documenting
 narrow, intentional exceptions. Avoid blanket ignores and automatic deletion of
 files or dependencies without review.
 
+### Automated dependency updates
+
+Renovate checks routine npm dependency and GitHub Actions updates weekly. It
+groups npm patch and minor updates separately, limits open update pull requests,
+and waits seven days after npm package releases before proposing routine
+updates. Major updates remain separate pull requests. Updates are never merged
+automatically; review the diff and require the repository CI checks before
+merging.
+
+pnpm also enforces a seven-day minimum release age for newly resolved
+dependencies, including transitive dependencies. Exact-version exceptions in
+`pnpm-workspace.yaml` apply only to the listed releases. Keep the shared
+`pnpm-lock.yaml` and the CLI's generated `npm-shrinkwrap.json` consistent with
+their manifests; CLI release checks validate the published dependency metadata.
+
+Workspace membership is defined only in `pnpm-workspace.yaml`;
+keep npm's `workspaces` field out of the root manifest so Renovate can update
+the CLI shrinkwrap without npm resolving the pnpm-only `catalog:` and
+`workspace:` protocols. For manual CLI dependency updates, run
+`pnpm --dir apps/cli shrinkwrap:generate` after updating the manifest and
+workspace lockfile, then run `pnpm --dir apps/cli release:check`.
+
+GitHub Dependabot alerts provide vulnerability notifications. Renovate uses
+those alerts to create fix pull requests. The existing CI dependency-review
+check blocks pull requests that introduce known vulnerabilities. Production
+dependency audits remain active as separate release gates.
+Security-fix pull requests bypass Renovate's weekly schedule, release-age delay,
+and ordinary pull-request limit. pnpm's release-age policy still applies in CI.
+For an urgent fix released less than seven days ago, review the advisory and
+release, add only the required exact versions to `minimumReleaseAgeExclude`,
+and rerun installation and both production audits. Remove temporary exceptions
+once those releases are seven days old; keep the general policy enabled.
+
+CI validates `renovate.json` in strict repository mode. Run the same check locally:
+
+```bash
+pnpm --package=renovate@44.132.5 dlx renovate-config-validator --strict --no-global renovate.json
+```
+
 ### Manual checks
 
 Run checks proportional to the change. The main repository checks are:

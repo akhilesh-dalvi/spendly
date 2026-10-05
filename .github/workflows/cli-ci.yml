@@ -31,6 +31,10 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Validate Renovate configuration
+        run: >-
+          pnpm --package=renovate@44.132.5 dlx renovate-config-validator
+          --strict --no-global renovate.json
       - name: Verify worktree hook installation
         run: pnpm hooks:test
       - name: Check unused code and dependency declarations
@@ -48,6 +52,7 @@ jobs:
           pnpm exec biome check
           scripts
           package.json
+          renovate.json
           knip.jsonc
           apps/cli/src
           apps/cli/scripts

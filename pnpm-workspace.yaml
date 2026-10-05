@@ -18,6 +18,8 @@ catalog:
   zod: ^4.1.13
   typescript: ^5
   convex: ^1.31.2
+minimumReleaseAge: 10080
+minimumReleaseAgeStrict: true
 minimumReleaseAgeExclude:
   - fumadocs-core@16.15.7
   - fumadocs-ui@16.15.7
@@ -32,6 +34,7 @@ minimumReleaseAgeExclude:
   - next@16.3.6
   - '@clack/core@1.5.1'
   - '@clack/prompts@1.8.1'
+  - knip@6.39.0
   - lefthook-darwin-arm64@2.1.16
   - lefthook-darwin-x64@2.1.16
   - lefthook-freebsd-arm64@2.1.16
@@ -43,3 +46,4 @@ minimumReleaseAgeExclude:
   - lefthook-windows-arm64@2.1.16
   - lefthook-windows-x64@2.1.16
   - lefthook@2.1.16
+  - unbash@4.0.12

@@ -1,10 +1,6 @@
 {
   "name": "spendly",
   "private": true,
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
   "type": "module",
   "scripts": {
     "prepare": "node scripts/install-hooks.mjs",
