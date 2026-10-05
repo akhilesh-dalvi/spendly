@@ -49,3 +49,5 @@ minimumReleaseAgeExclude:
   - unbash@4.0.12
   # Renovate security update: turbo@2.9.14
   - turbo@2.9.14
+  # Renovate security update: vitest@4.1.11
+  - vitest@4.1.11
