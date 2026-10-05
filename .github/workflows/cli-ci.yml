@@ -33,7 +33,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Validate Renovate configuration
         run: >-
-          pnpm --package=renovate@44.132.5 dlx renovate-config-validator
+          pnpm --package=renovate@44.115.13 dlx renovate-config-validator
           --strict --no-global renovate.json
       - name: Verify worktree hook installation
         run: pnpm hooks:test

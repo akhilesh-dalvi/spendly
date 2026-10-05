@@ -175,10 +175,12 @@ release, add only the required exact versions to `minimumReleaseAgeExclude`,
 and rerun installation and both production audits. Remove temporary exceptions
 once those releases are seven days old; keep the general policy enabled.
 
-CI validates `renovate.json` in strict repository mode. Run the same check locally:
+CI validates `renovate.json` in strict repository mode. Keep the validator pin
+on a release at least seven days old so it satisfies the installation policy.
+Run the same check locally using the pinned pnpm version:
 
 ```bash
-pnpm --package=renovate@44.132.5 dlx renovate-config-validator --strict --no-global renovate.json
+pnpm --package=renovate@44.115.13 dlx renovate-config-validator --strict --no-global renovate.json
 ```
 
 ### Manual checks
