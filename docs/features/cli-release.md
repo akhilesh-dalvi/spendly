@@ -4,9 +4,9 @@
 
 ## Goal
 
-Complete Phase 9 Part 0's source handoff, production configuration, public
-package metadata, and replacement publication candidate for `spendly@0.1.2`.
-The superseded `v0.1.0` and `v0.1.1` tags must remain unchanged.
+Complete the remaining Phase 9 live acceptance for the published
+`spendly@0.1.2` package and record default-channel acceptance on macOS.
+The `v0.1.0`, `v0.1.1`, and `v0.1.2` tags and published bytes remain immutable.
 Follow `docs/spendly-cli-release-runbook.md` for the operator sequence.
 
 ## Current evidence
@@ -236,26 +236,72 @@ maintainer requested `next` until acceptance is complete. A native authenticated
 `npm dist-tag rm spendly latest` attempt returned HTTP 400; both tags remain.
 [npm's contributor confirms the initial dual-tag behavior](https://github.com/npm/cli/issues/8490).
 This registry state is not release acceptance. The published README and help
-retain their frozen preview wording; source docs are being corrected for the
-published state, without replacing the `0.1.2` tarball or tags.
+retain their frozen preview wording; PR #19 corrected the source and deployed
+Web docs for the published state without replacing the `0.1.2` tarball or tags.
+Carry packaged wording corrections into the next planned version.
+
+## Checklist audit (2026-10-05)
+
+PR #19 merged at `04b1492f3e18ef1a51f8592cebca42ec3c60d38e`; its six required
+checks, Vercel deployment, and five post-merge readiness jobs passed. The public
+docs correction is deployed. The maintainer approved macOS-only initial release
+acceptance; native Linux proof moves to the gate for advertising Linux support.
+
+Fresh verification against the published package and public surfaces passed:
+
+- Registry `next` and `latest` still resolve to `0.1.2`. The downloaded tarball
+  matches the frozen SHA-256 above and registry SHA-512 integrity.
+- A default registry install into a clean global prefix outside the monorepo on
+  the existing Mac, using Node.js 24.21.0, returned `0.1.2`. Human/JSON help,
+  nested agent help, and invalid-command JSON/exit code 2 passed. This is not a
+  fresh operating-system or account test.
+- Installed-package production `auth status`, `context`, `accounts list`,
+  `expenses list --limit 1`, and `summary --current` passed with
+  `--agent --json --non-interactive`. Only pass/fail evidence was retained;
+  no financial writes, credential changes, or personal values were recorded.
+- The public skills installer installed matching Spendly skill copies and all
+  four references into clean project-scoped Codex and Claude Code layouts.
+  The pinned CLI command and agent contract passed inspection. All ten static
+  skill evaluation definitions passed validation; actual agent execution remains
+  unverified.
+- All eight production CLI docs pages returned HTTP 200 without authentication;
+  six legacy redirects returned their expected destinations. Browser search for
+  `KEYCHAIN_UNAVAILABLE` reached Troubleshooting's Sign-in and storage section.
+  Published-package and skill documentation/reporting links resolved.
+- Fresh production dependency audits found zero CLI vulnerabilities and one low
+  repository finding, with no moderate, high, or critical production findings.
+- The protected `cli-release` environment still has no npm token secret. The
+  prior trusted-publisher creation, 2FA policy, bootstrap-token revocation, and
+  signature/provenance results remain accepted evidence for unchanged bytes.
+
+The checklist now separates completed publication work, outstanding initial
+acceptance, and recurring later-release procedures. Duplicate installs and full
+workflow reruns, a real 30-day wait, repeated accepted authentication, another
+initial `latest` mutation, and a dummy OIDC-test release are unnecessary.
 
 ## Remaining handoff and operator inputs
 
-1. Merge and deploy the documentation correction, then verify the live
-   quick-start and troubleshooting pages describe the published candidate and
-   remaining acceptance accurately. The frozen npm README and installed help
-   remain unchanged until a later version; use the stable public docs.
-2. Complete the fresh-user `ACCOUNT_SETUP_REQUIRED` check using an account
+1. Complete the fresh-user `ACCOUNT_SETUP_REQUIRED` check using an account
    without Spendly Web setup. The maintainer currently has only an existing
    account available, so this result remains unverified.
-3. Obtain native Linux credential-store and clean Linux installation evidence;
-   hosted automated matrix results do not establish native desktop storage.
-4. Complete production smoke and migration evidence, representative financial
-   workflows with Web reconciliation and provenance, and clean Codex/Claude Code
-   skill acceptance before declaring Part 2 complete. Prior authentication
-   results and simulated 30-day expiry are accepted evidence, not new tests.
-5. Record default-channel acceptance only after the remaining gates pass.
-   Later `0.x` releases must use OIDC staging with no npm write token and explicit
-   `latest` promotion after acceptance.
+2. Verify all three production revision/search migrations to final `isDone: true`
+   and the live hourly `clean expired CLI capabilities` cron. Working read
+   endpoints and source configuration do not establish these states.
+3. Complete representative financial workflows in a dedicated synthetic account,
+   reconciling balances, ledger entries, and CLI/agent provenance with Web.
+4. Observe clean Codex and Claude Code sessions using the installed public skill
+   for a production read and mutation preview. Installation and static contract
+   validation do not establish agent behavior; full committed mutation matrices
+   need not be repeated through both agents.
+5. Resolve any findings, rerun affected checks, and record default-channel
+   acceptance only after these gates pass. Prior authentication results and
+   simulated 30-day expiry are accepted evidence, not new tests.
+
+Before advertising Linux support, obtain native Secret Service, authentication,
+and clean-user installation evidence; hosted matrix results do not establish
+native desktop storage. On the next actual `0.x` release, prove OIDC staging
+without an npm write token, inspect scans and bytes, approve with maintainer 2FA,
+and explicitly promote to `latest` after acceptance. Neither is an additional
+publication required for initial macOS acceptance.
 
 Delete this temporary note when the CLI release is fully accepted.

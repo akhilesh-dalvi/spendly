@@ -39,7 +39,10 @@ publishing secret and npm token have been removed. Never move `v0.1.0`,
 The maintainer accepted the successful `0.1.0` production authentication
 results after review confirmed unchanged authentication runtime logic, and
 waived repeating those tests. This does not establish the separate fresh-user
-or native Linux credential-storage checks, which remain unverified.
+check, which remains unverified. Initial acceptance is macOS-only, as approved
+by the maintainer on 2026-10-05. Native Linux credential storage, authentication,
+and clean-user installation remain required before Linux support is advertised;
+keep the hosted Linux Node.js 22/24 matrix as an automated release gate.
 
 ## Phase 8.7 through Phase 8.12 Source Baseline Gate
 
@@ -73,8 +76,9 @@ Phases 8.7 through 8.12 hand off a reviewed source baseline, not the publishable
 tarball. Phase 9 may make only the production-configuration, public-package,
 documentation, and publication-workflow changes listed below. Those changes
 require the complete affected gates to run again before the publication
-candidate is frozen. Any change after that freeze invalidates the artifact and
-requires another complete candidate run.
+candidate is frozen. Changing the source selected for publication requires a
+new candidate run and version; the recorded artifact and tags stay immutable.
+Post-publication documentation changes do not replace the published package.
 
 ## Phase 9 Release Preparation
 
@@ -152,8 +156,9 @@ test the workflow: bootstrap publication and OIDC staging change npm state.
 ### Publication Candidate Freeze
 
 1. Run the complete CLI, backend, Web, documentation, skill, dependency,
-   leakage, package, macOS, Linux, Node.js 22, and Node.js 24 gates against the
-   production-configured source.
+   leakage, package, macOS, hosted Linux, Node.js 22, and Node.js 24 gates against
+   the production-configured source. Native Linux acceptance is required before
+   advertising Linux support, separately from initial macOS acceptance.
 2. Review and merge that exact commit to `master` and wait for its complete
    CLI readiness suite to pass.
 3. Run `.github/workflows/cli-release-candidate.yml` with version `0.1.2` from

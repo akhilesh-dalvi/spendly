@@ -95,9 +95,9 @@ types, account types, or tags.
 
 ### 4.1 Local AI Agent
 
-The Phase 0 verified user runs Codex or Claude Code on a trusted macOS
-computer. Linux remains an initial-release target pending native credential-store and
-packaged-install validation. The agent follows the Spendly skill and always
+Initial release acceptance is scoped to a trusted macOS computer. Linux is
+planned; native credential-store and packaged-install validation is required
+before advertising Linux support. The agent follows the Spendly skill and always
 invokes the CLI with `--agent`, `--json`, and `--non-interactive`.
 
 ### 4.2 Human CLI User
@@ -108,9 +108,9 @@ default; JSON is opt-in.
 ### 4.3 Runtime
 
 - Node.js 22 or newer. Release CI covers Node.js 22 and 24 on macOS and Linux.
-- macOS is the currently verified platform.
-- Linux remains an initial-release target, but support must not be claimed until its
-  native credential-store and packaged-install gates pass.
+- macOS is the verified platform and the initial release acceptance scope.
+- Linux is planned. Its native credential-store and packaged-install gates must
+  pass before Linux support is advertised; they do not block macOS acceptance.
 - Windows is deferred until Credential Manager, browser callback, filesystem,
   packaging, and agent tests exist.
 
@@ -206,11 +206,14 @@ behavior includes:
 
 1. Publish the exact `spendly@0.1.2` version, with no prerelease suffix, using
    the npm `next` tag after all local development gates pass.
-2. Test that installed package outside the monorepo on macOS and Linux.
+2. Test that installed package outside the monorepo on macOS. Validate native
+   Linux storage and installation separately before advertising Linux support.
 3. Resolve release-blocking findings. Because npm versions are immutable, any
    code change requires a higher `0.x` version and a new candidate.
-4. Promote the unchanged, validated `spendly@0.1.2` package from `next` to the
-   default `latest` tag; do not rebuild or republish it.
+4. Record default-channel acceptance for the unchanged, validated package.
+   npm already assigned `latest` to the first publication; no additional tag
+   change is needed for `0.1.2`. Later releases require explicit promotion after
+   acceptance. Do not rebuild or republish an accepted version.
 5. Publish compatible fixes as `0.1.x` and substantial or contract-changing
    releases as `0.2.0`, `0.3.0`, and later `0.x` versions.
 6. Consider `1.0.0` only after real-world usage shows that the CLI command and
@@ -323,9 +326,8 @@ Live login and `ConvexHttpClient` authentication resolved the same backend user
 as Web. A forced refresh repeated the identity proof. Logout confirmed remote
 revocation and local keychain removal, and a subsequent status check failed with
 the documented authentication-required exit code. This completes the current
-macOS-scoped Phase 0. Linux Secret Service validation is deliberately deferred
-to the pre-release platform gates in this plan and has not been claimed as
-passing.
+macOS-scoped Phase 0. Linux Secret Service validation is deferred until before
+Linux support is advertised and has not been claimed as passing.
 
 The original Phase 0 proof used a temporary copy of the accounts backend because
 the feature worktree initially predated those schema changes. After the
@@ -1065,7 +1067,8 @@ material when exact flags or response fields are needed.
 - Enforced deletion preview token and permanent delete.
 - Logout revocation and local removal.
 - Human output and JSON stdout/stderr separation.
-- Packaged CLI installation outside the monorepo on macOS and Linux.
+- Packaged CLI installation outside the monorepo on macOS for initial acceptance;
+  native Linux storage and installation before advertising Linux support.
 - Codex and Claude Code skill evaluations.
 
 ## 21. Implementation Plan
@@ -1103,8 +1106,8 @@ token authenticates the correct Spendly user through `ConvexHttpClient`.
 - [x] Prototype and execute browser login, refresh, and logout.
 - [x] Verify the token resolves the same Spendly user as Web.
 - [x] Select `@napi-rs/keyring` and pass the native macOS canary.
-- [x] Defer the native Linux Secret Service canary to pre-release platform
-      validation; do not claim Linux support until it passes.
+- [x] Defer the native Linux Secret Service canary until before advertising
+      Linux support; the initial release acceptance scope is macOS-only.
 - [x] Complete a security review of the authentication spike.
 
 Implementation and verification evidence is recorded in
@@ -1553,8 +1556,10 @@ reviewed, release-ready source baseline containing the guided input layer,
 maintainer-verified human CLI UX, the proven headless operation boundary, and
 the recorded MCP and Raycast reuse contracts. Phase 9 adds the approved public
 package metadata and production identifiers, reruns every affected gate, and
-then freezes the immutable publication candidate. No source or package change
-is allowed after that freeze.
+then freezes the immutable publication candidate. The selected source commit,
+artifact bytes, and release tag remain immutable. Later source changes require
+a new candidate/version for another publication;
+post-publication documentation updates do not replace the frozen package.
 
 The detailed operator sequence, including the one-time first-publication
 bootstrap and exact npmjs.com settings, is authoritative in the
@@ -1636,120 +1641,171 @@ docs record the published state without altering the immutable package.
 
 #### Part 1: Package and Release
 
-Exit criterion: `spendly@0.1.2` is published on the npm `next` tag with verified
-provenance, production configuration, documentation, and macOS/Linux release
-evidence.
+Publication and packaging are complete for `spendly@0.1.2`. This establishes a
+reproducible public package with verified identity, production configuration,
+and automated release evidence. It does not close the live production and
+user-availability gates in Part 2.
 
-- [x] Confirm the immutable candidate contains the approved public npm manifest:
-      license, README, repository, homepage, bugs, keywords, supported Node
-      engine, publish guardrails, and only the files required by the installed
-      CLI.
-- [ ] Deploy `/docs/cli` and verify its stable public production URL, signed-out
-      access, search, redirects, and agreement with the already-frozen npm
-      README, installed CLI help, and skills.sh-facing content.
-- [x] Run the Phase 8.7 release CI gates for formatting, linting, explicit
+- [x] Verify the frozen public manifest, license, README, repository, homepage,
+      bugs URL, keywords, Node engine, publish guardrails, shrinkwrap, and packed
+      file allowlist.
+- [x] Freeze the reviewed source commit, package version, tarball, SHA-256,
+      `SOURCE_COMMIT`, candidate run, matching immutable `v0.1.2` tag, and GitHub
+      Release. Verify the registry tarball is byte-identical to that candidate.
+- [x] Pass the release CI gates for formatting, linting, explicit
       CLI/backend/Web typechecks, automated tests, production builds,
       documentation validation, dependency audit, and tarball inspection.
-- [ ] Run the supported Node version matrix on macOS and Linux, including the
-      native keychain/Secret Service canary and an isolated tarball install
-      outside the monorepo; advertise Linux support only after it passes.
-- [ ] Repeat the full development end-to-end acceptance flow before production
-      deployment, then verify the frozen publication commit is unchanged,
-      reviewed, version-consistent, and contains no secrets or stale build
-      output.
-- [ ] Deploy the release-compatible Convex backend and Spendly Web application
-      to production in the approved backward-compatible order; complete every
-      resumable revision/search migration, verify the cleanup cron, CLI facade,
-      Clerk issuer/audience, public documentation, and Web provenance views,
-      and record non-personal deployment evidence before making the package
-      available.
-- [x] Verify the maintainer account and ownership with `npm whoami`, confirm the
-      unscoped `spendly` package name is publishable, and independently verify
-      the approved first-publication workflow, environment, 2FA, temporary-token
-      scope, and provenance controls immediately before publishing.
-- [x] Recheck that the unscoped `spendly` name is unclaimed immediately before
-      the first publish. A registry `404` is only a point-in-time availability
-      check; the name is claimed only by a successful publication.
-- [x] On npmjs.com, create one short-lived granular bootstrap token for the first
-      publication only: one-day expiry, package permission `Read and write
-      (publish and stage)`, all packages because `spendly` does not yet exist,
-      no organization permission, and bypass 2FA enabled. Store it only as the
-      `NPM_TOKEN` secret in the protected `cli-release` GitHub environment.
-- [x] Inspect the final `npm pack` contents and metadata, generate the production
-      dependency-audit result, and have the approved GitHub-hosted workflow
-      publish the recorded tarball as `spendly@0.1.2` with `--tag next`,
-      `--access public`, and provenance. Do not publish from a developer laptop
-      or rebuild the artifact.
-- [x] Verify the registry version, `next` dist-tag, integrity/provenance record,
-      `npm audit signatures`, package contents, README, and clean installation
-      from npm.
-- [x] After the package page exists, configure npm trusted publishing with
-      GitHub user `akhilesh-dalvi`, repository `spendly`, workflow filename
-      `cli-publish.yml`, environment `cli-release`, and stage-only permission.
-      Compare spelling and case against the committed workflow. Native
-      `npm trust github` creation passed; end-to-end OIDC staging remains a
-      gate for the next real release.
-- [x] On npmjs.com, change Publishing access to `Require two-factor
-      authentication and disallow tokens`; then delete the GitHub `NPM_TOKEN`
-      secret and revoke the bootstrap token. Record pass/fail only, never the
-      token or recovery information.
+- [x] Pass hosted Node.js 22/24 checks on macOS and Linux, including isolated
+      tarball installation. These automated Linux results do not establish
+      native desktop Secret Service support.
+- [x] Verify native macOS Keychain round trip and cleanup with the installed
+      candidate. Native Linux storage is a later support gate below.
+- [x] Deploy the release-compatible Convex backend and Spendly Web. Prior
+      backend deployment/authentication evidence and current production CLI
+      reads establish facade access; Web production deployment and post-merge
+      readiness passed after [PR #19](https://github.com/akhilesh-dalvi/spendly/pull/19).
+      Migration completion, live cron state, and mutation reconciliation remain
+      Part 2 gates.
+- [x] Verify all eight production CLI docs pages without authentication, all six
+      documented redirects, and browser search. Search for
+      `KEYCHAIN_UNAVAILABLE` opens Troubleshooting's Sign-in and storage section.
+- [x] Verify the published README, installed help, public skill, and Web docs
+      retain the correct CLI version, commands, and working public links.
+      The immutable npm README/help retain cosmetic pre-publication wording;
+      the public docs and default-branch source correct it. Update packaged
+      wording in the next planned version rather than rewriting `0.1.2`.
+- [x] Verify npm maintainer identity (`akhileshdalvi`), interactive access,
+      verified email, 2FA, approved workflow/environment, and publication controls.
+- [x] Check the unclaimed package name immediately before bootstrap publication;
+      the successful publish subsequently claimed it. This historical check is
+      not repeated for an existing package.
+- [x] Use the one-day granular bootstrap token only in the protected
+      `cli-release` environment for the first publication, with its reviewed
+      scope and provenance controls.
+- [x] Publish the recorded `spendly-0.1.2.tgz` from the approved GitHub-hosted
+      workflow with `--tag next`, public access, and provenance, without
+      rebuilding it.
+- [x] Verify registry version, dist-tags, integrity, provenance source/workflow/run
+      identity, package contents, and `npm audit signatures` (53 signatures and
+      46 attestations).
+- [x] Configure stage-only trusted publishing for `akhilesh-dalvi/spendly`,
+      `cli-publish.yml`, and `cli-release`. Native `npm trust github` creation
+      confirmed the exact identity and permission; actual OIDC staging is a
+      first-later-release gate, not a result of bootstrap publishing.
+- [x] Require publishing 2FA without token overrides, remove the GitHub
+      `NPM_TOKEN` secret, revoke `spendly-first-publication`, and independently
+      confirm the named npm token is absent. No credential values are recorded.
+
+Verification refresh on 2026-10-05: the registry tarball still matches SHA-256
+`1fb9a5be9bf1fed6fa4cef77fdb348d222783f3e64e2c64086e004379a66d3e7`, and
+both `next` and `latest` still resolve to `0.1.2`. All public docs pages and
+redirects passed; browser search reached the expected section. See the
+[release evidence](features/cli-release.md) for prior artifact, authentication,
+and publishing-cleanup results.
 
 #### Part 2: User Availability and Default-Channel Promotion
 
-Exit criterion: a new user can follow the public documentation from a clean
-supported computer, sign in to production, use Spendly safely as a human or
-through Codex/Claude Code, and install the validated `0.1.2` release from npm's
-default `latest` tag.
+Exit criterion: the validated package can be installed and safely used from the
+supported user environment, with production data integrity, authentication,
+and observed skill use established. npm's automatic `latest` assignment does
+not satisfy these checks. The maintainer approved macOS-only initial acceptance
+on 2026-10-05, matching the published quick start. Linux is planned and Windows
+is unsupported.
 
-- [ ] On clean macOS and Linux environments, globally install `spendly@next`
-      from npm and verify `spendly --version`, top-level help, nested help,
-      human-readable output, JSON output, and documented error exit codes.
-- [ ] Complete production browser login, status, refresh, 30-day expiry, and
-      logout checks; also verify the documented `ACCOUNT_SETUP_REQUIRED` path
-      for a user who has not completed Spendly Web setup.
-- [ ] Run representative production read and mutation workflows for expenses,
-      accounts, adjustments, and transfers, then reconcile balances, ledger
-      entries, and direct-CLI versus AI-agent provenance in Spendly Web.
-- [ ] Install the public Spendly skill through skills.sh in clean Codex and
-      Claude Code environments and verify that both use the published CLI,
-      stable documentation, `--agent --json --non-interactive`, and the approved
-      mutation-safety workflow.
-- [ ] Update the public quick start from release-preview wording to the exact live
-      install and sign-in flow, and verify every npm README, CLI-help, skill, and
-      Web documentation link works for signed-out users.
-- [ ] Publish clear supported-platform, Node-version, privacy, troubleshooting,
-      issue-reporting, upgrade, and uninstall guidance without collecting
-      credentials or financial payloads in reports.
-- [ ] Monitor and triage `0.1.2` installation, authentication, native credential
-      store, command-contract, and documentation findings. If code changes are
-      required, publish a higher `0.x` candidate on `next` and repeat the
-      affected release and user checks.
-- [ ] Resolve all release-blocking findings and rerun the initial-release
-      acceptance criteria on the exact package selected for promotion.
-- [ ] After all user-availability checks pass, verify `npm dist-tag ls spendly`
-      and record initial default-channel acceptance. npm already assigned
-      `latest` to `0.1.2`; no explicit promotion is needed for this version.
-      For later candidates, run `npm dist-tag add spendly@<VERSION> latest`
-      through an interactive maintainer session with 2FA. Trusted-publisher
-      OIDC does not authorize dist-tag changes.
-- [ ] Verify a clean default `npm install --global spendly`, production login,
-      core workflows, skill usage, documentation links, and the final npm
-      dist-tags. Do not rebuild, republish, or publish `1.0.0` as part of Phase
-      9.
+- [x] Install the default `spendly` package into a fresh global prefix outside the
+      monorepo on macOS with Node.js 24.21.0. Verify `0.1.2`, human and JSON help,
+      nested agent-mode help, one JSON error document, and exit code 2 for
+      `INVALID_COMMAND`. This is an isolated package install on the existing
+      Mac, not a fresh operating-system or account test.
+- [x] Accept the maintainer-approved prior production browser login, identity
+      matching, refresh, provider revocation, local cleanup, and simulated
+      30-day expiry evidence after unchanged authentication runtime review.
+      Current installed `0.1.2` authentication status also passed. A real
+      30-day wait or duplicate browser login is not required by this release.
+- [ ] Verify live `ACCOUNT_SETUP_REQUIRED` with a different identity that has
+      never completed Spendly Web setup. The maintainer currently has only the
+      existing account available; unit tests do not close this production gate.
+- [x] Verify installed `0.1.2` production `auth status`, `context`,
+      `accounts list`, `expenses list --limit 1`, and `summary --current` with
+      `--agent --json --non-interactive`. All returned successful schema-version
+      1 documents; only pass/fail evidence was retained.
+- [ ] Complete all three production revision/search migrations to final
+      `isDone: true`, retaining only aggregate completion evidence. Verify the
+      live hourly `clean expired CLI capabilities` cron. Source configuration
+      and working read endpoints do not prove these production states.
+- [ ] Use a dedicated synthetic release account for representative expense and
+      account mutations, balance adjustment, and same-currency transfer.
+      Reconcile balances, ledger entries, and direct-CLI versus AI-agent
+      provenance in Spendly Web; preview destructive/balance-affecting actions
+      and remove or archive only the synthetic test records as documented.
+- [x] Install the public Spendly skill through the skills installer into clean
+      project-scoped Codex and Claude Code layouts. Verify both copies and all
+      four references, the pinned published CLI command, and the
+      `--agent --json --non-interactive` contract. The installer succeeded from
+      the public repository; this does not prove execution by either agent.
+- [ ] Observe a fresh Codex session and a fresh Claude Code session using the
+      installed public skill for one production read and one mutation preview,
+      respecting selectors, revisions, idempotency, and confirmation rules.
+      Full mutation matrices need not be repeated through both agents; the
+      preceding CLI/Web reconciliation gate covers actual committed behavior.
+- [x] Publish and verify the pinned live install/sign-in quick start, platform
+      and Node guidance, privacy boundary, troubleshooting, issue/security
+      reporting, upgrades, and uninstall instructions. [PR #19](https://github.com/akhilesh-dalvi/spendly/pull/19)
+      is deployed; its frozen-package wording limitation is recorded in Part 1.
+- [ ] Resolve release-blocking findings from these remaining live checks and
+      rerun only affected checks on the exact package selected for acceptance.
+      A runtime fix requires a higher immutable `0.x` candidate; monitoring
+      continues after release and is not an indefinitely open completion task.
+- [x] Verify the current default npm install selects `0.1.2` and both registry
+      tags resolve to that version. An authenticated `latest` removal was
+      rejected with HTTP 400. No additional tag mutation or republish is needed
+      for this initial version.
+- [ ] Record initial default-channel acceptance after the remaining live gates
+      pass. Do not infer acceptance from the already-present `latest` tag or
+      rerun completed installation/packaging checks without a new change.
+
+Native Linux testing is deferred from initial acceptance to the Linux support
+gate under Later Phases. Hosted Linux CI remains required automated evidence;
+it does not prove native desktop Secret Service support.
 
 #### Later `0.x` Publications
 
-- [ ] Publish later `0.x` candidates from `cli-publish.yml` with trusted
-      publishing and `npm stage publish --tag next`; do not restore a long-lived
-      npm write token.
-- [ ] Review the staged package contents and malware-scan state on npmjs.com,
-      approve or reject it with maintainer 2FA, and repeat the affected clean
-      installation and user-availability checks before changing `latest`.
-- [ ] Use `0.1.x` for compatible fixes and a later `0.x` minor for substantial
-      features or contract changes. Treat every published version as immutable.
+These are recurring release procedures, not unfinished publications required
+for `0.1.2` acceptance. Do not create a dummy version solely to test them.
+
+- [x] Implement candidate hashing/tagging, unchanged-artifact publication,
+      protected GitHub environment approval, and stage-only OIDC configuration.
+      Automated artifact, source-drift, tag, and publication-mode guard tests
+      passed. The bootstrap publish does not prove the OIDC path end to end.
+- [ ] On the next actual `0.x` release, prove OIDC staging from
+      `cli-publish.yml` without `NPM_TOKEN`, inspect the staged bytes and scan
+      state, approve with maintainer 2FA, and verify registry identity and clean
+      installation. Retain this one live validation gate until that run succeeds.
+
+For each later release:
+
+1. Choose `0.1.x` for compatible fixes and a later `0.x` minor for substantial
+   features or contract changes. Update package and shrinkwrap versions
+   together, carry the corrected README/help wording into the next planned
+   package, and review affected contracts and docs.
+2. Pass affected checks and freeze one candidate from reviewed `master`, with
+   matching version, source commit, SHA-256, `v<VERSION>` tag, and GitHub Release.
+   Every published version and existing tag remains immutable.
+3. Publish through `cli-publish.yml` with `bootstrap=false` and stage-only OIDC:
+   `npm stage publish --tag next` for the recorded tarball. Do not restore an npm
+   write token. Inspect contents and malware-scan state before maintainer 2FA
+   approval; verify provenance, signatures, bytes, and affected user workflows.
+4. After acceptance, promote that exact version to `latest` through the
+   interactively authenticated maintainer path configured by the runbook, then
+   verify the default installation and tags. The current stage-only trusted
+   publisher has no dist-tag permission.
 
 ### Later Phases
 
+- [ ] Before advertising Linux support, verify native Secret Service round trip
+      and cleanup, browser login/refresh/logout, and clean-user packaged
+      installation on the selected Linux distribution/runtime matrix. Hosted
+      Linux CI alone does not close this support gate.
 - [ ] Add Sentry and PostHog with an explicit privacy design.
 - [ ] Store user IANA timezone before hosted-agent support.
 - [ ] Design scoped delegated authorization for third-party agents.
@@ -1768,6 +1824,11 @@ default `latest` tag.
 - [ ] Design a product-wide trash system only if both Web and CLI adopt it.
 
 ## 22. Initial Release Acceptance Criteria
+
+The criteria below define the complete product contract. Phase 9 Parts 1 and 2
+record the audited release evidence and outstanding live gates; do not repeat
+already accepted checks solely because they also appear here. Initial platform
+acceptance is macOS-only; native Linux proof is a later support gate.
 
 - [ ] A source checkout authenticates against Clerk and Convex development
       without weakening issuer or audience checks.
@@ -1816,7 +1877,9 @@ default `latest` tag.
 - [ ] Logout removes local access and attempts provider revocation.
 - [ ] The npm tarball exposes production only and contains no secrets or
       development configuration.
-- [ ] The package works outside the monorepo on macOS and Linux.
+- [x] The package installs and runs outside the monorepo on macOS; isolated
+      registry installation and hosted Node.js 22/24 checks passed. Native
+      Linux acceptance is deferred until Linux support is advertised.
 - [ ] `/docs/cli` is public, searchable, responsive, and accessible without a
       Spendly account.
 - [ ] Public command examples and flags pass automated checks against the
