@@ -164,6 +164,13 @@ the CLI shrinkwrap without npm resolving the pnpm-only `catalog:` and
 `pnpm --dir apps/cli shrinkwrap:generate` after updating the manifest and
 workspace lockfile, then run `pnpm --dir apps/cli release:check`.
 
+Renovate's npm tool is pinned to 11.19.0 in `renovate.json` to keep CLI
+shrinkwrap updates working. With npm 12.2.0, the artifact update creates a
+`package-lock.json` alongside the existing `npm-shrinkwrap.json`, and Renovate
+fails when renaming it with `dest already exists`. Before changing this pin,
+verify that npm updates the existing shrinkwrap without creating a second lock
+file, then rerun the CLI release metadata check.
+
 GitHub Dependabot alerts provide vulnerability notifications. Renovate uses
 those alerts to create fix pull requests. The existing CI dependency-review
 check blocks pull requests that introduce known vulnerabilities. Production
