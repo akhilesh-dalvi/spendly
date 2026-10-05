@@ -2,10 +2,10 @@
 
 ## Status
 
-- Phase: Code complete; production OAuth client ID pending
-- Last updated: 2026-08-31
-- Branch: `feature/spendly-cli`
-- Package and binary: `spendly@0.1.0`
+- Phase: complete; production configuration was finalized in Phase 9
+- Last updated: 2026-10-05
+- Original branch: `feature/spendly-cli`
+- Historical verification package: `spendly@0.1.0`; published release: `0.1.2`
 - Detailed contract:
   [Spendly CLI Requirements and Implementation Plan](spendly-cli-requirements-and-implementation-plan.md)
 
@@ -32,25 +32,16 @@
   temporary consumer outside the repository, then verifies version, help, JSON,
   exit codes, production configuration, and absence of development files.
 
-## Remaining External Prerequisite
+## Production Prerequisite Resolved
 
-No approved production Clerk OAuth client ID is available in the checkout or
-project documentation, so one has not been compiled. Production auth commands
-therefore return `CONFIGURATION_ERROR` before making a network request. This
-avoids silently using development auth or shipping a misleading client
-identifier.
-
-To close the final Phase 1 checkbox:
-
-1. Supply the production public Clerk OAuth client ID, or create the application
-   with the approved PKCE, scopes, consent, and loopback callback settings.
-2. Add its exact client ID to the production CLI constant and set `authReady` to
-   `true`.
-3. Add the matching strict Convex `customJwt` provider for production and repeat
-   the Phase 0 identity proof during Phase 2.
+The production Clerk OAuth public client was provisioned and compiled with
+`authReady: true` during Phase 9. The strict production Convex provider and
+browser authentication proof passed, and `spendly@0.1.2` is published. The
+[Phase 9 release record](spendly-cli-requirements-and-implementation-plan.md#phase-9-packaging-and-release)
+closes the earlier external prerequisite; no Phase 1 setup task remains.
 
 No Clerk secret, deploy key, token, or development endpoint belongs in the
-package.
+package. The verification below records the original development-phase result.
 
 ## Verification
 

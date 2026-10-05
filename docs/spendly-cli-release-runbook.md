@@ -19,12 +19,13 @@ first publication, and an authenticated removal attempt returned HTTP 400.
 On 2026-10-05 the maintainer accepted practical macOS installation,
 authentication, production reads, and actual Codex `$spendly` read-only skill
 use, choosing to defer broader validation and address later findings as they
-arise. Deferred exercises remain unverified in Phase 9 Part 2; this scope decision
-does not prove every workflow. Later candidates require affected checks and
-explicit acceptance before moving the unchanged package to `latest`. Continue
+arise. The maintainer explicitly closed the initial-release checklist on that
+date. Unverified exercises remain in the implementation plan's post-release
+validation follow-ups; closure does not prove every workflow. Later candidates
+require affected checks and explicit acceptance before moving the unchanged package to `latest`. Continue
 with `0.1.x` fixes and later `0.x` feature or contract releases. Phase 9 does not
-publish `1.0.0`; that milestone requires a later decision supported by real user adoption and contract
-stability.
+publish `1.0.0`; that milestone requires a later decision supported by real user
+adoption and contract stability.
 
 The original `0.1.0` candidate was frozen but never published to npm. Its
 `v0.1.0` tag remains at `73b593f7345caaa55399b1f74785b463205709e9`.
@@ -47,7 +48,13 @@ by the maintainer on 2026-10-05. Native Linux credential storage, authentication
 and clean-user installation remain required before Linux support is advertised;
 keep the hosted Linux Node.js 22/24 matrix as an automated release gate.
 
-## Phase 8.7 through Phase 8.12 Source Baseline Gate
+## Historical Phase 8.7 through Phase 8.12 Source Baseline Gate
+
+The original baseline procedure below is retained as historical context. The
+reviewed `0.1.2` source, hosted readiness, and candidate freeze subsequently
+passed. Legacy unrecorded manual handoff sign-off was waived at initial-release
+closure. The [implementation plan](spendly-cli-requirements-and-implementation-plan.md#phase-9-packaging-and-release)
+records the accepted scope; this section does not reopen its checklist.
 
 1. Run `.github/workflows/cli-ci.yml` on Node.js 22 and 24 for macOS and Linux.
 2. Run `.github/workflows/cli-release-candidate.yml` with the exact package
@@ -322,8 +329,8 @@ workflow so the first package still receives provenance.
    For `0.1.2`, removing `latest` with maintainer 2FA returned HTTP 400. Do not
    infer release acceptance from this registry state or unpublish the immutable
    package to simulate a `next`-only first release. The initial macOS scope
-   decision and deferred validation are recorded in Phase 9 Part 2; later
-   candidates use `next` before explicit promotion.
+   closure is recorded in Phase 9 Part 2, with unverified validation retained as
+   post-release follow-ups; later candidates use `next` before explicit promotion.
 
 ### Trusted Publisher and Token Removal
 
@@ -389,8 +396,9 @@ Then complete all of these steps in the same maintenance window:
 This runbook configures the trusted publisher for staging only, without direct
 publication or dist-tag permissions. npm already assigned `latest` to the
 initial `0.1.2` publication; its presence is not user-availability evidence.
-The maintainer's practical macOS acceptance and deferred broader checks are
-recorded in Phase 9 Part 2. No further tag mutation is needed for `0.1.2`.
+The initial macOS release checklist is closed in Phase 9 Part 2. Unverified
+broader validation remains post-release follow-up work. No further tag mutation
+is needed for `0.1.2`.
 For later candidates, use an interactive maintainer session with
 2FA to promote the exact validated version. Substitute that later version for
 `0.1.2` in the example below:
