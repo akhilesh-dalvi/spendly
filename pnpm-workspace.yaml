@@ -14,6 +14,10 @@ overrides:
   "@clerk/shared": 3.47.5
   browserslist: 4.28.9
   js-cookie: 3.0.7
+  # GHSA-wq5f-xc86-pv6w: keep Sharp's 0.35 line on the patched release.
+  "sharp@>=0.35.0 <0.35.5": 0.35.5
+  # GHSA-68fv-2mgg-jv7q: patch vulnerable transitive source-map consumers.
+  "source-map-js@>=1.0.0 <1.2.2": 1.2.2
   ws: 8.21.0
 catalog:
   zod: ^4.1.13
