@@ -27,7 +27,8 @@ spendly --agent --json --non-interactive cycles current --date "$DATE"
 spendly --agent --json --non-interactive categories list --cycle-id "$CYCLE_ID"
 ```
 
-Dates use `YYYY-MM-DD`; an omitted date defaults to the computer's local date.
+Dates use `YYYY-MM-DD`; an omitted expense/context date defaults to the computer's
+local date. Cycle creation requires explicit start and exclusive-end dates.
 Context supplies the local date and detected IANA timezone for interpreting
 "today" or "yesterday"; use an explicit date if timezone detection fails.
 Amounts use decimal notation such as `24.50`. Expense and transfer amounts are

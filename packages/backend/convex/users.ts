@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { seedDefaultAccountTypes } from "./accountTypeHelpers";
 import { commitDefaultAccount } from "./domain/accountOperations";
+import { actionSourceValidator } from "./domain/actionSource";
 import { getCurrentUser, getCurrentUserOrNull } from "./helpers";
 import { supportedCurrencyValidator } from "./onboardingValidators";
 
@@ -138,6 +139,9 @@ export const getOnboardingState = query({
 					_creationTime: v.number(),
 					createdAt: v.number(),
 					endDate: v.string(),
+					revision: v.optional(v.number()),
+					createdSource: v.optional(actionSourceValidator),
+					lastModifiedSource: v.optional(actionSourceValidator),
 					name: v.string(),
 					startDate: v.string(),
 					userId: v.id("users"),

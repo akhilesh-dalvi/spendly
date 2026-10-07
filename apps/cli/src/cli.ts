@@ -150,6 +150,22 @@ const launcherActions: Readonly<
 			value: "cycles list",
 		},
 		{
+			hint: "Plan dates and copy categories",
+			label: "Add cycle",
+			value: "cycles add",
+		},
+		{
+			hint: "Inspect dates and revision",
+			label: "View cycle",
+			value: "cycles get",
+		},
+		{ hint: "Change name or dates", label: "Edit cycle", value: "cycles edit" },
+		{
+			hint: "Permanent; removes categories, requires no expenses",
+			label: "Delete cycle",
+			value: "cycles delete",
+		},
+		{
 			hint: "Browse one cycle's categories",
 			label: "List categories",
 			value: "categories list",

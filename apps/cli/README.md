@@ -1,6 +1,6 @@
 # Spendly CLI
 
-Spendly CLI lets you track expenses and manage Spendly accounts from a trusted
+Spendly CLI lets you track expenses and manage Spendly accounts and expense cycles from a trusted
 local terminal or through a local AI agent.
 
 The initial `0.1.2` release is available on npm for macOS. Install it on
@@ -42,6 +42,31 @@ For static, screen-reader-friendly numbered prompts without cursor redraws, add
 `TERM=dumb`. Generate local command and global-option completion with
 `spendly completion zsh`, `spendly completion bash`, or
 `spendly completion fish`.
+
+## Expense cycles
+
+Check `spendly cycles --help` for support in your installed version; older
+releases only offer list/current. Cycle writes also require a compatible backend.
+
+```bash
+spendly cycles list
+spendly cycles get CYCLE_ID
+spendly cycles add --interactive --dry-run
+spendly cycles edit CYCLE_ID --name "Updated name" --dry-run
+spendly cycles delete CYCLE_ID --dry-run
+```
+
+Explicit creation uses `--name`, `--start-date`, and `--end-date-exclusive`.
+Dates are half-open: September uses September 1 to October 1. Cycles cannot
+overlap. Creation can copy all or selected categories and optional plans from
+an owned cycle. Date edits do not reassign existing expenses. Deletion requires
+no linked expenses and permanently removes the cycle's categories.
+
+Agent/script commits use `--agent --json --non-interactive`, stable IDs, and
+`--idempotency-key`. Edits require `--if-revision`; deletions additionally
+require the short-lived `--confirmation-token` returned by a dry run.
+See [cycle commands](https://spendly.akhileshdalvi.com/docs/cli/cycles) for flags,
+copy overrides, JSON results, and recovery.
 
 The CLI stores credentials in the operating system credential store by
 default. Never share tokens, authorization URLs, request headers, credential

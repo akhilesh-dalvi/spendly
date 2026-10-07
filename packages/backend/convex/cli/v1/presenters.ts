@@ -10,6 +10,15 @@ type ReadContext = QueryCtx | MutationCtx;
 
 const timestamp = (value: number): string => new Date(value).toISOString();
 
+export const presentCycleDetail = (cycle: Doc<"expense_cycles">) => ({
+	createdAt: timestamp(cycle.createdAt),
+	endDateExclusive: cycle.endDate,
+	id: cycle._id,
+	name: cycle.name,
+	startDate: cycle.startDate,
+	revision: getRevision(cycle.revision),
+});
+
 export const presentAccount = async (
 	ctx: ReadContext,
 	account: Doc<"accounts">,

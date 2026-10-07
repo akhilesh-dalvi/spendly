@@ -1,6 +1,7 @@
 import { type Command, Option } from "commander";
 import type { CliRuntime } from "../runtime.js";
 import { registerAccountMutationCommands } from "./account-mutations.js";
+import { registerCycleCommands } from "./cycles.js";
 import { registerExpenseMutationCommands } from "./expense-mutations.js";
 
 const collectOption = (value: string, previous: string[]): string[] => [
@@ -86,7 +87,8 @@ export const registerReadCommands = (
 		});
 	registerExpenseMutationCommands(expenses, runtime);
 
-	const cycles = program.command("cycles").description("Read expense cycles");
+	const cycles = program.command("cycles").description("Manage expense cycles");
+	registerCycleCommands(cycles, runtime);
 	cycles
 		.command("list")
 		.description("List expense cycles")
