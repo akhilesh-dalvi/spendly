@@ -74,6 +74,281 @@ const sourceFixture = async () => {
 };
 
 describe("authenticated CLI cycle CRUD", () => {
+	it("rejects copying source categories changed after the reviewed preview", async () => {
+		const { client, source, food } = await sourceFixture();
+		const request = {
+			...input,
+			copyFromCycleId: source._id,
+			includePlannedAmounts: true,
+		};
+		const preview = await client.query(
+			api.cli.v1.cycles.previewCreate,
+			request
+		);
+		await client.mutation(api.categories.update, {
+			id: food._id,
+			name: "Changed food",
+			plannedAmount: 999,
+		});
+		await expectCode(
+			client.mutation(api.cli.v1.cycles.create, {
+				...request,
+				expectedCopySnapshot: preview.copySnapshot,
+				idempotencyKey: "reviewed-copy-change",
+			}),
+			"CYCLE_COPY_CONFLICT"
+		);
+		expect(
+			await client.query(api.cli.v1.resources.listCycles, {})
+		).toHaveLength(1);
+	});
+	it.each([
+		{ name: "rename", patch: { name: "Changed food" } },
+		{ name: "plan", patch: { plannedAmount: 999 } },
+		{ name: "icon", patch: { icon: "car" } },
+		{ name: "visibility", patch: { isHidden: false } },
+		{ name: "order", patch: { order: 20 } },
+	])("rejects an intervening copied-category $name change", async ({
+		patch,
+	}) => {
+		const { client, source, food } = await sourceFixture();
+		const request = {
+			...input,
+			copyFromCycleId: source._id,
+			includePlannedAmounts: true,
+		};
+		const preview = await client.query(
+			api.cli.v1.cycles.previewCreate,
+			request
+		);
+		await client.mutation(api.categories.update, { id: food._id, ...patch });
+		await expectCode(
+			client.mutation(api.cli.v1.cycles.create, {
+				...request,
+				expectedCopySnapshot: preview.copySnapshot,
+				idempotencyKey: "changed-copy-field",
+			}),
+			"CYCLE_COPY_CONFLICT"
+		);
+		expect(
+			await client.query(api.cli.v1.resources.listCycles, {})
+		).toHaveLength(1);
+	});
+	it.each([
+		"add",
+		"delete",
+	] as const)("rejects an intervening category %s when copying all", async (change) => {
+		const { client, source, food } = await sourceFixture();
+		const request = { ...input, copyFromCycleId: source._id };
+		const preview = await client.query(
+			api.cli.v1.cycles.previewCreate,
+			request
+		);
+		if (change === "add") {
+			await client.mutation(api.categories.create, {
+				cycleId: source._id,
+				name: "New category",
+			});
+		} else {
+			await client.mutation(api.categories.remove, { categoryId: food._id });
+		}
+		await expectCode(
+			client.mutation(api.cli.v1.cycles.create, {
+				...request,
+				expectedCopySnapshot: preview.copySnapshot,
+				idempotencyKey: "changed-copy-selection",
+			}),
+			"CYCLE_COPY_CONFLICT"
+		);
+		expect(
+			await client.query(api.cli.v1.resources.listCycles, {})
+		).toHaveLength(1);
+	});
+	it("requires a preview snapshot for source copying and permits a freshly reviewed copy", async () => {
+		const { client, source, food } = await sourceFixture();
+		const request = { ...input, copyFromCycleId: source._id };
+		await expectCode(
+			client.mutation(api.cli.v1.cycles.create, {
+				...request,
+				idempotencyKey: "missing-copy-snapshot",
+			}),
+			"INVALID_INPUT"
+		);
+		const before = await client.query(api.cli.v1.cycles.previewCreate, request);
+		await client.mutation(api.categories.update, {
+			id: food._id,
+			name: "Reviewed new food",
+		});
+		const after = await client.query(api.cli.v1.cycles.previewCreate, request);
+		expect(after.copySnapshot).not.toEqual(before.copySnapshot);
+		const result = await client.mutation(api.cli.v1.cycles.create, {
+			...request,
+			expectedCopySnapshot: after.copySnapshot,
+			idempotencyKey: "fresh-reviewed-copy",
+		});
+		expect(result.copiedCategories).toEqual(after.copiedCategories);
+	});
+	it.each([
+		"subset",
+		"none",
+		"overridden-plan",
+	] as const)("ignores changes that do not change the effective %s copy", async (mode) => {
+		const { client, source, food, rent } = await sourceFixture();
+		const request = {
+			...input,
+			copyFromCycleId: source._id,
+			copyCategoryIds: mode === "none" ? [] : [food._id],
+			includePlannedAmounts: true,
+			...(mode === "overridden-plan"
+				? { categoryPlannedOverrides: [{ id: food._id, plannedAmount: 10 }] }
+				: {}),
+		};
+		const preview = await client.query(
+			api.cli.v1.cycles.previewCreate,
+			request
+		);
+		if (mode === "overridden-plan") {
+			await client.mutation(api.categories.update, {
+				id: food._id,
+				plannedAmount: 999,
+			});
+		} else {
+			await client.mutation(api.categories.update, {
+				id: rent._id,
+				name: "Unselected change",
+			});
+			await client.mutation(api.categories.create, {
+				cycleId: source._id,
+				name: "Unselected new category",
+			});
+		}
+		const result = await client.mutation(api.cli.v1.cycles.create, {
+			...request,
+			expectedCopySnapshot: preview.copySnapshot,
+			idempotencyKey: "unchanged-effective-copy",
+		});
+		expect(result.copiedCategories).toEqual(preview.copiedCategories);
+	});
+	it.each([
+		"source",
+		"selection",
+		"override",
+	] as const)("rejects using a reviewed snapshot with changed %s inputs", async (change) => {
+		const { client, source, food } = await sourceFixture();
+		const request = {
+			...input,
+			copyFromCycleId: source._id,
+			includePlannedAmounts: true,
+		};
+		const preview = await client.query(
+			api.cli.v1.cycles.previewCreate,
+			request
+		);
+		let changed = { ...request };
+		if (change === "source") {
+			const otherSource = await client.mutation(api.cycles.create, {
+				name: "July",
+				startDate: "2026-07-01",
+				endDate: "2026-08-01",
+			});
+			changed = { ...request, copyFromCycleId: otherSource._id };
+		}
+		await expectCode(
+			client.mutation(api.cli.v1.cycles.create, {
+				...changed,
+				...(change === "selection" ? { copyCategoryIds: [food._id] } : {}),
+				...(change === "override"
+					? { categoryPlannedOverrides: [{ id: food._id, plannedAmount: 777 }] }
+					: {}),
+				expectedCopySnapshot: preview.copySnapshot,
+				idempotencyKey: "changed-reviewed-copy-input",
+			}),
+			"CYCLE_COPY_CONFLICT"
+		);
+	});
+	it.each([
+		"empty-source",
+		"explicit-none",
+		"no-source-guard",
+	] as const)("rejects missing or irrelevant guards for %s", async (mode) => {
+		const { client, source, food, rent } = await sourceFixture();
+		if (mode === "empty-source") {
+			await client.mutation(api.categories.remove, { categoryId: food._id });
+			await client.mutation(api.categories.remove, { categoryId: rent._id });
+		}
+		await expectCode(
+			client.mutation(api.cli.v1.cycles.create, {
+				...input,
+				...(mode === "no-source-guard"
+					? { expectedCopySnapshot: "a".repeat(64) }
+					: { copyFromCycleId: source._id }),
+				...(mode === "explicit-none" ? { copyCategoryIds: [] } : {}),
+				idempotencyKey: "invalid-copy-guard",
+			}),
+			"INVALID_INPUT"
+		);
+		expect(
+			await client.query(api.cli.v1.resources.listCycles, {})
+		).toHaveLength(1);
+	});
+	it("replays an already committed copy after its source is removed without refreshing the snapshot", async () => {
+		const { client, source } = await sourceFixture();
+		const inputWithSource = { ...input, copyFromCycleId: source._id };
+		const preview = await client.query(
+			api.cli.v1.cycles.previewCreate,
+			inputWithSource
+		);
+		const request = {
+			...inputWithSource,
+			expectedCopySnapshot: preview.copySnapshot,
+			idempotencyKey: "replay-reviewed-copy",
+		};
+		const saved = await client.mutation(api.cli.v1.cycles.create, request);
+		await client.mutation(api.cycles.remove, { id: source._id });
+		expect(await client.mutation(api.cli.v1.cycles.create, request)).toEqual(
+			saved
+		);
+		await expectCode(
+			client.mutation(api.cli.v1.cycles.create, { ...request, agent: true }),
+			"IDEMPOTENCY_CONFLICT"
+		);
+		await expectCode(
+			client.mutation(api.cli.v1.cycles.create, {
+				...request,
+				expectedCopySnapshot: "b".repeat(64),
+			}),
+			"IDEMPOTENCY_CONFLICT"
+		);
+		expect(
+			await client.query(api.cli.v1.resources.listCycles, {})
+		).toHaveLength(1);
+	});
+	it("rejects changing the copied category type since preview", async () => {
+		const { client, source, food } = await sourceFixture();
+		const request = { ...input, copyFromCycleId: source._id };
+		const preview = await client.query(
+			api.cli.v1.cycles.previewCreate,
+			request
+		);
+		const type = await client.mutation(api.categories.createType, {
+			name: "Travel",
+		});
+		if (!type) {
+			throw new Error("Expected category type");
+		}
+		await client.mutation(api.categories.update, {
+			id: food._id,
+			categoryTypeId: type._id,
+		});
+		await expectCode(
+			client.mutation(api.cli.v1.cycles.create, {
+				...request,
+				expectedCopySnapshot: preview.copySnapshot,
+				idempotencyKey: "changed-copy-type",
+			}),
+			"CYCLE_COPY_CONFLICT"
+		);
+	});
 	it.each([
 		"foreign-category",
 		"cross-cycle-expense",
@@ -157,14 +432,17 @@ describe("authenticated CLI cycle CRUD", () => {
 				plannedAmount: 0,
 			};
 		}
-		expect(
-			await client.query(api.cli.v1.cycles.previewCreate, request)
-		).toMatchObject({ copiedCategories: expected });
+		const preview = await client.query(
+			api.cli.v1.cycles.previewCreate,
+			request
+		);
+		expect(preview).toMatchObject({ copiedCategories: expected });
 		expect(
 			await client.query(api.cli.v1.resources.listCycles, {})
 		).toHaveLength(1);
 		const result = await client.mutation(api.cli.v1.cycles.create, {
 			...request,
+			expectedCopySnapshot: preview.copySnapshot,
 			idempotencyKey: `copy-${mode}-cycle`,
 		});
 		expect(result.copiedCategories).toEqual(expected);

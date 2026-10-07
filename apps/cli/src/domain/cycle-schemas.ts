@@ -7,6 +7,10 @@ const copiedCategorySchema = z.object({
 	plannedAmount: z.number().finite().nonnegative().nullable(),
 });
 export const cycleProposalSchema = z.object({
+	copySnapshot: z
+		.string()
+		.regex(/^[a-f0-9]{64}$/u)
+		.optional(),
 	copiedCategories: copiedCategorySchema.array(),
 	endDateExclusive: z.string(),
 	name: z.string(),

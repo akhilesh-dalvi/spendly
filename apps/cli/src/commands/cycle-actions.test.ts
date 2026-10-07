@@ -15,6 +15,7 @@ const cycle = {
 	revision: 1,
 	startDate: "2026-09-01",
 };
+const copySnapshot = "a".repeat(64);
 const proposal = {
 	copiedCategories: [],
 	endDateExclusive: cycle.endDateExclusive,
@@ -65,7 +66,12 @@ const createTestRuntime = (
 		if (!(name in responses)) {
 			throw new Error(`Unexpected operation ${name}`);
 		}
-		const response = responses[name];
+		const response =
+			name === "cli/v1/cycles:previewCreate" &&
+			args.copyFromCycleId &&
+			!(name in (options.responses ?? {}))
+				? { ...proposal, copySnapshot }
+				: responses[name];
 		if (response instanceof Error) {
 			throw response;
 		}
@@ -217,6 +223,190 @@ const createFlags = [
 ];
 
 describe("cycle CLI commands", () => {
+	it("commits the category-copy snapshot returned by the reviewed preview", async () => {
+		const test = createTestRuntime({
+			prompter: scriptedPrompter(),
+			responses: {
+				"cli/v1/cycles:previewCreate": { ...proposal, copySnapshot },
+			},
+		});
+		expect(
+			await runCli(
+				["cycles", "add", ...createFlags, "--copy-from-cycle-id", cycle.id],
+				test.runtime
+			)
+		).toBe(CLI_EXIT_CODE.success);
+		expect(
+			test.calls.find((call) => call.name === "cli/v1/cycles:create")?.args
+		).toMatchObject({ expectedCopySnapshot: copySnapshot });
+	});
+	it("guards direct agent copies with the snapshot from an automatic preview", async () => {
+		const test = createTestRuntime();
+		expect(
+			await runCli(
+				[
+					"cycles",
+					"add",
+					...createFlags,
+					"--copy-from-cycle-id",
+					cycle.id,
+					"--idempotency-key",
+					"automatic-copy-key",
+					...machine,
+				],
+				test.runtime
+			)
+		).toBe(CLI_EXIT_CODE.success);
+		expect(
+			test.calls.find((call) => call.name === "cli/v1/cycles:create")?.args
+		).toMatchObject({ expectedCopySnapshot: copySnapshot });
+		expect(test.queryNames).toEqual(["cli/v1/cycles:previewCreate"]);
+	});
+	it("preserves an explicitly reviewed copy snapshot without pre-reading the source during recovery", async () => {
+		const test = createTestRuntime({ prompter: scriptedPrompter() });
+		test.runtime.backendQuery = () => {
+			throw new Error("The old source was removed; do not refresh a replay");
+		};
+		expect(
+			await runCli(
+				[
+					"cycles",
+					"add",
+					...createFlags,
+					"--copy-from-cycle-id",
+					cycle.id,
+					"--if-copy-snapshot",
+					copySnapshot,
+					"--idempotency-key",
+					"reviewed-copy-key",
+					...machine,
+				],
+				test.runtime
+			)
+		).toBe(CLI_EXIT_CODE.success);
+		expect(test.calls).toHaveLength(1);
+		expect(test.calls[0]?.args).toMatchObject({
+			expectedCopySnapshot: copySnapshot,
+		});
+	});
+	it("surfaces changed-copy conflicts without retrying or committing again", async () => {
+		const test = createTestRuntime({
+			responses: {
+				"cli/v1/cycles:create": new ConvexError({
+					code: "CYCLE_COPY_CONFLICT",
+					details: {},
+					message: "Review a fresh copy preview",
+					retryable: false,
+				}),
+			},
+		});
+		expect(
+			await runCli(
+				[
+					"cycles",
+					"add",
+					...createFlags,
+					"--copy-from-cycle-id",
+					cycle.id,
+					"--if-copy-snapshot",
+					copySnapshot,
+					"--idempotency-key",
+					"conflicting-copy-key",
+					...machine,
+				],
+				test.runtime
+			)
+		).toBe(CLI_EXIT_CODE.conflict);
+		expect(JSON.parse(test.stdout())).toMatchObject({
+			error: { code: "CYCLE_COPY_CONFLICT", retryable: false },
+		});
+		expect(test.calls).toHaveLength(1);
+	});
+	it("rejects a changed explicitly reviewed snapshot before human confirmation or commit", async () => {
+		const test = createTestRuntime({
+			prompter: scriptedPrompter(),
+			responses: {
+				"cli/v1/cycles:previewCreate": {
+					...proposal,
+					copySnapshot: "b".repeat(64),
+				},
+			},
+		});
+		expect(
+			await runCli(
+				[
+					"cycles",
+					"add",
+					...createFlags,
+					"--copy-from-cycle-id",
+					cycle.id,
+					"--if-copy-snapshot",
+					copySnapshot,
+				],
+				test.runtime
+			)
+		).toBe(CLI_EXIT_CODE.conflict);
+		expect(test.mutationNames).toHaveLength(0);
+	});
+	it("does not commit a source copy when the backend preview omits its snapshot", async () => {
+		const test = createTestRuntime({
+			responses: { "cli/v1/cycles:previewCreate": proposal },
+		});
+		expect(
+			await runCli(
+				[
+					"cycles",
+					"add",
+					...createFlags,
+					"--copy-from-cycle-id",
+					cycle.id,
+					"--idempotency-key",
+					"missing-backend-snapshot",
+					...machine,
+				],
+				test.runtime
+			)
+		).toBe(CLI_EXIT_CODE.internal);
+		expect(test.mutationNames).toHaveLength(0);
+	});
+	it("retains the resolved copy snapshot in uncertain-write recovery guidance", async () => {
+		const test = createTestRuntime({
+			prompter: scriptedPrompter(),
+			responses: {
+				"cli/v1/cycles:create": new CliError(
+					"NETWORK_ERROR",
+					"Saved, response lost"
+				),
+			},
+		});
+		expect(
+			await runCli(
+				["cycles", "add", ...createFlags, "--copy-from-cycle-id", cycle.id],
+				test.runtime
+			)
+		).toBe(CLI_EXIT_CODE.temporary);
+		expect(test.stderr()).toContain(`"expectedCopySnapshot":"${copySnapshot}"`);
+	});
+	it.each([
+		["--if-copy-snapshot", copySnapshot],
+		["--copy-from-cycle-id", cycle.id, "--if-copy-snapshot", "invalid"],
+		[
+			"--copy-from-cycle-id",
+			cycle.id,
+			"--if-copy-snapshot",
+			copySnapshot,
+			"--dry-run",
+		],
+	])("rejects invalid copy snapshot usage before backend calls: %j", async (flags) => {
+		const test = createTestRuntime();
+		expect(
+			await runCli(
+				["cycles", "add", ...createFlags, ...flags, ...machine],
+				test.runtime
+			)
+		).toBe(CLI_EXIT_CODE.invalidInput);
+		expect(test.calls).toHaveLength(0);
+	});
 	it("replays guided mixed clear/set plans even though flags group amount overrides before clears", async () => {
 		const travel = {
 			...sourceCategory,
@@ -274,6 +464,8 @@ describe("cycle CLI commands", () => {
 					"travel=0",
 					"--clear-planned-amount",
 					"food",
+					"--if-copy-snapshot",
+					copySnapshot,
 					"--idempotency-key",
 					"generated-cycle-key",
 					"--non-interactive",
@@ -342,6 +534,8 @@ describe("cycle CLI commands", () => {
 					"--copy-from-cycle-id",
 					cycle.id,
 					...recoveryFlags,
+					"--if-copy-snapshot",
+					copySnapshot,
 					"--idempotency-key",
 					"generated-cycle-key",
 					"--non-interactive",
@@ -982,7 +1176,11 @@ describe("cycle CLI commands", () => {
 		];
 		const test = createTestRuntime({
 			responses: {
-				"cli/v1/cycles:previewCreate": { ...proposal, copiedCategories },
+				"cli/v1/cycles:previewCreate": {
+					...proposal,
+					copiedCategories,
+					copySnapshot,
+				},
 			},
 		});
 		const exitCode = await runCli(

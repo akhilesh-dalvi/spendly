@@ -389,7 +389,14 @@ export const operationDefinitions = {
 		commit: true,
 		functionName: "cli/v1/cycles:create",
 		inputSchema: z
-			.object({ ...cycleCreateInputFields, ...commitFields })
+			.object({
+				...cycleCreateInputFields,
+				expectedCopySnapshot: z
+					.string()
+					.regex(/^[a-f0-9]{64}$/u)
+					.optional(),
+				...commitFields,
+			})
 			.strict(),
 		mode: "mutation",
 		outputSchema: cycleCreateResultSchema,

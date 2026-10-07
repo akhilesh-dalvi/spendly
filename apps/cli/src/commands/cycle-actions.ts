@@ -96,6 +96,7 @@ interface CycleAddOptions {
 	idempotencyKey?: string;
 	withoutCategories?: boolean;
 	copyFromCycleId?: string;
+	ifCopySnapshot?: string;
 	copyCategoryId?: string[];
 	includePlannedAmounts?: boolean;
 	plannedAmount?: string[];
@@ -108,6 +109,7 @@ const requiredName = (name: string): string => {
 };
 
 const PLANNED_AMOUNT_PATTERN = /^\d+(?:\.\d+)?$/u;
+const COPY_SNAPSHOT_PATTERN = /^[a-f0-9]{64}$/u;
 
 const resolvePlannedOverrides = (options: CycleAddOptions) => {
 	const overrides: Array<{ id: string; plannedAmount?: number }> = [];
@@ -370,17 +372,57 @@ const renderCycleProposal = (
 		`Name: ${proposal.name}`,
 		`Dates: ${proposal.startDate} to ${proposal.endDateExclusive} (exclusive)`,
 		`Categories to copy: ${proposal.copiedCategories.length}`,
+		...(proposal.copySnapshot
+			? [`Copy snapshot: ${proposal.copySnapshot}`]
+			: []),
 		...proposal.copiedCategories.map(
 			(category) =>
 				`  ${category.name}: ${category.plannedAmount ?? "No planned amount"}`
 		),
 	].join("\n");
 
+const resolveReviewedCopySnapshot = (
+	copyFromCycleId: string | undefined,
+	expectedCopySnapshot: string | undefined,
+	proposal: import("zod").z.infer<typeof cycleProposalSchema>
+): string | undefined => {
+	if (!copyFromCycleId) {
+		return undefined;
+	}
+	if (!proposal.copySnapshot) {
+		throw new CliError(
+			"INTERNAL_ERROR",
+			"The backend did not return a category-copy snapshot"
+		);
+	}
+	if (
+		expectedCopySnapshot !== undefined &&
+		expectedCopySnapshot !== proposal.copySnapshot
+	) {
+		throw new CliError(
+			"CYCLE_COPY_CONFLICT",
+			"The category copy changed after preview; review a fresh preview"
+		);
+	}
+	return expectedCopySnapshot ?? proposal.copySnapshot;
+};
+
 export const runCycleAdd = async (
 	options: CycleAddOptions,
 	command: Command,
 	runtime: CliRuntime
 ): Promise<void> => {
+	if (
+		options.ifCopySnapshot !== undefined &&
+		(!options.copyFromCycleId ||
+			options.dryRun ||
+			!COPY_SNAPSHOT_PATTERN.test(options.ifCopySnapshot))
+	) {
+		throw new CliError(
+			"INVALID_INPUT",
+			"--if-copy-snapshot requires a copy source and a snapshot from --dry-run; do not combine it with --dry-run"
+		);
+	}
 	const globalOptions = resolveCycleOptions(command, runtime);
 	const prompt = async (
 		current: string | undefined,
@@ -442,12 +484,22 @@ export const runCycleAdd = async (
 			endDateExclusive,
 			...normalizeCopyInput(resolvedCopy),
 		};
-		if (dryRun || prompter) {
+		let expectedCopySnapshot = options.ifCopySnapshot;
+		if (
+			dryRun ||
+			prompter ||
+			(input.copyFromCycleId && expectedCopySnapshot === undefined)
+		) {
 			const proposal = await queryParsed(
 				context,
 				"cycles.previewCreate",
 				input,
 				cycleProposalSchema
+			);
+			expectedCopySnapshot = resolveReviewedCopySnapshot(
+				input.copyFromCycleId,
+				expectedCopySnapshot,
+				proposal
 			);
 			const human = renderCycleProposal(proposal);
 			if (dryRun) {
@@ -460,16 +512,22 @@ export const runCycleAdd = async (
 				});
 				return;
 			}
-			await confirmMutation({
-				message: "Create this cycle?",
-				preview: human,
-				prompter,
-				runtime,
-			});
+			if (prompter) {
+				await confirmMutation({
+					message: "Create this cycle?",
+					preview: human,
+					prompter,
+					runtime,
+				});
+			}
 		}
 		const result = await commitCycleParsed({
 			context,
-			args: { ...input, idempotencyKey },
+			args: {
+				...input,
+				...(expectedCopySnapshot === undefined ? {} : { expectedCopySnapshot }),
+				idempotencyKey,
+			},
 			name: "cycles.create",
 			schema: cycleCreateResultSchema,
 		});

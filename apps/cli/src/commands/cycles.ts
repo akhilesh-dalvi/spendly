@@ -19,6 +19,10 @@ export const registerCycleCommands = (
 		.option("--start-date <date>", "inclusive start date in YYYY-MM-DD")
 		.option("--end-date-exclusive <date>", "exclusive end date in YYYY-MM-DD")
 		.option("--copy-from-cycle-id <id>", "copy categories from an owned cycle")
+		.option(
+			"--if-copy-snapshot <snapshot>",
+			"category-copy snapshot returned by --dry-run"
+		)
 		.addOption(
 			new Option(
 				"--copy-category-id <id>",

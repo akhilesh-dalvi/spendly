@@ -63,8 +63,22 @@ an owned cycle. Date edits do not reassign existing expenses. Deletion requires
 no linked expenses and permanently removes the cycle's categories.
 
 Agent/script commits use `--agent --json --non-interactive`, stable IDs, and
-`--idempotency-key`. Edits require `--if-revision`; deletions additionally
-require the short-lived `--confirmation-token` returned by a dry run.
+`--idempotency-key`. Copying writes automatically obtain and commit the same
+copy snapshot in guided, human, and direct modes. For a separately reviewed dry
+run, capture `data.copySnapshot` and commit with `--if-copy-snapshot HASH`, keeping
+the source, selections, and plan inputs identical. The hash is 64 lowercase hex
+characters; the flag requires `--copy-from-cycle-id` and cannot accompany
+`--dry-run`. A source with explicit copy-none still gets an empty-selection guard;
+creation without a source is unchanged.
+
+`CYCLE_COPY_CONFLICT` (exit 5) means stop and approve a fresh preview, not blindly
+retry or change the payload. For an uncertain write, replay the original inputs,
+snapshot, key, and agent mode with `--non-interactive`. An explicit snapshot skips
+new preview/source reads, allowing backend idempotency to return a saved result
+even if the source changed or was deleted.
+
+Edits require `--if-revision`; deletions additionally require the short-lived
+`--confirmation-token` returned by a dry run.
 See [cycle commands](https://spendly.akhileshdalvi.com/docs/cli/cycles) for flags,
 copy overrides, JSON results, and recovery.
 

@@ -109,6 +109,7 @@ export const previewCreate = query({
 export const create = mutation({
 	args: {
 		...createArgs,
+		expectedCopySnapshot: v.optional(v.string()),
 		idempotencyKey: v.string(),
 		agent: v.optional(v.boolean()),
 	},
@@ -119,19 +120,28 @@ export const create = mutation({
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
-			const { agent, idempotencyKey, ...input } = args;
+			const { agent, idempotencyKey, expectedCopySnapshot, ...input } = args;
 			const source = resolveCliActionSource(agent);
 			return await executeIdempotentMutation(ctx, {
 				userId: user._id,
 				key: idempotencyKey,
 				operation: "cycles.create",
-				request: { ...input, source },
+				request: { ...input, expectedCopySnapshot, source },
 				execute: async () => {
 					const prepared = await prepareCycleCreate(
 						ctx,
 						user._id,
 						normalizeCreateInput(ctx, input)
 					);
+					if (
+						(prepared.copySnapshot === undefined) !==
+						(expectedCopySnapshot === undefined)
+					) {
+						throw new ConvexError("INVALID_INPUT");
+					}
+					if (prepared.copySnapshot !== expectedCopySnapshot) {
+						throw new ConvexError("CYCLE_COPY_CONFLICT");
+					}
 					const cycle = await commitCycleCreate(
 						ctx,
 						user._id,

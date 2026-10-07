@@ -131,6 +131,9 @@ export const presentCycleCreateProposal = (
 	startDate: prepared.startDate,
 	endDateExclusive: prepared.endDateExclusive,
 	copiedCategories: prepared.copiedCategories,
+	...(prepared.copySnapshot === undefined
+		? {}
+		: { copySnapshot: prepared.copySnapshot }),
 });
 
 export const prepareCycleCreate = async (
@@ -156,7 +159,30 @@ export const prepareCycleCreate = async (
 		name: category.name,
 		plannedAmount: category.plannedAmount ?? null,
 	}));
-	return { name, startDate, endDateExclusive, copiedCategories, categories };
+	// Bind every persisted copy field, not source-cycle revision (category edits do not advance it).
+	const copySnapshot =
+		input.copyFromCycleId === undefined
+			? undefined
+			: await fingerprintRequest({
+					copyFromCycleId: input.copyFromCycleId,
+					categories: categories.map((category) => ({
+						sourceCategoryId: category._id,
+						name: category.name,
+						categoryTypeId: category.categoryTypeId,
+						plannedAmount: category.plannedAmount,
+						icon: category.icon,
+						isHidden: category.isHidden,
+						order: category.order,
+					})),
+				});
+	return {
+		name,
+		startDate,
+		endDateExclusive,
+		copiedCategories,
+		categories,
+		copySnapshot,
+	};
 };
 
 export interface CycleUpdateInput {

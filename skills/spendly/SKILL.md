@@ -85,8 +85,12 @@ managed in Spendly Web. Cycle CRUD requires a version that advertises it in
 `--agent --json --non-interactive` declares agent use, gives structured output,
 and disables prompts. List and get commands provide the IDs and revisions used
 by write commands. `--dry-run`
-previews a change; removing it applies the change. Several requested changes
-can be handled as separate commands.
+previews a change; removing it applies the change. For separately reviewed cycle
+copying, capture `data.copySnapshot` and commit with `--if-copy-snapshot` using
+identical source, selection, and plan inputs; follow [Cycles](references/cycle-workflows.md)
+for snapshot guards and uncertain-write replay. Stop on `CYCLE_COPY_CONFLICT`
+(exit 5) and obtain fresh preview approval before a new commit.
+Several requested changes can be handled as separate commands.
 
 Apply only writes the user requested. Stop on ambiguity, a stale revision, an
 unexpected warning, or a result that remains uncertain. Never retry a write

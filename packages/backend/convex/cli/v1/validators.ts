@@ -29,6 +29,7 @@ export const copiedCategoryProposalValidator = v.object({
 });
 
 export const cycleCreatePreviewValidator = v.object({
+	copySnapshot: v.optional(v.string()),
 	name: v.string(),
 	startDate: v.string(),
 	endDateExclusive: v.string(),

@@ -6,6 +6,7 @@ export type CliDomainErrorCode =
 	| "ACCOUNT_SETUP_REQUIRED"
 	| "AUTHENTICATION_REQUIRED"
 	| "CATEGORY_CYCLE_MISMATCH"
+	| "CYCLE_COPY_CONFLICT"
 	| "CYCLE_OVERLAP"
 	| "CYCLE_HAS_EXPENSES"
 	| "CYCLE_REVISION_CONFLICT"
@@ -26,6 +27,8 @@ const ERROR_MESSAGES: Record<CliDomainErrorCode, string> = {
 	ACCOUNT_SETUP_REQUIRED: "Open Spendly Web once to finish account setup",
 	AUTHENTICATION_REQUIRED: "Authentication is required",
 	CATEGORY_CYCLE_MISMATCH: "The category does not belong to the expense cycle",
+	CYCLE_COPY_CONFLICT:
+		"The category copy changed after preview; review a fresh preview",
 	CYCLE_OVERLAP: "The cycle overlaps another expense cycle",
 	CYCLE_HAS_EXPENSES: "The cycle has linked expenses and cannot be deleted",
 	CYCLE_REVISION_CONFLICT: "The cycle changed after it was read",
@@ -54,6 +57,7 @@ const DOMAIN_CODE_MAP: Record<string, CliDomainErrorCode> = {
 	ACCOUNT_NAME_REQUIRED: "INVALID_INPUT",
 	AUTHENTICATION_REQUIRED: "AUTHENTICATION_REQUIRED",
 	CATEGORY_CYCLE_MISMATCH: "CATEGORY_CYCLE_MISMATCH",
+	CYCLE_COPY_CONFLICT: "CYCLE_COPY_CONFLICT",
 	CYCLE_OVERLAP: "CYCLE_OVERLAP",
 	CYCLE_HAS_EXPENSES: "CYCLE_HAS_EXPENSES",
 	CYCLE_REVISION_CONFLICT: "CYCLE_REVISION_CONFLICT",
