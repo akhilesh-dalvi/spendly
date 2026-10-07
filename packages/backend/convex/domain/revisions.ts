@@ -11,7 +11,10 @@ export const nextRevision = (revision: number | undefined): number =>
 export const assertRevision = (
 	actualRevision: number | undefined,
 	expectedRevision: number,
-	errorCode: "ACCOUNT_REVISION_CONFLICT" | "EXPENSE_REVISION_CONFLICT"
+	errorCode:
+		| "ACCOUNT_REVISION_CONFLICT"
+		| "EXPENSE_REVISION_CONFLICT"
+		| "CYCLE_REVISION_CONFLICT"
 ): void => {
 	if (getRevision(actualRevision) !== expectedRevision) {
 		throw new ConvexError(errorCode);

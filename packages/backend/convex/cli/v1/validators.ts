@@ -17,6 +17,25 @@ export const cycleSummaryValidator = v.object({
 	startDate: v.string(),
 });
 
+export const cycleDetailValidator = v.object({
+	...cycleSummaryValidator.fields,
+	revision: v.number(),
+});
+
+export const copiedCategoryProposalValidator = v.object({
+	sourceCategoryId: v.string(),
+	name: v.string(),
+	plannedAmount: v.union(v.number(), v.null()),
+});
+
+export const cycleCreatePreviewValidator = v.object({
+	copySnapshot: v.optional(v.string()),
+	name: v.string(),
+	startDate: v.string(),
+	endDateExclusive: v.string(),
+	copiedCategories: v.array(copiedCategoryProposalValidator),
+});
+
 export const categorySummaryValidator = v.object({
 	categoryType: v.union(
 		v.null(),

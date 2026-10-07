@@ -98,14 +98,42 @@ you supplied one.
 category from the expense's new cycle or use `--clear-category` on the edit.
 An archived account must be reactivated before it can receive new activity.
 
+## A cycle cannot be saved or deleted
+
+`CYCLE_OVERLAP` means its dates intersect another owned cycle. Ends are
+exclusive, so adjacent cycles may share an end/start boundary.
+`CYCLE_REVISION_CONFLICT` requires a fresh `cycles get CYCLE_ID` and preview.
+`CYCLE_COPY_CONFLICT` (exit 5) means the effective category copy no longer matches
+the reviewed snapshot. Stop, obtain a fresh creation dry run, and get approval
+before a new commit; do not blindly retry or change the payload. Capture
+`data.copySnapshot` and commit with `--if-copy-snapshot HASH` using identical
+source, selection, and plan inputs. The hash must be 64 lowercase hex characters;
+the flag requires `--copy-from-cycle-id` and cannot accompany `--dry-run`.
+An invalid or missing backend copy guard is `INVALID_INPUT` (exit 2); ordinary
+CLI copying writes obtain the guard automatically.
+`CYCLE_HAS_EXPENSES` blocks deletion while any expense is linked to that cycle;
+removing categories or changing dates does not remove those links.
+Deletion also removes every category. Invalid/expired confirmation tokens
+require a new `cycles delete CYCLE_ID --dry-run`, reviewed before committing.
+
 ## A connection failed while saving
 
-The change may have saved even if the response was lost. Check the expense or
-account history first. Write commands do not retry automatically. Only when the
+The change may have saved even if the response was lost. Check the affected
+expense, cycle, or account history first. Write commands do not retry automatically. Only when the
 user explicitly asks to recover the intended write, repeat the identical command
 with its original `--idempotency-key` so it cannot create a second change. If
 you don't have the key, or the retry is also uncertain, stop and report the
 outcome as unknown rather than attempting another write.
+
+For cycle writes, human errors also print the resolved inputs and generated
+key. If you explicitly choose to recover that same write, supply its original
+inputs, copy snapshot, revision, token, and key with `--non-interactive`; keep
+the original agent mode. An explicit `--if-copy-snapshot` makes no new
+preview/source read in this mode. Backend idempotency returns a saved result
+before checking the guard, even if the copy source later changed or was deleted.
+This also avoids human preview/read checks that would otherwise prevent replaying
+an edit with an old revision or a deletion of an already-removed cycle.
+A fresh intent after a conflict instead needs a fresh read, preview, and key.
 
 An idempotency conflict means a key was used with different input. Check the
 original action; a new action needs a new key. For an expired deletion token,

@@ -10,6 +10,14 @@ import {
 	transferResultSchema,
 } from "../domain/account-mutation-schemas.js";
 import {
+	cycleCreateResultSchema,
+	cycleDeletePreviewSchema,
+	cycleDeleteResultSchema,
+	cycleDetailSchema,
+	cycleProposalSchema,
+	cycleUpdatePreviewSchema,
+} from "../domain/cycle-schemas.js";
+import {
 	expenseCreateResultSchema,
 	expenseDeletePreviewSchema,
 	expenseDeleteResultSchema,
@@ -146,6 +154,34 @@ const transferInputSchema = z
 		toAccountId: idSchema,
 	})
 	.strict();
+
+const cycleUpdateInputFields = {
+	cycleId: idSchema,
+	name: z.string().trim().min(1).optional(),
+	startDate: localDateSchema.optional(),
+	endDateExclusive: localDateSchema.optional(),
+	expectedRevision: revisionSchema.optional(),
+} as const;
+
+const cycleCreateInputFields = {
+	name: z.string().trim().min(1),
+	startDate: localDateSchema,
+	endDateExclusive: localDateSchema,
+	copyFromCycleId: idSchema.optional(),
+	copyCategoryIds: z.array(idSchema).max(1000).optional(),
+	includePlannedAmounts: z.boolean().optional(),
+	categoryPlannedOverrides: z
+		.array(
+			z
+				.object({
+					id: idSchema,
+					plannedAmount: z.number().finite().nonnegative().optional(),
+				})
+				.strict()
+		)
+		.max(1000)
+		.optional(),
+} as const;
 
 const commitFields = {
 	idempotencyKey: idempotencyKeySchema,
@@ -348,6 +384,73 @@ export const operationDefinitions = {
 		inputSchema: contextInputSchema,
 		mode: "query",
 		outputSchema: contextSchema,
+	},
+	"cycles.create": {
+		commit: true,
+		functionName: "cli/v1/cycles:create",
+		inputSchema: z
+			.object({
+				...cycleCreateInputFields,
+				expectedCopySnapshot: z
+					.string()
+					.regex(/^[a-f0-9]{64}$/u)
+					.optional(),
+				...commitFields,
+			})
+			.strict(),
+		mode: "mutation",
+		outputSchema: cycleCreateResultSchema,
+	},
+	"cycles.previewDelete": {
+		functionName: "cli/v1/cycles:previewDelete",
+		inputSchema: z.object({ cycleId: idSchema }).strict(),
+		mode: "mutation",
+		outputSchema: cycleDeletePreviewSchema,
+	},
+	"cycles.remove": {
+		commit: true,
+		functionName: "cli/v1/cycles:remove",
+		inputSchema: z
+			.object({
+				cycleId: idSchema,
+				expectedRevision: revisionSchema,
+				confirmationToken: idSchema,
+				...commitFields,
+			})
+			.strict(),
+		mode: "mutation",
+		outputSchema: cycleDeleteResultSchema,
+	},
+	"cycles.update": {
+		commit: true,
+		functionName: "cli/v1/cycles:update",
+		inputSchema: z
+			.object({
+				...cycleUpdateInputFields,
+				expectedRevision: revisionSchema,
+				...commitFields,
+			})
+			.strict(),
+		mode: "mutation",
+		outputSchema: cycleDetailSchema,
+	},
+	"cycles.previewUpdate": {
+		functionName: "cli/v1/cycles:previewUpdate",
+		inputSchema: z.object(cycleUpdateInputFields).strict(),
+		mode: "query",
+		outputSchema: cycleUpdatePreviewSchema,
+	},
+	"cycles.previewCreate": {
+		functionName: "cli/v1/cycles:previewCreate",
+		inputSchema: z.object(cycleCreateInputFields).strict(),
+		mode: "query",
+		outputSchema: cycleProposalSchema,
+	},
+	"cycles.get": {
+		functionName: "cli/v1/cycles:get",
+		inputSchema: z.object({ cycleId: idSchema }).strict(),
+		mode: "query",
+		outputSchema: cycleDetailSchema,
 	},
 	"expenses.create": {
 		commit: true,

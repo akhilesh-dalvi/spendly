@@ -63,6 +63,23 @@ const examples: Readonly<Record<string, CommandExamples>> = {
 		flags: "spendly categories list --cycle-id cycle_demo",
 		guided: "spendly categories list --interactive",
 	},
+	"cycles add": {
+		flags:
+			'spendly cycles add --name "September" --start-date 2026-09-01 --end-date-exclusive 2026-10-01 --dry-run',
+		guided: "spendly cycles add --interactive --dry-run",
+	},
+	"cycles get": {
+		flags: "spendly cycles get cycle_demo",
+		guided: "spendly cycles get --interactive",
+	},
+	"cycles edit": {
+		flags: 'spendly cycles edit cycle_demo --name "New name" --dry-run',
+		guided: "spendly cycles edit --interactive --dry-run",
+	},
+	"cycles delete": {
+		flags: "spendly cycles delete cycle_demo --dry-run",
+		guided: "spendly cycles delete --interactive --dry-run",
+	},
 	"cycles current": {
 		flags: "spendly cycles current --date 2026-09-14",
 		guided: "spendly cycles current --interactive",

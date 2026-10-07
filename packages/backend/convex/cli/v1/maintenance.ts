@@ -89,7 +89,11 @@ export const cleanupExpired = internalMutation({
 	}),
 	handler: async (ctx, args) => {
 		const now = args.now ?? Date.now();
-		const [idempotencyRecords, deletionConfirmations] = await Promise.all([
+		const [
+			idempotencyRecords,
+			deletionConfirmations,
+			cycleDeletionConfirmations,
+		] = await Promise.all([
 			ctx.db
 				.query("cli_idempotency")
 				.withIndex("by_expiresAt", (queryBuilder) =>
@@ -102,12 +106,23 @@ export const cleanupExpired = internalMutation({
 					queryBuilder.lt("expiresAt", now)
 				)
 				.take(MAXIMUM_CLEANUP_BATCH_SIZE),
+			ctx.db
+				.query("cli_cycle_deletion_confirmations")
+				.withIndex("by_expiresAt", (queryBuilder) =>
+					queryBuilder.lt("expiresAt", now)
+				)
+				.take(MAXIMUM_CLEANUP_BATCH_SIZE),
 		]);
-		for (const record of [...idempotencyRecords, ...deletionConfirmations]) {
+		for (const record of [
+			...idempotencyRecords,
+			...deletionConfirmations,
+			...cycleDeletionConfirmations,
+		]) {
 			await ctx.db.delete(record._id);
 		}
 		return {
-			deletionConfirmations: deletionConfirmations.length,
+			deletionConfirmations:
+				deletionConfirmations.length + cycleDeletionConfirmations.length,
 			idempotencyRecords: idempotencyRecords.length,
 		};
 	},

@@ -1,9 +1,15 @@
-import { ConvexError, v } from "convex/values";
-import type { Doc } from "./_generated/dataModel";
-import type { MutationCtx } from "./_generated/server";
+import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import {
-	checkCycleOverlap,
+	commitCycleCreate,
+	commitCycleDelete,
+	commitCycleUpdate,
+	prepareCycleCreate,
+	prepareCycleDelete,
+	prepareCycleUpdate,
+} from "./domain/cycleOperations";
+import {
 	findCycleForDate,
 	getCurrentUser,
 	validateCycleOwnership,
@@ -41,40 +47,11 @@ export const create = mutation({
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 
-		if (args.startDate >= args.endDate) {
-			throw new ConvexError("INVALID_DATE_RANGE");
-		}
-
-		const overlapping = await checkCycleOverlap(
-			ctx,
-			user._id,
-			args.startDate,
-			args.endDate
-		);
-		if (overlapping) {
-			throw new ConvexError("CYCLE_OVERLAP");
-		}
-
-		const newCycleId = await ctx.db.insert("expense_cycles", {
-			userId: user._id,
-			name: args.name,
-			startDate: args.startDate,
-			endDate: args.endDate,
-			createdAt: Date.now(),
+		const prepared = await prepareCycleCreate(ctx, user._id, {
+			...args,
+			endDateExclusive: args.endDate,
 		});
-
-		if (args.copyFromCycleId) {
-			await copyCategoriesFromCycle(ctx, {
-				newCycleId,
-				userId: user._id,
-				sourceCycleId: args.copyFromCycleId,
-				includePlannedAmounts: args.includePlannedAmounts ?? false,
-				copyCategoryIds: args.copyCategoryIds,
-				categoryPlannedOverrides: args.categoryPlannedOverrides,
-			});
-		}
-
-		return await ctx.db.get(newCycleId);
+		return await commitCycleCreate(ctx, user._id, prepared, "web");
 	},
 });
 
@@ -88,56 +65,25 @@ export const saveOnboardingCycle = mutation({
 	returns: v.id("expense_cycles"),
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
-		if (args.startDate >= args.endDate) {
-			throw new ConvexError("INVALID_DATE_RANGE");
-		}
-
+		const input = {
+			name: args.name,
+			startDate: args.startDate,
+			endDateExclusive: args.endDate,
+		};
 		const savedCycleId = args.cycleId ?? user.onboardingCycleId;
+		let cycleId: Id<"expense_cycles">;
 		if (savedCycleId) {
-			const existingCycle = await validateCycleOwnership(
-				ctx,
-				savedCycleId,
-				user._id
-			);
-			const overlapping = await checkCycleOverlap(
+			const prepared = await prepareCycleUpdate(
 				ctx,
 				user._id,
-				args.startDate,
-				args.endDate,
-				existingCycle._id
+				savedCycleId,
+				input
 			);
-			if (overlapping) {
-				throw new ConvexError("CYCLE_OVERLAP");
-			}
-			await ctx.db.patch(existingCycle._id, {
-				endDate: args.endDate,
-				name: args.name.trim(),
-				startDate: args.startDate,
-			});
-			await ctx.db.patch(user._id, {
-				onboardingCycleId: existingCycle._id,
-				onboardingStep:
-					user.onboardingPath === "plan" ? "categories" : "account",
-			});
-			return existingCycle._id;
+			cycleId = (await commitCycleUpdate(ctx, prepared, "web"))._id;
+		} else {
+			const prepared = await prepareCycleCreate(ctx, user._id, input);
+			cycleId = (await commitCycleCreate(ctx, user._id, prepared, "web"))._id;
 		}
-
-		const overlapping = await checkCycleOverlap(
-			ctx,
-			user._id,
-			args.startDate,
-			args.endDate
-		);
-		if (overlapping) {
-			throw new ConvexError("CYCLE_OVERLAP");
-		}
-		const cycleId = await ctx.db.insert("expense_cycles", {
-			createdAt: Date.now(),
-			endDate: args.endDate,
-			name: args.name.trim(),
-			startDate: args.startDate,
-			userId: user._id,
-		});
 		await ctx.db.patch(user._id, {
 			onboardingCycleId: cycleId,
 			onboardingStep: user.onboardingPath === "plan" ? "categories" : "account",
@@ -155,122 +101,21 @@ export const update = mutation({
 	},
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
-		const cycle = await validateCycleOwnership(ctx, args.id, user._id);
-
-		const updates: Partial<Doc<"expense_cycles">> = {};
-		if (args.name !== undefined) {
-			updates.name = args.name;
-		}
-
-		if (args.startDate !== undefined || args.endDate !== undefined) {
-			const newStart = args.startDate || cycle.startDate;
-			const newEnd = args.endDate || cycle.endDate;
-
-			if (newStart >= newEnd) {
-				throw new ConvexError("INVALID_DATE_RANGE");
-			}
-
-			const overlapping = await checkCycleOverlap(
-				ctx,
-				user._id,
-				newStart,
-				newEnd,
-				cycle._id
-			);
-			if (overlapping) {
-				throw new ConvexError("CYCLE_OVERLAP");
-			}
-			updates.startDate = newStart;
-			updates.endDate = newEnd;
-		}
-
-		await ctx.db.patch(args.id, updates);
-		return await ctx.db.get(args.id);
+		const prepared = await prepareCycleUpdate(ctx, user._id, args.id, {
+			name: args.name,
+			startDate: args.startDate,
+			endDateExclusive: args.endDate,
+		});
+		return await commitCycleUpdate(ctx, prepared, "web");
 	},
 });
-
-async function copyCategoriesFromCycle(
-	ctx: MutationCtx,
-	args: {
-		newCycleId: Doc<"expense_cycles">["_id"];
-		userId: Doc<"users">["_id"];
-		sourceCycleId: Doc<"expense_cycles">["_id"];
-		includePlannedAmounts: boolean;
-		copyCategoryIds?: Doc<"categories">["_id"][];
-		categoryPlannedOverrides?: {
-			id: Doc<"categories">["_id"];
-			plannedAmount?: number;
-		}[];
-	}
-) {
-	const sourceCategories = await ctx.db
-		.query("categories")
-		.withIndex("by_cycleId", (q) => q.eq("cycleId", args.sourceCycleId))
-		.collect();
-
-	const selectedCategoryIds = args.copyCategoryIds
-		? new Set(args.copyCategoryIds)
-		: null;
-	const plannedOverrideIds = new Set(
-		args.categoryPlannedOverrides?.map((override) => override.id) ?? []
-	);
-	const plannedOverrides = new Map(
-		args.categoryPlannedOverrides?.map((override) => [
-			override.id,
-			override.plannedAmount,
-		]) ?? []
-	);
-
-	for (const cat of sourceCategories) {
-		if (selectedCategoryIds && !selectedCategoryIds.has(cat._id)) {
-			continue;
-		}
-		let plannedAmount: number | undefined;
-		if (plannedOverrideIds.has(cat._id)) {
-			plannedAmount = plannedOverrides.get(cat._id);
-		} else if (args.includePlannedAmounts) {
-			plannedAmount = cat.plannedAmount;
-		}
-
-		await ctx.db.insert("categories", {
-			userId: args.userId,
-			cycleId: args.newCycleId,
-			name: cat.name,
-			categoryTypeId: cat.categoryTypeId,
-			plannedAmount,
-			icon: cat.icon,
-			isHidden: cat.isHidden,
-			order: cat.order,
-			createdAt: Date.now(),
-		});
-	}
-}
 
 export const remove = mutation({
 	args: { id: v.id("expense_cycles") },
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
-		await validateCycleOwnership(ctx, args.id, user._id);
-
-		const expenses = await ctx.db
-			.query("expenses")
-			.withIndex("by_cycleId", (q) => q.eq("cycleId", args.id))
-			.first();
-
-		if (expenses) {
-			throw new ConvexError("CYCLE_HAS_EXPENSES");
-		}
-
-		const categories = await ctx.db
-			.query("categories")
-			.withIndex("by_cycleId", (q) => q.eq("cycleId", args.id))
-			.collect();
-
-		for (const cat of categories) {
-			await ctx.db.delete(cat._id);
-		}
-
-		await ctx.db.delete(args.id);
+		const prepared = await prepareCycleDelete(ctx, user._id, args.id);
+		await commitCycleDelete(ctx, user, prepared);
 		return { success: true };
 	},
 });

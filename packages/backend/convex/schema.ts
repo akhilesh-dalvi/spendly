@@ -39,6 +39,9 @@ export default defineSchema({
 		startDate: v.string(), // ISO date string YYYY-MM-DD
 		endDate: v.string(), // ISO date string YYYY-MM-DD
 		createdAt: v.number(),
+		revision: v.optional(v.number()),
+		createdSource: v.optional(actionSourceValidator),
+		lastModifiedSource: v.optional(actionSourceValidator),
 	})
 		.index("by_userId", ["userId"])
 		.index("by_userId_dates", ["userId", "startDate", "endDate"]),
@@ -183,6 +186,18 @@ export default defineSchema({
 		expiresAt: v.number(),
 	})
 		.index("by_userId_key", ["userId", "key"])
+		.index("by_expiresAt", ["expiresAt"]),
+
+	cli_cycle_deletion_confirmations: defineTable({
+		userId: v.id("users"),
+		cycleId: v.id("expense_cycles"),
+		revision: v.number(),
+		categorySnapshot: v.string(),
+		createdAt: v.number(),
+		expiresAt: v.number(),
+		usedAt: v.optional(v.number()),
+	})
+		.index("by_userId_cycleId", ["userId", "cycleId"])
 		.index("by_expiresAt", ["expiresAt"]),
 
 	cli_deletion_confirmations: defineTable({

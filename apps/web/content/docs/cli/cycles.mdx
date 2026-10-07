@@ -1,43 +1,188 @@
 ---
 title: Cycles
-description: Find your spending periods and see a summary for each one.
+description: Create, inspect, edit, and safely delete spending periods.
 ---
 
 A cycle is a spending period with its own dates, categories, and budget.
-Cycles are set up in Spendly Web; the CLI helps you find and inspect them.
+The CLI and Spendly Web use the same records. Check `spendly cycles --help`
+for commands supported by your installed version; older releases only support
+`list` and `current`. Cycle writes require a compatible backend too.
 
-## Find a cycle
+## Find and inspect a cycle
 
 ```bash
-spendly cycles current
 spendly cycles list
+spendly cycles current
+spendly cycles current --date 2026-09-05
+spendly cycles get CYCLE_ID
 ```
 
-To find the cycle that contains a particular date:
+Replace `CYCLE_ID` with an ID returned by the CLI. `get` includes the current
+revision used for safe edits. If no cycle contains the date, `current` returns
+no cycle; it does not choose the newest cycle instead.
+
+Dates use `YYYY-MM-DD`. The start is inclusive and the end is **exclusive**:
+September 1 through September 30 uses `--start-date 2026-09-01` and
+`--end-date-exclusive 2026-10-01`. Adjacent cycles may share that boundary;
+cycles cannot overlap. Cycle names need not be unique, so use IDs for selectors.
+
+## Create a cycle
+
+Preview a guided form:
 
 ```bash
-spendly cycles current --date 2026-09-05
+spendly cycles add --interactive --dry-run
 ```
 
-The end date shown in the cycle list is exclusive: the cycle ends before that
-date begins. If no cycle contains the date, check your cycle setup in Spendly Web.
+Or provide the name and both dates explicitly:
+
+```bash
+spendly cycles add --name "September 2026" \
+  --start-date 2026-09-01 --end-date-exclusive 2026-10-01 --dry-run
+```
+
+Remove `--dry-run` to save. Guided creation shows a preview and asks for
+confirmation. A cycle starts with no categories unless you request copying.
+Creation does not attach existing unassigned expenses to the new cycle.
+
+### Copy categories and budgets
+
+Copy all categories from an owned cycle, including hidden categories:
+
+```bash
+spendly cycles add --name "October 2026" \
+  --start-date 2026-10-01 --end-date-exclusive 2026-11-01 \
+  --copy-from-cycle-id SOURCE_CYCLE_ID --include-planned-amounts --dry-run
+```
+
+Without `--include-planned-amounts`, copied categories have no planned amounts,
+unless you supply overrides. Their names, order, icons, visibility, and category
+types are preserved; new category IDs are created. Expenses are never copied.
+
+Choose a subset by repeating `--copy-category-id`. Override or clear individual
+plans using the **source category IDs**:
+
+```bash
+spendly cycles add --name "October 2026" \
+  --start-date 2026-10-01 --end-date-exclusive 2026-11-01 \
+  --copy-from-cycle-id SOURCE_CYCLE_ID \
+  --copy-category-id FOOD_ID --copy-category-id TRAVEL_ID \
+  --include-planned-amounts --planned-amount FOOD_ID=200 \
+  --clear-planned-amount TRAVEL_ID --dry-run
+```
+
+Planned amounts are nonnegative decimals, including zero. Each category may
+have only one override; overrides take precedence over copied amounts. Only
+categories belonging to the selected source cycle may be selected or overridden.
+To explicitly copy none, use `--without-categories` instead of selection or
+budget flags. Guided mode offers all/subset/none choices and explicit
+keep/set/clear choices for plans, including accessible static prompts.
+An empty subset selection also copies none.
+
+Copying writes automatically obtain and commit the same snapshot in guided,
+human, and direct modes. For a separately reviewed dry run, capture
+`data.copySnapshot` and pass it as `--if-copy-snapshot HASH` on commit with
+identical source, category selections, and plan inputs. The snapshot is a
+64-character lowercase hex SHA256 binding the source ID and every effective
+persisted category-copy field: selected IDs, names, types, plans, icons, hidden
+state, and order. It is not the source cycle revision. A source with explicit
+copy-none still gets a guard for the empty effective selection; no-source
+creation remains unchanged.
+
+`--if-copy-snapshot` requires `--copy-from-cycle-id` and cannot be combined with
+`--dry-run`. For example, review the first result, then replace `HASH` with its
+`data.copySnapshot` and `CREATE_KEY` with a fresh key:
+
+```bash
+spendly --agent --json --non-interactive cycles add --name "October 2026" \
+  --start-date 2026-10-01 --end-date-exclusive 2026-11-01 \
+  --copy-from-cycle-id SOURCE_CYCLE_ID --include-planned-amounts --dry-run
+spendly --agent --json --non-interactive cycles add --name "October 2026" \
+  --start-date 2026-10-01 --end-date-exclusive 2026-11-01 \
+  --copy-from-cycle-id SOURCE_CYCLE_ID --include-planned-amounts \
+  --if-copy-snapshot HASH --idempotency-key CREATE_KEY
+```
+
+## Edit a cycle
+
+```bash
+spendly cycles edit CYCLE_ID --name "Updated name" --dry-run
+spendly cycles edit CYCLE_ID --end-date-exclusive 2026-10-05 --dry-run
+spendly cycles edit --interactive --dry-run
+```
+
+Only supplied fields change. Changing dates still must satisfy the non-overlap
+rule. **Existing expenses are not reassigned or recategorized.** They remain
+linked to their original cycle, even if their dates fall outside the new range.
+A later expense edit rechecks date/category compatibility. Category copying is
+available at creation only; manage existing category plans separately.
+
+## Delete a cycle
+
+```bash
+spendly cycles delete CYCLE_ID --dry-run
+```
+
+Deletion is permanent and removes all categories in the cycle. It is blocked
+while any expense is linked to the cycle, including uncategorized expenses and
+expenses outside an edited date range. There is no force-delete option.
+
+A deletion preview returns the cycle revision, category count, confirmation
+token, and expiry time. It saves only a short-lived confirmation record, not a
+financial change. Tokens expire after five minutes and are bound to the user,
+cycle revision, and category snapshot. Changes to the cycle or its categories
+require a fresh preview. Restrictions are checked again when deleting.
+
+For human confirmation, run `spendly cycles delete CYCLE_ID` in a terminal.
+
+## Scripts and agents
+
+Use `--agent --json --non-interactive` for agent calls. Writes require a unique
+`--idempotency-key` for each intended operation. Edits and deletions also require
+`--if-revision`; use the revision returned by `get` or the relevant preview.
+
+```bash
+spendly --agent --json --non-interactive cycles get CYCLE_ID
+spendly --agent --json --non-interactive cycles edit CYCLE_ID \
+  --name "Updated name" --if-revision REVISION --idempotency-key EDIT_KEY
+spendly --agent --json --non-interactive cycles delete CYCLE_ID --dry-run
+spendly --agent --json --non-interactive cycles delete CYCLE_ID \
+  --confirmation-token TOKEN --if-revision REVISION --idempotency-key DELETE_KEY
+```
+
+Replace the uppercase placeholders with actual returned values and fresh keys.
+Creation uses the same flags as the human example plus an idempotency key.
+A dry run needs no key. Successful creation returns `data.cycle` and
+`data.copiedCategories`; editing returns the cycle directly. Deletion returns
+`data.deleted`, the former cycle, and `data.deletedCategoryCount`.
+
+`CYCLE_OVERLAP`, `CYCLE_HAS_EXPENSES`, `CYCLE_REVISION_CONFLICT`, and
+`CYCLE_COPY_CONFLICT` use conflict exit code 5. A stale-copy failure must stop
+for a fresh preview and approval; do not blindly retry or change the payload.
+Invalid inputs use exit code 2; missing or foreign records use
+`RESOURCE_NOT_FOUND` (4); invalid/expired confirmation tokens use exit code 6.
+Read again and review a fresh preview after a conflict. Do not retry writes
+blindly. If a response is lost, preserve the exact inputs and original key.
+Human errors print the resolved recovery inputs, including an automatically
+generated key and any copy snapshot/revision/token. After checking current state
+and explicitly choosing recovery, use those inputs with `--non-interactive` and
+the **same agent mode**. This bypasses a fresh preview/read so the backend can replay a saved
+result even after an edit changed the revision or a deletion removed the cycle.
+For copying creation, an explicit snapshot with `--non-interactive` makes no new
+preview/source read: backend idempotency returns a saved result before checking
+the guard, even if the source later changed or was deleted.
+For the same uncertain write, keep its original snapshot/revision/token/key;
+do not substitute new values. See [Troubleshooting](/docs/cli/troubleshooting).
 
 ## See spending and budget
 
 ```bash
 spendly summary --current
-```
-
-The summary shows spent, planned, and remaining amounts, with a category
-breakdown. To inspect a different cycle, copy its ID from `cycles list`:
-
-```bash
 spendly summary --cycle-id CYCLE_ID
 spendly expenses list --cycle-id CYCLE_ID
 ```
 
-Replace `CYCLE_ID` with the ID you copied. The summary covers the whole cycle;
-the expense list is paginated.
+The summary shows spent, planned, and remaining amounts for the whole cycle,
+with a category breakdown. The expense list is paginated.
 
-Continue to [Categories](/docs/cli/categories) to see the categories in a cycle,
-or run `spendly cycles --help` for available commands.
+Continue to [Categories](/docs/cli/categories) to inspect category plans.
