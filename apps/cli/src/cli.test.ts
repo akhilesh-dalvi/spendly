@@ -4,7 +4,7 @@ import type { RuntimeConfig } from "./config.js";
 import { CLI_EXIT_CODE } from "./errors.js";
 import type { CliRuntime } from "./runtime.js";
 
-const VERSION_OUTPUT_PATTERN = /^0\.1\.2\n$/u;
+const VERSION_OUTPUT_PATTERN = /^0\.1\.3\n$/u;
 
 const productionConfig: RuntimeConfig = {
 	authReady: false,
@@ -147,7 +147,7 @@ describe("CLI foundation", () => {
 		expect(versionExitCode).toBe(CLI_EXIT_CODE.success);
 		expect(JSON.parse(versionRuntime.getStdout())).toEqual({
 			schemaVersion: 1,
-			data: { version: "0.1.2" },
+			data: { version: "0.1.3" },
 			meta: {},
 		});
 	});

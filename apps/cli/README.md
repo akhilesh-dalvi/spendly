@@ -3,18 +3,19 @@
 Spendly CLI lets you track expenses and manage Spendly accounts and expense cycles from a trusted
 local terminal or through a local AI agent.
 
-The initial `0.1.2` release is available on npm for macOS. Install it on
+Spendly is available on npm for macOS. Install the `next` release on
 Node.js 22 or newer:
 
 ```bash
-npm install --global spendly@0.1.2
+npm install --global spendly@next
 spendly --version
 spendly auth login
 ```
 
-Use `npm install --global spendly` for the default release, or the pinned command
-above for the exact initial version. Production authentication and Codex
-read-only skill use have been verified; broader validation remains follow-up work.
+Use `npm install --global spendly` for the default release, or
+`npm install --global spendly@0.1.2` to reinstall the exact initial version.
+Production authentication and Codex read-only skill use have been verified;
+broader validation remains follow-up work.
 Spendly will remain in the `0.x` series while real users prove the CLI contract
 is dependable enough for `1.0.0`.
 
@@ -45,8 +46,10 @@ For static, screen-reader-friendly numbered prompts without cursor redraws, add
 
 ## Expense cycles
 
-Check `spendly cycles --help` for support in your installed version; older
-releases only offer list/current. Cycle writes also require a compatible backend.
+Cycle CRUD requires CLI `0.1.3` or newer and a compatible backend. Check
+`spendly --version` and `spendly cycles --help` for installed support; older
+releases only offer list/current. Check the npm dist-tags for available versions;
+source changes alone do not mean a release has been published.
 
 ```bash
 spendly cycles list
