@@ -16,6 +16,9 @@ import { verifyReleaseArtifact } from "./verify-release-artifact.mjs";
 import { verifyReleaseSource } from "./verify-release-source.mjs";
 
 const packageDirectory = join(dirname(fileURLToPath(import.meta.url)), "..");
+const releaseVersion = JSON.parse(
+	readFileSync(join(packageDirectory, "package.json"), "utf8")
+).version;
 const bootstrapPublishPattern = /npm publish "([^"]+)"/u;
 const stagedPublishPattern = /npm stage publish "([^"]+)"/u;
 const relativePathPattern = /^\.\//u;
@@ -49,9 +52,9 @@ const createArtifact = (overrides = {}) => {
 	};
 	writeFileSync(metadataPath, JSON.stringify(metadata));
 	const environment = {
-		RELEASE_VERSION: "0.1.2",
+		RELEASE_VERSION: releaseVersion,
 		SOURCE_COMMIT: "a".repeat(40),
-		TARBALL: "spendly-0.1.2.tgz",
+		TARBALL: `spendly-${releaseVersion}.tgz`,
 	};
 	const tarball = join(artifactDirectory, environment.TARBALL);
 	execFileSync("tar", ["-czf", tarball, "-C", contents, "package"]);
@@ -124,7 +127,7 @@ describe("publication artifact guards", () => {
 		expect(
 			verifyReleaseArtifact(fixture.environment, fixture.artifactDirectory)
 				.version
-		).toBe("0.1.2");
+		).toBe(fixture.environment.RELEASE_VERSION);
 		expect(readFileSync(fixture.tarball)).toEqual(before);
 	});
 	it("rejects tampered tarballs even when the recorded checksum is unchanged", () => {
@@ -169,7 +172,10 @@ describe("publication artifact guards", () => {
 		const fixture = createArtifact();
 		expect(() =>
 			verifyReleaseArtifact(
-				{ ...fixture.environment, TARBALL: "../spendly-0.1.2.tgz" },
+				{
+					...fixture.environment,
+					TARBALL: `../${fixture.environment.TARBALL}`,
+				},
 				fixture.artifactDirectory
 			)
 		).toThrow("Unexpected tarball filename");
