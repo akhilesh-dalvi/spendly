@@ -206,6 +206,23 @@ the CLI shrinkwrap without npm resolving the pnpm-only `catalog:` and
 `pnpm --dir apps/cli shrinkwrap:generate` after updating the manifest and
 workspace lockfile, then run `pnpm --dir apps/cli release:check`.
 
+The published CLI shrinkwrap must contain only production dependencies,
+including optional platform bindings. Source `package.json` development tools
+remain available for contributors, but root `devDependencies` metadata and
+entries marked `dev: true` are rejected by release and tarball verification.
+After automated npm artifact updates, check this boundary and regenerate the
+shrinkwrap if development entries were added. The generator uses a separate
+production-only manifest; `npm install --omit=dev` against the full source
+manifest alone still records development dependencies in a lockfile. Review
+regeneration diffs because upstream transitive ranges can resolve newer versions.
+
+Keep the publishable shrinkwrap for reproducible CLI installs and OS keychain
+storage for credential protection. Dependency scanners inspect complete upstream
+packages, including tooling that Spendly does not invoke. Review flagged code
+and runtime reachability before replacing dependencies; required network,
+filesystem, native-code, or subprocess capabilities are not by themselves proof
+of malicious behavior.
+
 Renovate's npm tool is pinned to 11.19.0 in `renovate.json` to keep CLI
 shrinkwrap updates working. With npm 12.2.0, the artifact update creates a
 `package-lock.json` alongside the existing `npm-shrinkwrap.json`, and Renovate

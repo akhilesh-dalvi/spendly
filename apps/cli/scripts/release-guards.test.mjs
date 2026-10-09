@@ -35,7 +35,7 @@ afterEach(() => {
 	}
 });
 
-const createArtifact = (overrides = {}) => {
+const createArtifact = (overrides = {}, mutateShrinkwrap = undefined) => {
 	const directory = createDirectory();
 	const contents = join(directory, "contents");
 	const packedDirectory = join(contents, "package");
@@ -51,6 +51,10 @@ const createArtifact = (overrides = {}) => {
 		...overrides,
 	};
 	writeFileSync(metadataPath, JSON.stringify(metadata));
+	const shrinkwrapPath = join(packedDirectory, "npm-shrinkwrap.json");
+	const shrinkwrap = JSON.parse(readFileSync(shrinkwrapPath, "utf8"));
+	mutateShrinkwrap?.(shrinkwrap);
+	writeFileSync(shrinkwrapPath, JSON.stringify(shrinkwrap));
 	const environment = {
 		RELEASE_VERSION: releaseVersion,
 		SOURCE_COMMIT: "a".repeat(40),
@@ -167,6 +171,27 @@ describe("publication artifact guards", () => {
 		expect(() =>
 			verifyReleaseArtifact(fixture.environment, fixture.artifactDirectory)
 		).toThrow(message);
+	});
+	it("rejects development metadata inside an otherwise verified tarball", () => {
+		const fixture = createArtifact({}, (shrinkwrap) => {
+			shrinkwrap.packages[""].devDependencies = { vitest: "4.1.11" };
+		});
+		expect(() =>
+			verifyReleaseArtifact(fixture.environment, fixture.artifactDirectory)
+		).toThrow("Shrinkwrap root must omit devDependencies");
+	});
+	it("rejects development-only entries inside an otherwise verified tarball", () => {
+		const fixture = createArtifact({}, (shrinkwrap) => {
+			shrinkwrap.packages["node_modules/development-only"] = {
+				version: "1.0.0",
+				dev: true,
+			};
+		});
+		expect(() =>
+			verifyReleaseArtifact(fixture.environment, fixture.artifactDirectory)
+		).toThrow(
+			"Shrinkwrap entry node_modules/development-only must not be development-only"
+		);
 	});
 	it("rejects a filename outside the artifact directory", () => {
 		const fixture = createArtifact();
@@ -317,6 +342,7 @@ describe("public release metadata", () => {
 			"package.json",
 			"npm-shrinkwrap.json",
 			"scripts/verify-release-metadata.mjs",
+			"scripts/verify-production-shrinkwrap.mjs",
 		]) {
 			copyFileSync(join(packageDirectory, name), join(fixture, name));
 		}
