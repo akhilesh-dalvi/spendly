@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { verifyProductionShrinkwrap } from "./verify-production-shrinkwrap.mjs";
 
 const versionPattern = /^0\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/u;
 const commitPattern = /^[a-f0-9]{40}$/u;
@@ -96,6 +97,7 @@ export const verifyReleaseArtifact = (
 		"Candidate license differs from reviewed source"
 	);
 	const shrinkwrap = JSON.parse(readMember("package/npm-shrinkwrap.json"));
+	verifyProductionShrinkwrap(shrinkwrap);
 	assertRelease(
 		shrinkwrap.name === metadata.name &&
 			shrinkwrap.version === version &&
