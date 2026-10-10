@@ -61,11 +61,22 @@ for lunch today." You can go straight there without learning the commands below.
 
 ### Try the CLI yourself
 
-Open the guided command launcher:
+Open the guided command launcher by running Spendly with no arguments in your
+interactive terminal:
 
 ```bash
-spendly --interactive
+spendly
 ```
+
+Both input (stdin) and prompt output (stderr) must be TTYs. Without both, bare
+`spendly` prints help and exits without prompting. To explicitly launch guided
+mode in a terminal, use `spendly --interactive`. Explicit commands, `--help`, and
+`--version` keep their existing behavior.
+
+Scripts and agents should use explicit commands with `--non-interactive`, for
+example `spendly --agent --json --non-interactive context`. `--agent` and `--json`
+never prompt, even in a terminal; missing required inputs report an error instead
+of waiting for input. Do not combine these modes with `--interactive`.
 
 Use the arrow keys or type to search, then press Enter. Guided commands use
 single-choice selectors for Spendly records, checkbox-style selectors for tags

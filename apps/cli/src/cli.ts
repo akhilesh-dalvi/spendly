@@ -272,7 +272,11 @@ const createProgram = (
 		.option("--json", "write one versioned JSON document to stdout", false)
 		.option("--non-interactive", "disable all interactive prompts", false)
 		.option("--debug", "write redacted diagnostics to stderr", false)
-		.option("--interactive", "guide human input with terminal prompts", false)
+		.option(
+			"--interactive",
+			"explicitly launch the menu or guide command input with terminal prompts",
+			false
+		)
 		.option("--no-color", "disable terminal colors")
 		.option("--no-retry", "disable retries for read-only requests")
 		.addOption(
@@ -283,7 +287,7 @@ const createProgram = (
 		)
 		.addHelpText(
 			"after",
-			"\nGuided mode: spendly --interactive\nFor command-specific guidance: spendly <command> --help\nDocumentation: https://spendly.akhileshdalvi.com/docs/cli\nInstall from npm (next channel): npm install --global spendly@next"
+			"\nBare spendly: opens the menu when input and prompt output are TTYs; otherwise prints help.\nGuided mode: spendly --interactive (requires a terminal)\nScripts and agents: use explicit commands with --non-interactive; --agent and --json never prompt. Missing required inputs report an error.\nFor command-specific guidance: spendly <command> --help\nDocumentation: https://spendly.akhileshdalvi.com/docs/cli\nInstall from npm (next channel): npm install --global spendly@next"
 		)
 		.showSuggestionAfterError(true)
 		.showHelpAfterError(false)
@@ -388,6 +392,9 @@ const getLauncherInvocation = async (
 	];
 };
 
+const hasPromptTerminal = (runtime: CliRuntime): boolean =>
+	runtime.promptInput?.isTTY === true && runtime.promptOutput?.isTTY === true;
+
 export const runCli = async (
 	args: readonly string[],
 	runtime: CliRuntime
@@ -397,6 +404,9 @@ export const runCli = async (
 		commandOutput += value;
 	});
 	if (args.length === 0) {
+		if (hasPromptTerminal(runtime)) {
+			return await runCli(["--interactive"], runtime);
+		}
 		program.outputHelp();
 		writeCommandSuccess({ args, output: commandOutput, runtime });
 		return CLI_EXIT_CODE.success;
