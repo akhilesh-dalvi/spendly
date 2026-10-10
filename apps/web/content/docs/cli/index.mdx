@@ -67,9 +67,9 @@ Explicitly open the guided command launcher in your interactive terminal:
 spendly --interactive
 ```
 
-On CLI releases that include the TTY-aware default, bare `spendly` also opens
-the menu when both input (stdin) and prompt output (stderr) are TTYs. Without
-both, it prints help and exits without prompting. Older installed releases may
+On CLI `0.1.5` or newer, bare `spendly` also opens the menu when both input
+(stdin) and prompt output (stderr) are TTYs. Without both, it prints help and
+exits without prompting. Older installed releases may
 print help even in a terminal; `spendly --interactive` remains the explicit way
 to open the menu. Source changes alone do not mean an npm release is available.
 Explicit commands, `--help`, and `--version` keep their existing behavior.

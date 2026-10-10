@@ -310,7 +310,7 @@ describe("Phase 8.8 guided interactive inputs", () => {
 
 		expect(exitCode).toBe(CLI_EXIT_CODE.success);
 		expect(testRuntime.getStdout()).toContain(
-			flag === "--help" ? "Usage: spendly" : "0.1.4"
+			flag === "--help" ? "Usage: spendly" : "0.1.5"
 		);
 		expect(testRuntime.getStderr()).toBe("");
 		expect(testRuntime.calls).toEqual([]);

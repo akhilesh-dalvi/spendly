@@ -28,9 +28,8 @@ problems through
 Run `spendly` with no arguments to open the guided command menu in an
 interactive terminal. Both input (stdin) and prompt output (stderr) must be TTYs;
 otherwise bare `spendly` prints help and exits without prompting. This default
-requires a CLI release containing the TTY-aware launcher; older installed
-releases may print help even in a terminal. Source changes alone do not mean
-an npm release is available.
+requires CLI `0.1.5` or newer; older installed releases may print help even
+in a terminal. Source changes alone do not mean an npm release is available.
 
 To explicitly launch guided mode, including on older releases, run:
 
