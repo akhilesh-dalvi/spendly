@@ -58,7 +58,16 @@ describe("CLI foundation", () => {
 		expect(testRuntime.getStdout()).toContain("Usage: spendly");
 		expect(testRuntime.getStdout()).toContain("--allow-file-storage");
 		expect(testRuntime.getStdout()).toContain(
-			"Guided mode: spendly --interactive"
+			"Bare spendly: opens the menu when input and prompt output are TTYs; otherwise prints help."
+		);
+		expect(testRuntime.getStdout()).toContain(
+			"Guided mode: spendly --interactive (requires a terminal)"
+		);
+		expect(testRuntime.getStdout()).toContain(
+			"--agent and --json never prompt"
+		);
+		expect(testRuntime.getStdout()).toContain(
+			"Missing required inputs report an error."
 		);
 		expect(testRuntime.getStderr()).toBe("");
 	});

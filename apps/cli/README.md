@@ -25,11 +25,29 @@ Report ordinary problems through
 problems through
 [private vulnerability reporting](https://github.com/akhilesh-dalvi/spendly/security/advisories/new).
 
-For a guided terminal flow, run:
+Run `spendly` with no arguments to open the guided command menu in an
+interactive terminal. Both input (stdin) and prompt output (stderr) must be TTYs;
+otherwise bare `spendly` prints help and exits without prompting. This default
+requires a CLI release containing the TTY-aware launcher; older installed
+releases may print help even in a terminal. Source changes alone do not mean
+an npm release is available.
+
+To explicitly launch guided mode, including on older releases, run:
 
 ```bash
 spendly --interactive
 ```
+
+Explicit commands, `--help`, and `--version` keep their existing behavior.
+For scripts and AI agents, use explicit commands with `--non-interactive`:
+
+```bash
+spendly --agent --json --non-interactive context
+```
+
+`--agent` and `--json` never prompt, even in a terminal. Missing required inputs
+report an error instead of waiting for input. `--interactive` requires a terminal
+and cannot be combined with `--agent`, `--json`, or `--non-interactive`.
 
 The launcher and command-specific `--interactive` mode use searchable choices,
 checkbox-style multiselects, validated text and date fields, previews, and safe

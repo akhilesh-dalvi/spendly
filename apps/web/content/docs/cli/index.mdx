@@ -61,11 +61,23 @@ for lunch today." You can go straight there without learning the commands below.
 
 ### Try the CLI yourself
 
-Open the guided command launcher:
+Explicitly open the guided command launcher in your interactive terminal:
 
 ```bash
 spendly --interactive
 ```
+
+On CLI releases that include the TTY-aware default, bare `spendly` also opens
+the menu when both input (stdin) and prompt output (stderr) are TTYs. Without
+both, it prints help and exits without prompting. Older installed releases may
+print help even in a terminal; `spendly --interactive` remains the explicit way
+to open the menu. Source changes alone do not mean an npm release is available.
+Explicit commands, `--help`, and `--version` keep their existing behavior.
+
+Scripts and agents should use explicit commands with `--non-interactive`, for
+example `spendly --agent --json --non-interactive context`. `--agent` and `--json`
+never prompt, even in a terminal; missing required inputs report an error instead
+of waiting for input. Do not combine these modes with `--interactive`.
 
 Use the arrow keys or type to search, then press Enter. Guided commands use
 single-choice selectors for Spendly records, checkbox-style selectors for tags
