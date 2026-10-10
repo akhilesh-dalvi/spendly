@@ -86,9 +86,9 @@ machine-mode options first so the execution mode is obvious.
 
 Bare `spendly` opens the guided menu only when both stdin and prompt output
 (stderr) are TTYs; otherwise it prints help and exits. This default requires a
-CLI release containing the TTY-aware launcher; older installed releases may
-print help even in a terminal. Agents and scripts should
-always use explicit commands with `--non-interactive`. `--agent` and `--json`
+CLI version of `0.1.5` or newer; older installed releases may print help even
+in a terminal. Agents and scripts should always use explicit commands with
+`--non-interactive`. `--agent` and `--json`
 never prompt, including in a terminal: missing required inputs report an error
 instead of waiting for input. Human guided mode is available explicitly with
 `spendly --interactive`, which requires a terminal and cannot be combined with
