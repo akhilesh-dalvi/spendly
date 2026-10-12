@@ -56,3 +56,5 @@ minimumReleaseAgeExclude:
   - turbo@2.9.14
   # Renovate security update: vitest@4.1.11
   - vitest@4.1.11
+  # Renovate security update: @modelcontextprotocol/client@2.2.0
+  - "@modelcontextprotocol/client@2.2.0"
