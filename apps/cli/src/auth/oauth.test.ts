@@ -5,6 +5,8 @@ import {
 	discoverOAuth,
 	exchangeAuthorizationCode,
 	type OAuthDiscovery,
+	refreshOAuthTokens,
+	revokeRefreshToken,
 	verifyIdToken,
 } from "./oauth.js";
 
@@ -28,6 +30,52 @@ const jsonResponse = (body: unknown, init: ResponseInit = {}): Response =>
 	Response.json(body, init);
 
 describe("OAuth discovery and authorization", () => {
+	it.each([
+		{ status: 408, retryAfter: "", details: {} },
+		{ status: 425, retryAfter: "-1", details: {} },
+		{ status: 429, retryAfter: "tomorrow", details: {} },
+		{ status: 503, retryAfter: "0.125", details: { retryAfterMs: 125 } },
+	])("classifies discovery status $status and retry-after $retryAfter", async ({
+		status,
+		retryAfter,
+		details,
+	}) => {
+		await expect(
+			discoverOAuth(
+				discovery.issuer,
+				asFetch(
+					async () =>
+						new Response("", { status, headers: { "retry-after": retryAfter } })
+				)
+			)
+		).rejects.toMatchObject({
+			code: "NETWORK_ERROR",
+			retryable: true,
+			details,
+		});
+	});
+
+	it.each([
+		new Response("denied", { status: 403 }),
+		new Response("not json"),
+		jsonResponse({ ...discovery, issuer: "https://other.example" }),
+	])("rejects permanent or malformed discovery responses %#", async (response) => {
+		await expect(
+			discoverOAuth(
+				discovery.issuer,
+				asFetch(async () => response)
+			)
+		).rejects.toMatchObject({ code: "CONFIGURATION_ERROR", retryable: false });
+	});
+
+	it("preserves network failure as a retryable discovery error", async () => {
+		await expect(
+			discoverOAuth(
+				discovery.issuer,
+				asFetch(() => Promise.reject(new TypeError("offline")))
+			)
+		).rejects.toMatchObject({ code: "NETWORK_ERROR", retryable: true });
+	});
 	it("requires exact HTTPS issuer metadata", async () => {
 		const fetchImplementation = asFetch((input, init) => {
 			expect(input.toString()).toBe(
@@ -85,6 +133,130 @@ describe("OAuth discovery and authorization", () => {
 });
 
 describe("OAuth token exchange", () => {
+	it.each([
+		{
+			response: new Response("denied", { status: 400 }),
+			code: "AUTHENTICATION_REQUIRED",
+		},
+		{ response: new Response("not json"), code: "AUTHENTICATION_REQUIRED" },
+		{
+			response: jsonResponse({
+				access_token: "access",
+				id_token: "id",
+				expires_in: 60,
+				token_type: "bearer",
+			}),
+			code: "AUTHENTICATION_REQUIRED",
+		},
+		{ response: new Response("busy", { status: 500 }), code: "NETWORK_ERROR" },
+	])("rejects unusable exchange response %#", async ({ response, code }) => {
+		await expect(
+			exchangeAuthorizationCode({
+				clientId: "client",
+				code: "code",
+				discovery,
+				redirectUri: "http://127.0.0.1/callback",
+				verifier: "verifier",
+				fetchImplementation: asFetch(async () => response),
+			})
+		).rejects.toMatchObject({ code });
+	});
+
+	it("classifies a failed token connection as retryable", async () => {
+		await expect(
+			refreshOAuthTokens({
+				clientId: "client",
+				discovery,
+				refreshToken: "refresh",
+				fetchImplementation: asFetch(() =>
+					Promise.reject(new TypeError("offline"))
+				),
+			})
+		).rejects.toMatchObject({ code: "NETWORK_ERROR", retryable: true });
+	});
+
+	it.each([
+		undefined,
+		"rotated",
+	])("retains or rotates refresh token %s", async (refreshToken) => {
+		const fetchImplementation = vi.fn(
+			asFetch(async (_input, init) => {
+				const parameters = new URLSearchParams(init?.body?.toString());
+				expect(parameters.get("grant_type")).toBe("refresh_token");
+				expect(parameters.get("refresh_token")).toBe("original");
+				return await Promise.resolve(
+					jsonResponse({
+						access_token: "access",
+						id_token: "id",
+						expires_in: 60,
+						token_type: "bEaReR",
+						refresh_token: refreshToken,
+					})
+				);
+			})
+		);
+		await expect(
+			refreshOAuthTokens({
+				clientId: "client",
+				discovery,
+				refreshToken: "original",
+				fetchImplementation,
+				now: NOW,
+			})
+		).resolves.toEqual({
+			idToken: "id",
+			refreshToken: refreshToken ?? "original",
+			expiresAt: NOW + 60_000,
+		});
+	});
+
+	it.each([
+		200, 400,
+	])("reports revocation confirmation for status %s", async (status) => {
+		const fetchImplementation = vi.fn(
+			asFetch(async (_input, init) => {
+				expect(init?.method).toBe("POST");
+				expect(
+					new URLSearchParams(init?.body?.toString()).get("token_type_hint")
+				).toBe("refresh_token");
+				return await Promise.resolve(new Response("", { status }));
+			})
+		);
+		await expect(
+			revokeRefreshToken({
+				clientId: "client",
+				discovery,
+				refreshToken: "refresh",
+				fetchImplementation,
+			})
+		).resolves.toBe(status === 200);
+	});
+
+	it("does not attempt revocation without an endpoint", async () => {
+		const fetchImplementation = vi.fn(asFetch(async () => new Response()));
+		await expect(
+			revokeRefreshToken({
+				clientId: "client",
+				discovery: { ...discovery, revocation_endpoint: undefined },
+				refreshToken: "refresh",
+				fetchImplementation,
+			})
+		).resolves.toBe(false);
+		expect(fetchImplementation).not.toHaveBeenCalled();
+	});
+
+	it("does not claim revocation when the network fails", async () => {
+		await expect(
+			revokeRefreshToken({
+				clientId: "client",
+				discovery,
+				refreshToken: "refresh",
+				fetchImplementation: asFetch(() =>
+					Promise.reject(new Error("offline"))
+				),
+			})
+		).resolves.toBe(false);
+	});
 	it("sends the verifier and retains no access token", async () => {
 		const fetchImplementation = vi.fn(
 			asFetch((_input, init) => {
@@ -172,6 +344,55 @@ describe("OAuth token exchange", () => {
 });
 
 describe("OIDC ID token validation", () => {
+	it("classifies verification-key network failures without claiming invalid credentials", async () => {
+		const { privateKey } = await generateKeyPair("RS256");
+		const idToken = await new SignJWT({})
+			.setProtectedHeader({ alg: "RS256" })
+			.setIssuer(discovery.issuer)
+			.setAudience("client")
+			.setSubject("user")
+			.setIssuedAt(NOW / 1000)
+			.setExpirationTime(NOW / 1000 + 60)
+			.sign(privateKey);
+		await expect(
+			verifyIdToken({
+				clientId: "client",
+				discovery,
+				idToken,
+				now: NOW,
+				fetchImplementation: asFetch(() =>
+					Promise.reject(new TypeError("offline"))
+				),
+			})
+		).rejects.toMatchObject({ code: "NETWORK_ERROR", retryable: true });
+	});
+
+	it.each([
+		0,
+		NOW / 1000 + 6,
+	])("rejects invalid issued-at %s even with a valid signature", async (issuedAt) => {
+		const { privateKey, publicKey } = await generateKeyPair("RS256");
+		const publicJwk = await exportJWK(publicKey);
+		const idToken = await new SignJWT({})
+			.setProtectedHeader({ alg: "RS256" })
+			.setIssuer(discovery.issuer)
+			.setAudience("client")
+			.setSubject("user")
+			.setIssuedAt(issuedAt)
+			.setExpirationTime(NOW / 1000 + 60)
+			.sign(privateKey);
+		await expect(
+			verifyIdToken({
+				clientId: "client",
+				discovery,
+				idToken,
+				now: NOW,
+				fetchImplementation: asFetch(async () =>
+					jsonResponse({ keys: [publicJwk] })
+				),
+			})
+		).rejects.toMatchObject({ code: "AUTHENTICATION_REQUIRED" });
+	});
 	it("validates RS256 issuer, audience, nonce, expiry, and subject", async () => {
 		const { privateKey, publicKey } = await generateKeyPair("RS256");
 		const publicJwk = await exportJWK(publicKey);

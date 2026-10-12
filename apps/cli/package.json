@@ -50,7 +50,8 @@
     "release:check": "node scripts/verify-release-metadata.mjs",
     "shrinkwrap:generate": "node scripts/generate-shrinkwrap.mjs",
     "start": "node dist/index.js",
-    "test": "vitest run --environment node"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@clack/core": "1.5.1",
@@ -63,6 +64,7 @@
   },
   "devDependencies": {
     "@types/node": "24.12.2",
+    "@vitest/coverage-v8": "4.1.11",
     "typescript": "5.9.3",
     "vitest": "4.1.11"
   },

@@ -96,7 +96,7 @@ export function DataTable<TData, TValue>({
 		state: {
 			sorting,
 			columnFilters,
-			globalFilter: effectiveGlobalFilter,
+			globalFilter: effectiveGlobalFilter.trim(),
 		},
 		initialState: {
 			pagination: {

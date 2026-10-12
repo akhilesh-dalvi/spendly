@@ -18,6 +18,7 @@
     "dev:cli": "pnpm -C apps/cli dev",
     "pack:cli": "pnpm -C apps/cli pack:verify",
     "test:cli": "turbo -F spendly test",
+    "test:coverage": "pnpm --parallel --no-bail --filter ./apps/cli --filter ./apps/web --filter ./packages/backend test:coverage",
     "typecheck:cli": "turbo -F spendly check-types",
     "dev:native": "turbo -F native dev",
     "dev:web": "turbo -F web dev",
