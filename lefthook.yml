@@ -28,7 +28,7 @@ pre-push:
         - knip.jsonc
         - lefthook.yml
       run: pnpm knip:check
-    - name: web-types
+    - name: web-checks
       glob:
         - apps/web/**
         - packages/backend/**
@@ -40,7 +40,7 @@ pre-push:
         - tsconfig.json
         - turbo.json
         - lefthook.yml
-      run: pnpm --filter web --filter @spendly/env check-types
+      run: pnpm --filter web --filter @spendly/env check-types && pnpm --dir apps/web test:coverage
     - name: backend-checks
       glob:
         - packages/backend/**
@@ -51,7 +51,7 @@ pre-push:
         - tsconfig.json
         - turbo.json
         - lefthook.yml
-      run: pnpm --dir packages/backend check-types && pnpm --dir packages/backend test:once
+      run: pnpm --dir packages/backend check-types && pnpm --dir packages/backend test:coverage
     - name: cli-checks
       glob:
         - apps/cli/**
@@ -63,4 +63,4 @@ pre-push:
         - tsconfig.json
         - turbo.json
         - lefthook.yml
-      run: pnpm --dir apps/cli check-types && pnpm --dir apps/cli check-types:development && pnpm --dir apps/cli test
+      run: pnpm --dir apps/cli check-types && pnpm --dir apps/cli check-types:development && pnpm --dir apps/cli test:coverage

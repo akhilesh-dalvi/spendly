@@ -35,6 +35,120 @@ const readFixture = (name: string): Record<string, unknown> =>
 	) as Record<string, unknown>;
 
 describe("human read output widths", () => {
+	it("explains missing context cycle, totals, and timezone", () => {
+		const context = contextSchema.parse({
+			...readFixture("context"),
+			currentCycle: null,
+			totals: [],
+			timezone: null,
+		});
+		const output = renderContext(context);
+		expect(output).toContain("Current cycle: none");
+		expect(output).toContain("Account totals: none");
+		expect(output).toContain("timezone unknown");
+		expect(renderContext({ ...context, timezone: "UTC" })).toContain("(UTC;");
+		expect(renderCycle(null)).toBe(
+			"No cycle contains the requested local date."
+		);
+	});
+
+	it("renders unassigned, uncategorized expenses without descriptions or tags", () => {
+		const expense = {
+			...expensePageSchema.parse(readFixture("expense-page")).items[0],
+			spentOn: null,
+			account: null,
+			category: null,
+			cycle: null,
+			tags: [],
+		};
+		const output = renderExpense(expense);
+		expect(output).toContain("Expense: No description");
+		expect(output).toContain("Category: Uncategorized");
+		expect(output).toContain("Account: Unassigned");
+		expect(output).toContain("Cycle: none");
+		expect(output).toContain("Tags: none");
+		const table = renderExpenses([expense]);
+		expect(table).toContain("Uncategorized");
+		expect(table).toContain("Unassigned");
+	});
+
+	it("distinguishes hidden categories and unset plans", () => {
+		const category = categorySchema
+			.array()
+			.parse(readFixture("resources").categories)[0];
+		const output = renderCategories(
+			[
+				{
+					...category,
+					categoryType: null,
+					plannedAmount: null,
+					isHidden: true,
+				},
+			],
+			"INR"
+		);
+		expect(output).toContain("Hidden");
+		expect(output).toContain("-");
+		expect(output).not.toContain("INR");
+	});
+
+	it("shows overspending and unplanned category activity", () => {
+		const summary = summarySchema.parse(readFixture("resources").summary);
+		const output = renderSummary(
+			{
+				...summary,
+				remaining: -25,
+				daysRemaining: null,
+				categories: summary.categories.map((category) => ({
+					...category,
+					planned: null,
+					difference: null,
+				})),
+			},
+			"INR"
+		);
+		expect(output).toContain("Remaining: INR -25.00");
+		expect(output).toContain("Status: Over planned spending");
+		expect(output).toContain("Days remaining: not available");
+		expect(output).toContain("-");
+	});
+
+	it("distinguishes archived liability accounts from active assets", () => {
+		const account = accountSchema
+			.array()
+			.parse(readFixture("accounts").accounts)[0];
+		const liability = {
+			...account,
+			accountType: {
+				...account.accountType,
+				balanceNature: "liability" as const,
+			},
+			isArchived: true,
+			isDefault: false,
+		};
+		const output = renderAccount(liability);
+		expect(output).toContain("(Liability)");
+		expect(output).toContain("Status: Archived");
+		expect(output).toContain("Default: No");
+		expect(renderAccounts([liability])).toContain("Archived");
+		const type = accountTypeSchema
+			.array()
+			.parse(readFixture("accounts").accountTypes)[0];
+		const types = renderAccountTypes([
+			{ ...type, balanceNature: "liability", isArchived: true },
+		]);
+		expect(types).toContain("Liability");
+		expect(types).toContain("Archived");
+	});
+
+	it("uses a dash for ledger entries without notes", () => {
+		const transaction = transactionPageSchema.parse(
+			readFixture("accounts").transactions
+		).items[0];
+		const output = renderTransactions([{ ...transaction, note: null }], "INR");
+		expect(output).toContain("-");
+		expect(output).not.toContain("null");
+	});
 	it("normalizes the legacy Kolkata timezone alias for human output", () => {
 		const context = contextSchema.parse({
 			...readFixture("context"),

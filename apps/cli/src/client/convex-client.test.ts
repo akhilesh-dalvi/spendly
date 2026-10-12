@@ -1,10 +1,76 @@
 import { ConvexError } from "convex/values";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CliError } from "../errors.js";
 import type { BackendQuery } from "../runtime.js";
 import { queryWithRetry, toBackendCliError } from "./convex-client.js";
 
 describe("Convex read client", () => {
+	it.each([
+		new TypeError("Failed to fetch"),
+		{ code: "ECONNRESET" },
+		new Error("Fetch failed"),
+		new Error("Wrapped", { cause: { code: "ETIMEDOUT" } }),
+	])("classifies network failure %# as retryable", (failure) => {
+		expect(toBackendCliError(failure)).toMatchObject({
+			code: "NETWORK_ERROR",
+			retryable: true,
+			cause: failure,
+		});
+	});
+
+	it.each([
+		null,
+		"failure",
+		{},
+		{ code: "UNKNOWN" },
+		new Error("unknown"),
+		new Error("wrapped", { cause: "unknown" }),
+		new ConvexError({
+			code: "FUTURE_CODE",
+			details: {},
+			message: "unknown",
+			retryable: true,
+		}),
+		new ConvexError("malformed"),
+	])("classifies unknown backend failure %# as internal", (failure) => {
+		expect(toBackendCliError(failure)).toMatchObject({
+			code: "INTERNAL_ERROR",
+			retryable: false,
+		});
+	});
+
+	it("preserves CLI errors and maps backend argument validation to invalid input", () => {
+		const error = new CliError("INVALID_INPUT", "already mapped");
+		expect(toBackendCliError(error)).toBe(error);
+		expect(
+			toBackendCliError(new Error("ArgumentValidationError: missing amount"))
+		).toMatchObject({ code: "INVALID_INPUT", retryable: false });
+	});
+
+	it.each([
+		{ code: "NETWORK_ERROR", retryable: true, attempts: 3 },
+		{ code: "NETWORK_ERROR", retryable: false, attempts: 1 },
+		{ code: "INVALID_INPUT", retryable: true, attempts: 1 },
+	] as const)("bounds retries for $code retryable=$retryable", async ({
+		code,
+		retryable,
+		attempts,
+	}) => {
+		const failure = new CliError(code, "failed", { retryable });
+		const query = vi.fn(() => Promise.reject(failure));
+		const sleep = vi.fn(async () => undefined);
+		await expect(
+			queryWithRetry({
+				args: {},
+				functionName: "expenses:list",
+				query,
+				retry: true,
+				sleep,
+			})
+		).rejects.toBe(failure);
+		expect(query).toHaveBeenCalledTimes(attempts);
+		expect(sleep).toHaveBeenCalledTimes(attempts - 1);
+	});
 	it("retries temporary read failures at most three times", async () => {
 		let attempts = 0;
 		const delays: number[] = [];

@@ -57,30 +57,44 @@ jobs:
           apps/cli/src
           apps/cli/scripts
           apps/cli/package.json
+          apps/cli/vitest.config.mts
           apps/cli/tsconfig.json
           apps/cli/tsconfig.development.json
           apps/web/content/docs/cli
           apps/web/scripts/validate-cli-docs.mjs
+          apps/web/package.json
+          apps/web/vitest.config.mts
+          apps/web/src
+          apps/web/test
+          packages/backend/package.json
+          packages/backend/vitest.config.mts
           packages/backend/convex
           skills/spendly
       - name: Typecheck CLI production and development entries
         run: |
           pnpm --dir apps/cli check-types
           pnpm --dir apps/cli check-types:development
-      - name: Test CLI
-        run: pnpm --dir apps/cli test
-      - name: Typecheck and test backend
-        run: |
-          pnpm exec tsc --noEmit -p packages/backend/convex/tsconfig.json
-          pnpm --dir packages/backend test:once
+      - name: Typecheck backend
+        run: pnpm exec tsc --noEmit -p packages/backend/convex/tsconfig.json
       - name: Generate Web route types
         run: pnpm --dir apps/web exec next typegen
       - name: Typecheck Web
         run: |
           pnpm exec tsc --noEmit -p apps/web/tsconfig.json
           pnpm exec tsc --noEmit -p packages/env/tsconfig.json
-      - name: Test Web monitoring privacy and error handling
-        run: pnpm --dir apps/web test
+      - name: Test CLI, backend, and Web with coverage gates
+        run: pnpm test:coverage
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            apps/cli/coverage
+            apps/web/coverage
+            packages/backend/coverage
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Validate skill and public documentation
         run: |
           node skills/spendly/evals/validate.mjs

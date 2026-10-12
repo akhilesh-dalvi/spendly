@@ -9,7 +9,8 @@
     "dev": "convex dev",
     "dev:setup": "convex dev --configure --until-success",
     "test": "vitest",
-    "test:once": "vitest run"
+    "test:once": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "convex": "catalog:"
@@ -17,9 +18,10 @@
   "devDependencies": {
     "@edge-runtime/vm": "^5.0.0",
     "@types/node": "^24.3.0",
+    "@vitest/coverage-v8": "4.1.11",
     "convex-test": "^0.0.54",
     "typescript": "catalog:",
     "vite": "^8.2.1",
-    "vitest": "^4.1.10"
+    "vitest": "4.1.11"
   }
 }

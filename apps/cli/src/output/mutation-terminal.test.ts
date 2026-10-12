@@ -11,14 +11,19 @@ import {
 import {
 	expenseCreateResultSchema,
 	expenseDeleteResultSchema,
+	expenseProposalSchema,
 	expenseUpdatePreviewSchema,
 } from "../domain/mutation-schemas.js";
 import {
 	renderAccountAddResult,
 	renderAccountEditPreview,
+	renderAccountLifecycleBatchPreview,
+	renderAccountLifecycleBatchSuccess,
 	renderAccountLifecyclePreview,
+	renderAccountSuccess,
 	renderBalanceAdjustmentPreview,
 	renderBalanceAdjustmentResult,
+	renderSetDefaultPreview,
 	renderTransferPreview,
 	renderTransferResult,
 } from "./account-mutation-terminal.js";
@@ -26,6 +31,7 @@ import {
 	renderExpenseAddResult,
 	renderExpenseDeleteResult,
 	renderExpenseEditPreview,
+	renderExpenseProposal,
 } from "./mutation-terminal.js";
 
 const readFixture = (name: string): Record<string, unknown> =>
@@ -37,6 +43,138 @@ const readFixture = (name: string): Record<string, unknown> =>
 	) as Record<string, unknown>;
 
 describe("human mutation hierarchy", () => {
+	it("shows no visible changes for identical unassigned expense snapshots", () => {
+		const preview = expenseUpdatePreviewSchema.parse(
+			readFixture("expense-mutations").updatePreview
+		);
+		const expense = {
+			...preview.before,
+			spentOn: null,
+			category: null,
+			account: null,
+			tags: [],
+		};
+		const output = renderExpenseEditPreview({
+			...preview,
+			before: expense,
+			after: expense,
+			accountEffects: [],
+		});
+		expect(output).toContain("No description");
+		expect(output).toContain("- No visible field changes");
+		expect(output).toContain("Account balance effects: none");
+	});
+
+	it("shows fallback names in proposals and deleted expenses", () => {
+		const fixture = readFixture("expense-mutations");
+		const result = expenseCreateResultSchema.parse(fixture.createResult);
+		const proposal = expenseProposalSchema.parse({
+			...result,
+			accountId: null,
+			categoryId: null,
+			cycleId: null,
+			tagIds: [],
+			spentOn: null,
+			accountEffects: [],
+		});
+		const output = renderExpenseProposal(proposal);
+		expect(output).toContain("Spent on: none");
+		expect(output).toContain("Category: Uncategorized");
+		expect(output).toContain("Account: Unassigned");
+		expect(output).toContain("Cycle: none");
+		expect(output).toContain("Tags: none");
+		const deleted = expenseDeleteResultSchema.parse(fixture.deleteResult);
+		expect(
+			renderExpenseDeleteResult({
+				...deleted,
+				expense: { ...deleted.expense, spentOn: null },
+			})
+		).toContain("Spent on: none");
+	});
+
+	it("describes liability, archived, default accounts and no-op account previews", () => {
+		const preview = accountUpdatePreviewSchema.parse(
+			readFixture("account-mutations").accountUpdatePreview
+		);
+		const account = {
+			...preview.before,
+			isArchived: true,
+			isDefault: true,
+			accountType: {
+				...preview.before.accountType,
+				balanceNature: "liability" as const,
+			},
+		};
+		const output = renderAccountSuccess(account, "Account updated");
+		expect(output).toContain("(Liability)");
+		expect(output).toContain("Default: Yes");
+		expect(output).toContain("Status: Archived");
+		expect(
+			renderAccountEditPreview({ ...preview, before: account, after: account })
+		).toContain("No visible field changes");
+		expect(renderSetDefaultPreview(account)).toContain(
+			"Previous default: none"
+		);
+		expect(renderSetDefaultPreview(account, preview.before)).toContain(
+			`Previous default: ${preview.before.name}`
+		);
+	});
+
+	it.each([
+		"archive",
+		"reactivate",
+	] as const)("shows both states in %s batch previews and results", (action) => {
+		const preview = accountUpdatePreviewSchema.parse(
+			readFixture("account-mutations").accountUpdatePreview
+		);
+		const active = { ...preview.before, isArchived: false };
+		const archived = { ...preview.after, isArchived: true };
+		const output = renderAccountLifecycleBatchPreview(
+			[
+				{ ...preview, before: active, after: archived },
+				{ ...preview, before: archived, after: active },
+			],
+			action
+		);
+		expect(output).toContain("Status: Active -> Archived");
+		expect(output).toContain("Status: Archived -> Active");
+		const success = renderAccountLifecycleBatchSuccess(
+			[active, archived],
+			action
+		);
+		expect(success).toContain(
+			action === "archive" ? "accounts archived" : "accounts reactivated"
+		);
+		expect(success).toContain(`${active.name}: Active`);
+		expect(success).toContain(`${archived.name}: Archived`);
+	});
+
+	it("renders no-op ledger adjustments and transfers without notes or warnings", () => {
+		const result = balanceAdjustmentResultSchema.parse(
+			readFixture("account-mutations").balanceAdjustmentResult
+		);
+		const output = renderBalanceAdjustmentResult({
+			...result,
+			transaction: null,
+			adjustment: 0,
+			warnings: [],
+		});
+		expect(output).toContain("Warnings: none");
+		expect(output).toContain("Ledger: no entry (balance unchanged)");
+		const transfer = transferPreviewSchema.parse(
+			readFixture("account-mutations").transferPreview
+		);
+		expect(
+			renderTransferPreview({
+				...transfer,
+				note: null,
+				warnings: [],
+			})
+		).toContain("Warnings: none");
+		expect(renderTransferPreview({ ...transfer, note: null })).toContain(
+			"Note: none"
+		);
+	});
 	it("shows only changed expense fields", () => {
 		const fixture = readFixture("expense-mutations");
 		const output = renderExpenseEditPreview(

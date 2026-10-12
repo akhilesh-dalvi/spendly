@@ -141,7 +141,8 @@ MDX are outside Biome's supported formats and are not processed by this hook.
 Pre-push runs checks for affected workspaces in parallel: web and environment
 typechecks, backend typechecks and tests, and CLI production/development
 typechecks and tests. Backend changes also check its web and CLI consumers;
-shared configuration and dependency changes check all workspaces. The rules
+shared configuration and dependency changes check all workspaces. CLI, backend,
+and web tests enforce their Vitest coverage floors on affected pushes. The rules
 live in `lefthook.yml`. A Knip job checks unused code, exports, dependencies,
 and import declarations across the whole repository when source, tooling, or
 configuration files change.
@@ -249,6 +250,84 @@ Run the same check locally using the pinned pnpm version:
 pnpm --package=renovate@44.115.13 dlx renovate-config-validator --strict --no-global renovate.json
 ```
 
+### Test coverage
+
+Run every coverage gate with `pnpm test:coverage`, or use a workspace command
+such as `pnpm --dir apps/cli test:coverage` (also available in `apps/web` and
+`packages/backend`).
+The ordinary test commands remain available for faster iteration without coverage.
+Coverage is **enforced**, not advisory, in the main CI quality job and affected
+pre-push checks. The CLI platform matrix runs ordinary tests on Node.js 22/24;
+the coverage baseline is measured on Node.js 24 with Vitest and
+`@vitest/coverage-v8` pinned together at 4.1.11.
+
+Each workspace writes `coverage/coverage-summary.json` and an HTML report at
+`coverage/index.html`, including reports when tests fail. CI uploads the reports
+as the `coverage-reports` artifact for 14 days, including on coverage failure.
+Generated reports are ignored by Git; the initial measurements below record the
+baseline without committing machine-specific paths.
+
+#### Coverage scope and enforced targets
+
+Issue #33 was measured against the CLI/web `src` trees and backend `convex`
+tree, including unimported files. Root framework configuration and the CLI's
+source-checkout development entrypoints are outside these scopes. Tests and
+type declarations are excluded. The CLI additionally
+excludes the manual OS-keychain smoke script, and the backend excludes generated
+Convex bindings and the test module loader. All web routes, components, hooks,
+and utilities remain in scope; untested UI is not hidden from the denominator.
+
+Initial coverage before adding focused tests (statements / branches): CLI
+82.26% / 68.27%, backend 77.93% / 64.89%, web 2.29% / 3.33%.
+Behavioral tests for CLI authentication, prompts, clients, and output fallbacks;
+backend ownership, queries, pagination, and financial operations; and web forms,
+navigation, onboarding, routes, and charts meet all of issue #33's original
+statements / branches targets: CLI 85% / 80%, backend 80% / 75%, web 70% / 60%.
+The backend statement gate retains its already-higher 82.4% floor.
+
+| Workspace | Statements | Branches | Functions | Lines |
+| --- | ---: | ---: | ---: | ---: |
+| CLI measured | 90.58% | 82.78% | 91.81% | 90.72% |
+| CLI minimum | 85% | 80% | 86.1% | 83.9% |
+| Backend measured | 93.98% | 85.10% | 96.06% | 93.91% |
+| Backend minimum | 82.4% | 75% | 81.3% | 82.6% |
+| Web measured | 90.80% | 90.76% | 90.29% | 90.80% |
+| Web minimum | 70% | 60% | 60% | 70% |
+
+Measured values record this implementation's combined suite, not a promise of
+future exact results. Stronger scoped gates protect critical behavior
+independently of the overall averages:
+
+| Scope | Statements | Branches | Functions | Lines |
+| --- | ---: | ---: | ---: | ---: |
+| CLI authentication commands | 90% | 90% | 85% | 90% |
+| Backend domain operations | 90% | 80% | 100% | 90% |
+| Backend financial reports | 100% | 95% | 100% | 100% |
+| Web TypeScript library utilities | 70% | 75% | 70% | 70% |
+| Web cycle-comparison utilities | 100% | 100% | 100% | 100% |
+
+The authoritative scopes and thresholds live in each workspace's
+`vitest.config.mts`. Glob-scoped coverage also remains part of the global totals.
+
+#### DOM testing and maintaining the gates
+
+Web component and route suites opt into jsdom with
+`// @vitest-environment jsdom` and use React Testing Library and user-event.
+Utility and Sentry suites retain the default Node.js environment. Shared setup
+provides DOM cleanup, jest-dom matchers, and browser API shims for Radix and
+responsive components. Vitest supplies synthetic public environment settings;
+tests mock authentication and Convex boundaries rather than requiring real
+credentials or network services. Keep UI assertions focused on user-visible
+behavior, validation, state transitions, and mutation payloads, not render-only
+smoke tests or snapshots. DOM tests do not replace production-build checks or
+real-browser verification.
+
+When a gate fails, inspect its report and add tests for the missing behavior;
+do not silently lower thresholds or exclude production code. Increase floors
+as meaningful test coverage grows. Any deliberate scope or threshold change
+requires an explicit rationale in its pull request. Automatic threshold updates
+are disabled (Vitest's default), so validation never rewrites the agreed floors.
+
 ### Manual checks
 
 Run checks proportional to the change. The main repository checks are:
@@ -263,6 +342,7 @@ pnpm exec tsc --noEmit -p apps/web/tsconfig.json
 pnpm exec tsc --noEmit -p packages/backend/convex/tsconfig.json
 pnpm exec tsc --noEmit -p packages/env/tsconfig.json
 pnpm --dir packages/backend test:once
+pnpm test:coverage
 pnpm build
 ```
 
