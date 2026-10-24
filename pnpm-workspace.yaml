@@ -71,3 +71,5 @@ minimumReleaseAgeExclude:
   - vitest@4.1.11
   # Renovate security update: @modelcontextprotocol/server@2.3.0
   - "@modelcontextprotocol/server@2.3.0"
+  # Renovate security update: @modelcontextprotocol/client@2.3.0
+  - "@modelcontextprotocol/client@2.3.0"
