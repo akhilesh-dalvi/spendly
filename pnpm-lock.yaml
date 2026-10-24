@@ -287,8 +287,8 @@ importers:
         specifier: 4.1.12
         version: 4.1.12(vitest@4.1.12)
       convex-test:
-        specifier: ^0.0.62
-        version: 0.0.62(convex@1.34.1(@clerk/clerk-react@5.61.10(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4))
+        specifier: ^0.0.54
+        version: 0.0.54(convex@1.34.1(@clerk/clerk-react@5.61.10(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4))
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
@@ -4073,10 +4073,10 @@ packages:
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
 
-  convex-test@0.0.62:
-    resolution: {integrity: sha512-gvFps/A1JhOlFToZKjStSX8lWQS8oPF4oKm6U5D/ZdmOtfC7bKqw5Ce5ccAf45jvxPKPcFiyWt8JrueE+byB2g==}
+  convex-test@0.0.54:
+    resolution: {integrity: sha512-C0v2SQcuxrELAJRNzE6fQ686XDPor7UFoC22jcoJXeCRqhLo8ZIMZ4jyUHoo1UdAL2enCb0AbiprCVpLDN8u9Q==}
     peerDependencies:
-      convex: ^1.43.0
+      convex: ^1.32.0
 
   convex@1.34.1:
     resolution: {integrity: sha512-ooyFnZVVq0u6b5zt0Ptq8QB2ixhf/2vXe+PIcUtdtrs0lq/TwpkmmruHdqkFmWgMd6N+Tmfy8AGkz6QnZUYZBA==}
@@ -10012,7 +10012,7 @@ snapshots:
 
   convert-source-map@2.0.0: {}
 
-  convex-test@0.0.62(convex@1.34.1(@clerk/clerk-react@5.61.10(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)):
+  convex-test@0.0.54(convex@1.34.1(@clerk/clerk-react@5.61.10(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)):
     dependencies:
       convex: 1.34.1(@clerk/clerk-react@5.61.10(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)
 
