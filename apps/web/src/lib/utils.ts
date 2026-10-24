@@ -1,9 +1,6 @@
-import { type ClassValue, clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { cn as mergeClasses } from "cn";
 
-export function cn(...inputs: ClassValue[]) {
-	return twMerge(clsx(inputs));
-}
+export const cn = mergeClasses;
 
 export function formatCurrency(
 	amount: number,
