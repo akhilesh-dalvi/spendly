@@ -174,8 +174,8 @@ The hook's file patterns decide whether to run; analysis still covers the entire
 repository. Pre-commit keeps using Biome and lint-staged.
 
 Run `pnpm knip:report` to inspect the same findings without a failing exit code.
-Configuration and execution errors still fail the report command. CI publishes
-both the enforced checks and the report as GitHub annotations.
+Configuration and execution errors still fail the report command. CI runs the
+enforced check once and publishes its findings as GitHub annotations.
 
 `pnpm knip` runs the full analysis with a failing exit code for findings.
 `pnpm knip:production` adds a separate view of shipped code; it does not replace
@@ -257,8 +257,11 @@ such as `pnpm --dir apps/cli test:coverage` (also available in `apps/web` and
 `packages/backend`).
 The ordinary test commands remain available for faster iteration without coverage.
 Coverage is **enforced**, not advisory, in the main CI quality job and affected
-pre-push checks. The CLI platform matrix runs ordinary tests on Node.js 22/24;
-the coverage baseline is measured on Node.js 24 with Vitest and
+pre-push checks. The CLI platform matrix runs ordinary tests: pull requests use
+Linux with Node.js 22 and macOS with Node.js 24; master pushes and manual runs
+cover all four OS/Node combinations before release candidates can be frozen.
+Branch protection requires the quality gate, those two PR platform jobs, and
+dependency review. The coverage baseline is measured on Node.js 24 with Vitest and
 `@vitest/coverage-v8` pinned together at 4.1.11.
 
 Each workspace writes `coverage/coverage-summary.json` and an HTML report at

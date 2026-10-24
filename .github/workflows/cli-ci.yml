@@ -39,8 +39,6 @@ jobs:
         run: pnpm hooks:test
       - name: Check unused code and dependency declarations
         run: pnpm knip:check --reporter github-actions
-      - name: Report Knip findings
-        run: pnpm knip:report --reporter github-actions
       - name: Check release metadata and dependency lock
         run: pnpm --dir apps/cli release:check
       - name: Audit production dependencies
@@ -108,13 +106,10 @@ jobs:
     name: CLI (${{ matrix.os }}, Node.js ${{ matrix.node }})
     strategy:
       fail-fast: false
+      # PRs cover both supported Node versions and operating systems with two jobs.
+      # Master pushes and manual runs retain the full release-readiness matrix.
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-        node:
-          - 22
-          - 24
+        include: ${{ fromJSON(github.event_name == 'pull_request' && '[{"os":"ubuntu-latest","node":22},{"os":"macos-latest","node":24}]' || '[{"os":"ubuntu-latest","node":22},{"os":"ubuntu-latest","node":24},{"os":"macos-latest","node":22},{"os":"macos-latest","node":24}]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
