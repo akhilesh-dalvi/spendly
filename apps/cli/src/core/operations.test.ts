@@ -42,7 +42,7 @@ describe("Spendly operations", () => {
 		expect(schemas.output).toMatchObject({
 			$schema: "https://json-schema.org/draft/2020-12/schema",
 			properties: {
-				nextCursor: { anyOf: [{ type: "string" }, { type: "null" }] },
+				nextCursor: { type: ["string", "null"] },
 			},
 			type: "object",
 		});
