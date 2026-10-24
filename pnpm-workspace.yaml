@@ -18,14 +18,27 @@ overrides:
   "sharp@>=0.35.0 <0.35.5": 0.35.5
   # GHSA-68fv-2mgg-jv7q: patch vulnerable transitive source-map consumers.
   "source-map-js@>=1.0.0 <1.2.2": 1.2.2
+  # GHSA-587h-7wmj-h5pm: patch vulnerable transitive Vite consumers.
+  "vite@>=8.2.0 <=8.2.3": 8.2.4
   ws: 8.21.0
 catalog:
-  zod: ^4.1.13
+  zod: ^4.6.6
   typescript: ^5
   convex: ^1.31.2
 minimumReleaseAge: 10080
 minimumReleaseAgeStrict: true
 minimumReleaseAgeExclude:
+  # Security update: allow only the patched Next.js 16.4.3 package family.
+  - next@16.4.3
+  - '@next/env@16.4.3'
+  - '@next/swc-darwin-arm64@16.4.3'
+  - '@next/swc-darwin-x64@16.4.3'
+  - '@next/swc-linux-arm64-gnu@16.4.3'
+  - '@next/swc-linux-arm64-musl@16.4.3'
+  - '@next/swc-linux-x64-gnu@16.4.3'
+  - '@next/swc-linux-x64-musl@16.4.3'
+  - '@next/swc-win32-arm64-msvc@16.4.3'
+  - '@next/swc-win32-x64-msvc@16.4.3'
   - fumadocs-core@16.15.7
   - fumadocs-ui@16.15.7
   - '@next/env@16.3.6'

@@ -60,7 +60,7 @@
     "commander": "14.0.3",
     "convex": "1.45.0",
     "jose": "6.2.2",
-    "zod": "4.3.6"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@types/node": "24.12.2",
