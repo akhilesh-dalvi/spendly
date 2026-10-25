@@ -38,7 +38,7 @@ export const runKeychainSmokeTest = (): {
 			try {
 				entry.deletePassword();
 			} catch {
-				// Preserve the original test failure. The unique account is documented in the error path.
+				// Preserve the original failure; the error path identifies the leftover account.
 			}
 		}
 	}

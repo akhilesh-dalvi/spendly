@@ -346,7 +346,7 @@ describe("new and edit cycle routes", () => {
 	});
 
 	it("handles missing cycles and returns to the list", async () => {
-		// A stale route can receive no document at runtime even though the typed query normally throws.
+		// Stale routes may receive no document despite the query's non-null type.
 		mocks.queries.set(getFunctionName(api.cycles.get), null);
 		await renderEdit();
 		expect(

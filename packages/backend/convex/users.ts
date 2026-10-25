@@ -53,7 +53,6 @@ export const create = mutation({
 			throw new Error("Called create user without authentication");
 		}
 
-		// Check if user already exists
 		const existingUser = await ctx.db
 			.query("users")
 			.withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
@@ -74,25 +73,24 @@ export const create = mutation({
 		});
 		await seedDefaultAccountTypes(ctx, userId);
 
-		// Seed default category types
 		await ctx.db.insert("category_types", {
 			userId,
 			name: "Needs",
-			color: "#3b82f6", // Blue 500
+			color: "#3b82f6",
 			order: 0,
 			createdAt: Date.now(),
 		});
 		await ctx.db.insert("category_types", {
 			userId,
 			name: "Wants",
-			color: "#f59e0b", // Amber 500
+			color: "#f59e0b",
 			order: 1,
 			createdAt: Date.now(),
 		});
 		await ctx.db.insert("category_types", {
 			userId,
 			name: "Savings",
-			color: "#10b981", // Emerald 500
+			color: "#10b981",
 			order: 2,
 			createdAt: Date.now(),
 		});

@@ -1,553 +1,195 @@
-# Contributing to Spendly
+# Contributing
 
-Spendly uses a deliberately small GitHub workflow. The goal is to keep the
-work visible and understandable without turning project management into a
-second project.
+## Setup
 
-## Local development
-
-### Prerequisites
-
-- Node.js 20.19 or newer in the 20.x line, or Node.js 22.12 or newer
-- pnpm 11.21.0, as pinned by the `packageManager` field in `package.json`
-- A Convex account and project
-- A Clerk application
-
-### Initial setup
-
-Install the workspace dependencies from the repository root:
+Use Node.js 20.19+ on the 20.x line or 22.12+; CLI development requires Node.js
+22+. Use the pnpm version pinned in `package.json`, plus Convex and Clerk accounts.
 
 ```bash
 pnpm install
-```
-
-Connect the backend workspace to a Convex deployment:
-
-```bash
 pnpm dev:setup
-```
-
-This runs `convex dev --configure --until-success` in `packages/backend` and
-walks through selecting or creating a deployment.
-
-### Environment variables
-
-Each application or workspace owns its environment file. Do not copy one
-shared file throughout the monorepo or commit populated environment files.
-
-Start the web environment from its checked-in example:
-
-```bash
 cp apps/web/.env.example apps/web/.env.local
 ```
 
-Populate it with the Convex deployment URL and Clerk credentials for the local
-application. The web environment validator requires:
+`dev:setup` selects or creates a Convex deployment. Environment files belong to
+each workspace; never commit populated files.
 
-- `NEXT_PUBLIC_CONVEX_URL`
-- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+- Web: set `NEXT_PUBLIC_CONVEX_URL`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, and
+  `CLERK_SECRET_KEY`. `NEXT_PUBLIC_SITE_URL` optionally sets the canonical URL.
+- Backend: Convex manages deployment values in `packages/backend/.env.local`.
+  Set `CLERK_JWT_ISSUER_DOMAIN` in the Convex dashboard. CLI authentication also
+  requires the approved public client ID in `CLERK_CLI_OAUTH_CLIENT_ID`;
+  leaving it unset disables CLI OAuth.
 
-The Clerk integration also reads `CLERK_SECRET_KEY` from the web environment.
-`NEXT_PUBLIC_SITE_URL` is optional and can be used when an explicit canonical
-site URL is needed.
-
-Convex setup manages deployment values such as `CONVEX_DEPLOYMENT` and
-`CONVEX_URL` in `packages/backend/.env.local`. Configure
-`CLERK_JWT_ISSUER_DOMAIN` in the Convex dashboard so backend authentication can
-verify Clerk-issued tokens.
-
-`CLERK_CLI_OAUTH_CLIENT_ID` is optional in Convex deployments that only serve
-the Web app. Configure it with the approved Clerk OAuth public client ID before
-enabling CLI authentication; an unset value leaves the CLI OAuth provider disabled.
-
-Keep `apps/web/.env.example` and `packages/backend/.env.example` synchronized
-with the environment requirements when configuration changes.
-
-### Web error monitoring
-
-Spendly uses the `spendly-web` Sentry project in the `akhilesh-rl` organization.
-`apps/web/next.config.ts` embeds its public DSN; it is an ingestion identifier,
-not an authentication secret. Set `NEXT_PUBLIC_SENTRY_DSN` to override the project.
-This integration runs in Next.js only and does not require Convex Pro or add
-telemetry to the published CLI. Backend stack traces remain in Convex logs.
-
-Production reporting is enabled by default. Preview and local reporting are off
-unless `NEXT_PUBLIC_SENTRY_ENABLED=true`; set it to `false` to disable reporting
-in any environment. `NEXT_PUBLIC_SENTRY_ENVIRONMENT` overrides the environment
-otherwise derived from `VERCEL_ENV`, with `development` as the local default
-even for `next build` and `next start`. For production hosting outside Vercel,
-set the environment explicitly or enable reporting with the flag above.
-Error sampling is 100% and tracing is 10%; Replay, profiling, logs, and custom
-metrics are disabled.
-
-Collection and outbound filters in `apps/web/src/lib/sentry-options.ts` and
-`sentry-privacy.ts` exclude identity, cookies, headers, bodies, financial payloads,
-raw error messages, breadcrumbs, and arbitrary span attributes. An explicit
-non-routable IP prevents connection-based geolocation for errors. Error stacks,
-route templates, safe operation tags, and available Convex request IDs remain.
-Expected domain failures are filtered explicitly; unknown failures still report.
-Use `reportError` for caught application failures without attaching form values.
-`pnpm --dir apps/web test` verifies these privacy and classification boundaries.
-
-For readable production browser stacks, configure `SENTRY_AUTH_TOKEN` as a
-**build-only secret** in the hosting environment, using Sentry's source-map upload
-permissions (`org:read` and `project:releases`). Never prefix it with
-`NEXT_PUBLIC_` or commit it. The defaults for `SENTRY_ORG` and `SENTRY_PROJECT`
-match the project above and can be overridden. Source-map uploads run only when
-the token exists; uploaded client maps are deleted from the build output.
-
-Releases use `NEXT_PUBLIC_SENTRY_RELEASE`, `SENTRY_RELEASE`,
-`VERCEL_GIT_COMMIT_SHA`, or the checkout's Git SHA, in that order. For a build from
-a source archive without Git, supply `SENTRY_RELEASE`. Turbo tracks the public
-settings and release inputs and passes the upload token only to the web build.
-The web build bypasses Turbo caching so each build uses the current checkout's
-release and performs any configured source-map upload.
-After deploying, verify a controlled error in Sentry has readable file/line
-locations and contains no personal or financial data.
-
-### Running the project
-
-Start all current development tasks:
+Keep workspace `.env.example` files synchronized with configuration changes.
 
 ```bash
-pnpm dev
+pnpm dev          # All development tasks; web at http://localhost:3001
+pnpm dev:web      # Web only
+pnpm dev:server   # Convex only
+pnpm dev:cli      # CLI
 ```
 
-The web app is available at [http://localhost:3001](http://localhost:3001).
-Run an individual surface when full monorepo development is unnecessary:
-
-```bash
-pnpm dev:web
-pnpm dev:server
-```
-
-After changing the Convex schema or backend functions, keep the Convex dev
-process running so files under `packages/backend/convex/_generated/` remain in
-sync. Never edit generated Convex files by hand.
+Keep Convex dev running after schema or function changes to update
+`packages/backend/convex/_generated/`; never edit generated files manually.
 
 ## Verification
 
-### Local Git hooks
-
-`pnpm install` installs Lefthook's pre-commit and pre-push hooks for the current
-checkout. Run it separately in each new worktree. To repair an existing
-installation, run `pnpm hooks:install`.
-
-Pre-commit runs lint-staged with the installed Biome binary and the repository's
-Ultracite presets. It formats and lints staged JavaScript, TypeScript, JSON, and
-CSS files, preserving unstaged changes in partially staged files. Markdown and
-MDX are outside Biome's supported formats and are not processed by this hook.
-
-Pre-push runs checks for affected workspaces in parallel: web and environment
-typechecks, backend typechecks and tests, and CLI production/development
-typechecks and tests. Backend changes also check its web and CLI consumers;
-shared configuration and dependency changes check all workspaces. CLI, backend,
-and web tests enforce their Vitest coverage floors on affected pushes. The rules
-live in `lefthook.yml`. A Knip job checks unused code, exports, dependencies,
-and import declarations across the whole repository when source, tooling, or
-configuration files change.
-Production builds, dependency audits, and package verification remain in CI.
-Web checks generate Next.js route types and require
-the public Convex and Clerk settings from `apps/web/.env.local` or the shell.
-
-Installation uses worktree-specific Git configuration and generates ignored
-hooks in `.lefthook-hooks/`. It preserves other checkouts' hook paths and skips
-CI, production installs, source archives without `.git`, and `LEFTHOOK=0`.
-The package's automatic installer is disabled so the root installer owns this
-worktree setup. Use `LEFTHOOK=0` for a deliberate one-command bypass, for example
-`LEFTHOOK=0 git commit`, and still run the relevant checks before merging.
-
-### Unused code and dependency analysis
-
-Knip is pinned at the repository root. Its built-in plugins automatically detect
-Next.js, Convex, Fumadocs, Vitest, TypeScript, Biome, Lefthook, lint-staged,
-GitHub Actions, pnpm, and the other supported tools already in the workspace.
-There are no separate plugin packages to install. `knip.jsonc` adds the CLI's
-development source entry, standalone evaluation scripts, and the backend's
-nested TypeScript configuration.
-
-Run `pnpm knip:check` for the full analysis enforced by pre-push and CI: unused
-files, exports, types, dependencies, duplicate exports, unlisted dependencies,
-unresolved imports, missing command binaries, unused catalog entries, and
-unresolved catalog references. Stale configuration hints also fail this command.
-The hook's file patterns decide whether to run; analysis still covers the entire
-repository. Pre-commit keeps using Biome and lint-staged.
-
-Run `pnpm knip:report` to inspect the same findings without a failing exit code.
-Configuration and execution errors still fail the report command. CI runs the
-enforced check once and publishes its findings as GitHub annotations.
-
-`pnpm knip` runs the full analysis with a failing exit code for findings.
-`pnpm knip:production` adds a separate view of shipped code; it does not replace
-the default analysis of tests and tooling. It can flag release scripts and
-exports referenced only by tests, so check the full repository graph before
-removing them. Keep the full report clean by resolving findings or documenting
-narrow, intentional exceptions. Avoid blanket ignores and automatic deletion of
-files or dependencies without review.
-
-### Automated dependency updates
-
-Renovate checks routine npm dependency and GitHub Actions updates weekly. It
-groups npm patch and minor updates separately, limits open update pull requests,
-and waits seven days after npm package releases before proposing routine
-updates. Major updates remain separate pull requests. Updates are never merged
-automatically; review the diff and require the repository CI checks before
-merging.
-
-pnpm also enforces a seven-day minimum release age for newly resolved
-dependencies, including transitive dependencies. Exact-version exceptions in
-`pnpm-workspace.yaml` apply only to the listed releases. Keep the shared
-`pnpm-lock.yaml` and the CLI's generated `npm-shrinkwrap.json` consistent with
-their manifests; CLI release checks validate the published dependency metadata.
-
-Workspace membership is defined only in `pnpm-workspace.yaml`;
-keep npm's `workspaces` field out of the root manifest so Renovate can update
-the CLI shrinkwrap without npm resolving the pnpm-only `catalog:` and
-`workspace:` protocols. For manual CLI dependency updates, run
-`pnpm --dir apps/cli shrinkwrap:generate` after updating the manifest and
-workspace lockfile, then run `pnpm --dir apps/cli release:check`.
-
-The published CLI shrinkwrap must contain only production dependencies,
-including optional platform bindings. Source `package.json` development tools
-remain available for contributors, but root `devDependencies` metadata and
-entries marked `dev: true` are rejected by release and tarball verification.
-After automated npm artifact updates, check this boundary and regenerate the
-shrinkwrap if development entries were added. The generator uses a separate
-production-only manifest; `npm install --omit=dev` against the full source
-manifest alone still records development dependencies in a lockfile. Review
-regeneration diffs because upstream transitive ranges can resolve newer versions.
-
-Keep the publishable shrinkwrap for reproducible CLI installs and OS keychain
-storage for credential protection. Dependency scanners inspect complete upstream
-packages, including tooling that Spendly does not invoke. Review flagged code
-and runtime reachability before replacing dependencies; required network,
-filesystem, native-code, or subprocess capabilities are not by themselves proof
-of malicious behavior.
-
-Renovate's npm tool is pinned to 11.19.0 in `renovate.json` to keep CLI
-shrinkwrap updates working. With npm 12.2.0, the artifact update creates a
-`package-lock.json` alongside the existing `npm-shrinkwrap.json`, and Renovate
-fails when renaming it with `dest already exists`. Before changing this pin,
-verify that npm updates the existing shrinkwrap without creating a second lock
-file, then rerun the CLI release metadata check.
-
-GitHub Dependabot alerts provide vulnerability notifications. Renovate uses
-those alerts to create fix pull requests. The existing CI dependency-review
-check blocks pull requests that introduce known vulnerabilities. Production
-dependency audits remain active as separate release gates.
-Security-fix pull requests bypass Renovate's weekly schedule, release-age delay,
-and ordinary pull-request limit. pnpm's release-age policy still applies in CI.
-For an urgent fix released less than seven days ago, review the advisory and
-release, add only the required exact versions to `minimumReleaseAgeExclude`,
-and rerun installation and both production audits. Remove temporary exceptions
-once those releases are seven days old; keep the general policy enabled.
-
-CI validates `renovate.json` in strict repository mode. Keep the validator pin
-on a release at least seven days old so it satisfies the installation policy.
-Run the same check locally using the pinned pnpm version:
+Run checks proportional to the change and report what actually ran:
 
 ```bash
-pnpm --package=renovate@44.115.13 dlx renovate-config-validator --strict --no-global renovate.json
-```
-
-### Test coverage
-
-Run every coverage gate with `pnpm test:coverage`, or use a workspace command
-such as `pnpm --dir apps/cli test:coverage` (also available in `apps/web` and
-`packages/backend`).
-The ordinary test commands remain available for faster iteration without coverage.
-Coverage is **enforced**, not advisory, in the main CI quality job and affected
-pre-push checks. The CLI platform matrix runs ordinary tests: pull requests use
-Linux with Node.js 22 and macOS with Node.js 24; master pushes and manual runs
-cover all four OS/Node combinations before release candidates can be frozen.
-Branch protection requires the quality gate, those two PR platform jobs, and
-dependency review. The coverage baseline is measured on Node.js 24 with Vitest and
-`@vitest/coverage-v8` pinned together at 4.1.11.
-
-Each workspace writes `coverage/coverage-summary.json` and an HTML report at
-`coverage/index.html`, including reports when tests fail. CI uploads the reports
-as the `coverage-reports` artifact for 14 days, including on coverage failure.
-Generated reports are ignored by Git; the initial measurements below record the
-baseline without committing machine-specific paths.
-
-#### Coverage scope and enforced targets
-
-Issue #33 was measured against the CLI/web `src` trees and backend `convex`
-tree, including unimported files. Root framework configuration and the CLI's
-source-checkout development entrypoints are outside these scopes. Tests and
-type declarations are excluded. The CLI additionally
-excludes the manual OS-keychain smoke script, and the backend excludes generated
-Convex bindings and the test module loader. All web routes, components, hooks,
-and utilities remain in scope; untested UI is not hidden from the denominator.
-
-Initial coverage before adding focused tests (statements / branches): CLI
-82.26% / 68.27%, backend 77.93% / 64.89%, web 2.29% / 3.33%.
-Behavioral tests for CLI authentication, prompts, clients, and output fallbacks;
-backend ownership, queries, pagination, and financial operations; and web forms,
-navigation, onboarding, routes, and charts meet all of issue #33's original
-statements / branches targets: CLI 85% / 80%, backend 80% / 75%, web 70% / 60%.
-The backend statement gate retains its already-higher 82.4% floor.
-
-| Workspace | Statements | Branches | Functions | Lines |
-| --- | ---: | ---: | ---: | ---: |
-| CLI measured | 90.58% | 82.78% | 91.81% | 90.72% |
-| CLI minimum | 85% | 80% | 86.1% | 83.9% |
-| Backend measured | 93.98% | 85.10% | 96.06% | 93.91% |
-| Backend minimum | 82.4% | 75% | 81.3% | 82.6% |
-| Web measured | 90.80% | 90.76% | 90.29% | 90.80% |
-| Web minimum | 70% | 60% | 60% | 70% |
-
-Measured values record this implementation's combined suite, not a promise of
-future exact results. Stronger scoped gates protect critical behavior
-independently of the overall averages:
-
-| Scope | Statements | Branches | Functions | Lines |
-| --- | ---: | ---: | ---: | ---: |
-| CLI authentication commands | 90% | 90% | 85% | 90% |
-| Backend domain operations | 90% | 80% | 100% | 90% |
-| Backend financial reports | 100% | 95% | 100% | 100% |
-| Web TypeScript library utilities | 70% | 75% | 70% | 70% |
-| Web cycle-comparison utilities | 100% | 100% | 100% | 100% |
-
-The authoritative scopes and thresholds live in each workspace's
-`vitest.config.mts`. Glob-scoped coverage also remains part of the global totals.
-
-#### DOM testing and maintaining the gates
-
-Web component and route suites opt into jsdom with
-`// @vitest-environment jsdom` and use React Testing Library and user-event.
-Utility and Sentry suites retain the default Node.js environment. Shared setup
-provides DOM cleanup, jest-dom matchers, and browser API shims for Radix and
-responsive components. Vitest supplies synthetic public environment settings;
-tests mock authentication and Convex boundaries rather than requiring real
-credentials or network services. Keep UI assertions focused on user-visible
-behavior, validation, state transitions, and mutation payloads, not render-only
-smoke tests or snapshots. DOM tests do not replace production-build checks or
-real-browser verification.
-
-When a gate fails, inspect its report and add tests for the missing behavior;
-do not silently lower thresholds or exclude production code. Increase floors
-as meaningful test coverage grows. Any deliberate scope or threshold change
-requires an explicit rationale in its pull request. Automatic threshold updates
-are disabled (Vitest's default), so validation never rewrites the agreed floors.
-
-### Manual checks
-
-Run checks proportional to the change. The main repository checks are:
-
-```bash
-pnpm dlx ultracite check
+pnpm dlx ultracite check   # Use fix for formatting and safe lint fixes
 pnpm check-types
 pnpm hooks:test
 pnpm knip:check
-pnpm knip:report
-pnpm exec tsc --noEmit -p apps/web/tsconfig.json
-pnpm exec tsc --noEmit -p packages/backend/convex/tsconfig.json
-pnpm exec tsc --noEmit -p packages/env/tsconfig.json
-pnpm --dir packages/backend test:once
 pnpm test:coverage
 pnpm build
 ```
 
-Use `pnpm dlx ultracite fix` to apply automatic formatting and safe lint fixes
-before rerunning the checks. A focused documentation or isolated code change
-does not always require every command, but the pull request must state what was
-actually verified.
+CLI-only checks: `pnpm check-types:cli`, `pnpm test:cli`, and `pnpm pack:cli`.
+Workspace scripts in `package.json` provide focused checks. Web typechecks
+generate route types and need public Convex/Clerk settings from the environment.
 
-Production Web builds use Webpack with an isolated, memory-optimized compilation
-worker. Keep the explicit worker settings in `apps/web/next.config.ts`: the MDX
-and Sentry integrations customize Webpack, which otherwise disables Next.js's
-automatic worker selection. The worker releases compilation memory before the
-TypeScript phase; do not disable production typechecking to work around build
-memory limits. Development continues to use Next.js's default bundler.
+### Hooks and unused code
 
-Production builds load the Geist fonts through `next/font/google`. If a local
-build fails while fetching fonts, confirm that the environment can reach Google
-Fonts before treating it as an application failure.
+`pnpm install` installs worktree-specific Lefthook hooks; repair with
+`pnpm hooks:install`. Install separately in each worktree. Installation skips CI,
+production installs, source archives without Git, and `LEFTHOOK=0`.
 
-## Repository conventions
+- Pre-commit formats/lints staged JS, TS, JSON, and CSS with Biome, preserving
+  unstaged edits. Markdown/MDX are not processed.
+- Pre-push checks affected workspaces, including coverage. Backend changes check
+  consumers; shared configuration changes check all workspaces. Knip scans the
+  full repository when relevant files change.
+- CI additionally checks production builds, dependency audits, and packages.
 
-- [`apps/web`](apps/web) contains the Next.js application.
-- [`packages/backend/convex/schema.ts`](packages/backend/convex/schema.ts) is the
-  source of truth for the data model, tables, indexes, and relationships.
-- Backend behavior lives in the corresponding modules under
-  [`packages/backend/convex`](packages/backend/convex), with `*.test.ts` files
-  recording expected behavior.
-- [`packages/backend/convex/auth.config.ts`](packages/backend/convex/auth.config.ts)
-  and
-  [`packages/backend/convex/convex.config.ts`](packages/backend/convex/convex.config.ts)
-  define authentication and Convex configuration.
-- [`packages/env`](packages/env) contains shared environment validation.
-- [`packages/config`](packages/config) contains shared TypeScript configuration.
+See `lefthook.yml` for triggers. A deliberate `LEFTHOOK=0` bypass does not
+remove the obligation to verify before merging.
 
-Keep implementation details in code, types, and tests instead of maintaining
-file inventories, schema copies, or API descriptions in Markdown. Documentation
-should point contributors to the authoritative code when that code already
-expresses the contract clearly.
+`pnpm knip:check` fails on unused code/dependencies and stale configuration hints.
+`pnpm knip:report` reports findings without failing, but still fails on execution
+errors. `pnpm knip:production` is supplementary: check the full graph before
+removing anything used only by tests/tooling. Keep exceptions narrow and justified
+in `knip.jsonc`.
 
-## Source of truth
+### Tests and coverage
 
-- Source code, schemas, types, and tests define shipped application behavior.
-- GitHub Issues track meaningful work, bugs, research, and product decisions.
-- One GitHub Project provides the planning view.
-- Pull requests contain the implementation and verification record.
-- Repository documentation records contributor workflow and enduring context
-  that cannot be expressed clearly in code.
-- `docs/features/` is temporary scratch space for active, multi-session feature
-  work. Follow `docs/README.md` and delete the feature file when the work ships.
+Coverage gates and scopes live in each workspace's `vitest.config.mts`.
+Use `pnpm test:coverage` for all gates or `pnpm --dir <workspace> test:coverage`.
+Reports are written to `coverage/`; CI retains `coverage-reports` for 14 days,
+including failures.
 
-Do not maintain the same backlog in another tool.
+Fix missing behavioral coverage rather than lowering thresholds or excluding
+production code. Scope/threshold changes require an explicit PR rationale.
+Web DOM tests opt into jsdom with `// @vitest-environment jsdom` and use React
+Testing Library/user-event. Mock auth and Convex; test visible behavior,
+validation, transitions, and mutation payloads. DOM tests do not replace
+production builds or browser checks.
 
-## When to create an issue
+### Build constraints
 
-Create or identify an issue before starting work that:
+Web production builds use Webpack. Preserve the memory-optimized compilation
+worker settings in `apps/web/next.config.ts`: MDX/Sentry wrappers disable automatic
+worker selection. Keep production typechecking enabled. Google Fonts access is
+required by `next/font/google`.
 
-- will take more than a small, immediate edit;
-- needs research or a product decision;
-- will span more than one development session;
-- produces a user-visible outcome; or
-- should remain discoverable after today.
+## Web error monitoring
 
-An issue is optional for a tiny fix that can be completed and verified
-immediately. Search existing issues before creating a new one.
+Sentry defaults to `akhilesh-rl/spendly-web`; its embedded public DSN is not a
+secret. Override with `NEXT_PUBLIC_SENTRY_DSN`. Only Next.js reports to Sentry;
+backend stacks remain in Convex logs and the CLI has no telemetry.
 
-## Project workflow
+Production reporting is on; preview/local reporting is off.
+`NEXT_PUBLIC_SENTRY_ENABLED=true|false` overrides this.
+`NEXT_PUBLIC_SENTRY_ENVIRONMENT` overrides `VERCEL_ENV`, otherwise
+`development` is used, including local production builds. Configure non-Vercel
+production hosting explicitly.
 
-Use these statuses in the Spendly GitHub Project:
+Privacy filters in `apps/web/src/lib/sentry-options.ts` and `sentry-privacy.ts`
+strip identity, request/financial payloads, raw messages, breadcrumbs, and
+arbitrary span attributes; errors use a non-routable IP to prevent geolocation.
+Stacks, route templates, safe operation tags, and Convex request IDs remain.
+Use `reportError` for caught failures without form values. Web tests verify these
+boundaries. Sampling and enabled integrations are defined in those files.
 
-| Status | Meaning |
-| --- | --- |
-| Inbox | An unreviewed idea, bug, or request. |
-| Planned | Worth doing, but not yet prepared for implementation. |
-| Ready | Understood well enough to start. |
-| In Progress | Actively being implemented. |
-| Done | Shipped or otherwise completed. |
+For readable browser stacks, set build-only `SENTRY_AUTH_TOKEN` with
+`org:read` and `project:releases` permissions. Never prefix it with `NEXT_PUBLIC_`
+or commit it. `SENTRY_ORG`/`SENTRY_PROJECT` override defaults. Uploads require the
+token; uploaded client maps are removed from build output.
 
-Keep at most one major issue in **In Progress**. Keep **Ready** small, ideally
-three to five issues, so it represents an actual next-up queue rather than a
-second backlog.
+Release precedence: `NEXT_PUBLIC_SENTRY_RELEASE`, `SENTRY_RELEASE`,
+`VERCEL_GIT_COMMIT_SHA`, Git SHA. Supply `SENTRY_RELEASE` for source archives.
+Web builds bypass Turbo caching so release IDs and uploads stay current.
+After deployment, verify a controlled error has readable stacks and no personal
+or financial data.
 
-Use metadata sparingly:
+## Dependencies
 
-- Type: `bug`, `feature`, `improvement`, `research`, or `documentation`
-- Area: `web`, `backend`, `mobile`, `cli`, or `integrations`
-- Priority: `high`, `normal`, or `low`
+Renovate proposes weekly routine updates and separate major updates; merging is
+manual after CI. Security fixes bypass its schedule and ordinary limits.
+Dependabot alerts, dependency review, and production audits remain release gates.
 
-Do not add story points, sprint ceremonies, assignees for a solo maintainer, or
-due dates unless they answer a real planning question.
+pnpm enforces a seven-day release age, including security fixes. For an urgent
+reviewed fix, add only required exact versions to `minimumReleaseAgeExclude` in
+`pnpm-workspace.yaml`, reinstall, and run both production audits. Remove temporary
+exceptions after seven days. Keep the general policy enabled.
 
-## Writing an issue
+Workspace membership belongs only in `pnpm-workspace.yaml`, not npm's
+`workspaces` field. After manual CLI dependency changes:
 
-An issue should describe one outcome. Keep early ideas short while they are in
-**Inbox**, and add detail only when the work is being prepared.
-
-Use this structure for planned work:
-
-```md
-## Problem
-
-What is difficult, missing, or incorrect?
-
-## Outcome
-
-What should become possible from the user's perspective?
-
-## Scope
-
-- Included change
-
-## Out of scope
-
-- Related work deliberately excluded
-
-## Acceptance criteria
-
-- [ ] Observable requirement
-- [ ] Important edge case
-- [ ] Relevant checks pass
-- [ ] Documentation is updated when necessary
-
-## Notes
-
-Relevant decisions, links, constraints, and files.
+```bash
+pnpm --dir apps/cli shrinkwrap:generate
+pnpm --dir apps/cli release:check
 ```
 
-For research, state the decision that must be made, the requirements, the
-options being considered, and the final decision. Create separate
-implementation issues after the decision instead of growing one issue
-indefinitely.
+Keep manifests, `pnpm-lock.yaml`, and the CLI `npm-shrinkwrap.json` consistent.
+The published shrinkwrap must contain production dependencies and optional
+platform bindings only. Use the generator's production-only manifest:
+`npm install --omit=dev` against the source manifest still records dev metadata.
+Review regeneration diffs for newly resolved transitive versions.
 
-## Documentation boundaries
+Renovate pins npm in `renovate.json` because npm 12.2.0 creates a second lockfile,
+causing artifact updates to fail with `dest already exists`. Before changing the
+pin, verify in-place shrinkwrap updates and run the CLI release check.
+Validate Renovate with the version pinned in CI; keep that validator at least
+seven days old.
 
-Use the following rule when deciding where information belongs:
+Review flagged code and runtime reachability before replacing dependencies.
+Retain reproducible shrinkwrap installs and OS-keychain credential storage.
 
-| Location | Purpose |
-| --- | --- |
-| Issue | Why the work exists and how completion will be judged. |
-| Issue comment | A material discovery or change in direction. |
-| `docs/features/<name>.md` | Temporary detail for active, multi-session work. |
-| Permanent documentation | Shipped behavior or an enduring decision. |
-| Pull request | The exact implementation and verification performed. |
+## Workflow
 
-Do not use issues as a permanent manual, and do not commit speculative product
-documentation as though it describes shipped behavior.
+Source, schemas, types, and tests define shipped behavior. GitHub Issues hold
+requirements/decisions; one GitHub Project holds status; PRs record implementation
+and verification. Keep permanent docs for enduring context, not file inventories,
+copied contracts, or a second backlog.
 
-## Development flow
+Meaningful, user-visible, researched, or multi-session work should have an issue;
+tiny immediately verifiable fixes need not. Search before creating one.
+**Agents may create or modify issues only when explicitly asked.**
 
-1. Choose an issue from **Ready** and confirm its acceptance criteria.
-2. Move it to **In Progress**.
-3. Create a short-lived branch from `master`. Include the issue number when one
-   exists, for example `feature/42-recurring-expenses`.
-4. For major work spanning multiple sessions, use a dedicated worktree and a
-   temporary `docs/features/<name>.md` file as described in `AGENTS.md`.
-5. Implement the smallest complete outcome and run checks proportional to the
-   change.
-6. Open a focused pull request. Include `Closes #42` when the pull request fully
-   resolves the issue.
-7. Merge only after the acceptance criteria and relevant checks pass.
-8. Delete temporary feature notes and allow the closed issue to move to
-   **Done**.
+Project statuses: **Inbox** (unreviewed), **Planned** (worth doing), **Ready**
+(prepared), **In Progress** (active), **Done** (complete). Keep at most one major
+issue in progress and roughly three to five ready. Use type, area, and priority
+metadata only when useful.
 
-If work is paused, move it back to **Planned** or **Ready** and leave one short
-comment explaining what remains. Do not leave inactive work in **In Progress**.
+Issues describe one outcome: problem, desired result, scope/exclusions,
+observable acceptance criteria, and relevant constraints/links. Research issues
+end with a decision; track implementation separately.
 
-## Pull requests
+1. Continue active work or select a ready issue; confirm acceptance criteria.
+2. Create a short-lived branch from `master`, e.g. `feature/42-recurring-expenses`.
+   Keep the main checkout on deployable `master`.
+3. For major multi-session work, use a dedicated worktree:
+   `git worktree add ../<name> -b feature/<name> master`.
+   Each worktree needs its own dependencies and environment files.
+4. Keep temporary feature notes in `docs/features/<name>.md`, following
+   `docs/README.md`. Inspect current code before trusting old notes.
+5. Implement one coherent outcome; verify proportionally. Keep branches current
+   with `master` and open one PR per feature, stating why, key decisions, checks,
+   and deferred work. Use `Closes #42` only for fully resolved issues.
+6. Merge after acceptance criteria and checks pass; delete shipped feature notes.
 
-Keep one coherent outcome per pull request. A pull request should explain:
-
-- what changed and why;
-- important design or compatibility decisions;
-- how the change was verified; and
-- any intentionally deferred work.
-
-Follow the coding, branching, worktree, and testing standards in `AGENTS.md`.
-Do not mix unrelated cleanup into a feature pull request.
-
-## Lightweight maintenance routine
-
-At the start of a development session:
-
-1. Continue the issue in **In Progress**.
-2. If there is none, select one issue from **Ready**.
-
-At the end of a session:
-
-1. Update acceptance criteria that are genuinely complete.
-2. Record only information needed to resume the work.
-3. Make the issue status match reality.
-
-Once a week, spend a few minutes reviewing **Inbox**, closing ideas that no
-longer matter, and selecting only the next few credible items for **Ready**.
-Closing an issue as not planned is normal backlog maintenance.
-
-## Guidance for coding agents
-
-Agents must follow this workflow without creating extra process:
-
-- Treat the assigned issue and any linked feature document as the requirements.
-- Inspect current code and repository state before relying on stale issue notes.
-- Keep changes within the issue's stated outcome and acceptance criteria.
-- Do not create, modify, close, or reprioritize GitHub issues unless the user
-  explicitly asks for that external action.
-- Report verification and remaining work clearly so the issue or pull request
-  can be updated accurately.
+Keep authorized issue updates concise: material discoveries, completed criteria,
+and what is needed to resume. Paused work returns to Planned/Ready, not In Progress.
+Review Inbox periodically and close ideas that no longer matter.

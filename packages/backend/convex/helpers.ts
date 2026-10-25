@@ -4,10 +4,6 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { ActionSource } from "./domain/actionSource";
 import { nextRevision } from "./domain/revisions";
 
-/**
- * Get the current authenticated user.
- * Throws an error if the user is not authenticated or not found in the database.
- */
 export async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
 	const identity = await ctx.auth.getUserIdentity();
 	if (!identity) {
@@ -26,9 +22,6 @@ export async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
 	return user;
 }
 
-/**
- * Get the current authenticated user, or null if not authenticated/found.
- */
 export async function getCurrentUserOrNull(ctx: QueryCtx | MutationCtx) {
 	const identity = await ctx.auth.getUserIdentity();
 	if (!identity) {
@@ -41,9 +34,6 @@ export async function getCurrentUserOrNull(ctx: QueryCtx | MutationCtx) {
 		.unique();
 }
 
-/**
- * Finds the cycle containing a given date.
- */
 export async function findCycleForDate(
 	ctx: QueryCtx | MutationCtx,
 	userId: Id<"users">,
@@ -61,9 +51,6 @@ export async function findCycleForDate(
 		: null;
 }
 
-/**
- * Checks if cycle belongs to user, throws if not.
- */
 export async function validateCycleOwnership(
 	ctx: QueryCtx | MutationCtx,
 	cycleId: Id<"expense_cycles">,
@@ -76,9 +63,6 @@ export async function validateCycleOwnership(
 	return cycle;
 }
 
-/**
- * Checks if category belongs to user, throws if not.
- */
 export async function validateCategoryOwnership(
 	ctx: QueryCtx | MutationCtx,
 	categoryId: Id<"categories">,
@@ -91,9 +75,6 @@ export async function validateCategoryOwnership(
 	return category;
 }
 
-/**
- * Checks if account belongs to user, throws if not.
- */
 export async function validateAccountOwnership(
 	ctx: QueryCtx | MutationCtx,
 	accountId: Id<"accounts">,
@@ -154,9 +135,6 @@ export async function applyAccountBalanceChange(
 	});
 }
 
-/**
- * Checks for overlapping cycles.
- */
 export async function checkCycleOverlap(
 	ctx: QueryCtx | MutationCtx,
 	userId: Id<"users">,

@@ -166,7 +166,6 @@ export function CycleForm({
 	useEffect(() => {
 		if (dateRange?.from) {
 			form.setFieldValue("startDate", format(dateRange.from, "yyyy-MM-dd"));
-			// Auto-suggest name based on start date if name is default or matches pattern
 			if (!isEditing) {
 				form.setFieldValue("name", format(dateRange.from, "MMMM yyyy"));
 			}

@@ -19,7 +19,6 @@ import {
 import { useCurrency } from "@/hooks/use-currency";
 import { reportError } from "@/lib/report-error";
 
-// This type is based on the usage in page.tsx and RecentActivity
 export interface Expense {
 	_id: string;
 	amount: number;

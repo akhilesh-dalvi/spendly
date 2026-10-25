@@ -27,12 +27,7 @@ export default function GlobalError({
 						the dashboard.
 					</p>
 					<div className="mt-6 flex space-x-4">
-						<Button
-							onClick={
-								// Attempt to recover by trying to re-render the segment
-								() => reset()
-							}
-						>
+						<Button onClick={() => reset()}>
 							Try again
 						</Button>
 						<Button

@@ -37,7 +37,6 @@ export const getCycleSummary = query({
 			daysRemaining = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
 		}
 
-		// Group by category
 		const categoryStats = await Promise.all(
 			categories.map(async (cat) => {
 				const catExpenses = expenses.filter((e) => e.categoryId === cat._id);
@@ -91,7 +90,6 @@ export const getCycleSummary = query({
 			...uncategorizedEntry,
 		];
 
-		// Group by type
 		const typeStats = [
 			...categoryTypes.map((type) => {
 				const typeCategories = categoryStatsWithUncategorized.filter(
@@ -149,7 +147,6 @@ export const getHistoricalCategoryStats = query({
 			return null;
 		}
 
-		// Find the cycle immediately preceding the current one
 		const previousCycle = await ctx.db
 			.query("expense_cycles")
 			.withIndex("by_userId_dates", (q) =>
@@ -172,7 +169,6 @@ export const getHistoricalCategoryStats = query({
 			.withIndex("by_cycleId", (q) => q.eq("cycleId", previousCycle._id))
 			.collect();
 
-		// Map category name to total spent in that category
 		const stats: Record<string, number> = {};
 		for (const cat of categories) {
 			const catExpenses = expenses.filter((e) => e.categoryId === cat._id);

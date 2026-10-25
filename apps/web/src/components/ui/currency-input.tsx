@@ -29,7 +29,6 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
 		const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
 			const inputValue = e.target.value;
 
-			// Allow empty string
 			if (inputValue === "") {
 				setDisplayValue("");
 				onChange?.(undefined);

@@ -103,8 +103,6 @@ const removeUnretainedOnboardingCategories = async (
 	}
 };
 
-// --- Category Types ---
-
 export const listTypes = query({
 	args: {},
 	handler: async (ctx) => {
@@ -257,29 +255,27 @@ export const seedDefaults = mutation({
 			await ctx.db.insert("category_types", {
 				userId: user._id,
 				name: "Needs",
-				color: "#3b82f6", // Blue 500
+				color: "#3b82f6",
 				order: 0,
 				createdAt: Date.now(),
 			});
 			await ctx.db.insert("category_types", {
 				userId: user._id,
 				name: "Wants",
-				color: "#f59e0b", // Amber 500
+				color: "#f59e0b",
 				order: 1,
 				createdAt: Date.now(),
 			});
 			await ctx.db.insert("category_types", {
 				userId: user._id,
 				name: "Savings",
-				color: "#10b981", // Emerald 500
+				color: "#10b981",
 				order: 2,
 				createdAt: Date.now(),
 			});
 		}
 	},
 });
-
-// --- Categories (Cycle Scoped) ---
 
 export const list = query({
 	args: { cycleId: v.id("expense_cycles") },
@@ -319,7 +315,6 @@ export const listPreviousCycleUnused = query({
 			return [];
 		}
 
-		// Find the most recent cycle before the current one
 		const previousCycle = await ctx.db
 			.query("expense_cycles")
 			.withIndex("by_userId_dates", (q) => q.eq("userId", user._id))

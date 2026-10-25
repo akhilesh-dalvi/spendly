@@ -724,8 +724,7 @@ describe("ExpenseForm", () => {
 			.click(screen.getByRole("button", { name: "Add Expense" }));
 		await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
 		const submit = screen.getByRole("button", { name: ADD_LABEL });
-		// Known bug: the button does not subscribe to isSubmitting, but TanStack
-		// must still prevent duplicate mutations before settlement.
+		// The button does not subscribe to isSubmitting; the form must guard duplicates.
 		fireEvent.submit(submit.closest("form") as HTMLFormElement);
 		expect(mocks.create).toHaveBeenCalledOnce();
 		await act(async () => resolve("created"));

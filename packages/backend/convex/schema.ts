@@ -36,8 +36,8 @@ export default defineSchema({
 	expense_cycles: defineTable({
 		userId: v.id("users"),
 		name: v.string(),
-		startDate: v.string(), // ISO date string YYYY-MM-DD
-		endDate: v.string(), // ISO date string YYYY-MM-DD
+		startDate: v.string(), // YYYY-MM-DD
+		endDate: v.string(), // YYYY-MM-DD
 		createdAt: v.number(),
 		revision: v.optional(v.number()),
 		createdSource: v.optional(actionSourceValidator),
@@ -58,7 +58,7 @@ export default defineSchema({
 
 	categories: defineTable({
 		cycleId: v.id("expense_cycles"),
-		userId: v.id("users"), // Denormalized for easier querying
+		userId: v.id("users"), // Denormalized for querying.
 		name: v.string(),
 		categoryTypeId: v.optional(v.id("category_types")),
 		plannedAmount: v.optional(v.number()),
@@ -151,12 +151,12 @@ export default defineSchema({
 		.index("by_transferId", ["transferId"]),
 
 	expenses: defineTable({
-		userId: v.id("users"), // Denormalized
+		userId: v.id("users"),
 		cycleId: v.optional(v.id("expense_cycles")),
 		categoryId: v.optional(v.id("categories")),
 		accountId: v.optional(v.id("accounts")),
 		amount: v.number(),
-		date: v.string(), // ISO date string YYYY-MM-DD
+		date: v.string(), // YYYY-MM-DD
 		spentOn: v.optional(v.string()),
 		normalizedSpentOn: v.optional(v.string()),
 		tagIds: v.optional(v.array(v.id("tags"))),

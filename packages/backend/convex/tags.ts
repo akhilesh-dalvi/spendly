@@ -98,7 +98,6 @@ export const remove = mutation({
 			throw new Error("Tag not found");
 		}
 
-		// Remove from all expenses
 		const expenses = await ctx.db
 			.query("expenses")
 			.withIndex("by_userId_date", (q) => q.eq("userId", user._id))

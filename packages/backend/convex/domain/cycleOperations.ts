@@ -159,7 +159,7 @@ export const prepareCycleCreate = async (
 		name: category.name,
 		plannedAmount: category.plannedAmount ?? null,
 	}));
-	// Bind every persisted copy field, not source-cycle revision (category edits do not advance it).
+	// Category edits do not advance the cycle revision; hash the copied fields.
 	const copySnapshot =
 		input.copyFromCycleId === undefined
 			? undefined

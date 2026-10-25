@@ -21,7 +21,6 @@ export default defineConfig({
 			include: ["src/**/*.{ts,tsx}"],
 			exclude: ["src/**/*.test.{ts,tsx}", "src/**/*.d.ts"],
 			reporter: ["text", "json-summary", "html"],
-			// Enforce the issue's whole-source target alongside stricter utility gates.
 			thresholds: {
 				statements: 70,
 				branches: 60,

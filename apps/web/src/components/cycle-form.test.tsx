@@ -254,7 +254,7 @@ describe("CycleForm", () => {
 		await interaction.click(
 			screen.getByRole("checkbox", { name: "Prefill planned amounts" })
 		);
-		// Known bug: this effect only reacts once another parent state update occurs.
+		// The effect needs a parent state update to react.
 		await interaction.click(screen.getByRole("checkbox", { name: "Rent" }));
 		expect(screen.getAllByPlaceholderText("Planned amount")[0]).toHaveValue("");
 		await interaction.click(
@@ -413,7 +413,7 @@ describe("CycleForm", () => {
 		const submit = screen.getByRole("button", { name: "Create Cycle" });
 		await interaction.click(submit);
 		await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
-		// Known bug: the button's loading UI is stale; the form still guards submission.
+		// The loading UI is stale; the form must still prevent duplicate submission.
 		await interaction.click(submit);
 		expect(mocks.create).toHaveBeenCalledOnce();
 		await act(async () => resolve({ _id: "new-cycle" }));
