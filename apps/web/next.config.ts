@@ -30,6 +30,12 @@ const release = getRelease();
 const environment = getSentryEnvironment();
 
 const nextConfig: NextConfig = {
+	// Release compilation memory before TypeScript starts on constrained builders.
+	// Explicit opt-in is required because the MDX/Sentry wrappers customize webpack.
+	experimental: {
+		webpackBuildWorker: true,
+		webpackMemoryOptimizations: true,
+	},
 	env: {
 		NEXT_PUBLIC_SENTRY_DSN:
 			process.env.NEXT_PUBLIC_SENTRY_DSN ||
