@@ -354,6 +354,13 @@ before rerunning the checks. A focused documentation or isolated code change
 does not always require every command, but the pull request must state what was
 actually verified.
 
+Production Web builds use Webpack with an isolated, memory-optimized compilation
+worker. Keep the explicit worker settings in `apps/web/next.config.ts`: the MDX
+and Sentry integrations customize Webpack, which otherwise disables Next.js's
+automatic worker selection. The worker releases compilation memory before the
+TypeScript phase; do not disable production typechecking to work around build
+memory limits. Development continues to use Next.js's default bundler.
+
 Production builds load the Geist fonts through `next/font/google`. If a local
 build fails while fetching fonts, confirm that the environment can reach Google
 Fonts before treating it as an application failure.
