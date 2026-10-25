@@ -72,7 +72,7 @@ vi.mock("convex/react", () => ({
 }));
 vi.mock("@/lib/report-error", () => ({ reportError: state.report }));
 vi.mock("sonner", () => ({ toast: { error: state.toastError } }));
-// The page owns range validation, not calendar mechanics. Real calendar behavior is tested independently.
+// Isolate range validation; calendar behavior is tested separately.
 vi.mock("@/components/ui/date-picker", () => ({
 	DatePickerWithRange: ({
 		date,

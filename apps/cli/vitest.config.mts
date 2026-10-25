@@ -13,7 +13,6 @@ export default defineConfig({
 				"src/auth/keychain-smoke.ts",
 			],
 			reporter: ["text", "json-summary", "html"],
-			// Full CLI targets from issue #33; scoped gates protect authentication.
 			thresholds: {
 				statements: 85,
 				branches: 80,

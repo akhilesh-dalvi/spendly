@@ -16,7 +16,6 @@ export default function NewExpenseModal() {
 	const searchParams = useSearchParams();
 	const categoryId = searchParams.get("categoryId");
 
-	// Default open to true since the route is active
 	const [open, setOpen] = useState(true);
 
 	const handleOpenChange = (val: boolean) => {

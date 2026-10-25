@@ -17,7 +17,6 @@ export default function NewCategoryModal() {
 	const searchParams = useSearchParams();
 	const cycleId = searchParams.get("id") as Id<"expense_cycles">;
 
-	// Default open to true since the route is active
 	const [open, setOpen] = useState(true);
 
 	const handleOpenChange = (val: boolean) => {

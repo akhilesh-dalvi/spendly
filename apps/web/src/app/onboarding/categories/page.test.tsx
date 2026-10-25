@@ -31,7 +31,7 @@ vi.mock("next/navigation", () => ({
 	usePathname: () => "/onboarding/categories",
 }));
 vi.mock("@/lib/report-error", () => ({ reportError: mocks.report }));
-// The modal's form is covered separately; this seam tests the page's type callback wiring.
+// Test page callbacks; the modal form has separate coverage.
 vi.mock("@/components/category-type-modal", () => ({
 	CategoryTypeModal: ({
 		open,

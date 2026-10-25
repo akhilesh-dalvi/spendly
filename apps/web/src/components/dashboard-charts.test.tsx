@@ -28,7 +28,7 @@ vi.mock("convex/react", () => ({
 vi.mock("sonner", () => ({
 	toast: { success: service.success, error: service.error },
 }));
-// Only fix the external chart's size: the real chart, slices and our legend still render.
+// Fix chart dimensions for jsdom; keep slices and legend real.
 vi.mock("recharts", async (importOriginal) => ({
 	...(await importOriginal<typeof import("recharts")>()),
 	ResponsiveContainer: ({

@@ -1,73 +1,39 @@
-# Security Policy
-
-Spendly handles personal financial activity, so protecting user data is a
-priority. We appreciate responsible reports that help keep the project and its
-users safe.
+# Security policy
 
 ## Supported versions
 
-Security fixes are applied to the latest version of Spendly on the `master`
-branch and to the official hosted application. Older commits, forks, and
-third-party deployments are not supported.
+Security fixes cover `master` and the official hosted application. During
+initial-release verification, only the newest `0.x` CLI release on npm's `next`
+tag receives fixes. After promotion to `latest`, only the newest release there
+is supported. Older versions, forks, and third-party deployments are unsupported.
 
-Spendly CLI has not been published yet. During initial-release verification,
-only the newest `0.x` version on the npm `next` tag will receive security fixes.
-After the validated package moves to the default `latest` tag, the newest
-version there will be supported; older versions may be deprecated when a
-security correction is available.
+## Report privately
 
-## Reporting a vulnerability
+Use [GitHub private vulnerability reporting](https://github.com/akhilesh-dalvi/spendly/security/advisories/new),
+not public issues, PRs, discussions, or social media.
 
-Do not disclose suspected vulnerabilities in a public issue, discussion, pull
-request, or social media post.
+Include impact, affected component, reproduction steps/conditions, and an
+optional suggested fix. CLI reports should include Spendly, OS, and Node.js
+versions. Use synthetic data; omit financial data, credentials, OAuth URLs,
+tokens, headers, credential-store contents, and environment files.
 
-Report them privately through
-[GitHub's private vulnerability reporting](https://github.com/akhilesh-dalvi/spendly/security/advisories/new).
-
-Include as much of the following as possible:
-
-- A description of the vulnerability and its potential impact
-- The affected page, endpoint, component, or file
-- For CLI reports, the Spendly version, operating system, and Node.js version
-- Reproduction steps or a minimal proof of concept
-- Any conditions required to reproduce the issue
-- A suggested remediation, if you have one
-
-Use synthetic data for reproduction. Do not include personal financial data,
-access or refresh tokens, OAuth URLs, authorization headers, credential-store
-contents, environment files, or Convex/Clerk secrets.
-
-We aim to acknowledge reports within three business days. After reviewing the
-report, we will share our assessment and, when applicable, expected remediation
-steps. Please allow reasonable time for a fix before publishing details.
+We aim to acknowledge reports within three business days and share our assessment
+and remediation plans. Allow reasonable time for a fix before publishing.
 
 ## Responsible research
 
-When investigating a potential vulnerability:
+- Test only accounts/data you own or have permission to use.
+- Stop and report if you encounter another user's data; never modify it.
+- Avoid service disruption, denial-of-service tests, social engineering, spam,
+  and automated scanning of the hosted app.
 
-- Access only accounts and data that you own or have explicit permission to use
-- Stop testing and report the issue if you encounter another user's data
-- Do not modify or delete data that is not your own
-- Do not disrupt the service, degrade availability, or run denial-of-service
-  tests
-- Do not use social engineering, spam, or automated scanning against the hosted
-  application
-- Make a good-faith effort to avoid privacy violations and unnecessary data
-  exposure
+Good-faith research following this policy will not result in legal action from
+Spendly. Reporters may request credit.
 
-Good-faith research that follows this policy will not result in legal action
-from the Spendly project. We will work with reporters to understand and resolve
-valid findings, and we will credit them if they wish to be acknowledged.
+## Out of scope without concrete Spendly impact
 
-## Out of scope
-
-The following are generally out of scope unless they demonstrate a concrete
-security impact on Spendly:
-
-- Vulnerabilities in Clerk, Convex, Vercel, or another third-party service that
-  are not caused by Spendly's configuration or integration
-- Missing security headers without a working exploit
-- Clickjacking on pages without sensitive actions
-- Self-XSS or issues that require executing code in your own browser session
-- Reports based only on an automated dependency or vulnerability scan
-- Attacks requiring physical access to a user's device
+- Third-party vulnerabilities not caused by Spendly's integration/configuration
+- Missing headers or clickjacking without sensitive actions or a working exploit
+- Self-XSS or execution in the researcher's own browser session
+- Scanner-only findings
+- Attacks requiring physical device access

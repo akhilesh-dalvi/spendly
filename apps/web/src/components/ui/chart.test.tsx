@@ -5,8 +5,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ChartContainer, ChartTooltipContent } from "./chart";
 
-// Recharts sizing is outside this module's contract. Keep chart context, styling
-// and tooltip rendering real while avoiding jsdom's lack of layout measurements.
+// Mock layout measurements missing in jsdom; keep chart rendering real.
 vi.mock("recharts", async (importOriginal) => ({
 	...(await importOriginal<typeof import("recharts")>()),
 	ResponsiveContainer: ({ children }: { children: ReactNode }) => (

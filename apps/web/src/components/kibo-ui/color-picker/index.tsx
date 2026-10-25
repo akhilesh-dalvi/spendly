@@ -78,17 +78,15 @@ export const ColorPicker = ({
 	const [alpha, setAlpha] = useState(initialColor.alpha() * 100);
 	const [mode, setMode] = useState("hex");
 
-	// Ref to track if an update was internal or external to prevent loops
+	// Do not echo external updates through onChange.
 	const skipNextSyncRef = useRef(false);
 
-	// External value -> Internal state
 	useEffect(() => {
 		if (value) {
 			const color = Color(value);
 			const hsl = color.hsl().object();
 			const newAlpha = color.alpha() * 100;
 
-			// Convert internal state to hex for comparison
 			const internalHex = Color.hsl(hue, saturation, lightness)
 				.alpha(alpha / 100)
 				.hex()
@@ -103,9 +101,8 @@ export const ColorPicker = ({
 				setAlpha(newAlpha);
 			}
 		}
-	}, [value, alpha, hue, lightness, saturation]); // Only depend on external value changes
+	}, [value, alpha, hue, lightness, saturation]);
 
-	// Internal state -> Parent (onChange)
 	useEffect(() => {
 		if (skipNextSyncRef.current) {
 			skipNextSyncRef.current = false;
@@ -122,7 +119,7 @@ export const ColorPicker = ({
 				alpha / 100,
 			];
 
-			// Only notify if different from external value to break the loop
+			// Avoid parent/child update loops.
 			const internalHex = color.hex().toLowerCase();
 			const externalHex = value ? Color(value).hex().toLowerCase() : null;
 

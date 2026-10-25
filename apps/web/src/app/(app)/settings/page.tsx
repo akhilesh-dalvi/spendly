@@ -66,7 +66,6 @@ export default function SettingsPage() {
 			</div>
 
 			<div className="grid gap-8">
-				{/* Profile Section */}
 				<Card className="overflow-hidden border-none bg-accent/5 shadow-none">
 					<CardContent className="space-y-6">
 						<div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
@@ -94,7 +93,6 @@ export default function SettingsPage() {
 					</CardContent>
 				</Card>
 
-				{/* Preferences Section */}
 				<section className="space-y-4">
 					<div className="flex items-center gap-2">
 						<BadgeCheck className="h-4 w-4 text-primary" />

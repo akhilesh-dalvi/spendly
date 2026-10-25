@@ -4,8 +4,7 @@
     ".": {
       // Standalone evaluation scripts are also invoked directly by contributors.
       "entry": ["skills/spendly/evals/*.mjs"],
-      // The CI parser resolves this workspace-qualified command at the root;
-      // Next.js is installed and checked in apps/web, not in this workspace.
+      // CI resolves Next.js here, but it belongs to apps/web.
       "ignoreBinaries": ["next"]
     },
     "apps/cli": {

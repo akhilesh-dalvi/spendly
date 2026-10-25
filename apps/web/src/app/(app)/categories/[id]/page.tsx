@@ -545,7 +545,6 @@ export default function CategoryDetailPage({
 	const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
 
-	// Fetch category details
 	const category = useQuery(
 		api.categories.get,
 		isDeleting ? "skip" : { id: categoryId }
@@ -564,7 +563,6 @@ export default function CategoryDetailPage({
 		category?.cycleId ? { currentCycleId: category.cycleId } : "skip"
 	);
 
-	// Fetch expenses for this category
 	const expenses = useQuery(
 		api.expenses.list,
 		isDeleting ? "skip" : { categoryId }

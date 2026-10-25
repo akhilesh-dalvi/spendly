@@ -1,10 +1,11 @@
 # Spendly CLI
 
-Spendly CLI lets you track expenses and manage Spendly accounts and expense cycles from a trusted
-local terminal or through a local AI agent.
+Track expenses and manage accounts and expense cycles from a trusted local
+terminal or AI agent.
 
-Spendly is available on npm for macOS. Install the `next` release on
-Node.js 22 or newer:
+## Install and sign in
+
+macOS, Node.js 22+:
 
 ```bash
 npm install --global spendly@next
@@ -12,96 +13,41 @@ spendly --version
 spendly auth login
 ```
 
-Use `npm install --global spendly` for the default release, or
-`npm install --global spendly@0.1.2` to reinstall the exact initial version.
-Production authentication and Codex read-only skill use have been verified;
-broader validation remains follow-up work.
-Spendly will remain in the `0.x` series while real users prove the CLI contract
-is dependable enough for `1.0.0`.
+Use `spendly` instead of `spendly@next` for npm's default release. Check installed
+`--help` for supported commands; source changes may not be published.
 
-Start with the [Spendly CLI documentation](https://spendly.akhileshdalvi.com/docs/cli).
-Report ordinary problems through
-[GitHub issues](https://github.com/akhilesh-dalvi/spendly/issues) and security
-problems through
-[private vulnerability reporting](https://github.com/akhilesh-dalvi/spendly/security/advisories/new).
+[User documentation](https://spendly.akhileshdalvi.com/docs/cli) ·
+[Report a bug](https://github.com/akhilesh-dalvi/spendly/issues) ·
+[Report a vulnerability privately](https://github.com/akhilesh-dalvi/spendly/security/advisories/new)
 
-Run `spendly` with no arguments to open the guided command menu in an
-interactive terminal. Both input (stdin) and prompt output (stderr) must be TTYs;
-otherwise bare `spendly` prints help and exits without prompting. This default
-requires CLI `0.1.5` or newer; older installed releases may print help even
-in a terminal. Source changes alone do not mean an npm release is available.
+## Interactive use
 
-To explicitly launch guided mode, including on older releases, run:
+Run `spendly` for the guided menu (0.1.5+), or `spendly --interactive` explicitly.
+Both stdin and stderr must be TTYs; bare non-TTY invocation prints help.
+Guided commands provide searchable choices, validated fields, previews, and
+confirmations. For static numbered prompts, use `--accessible`, `ACCESSIBLE=1`,
+or `TERM=dumb`.
 
-```bash
-spendly --interactive
-```
+Shell completion: `spendly completion zsh` (also supports `bash` and `fish`).
 
-Explicit commands, `--help`, and `--version` keep their existing behavior.
-For scripts and AI agents, use explicit commands with `--non-interactive`:
+## Scripts and agents
 
 ```bash
 spendly --agent --json --non-interactive context
 ```
 
-`--agent` and `--json` never prompt, even in a terminal. Missing required inputs
-report an error instead of waiting for input. `--interactive` requires a terminal
-and cannot be combined with `--agent`, `--json`, or `--non-interactive`.
+`--agent` identifies agent writes; `--json` returns structured output. Both
+disable prompts and reject missing required inputs. Neither can be combined
+with `--interactive`, which also conflicts with `--non-interactive`.
 
-The launcher and command-specific `--interactive` mode use searchable choices,
-checkbox-style multiselects, validated text and date fields, previews, and safe
-confirmations. `›` marks the focused choice, and brackets mark the active date
-segment, for example `[2026]-09-15`. Expense amount prompts show the currency
-configured during Spendly onboarding. Explicit flags remain available for
-scripts and AI agents.
+Use returned IDs, preview with `--dry-run`, and commit with an idempotency key.
+Edits require revisions; deletions also require a short-lived preview token.
+For separately reviewed cycle copies, preserve `data.copySnapshot` with
+`--if-copy-snapshot`. On conflicts, approve a fresh preview; never blindly retry.
 
-For static, screen-reader-friendly numbered prompts without cursor redraws, add
-`--accessible` or set `ACCESSIBLE=1`. Spendly also selects this mode when
-`TERM=dumb`. Generate local command and global-option completion with
-`spendly completion zsh`, `spendly completion bash`, or
-`spendly completion fish`.
+See [agent skill](https://github.com/akhilesh-dalvi/spendly/blob/master/skills/spendly/SKILL.md) for write-safety procedures and
+[cycle commands](https://spendly.akhileshdalvi.com/docs/cli/cycles) for copy guards
+and recovery.
 
-## Expense cycles
-
-Cycle CRUD requires CLI `0.1.3` or newer and a compatible backend. Check
-`spendly --version` and `spendly cycles --help` for installed support; older
-releases only offer list/current. Check the npm dist-tags for available versions;
-source changes alone do not mean a release has been published.
-
-```bash
-spendly cycles list
-spendly cycles get CYCLE_ID
-spendly cycles add --interactive --dry-run
-spendly cycles edit CYCLE_ID --name "Updated name" --dry-run
-spendly cycles delete CYCLE_ID --dry-run
-```
-
-Explicit creation uses `--name`, `--start-date`, and `--end-date-exclusive`.
-Dates are half-open: September uses September 1 to October 1. Cycles cannot
-overlap. Creation can copy all or selected categories and optional plans from
-an owned cycle. Date edits do not reassign existing expenses. Deletion requires
-no linked expenses and permanently removes the cycle's categories.
-
-Agent/script commits use `--agent --json --non-interactive`, stable IDs, and
-`--idempotency-key`. Copying writes automatically obtain and commit the same
-copy snapshot in guided, human, and direct modes. For a separately reviewed dry
-run, capture `data.copySnapshot` and commit with `--if-copy-snapshot HASH`, keeping
-the source, selections, and plan inputs identical. The hash is 64 lowercase hex
-characters; the flag requires `--copy-from-cycle-id` and cannot accompany
-`--dry-run`. A source with explicit copy-none still gets an empty-selection guard;
-creation without a source is unchanged.
-
-`CYCLE_COPY_CONFLICT` (exit 5) means stop and approve a fresh preview, not blindly
-retry or change the payload. For an uncertain write, replay the original inputs,
-snapshot, key, and agent mode with `--non-interactive`. An explicit snapshot skips
-new preview/source reads, allowing backend idempotency to return a saved result
-even if the source changed or was deleted.
-
-Edits require `--if-revision`; deletions additionally require the short-lived
-`--confirmation-token` returned by a dry run.
-See [cycle commands](https://spendly.akhileshdalvi.com/docs/cli/cycles) for flags,
-copy overrides, JSON results, and recovery.
-
-The CLI stores credentials in the operating system credential store by
-default. Never share tokens, authorization URLs, request headers, credential
-files, environment variables, or personal financial output in a report.
+Credentials use the OS credential store by default. Never share credentials,
+OAuth URLs, headers, environment files, or personal financial output in reports.

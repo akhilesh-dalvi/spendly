@@ -159,26 +159,21 @@ export function ExpenseForm({
 	);
 	const [addAnother, setAddAnother] = useState(false);
 
-	// Track date in local state to drive the cycle query
 	const [selectedDate, setSelectedDate] = useState<Date>(
 		defaultValues?.date || new Date()
 	);
 
-	// Fetch cycle based on selected date
 	const cycle = useQuery(api.cycles.getCurrent, {
 		date: format(selectedDate, "yyyy-MM-dd"),
 	});
 
-	// Fetch categories for that cycle
 	const categories = useQuery(
 		api.categories.list,
 		cycle ? { cycleId: cycle._id } : "skip"
 	);
 
-	// Fetch category types for grouping
 	const categoryTypes = useQuery(api.categories.listTypes);
 
-	// Fetch most recent expense for smart default
 	const recentExpenses = useQuery(api.expenses.listRecent, { limit: 1 });
 	const defaultAccountId = resolveDefaultAccountId(
 		user,
@@ -200,7 +195,6 @@ export function ExpenseForm({
 			return false;
 		}
 
-		// Show soft warnings (non-blocking)
 		const warnings = getSoftWarnings(value.amount, value.date);
 		for (const warning of warnings) {
 			toast.warning(warning);
@@ -288,7 +282,6 @@ export function ExpenseForm({
 		},
 	});
 
-	// Set default category when recent expenses load
 	useEffect(() => {
 		if (!isEditing && defaultCategoryId && !form.state.values.categoryId) {
 			form.setFieldValue("categoryId", defaultCategoryId);
@@ -311,7 +304,6 @@ export function ExpenseForm({
 					form.handleSubmit();
 				}}
 			>
-				{/* Amount - Large and Prominent */}
 				<form.Field name="amount">
 					{(field) => (
 						<div className="space-y-2">
@@ -325,7 +317,6 @@ export function ExpenseForm({
 									onBlur={field.handleBlur}
 									onChange={(e) => {
 										const val = e.target.value;
-										// Allow empty, numbers, and single decimal point
 										if (val === "" || AMOUNT_REGEX.test(val)) {
 											field.handleChange(val === "" ? undefined : Number(val));
 										}
@@ -350,7 +341,6 @@ export function ExpenseForm({
 					)}
 				</form.Field>
 
-				{/* Date with Cycle Preview */}
 				<form.Field name="date">
 					{(field) => (
 						<div className="space-y-2">
@@ -369,7 +359,6 @@ export function ExpenseForm({
 					)}
 				</form.Field>
 
-				{/* Account */}
 				<form.Field name="accountId">
 					{(field) => (
 						<div className="space-y-2">
@@ -390,7 +379,6 @@ export function ExpenseForm({
 					)}
 				</form.Field>
 
-				{/* Category - Grouped by Type */}
 				<form.Field name="categoryId">
 					{(field) => (
 						<div className="space-y-2">
@@ -429,7 +417,6 @@ export function ExpenseForm({
 					)}
 				</form.Field>
 
-				{/* Note / Spent On */}
 				<form.Field name="spentOn">
 					{(field) => (
 						<div className="space-y-2">
@@ -447,7 +434,6 @@ export function ExpenseForm({
 					)}
 				</form.Field>
 
-				{/* Tags - Enhanced Multi-select */}
 				<form.Field name="tagIds">
 					{(field) => (
 						<div className="space-y-2">
@@ -467,7 +453,6 @@ export function ExpenseForm({
 					)}
 				</form.Field>
 
-				{/* Submit Actions */}
 				<div className="flex flex-col gap-4">
 					{!isEditing && (
 						<div className="flex items-center space-x-2 px-1">
@@ -1137,7 +1122,6 @@ function CategoryCombobox({
 	);
 }
 
-// Cycle Preview Component
 function CyclePreview({
 	cycle,
 }: {
@@ -1179,24 +1163,20 @@ function CyclePreview({
 	);
 }
 
-// Soft validation warnings helper
 function getSoftWarnings(amount: number, date: Date): string[] {
 	const warnings: string[] = [];
 	const today = new Date();
 	const daysDiff = differenceInDays(date, today);
 
-	// Large amount warning
 	if (amount > 10_000) {
 		warnings.push("That's a big expense! Double-check the amount.");
 	}
 
-	// Old date warning
 	if (daysDiff < -90) {
 		const timeAgo = formatDistanceToNow(date, { addSuffix: true });
 		warnings.push(`This expense is from ${timeAgo}. Is this correct?`);
 	}
 
-	// Future date warning
 	if (daysDiff > 30) {
 		warnings.push("This is a future expense.");
 	}
