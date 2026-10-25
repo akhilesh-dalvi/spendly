@@ -27,9 +27,7 @@ export default function GlobalError({
 						the dashboard.
 					</p>
 					<div className="mt-6 flex space-x-4">
-						<Button onClick={() => reset()}>
-							Try again
-						</Button>
+						<Button onClick={() => reset()}>Try again</Button>
 						<Button
 							onClick={() => {
 								window.location.assign("/dashboard");
