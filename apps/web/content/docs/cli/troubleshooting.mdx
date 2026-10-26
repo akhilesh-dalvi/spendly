@@ -3,164 +3,332 @@ title: Troubleshooting
 description: Fix setup problems, understand errors, and find your next step.
 ---
 
-## Command not found
+This page helps you understand a Spendly CLI error and choose a safe next step.
+For example, if saving Lunch to Daily checking fails, check whether it saved
+before trying again.
 
-Check whether your terminal can find the CLI:
+## Before you start
+
+- Keep the command and error code so you can identify what failed. Do not share
+  private values or financial output.
+- For installation problems, you do not need to sign in. Commands that read or
+  change your Spendly data require a signed-in session and completed Web setup.
+- Guided prompts need a real terminal. Scripts and AI agents must provide inputs
+  explicitly; see **For scripts and AI agents** below.
+
+If a connection failed during a save, go straight to **A connection failed while
+saving** below. Do not repeat the write just to collect diagnostics.
+
+## Try checking your setup
+
+These commands check the installed version and your session. They do not add an
+expense:
 
 ```bash
-command -v spendly
+spendly --version
+spendly auth status
+```
+
+If `spendly` is not found, start with the installation fix below. If sign-in
+fails, use the sign-in fix. For help with one command, add `--help`:
+
+```bash
+spendly expenses add --help
+```
+
+## If something goes wrong
+
+<details className="docs-disclosure">
+<summary id="command-not-found">Command not found</summary>
+
+Your shell cannot find Spendly. If you have not installed it, follow
+[Quick start](/docs/cli). Otherwise, open the fix for the manager you installed
+with. These diagnostic commands stay manager-specific, regardless of your
+selected install tab.
+
+`PATH` is the list of folders your shell searches for commands.
+
+<details className="docs-disclosure">
+<summary>Installed with npm</summary>
+
+If npm itself is missing, follow [Node.js setup](/docs/cli#open-your-terminal-and-check-nodejs).
+Otherwise, find npm's folder and add it for this session:
+
+```bash
 npm prefix --global
+export PATH="$(npm prefix --global)/bin:$PATH"
+spendly --version
 ```
 
-If it isn't installed, follow [Quick start](/docs/cli). If it is installed,
-make sure the `bin` folder under the printed npm prefix is on your `PATH`,
-then open a new terminal. An AI agent needs the CLI available in its own
-terminal environment too.
+</details>
 
-`spendly@0.1.2` is published. If npm reports that it is missing, check the exact
-version against the public npm registry:
+<details className="docs-disclosure">
+<summary>Installed with pnpm</summary>
 
 ```bash
-npm view spendly@0.1.2 version --registry=https://registry.npmjs.org/
+pnpm bin --global
+export PATH="$(pnpm bin --global):$PATH"
+spendly --version
 ```
 
-If this prints `0.1.2`, retry the pinned installation from that same registry:
+If pnpm reports that its global folder is not configured, run `pnpm setup`.
+This updates your shell configuration. Open a new terminal, then try again.
+
+</details>
+
+<details className="docs-disclosure">
+<summary>Installed with Bun</summary>
 
 ```bash
-npm install --global spendly@0.1.2 --registry=https://registry.npmjs.org/
+bun pm bin -g
+export PATH="$(bun pm bin -g):$PATH"
+spendly --version
+```
+
+</details>
+
+<details className="docs-disclosure">
+<summary>Installed with Yarn Classic</summary>
+
+```bash
+yarn global bin
+export PATH="$(yarn global bin):$PATH"
+spendly --version
+```
+
+Modern Yarn does not support `yarn global`. Use another installation tab in
+[Quick start](/docs/cli) instead.
+
+</details>
+
+If the session fix works, add that manager's `export PATH` line to your shell's
+startup file. On macOS's default zsh, open or create `~/.zshrc` in a text editor,
+add the line once, and save. For another shell, use its startup file instead.
+Open a new terminal and run `spendly --version` again. Restart your AI agent's
+session too so it picks up the updated PATH.
+
+If npm cannot find Spendly, check the latest release in the public npm registry:
+
+```bash
+npm view spendly@latest version --registry=https://registry.npmjs.org/
+```
+
+If this prints a version number, install the latest release from that registry:
+
+```bash
+npm install --global spendly@latest --registry=https://registry.npmjs.org/
+spendly --version
 ```
 
 If the lookup or installation still fails, use npm's error code to check your
-network, proxy, or registry authentication settings. Report the error code and
-redacted message through [GitHub issues](https://github.com/akhilesh-dalvi/spendly/issues)
-if the problem persists.
+network, proxy, or registry authentication settings. If it persists, report the
+error code and a redacted message through
+[GitHub issues](https://github.com/akhilesh-dalvi/spendly/issues).
 
-## The shell runs words from the output as commands
+</details>
 
-Copy only the command inside a fenced command block. Do not type Markdown
-backticks around it: in zsh and similar shells, backticks execute their contents
-as command substitution. Labels printed by Spendly such as `Changes`,
-`PREVIEW ONLY`, or `Next` are output, not commands to paste into the shell.
+<details className="docs-disclosure">
+<summary id="the-shell-runs-words-from-the-output-as-commands">The shell runs words from the output as commands</summary>
 
-## Sign-in and storage
+The shell received output or Markdown instead of a command. Copy only the
+command inside a fenced command block. Do not type the surrounding backticks:
+in zsh and similar shells, backticks execute their contents as command
+substitution. Labels such as `Changes`, `PREVIEW ONLY`, and `Next` are output,
+not commands to paste.
+
+</details>
+
+<details className="docs-disclosure">
+<summary id="sign-in-fails-or-the-browser-does-not-open">Sign-in fails or the browser does not open</summary>
+
+Check your session first:
 
 ```bash
 spendly auth status
+```
+
+If you need to sign in again, run:
+
+```bash
 spendly auth login
 ```
 
-If the browser doesn't open:
+If the browser does not open, ask Spendly to print the sign-in URL instead:
 
 ```bash
 spendly auth login --no-browser
 ```
 
-Open the displayed URL on the same computer. `ACCOUNT_SETUP_REQUIRED` means
-you need to open Spendly Web once while signed in and complete setup.
+Open the displayed URL on the same computer. Never share it.
+`ACCOUNT_SETUP_REQUIRED` means sign-in succeeded but Spendly Web setup is not
+complete. Open Spendly Web while signed in, finish setup, then retry. Verify
+with `spendly auth status`.
 
-Credentials normally use your operating system's credential store. For
-`KEYCHAIN_UNAVAILABLE`, restore access to that store. If you choose file storage,
-`spendly --allow-file-storage auth login` uses a plaintext local file instead.
-Use that fallback only on a computer and user account you control. Never share
-the sign-in URL, tokens, credential files, environment variables, or request
-headers. Authorization expires after at most 30 days and then requires browser
-sign-in again.
+Authorization expires after at most 30 days. Sign in through the browser again
+when it expires.
 
-To sign out:
+</details>
+
+<details className="docs-disclosure">
+<summary id="the-credential-store-is-unavailable">The credential store is unavailable</summary>
+
+`KEYCHAIN_UNAVAILABLE` means Spendly cannot use your operating system's credential
+store. Restore access to that store first.
+
+An optional fallback stores credentials in an owner-only **plaintext local
+file**, not the OS credential store. Use it only on a computer and user account
+you control:
+
+```bash
+spendly --allow-file-storage auth login
+```
+
+Never share tokens, credential files, environment variables, request headers, or
+sign-in URLs. To sign out and remove local credentials:
 
 ```bash
 spendly auth logout
 ```
 
-## A name matches more than one record
+</details>
 
-List the accounts, categories, or tags and use the intended record's ID instead.
+<details className="docs-disclosure">
+<summary id="a-name-matches-more-than-one-record">A name matches more than one record</summary>
+
+Spendly cannot tell which record you mean. For example, two accounts could both
+be named Daily checking. List the relevant records and use the intended record's
+ID, its unique identifier, instead:
+
+```bash
+spendly accounts list
+spendly categories list
+spendly tags list
+```
+
 Account commands accept an ID in place of a name. Expense options include
-`--account-id`, `--category-id`, and `--tag-id`. Human terminal users can add
-`--interactive` to choose from stable-ID-backed labels instead.
+`--account-id`, `--category-id`, and `--tag-id`. In a terminal, you can instead
+add `--interactive` to choose a labeled record backed by its ID.
 
-## Interactive input is unavailable
+</details>
 
-Guided prompts require a real terminal for both input and prompt output. They
-are intentionally disabled for redirected or piped execution and cannot be
-combined with `--json`, `--non-interactive`, or `--agent`. Use explicit flags
-for those modes. Press Escape or Ctrl-C to cancel a guided command without a
-write. Add `--accessible` or set `ACCESSIBLE=1` for static numbered prompts that
-do not redraw earlier terminal lines.
+<details className="docs-disclosure">
+<summary id="interactive-input-is-unavailable">Interactive input is unavailable</summary>
 
-## A record changed or a category doesn't fit
+`NON_INTERACTIVE_INPUT_REQUIRED` means Spendly cannot prompt in the current
+mode or environment. Guided prompts require a real terminal for both input and
+prompt output. Use a terminal for guided commands, or provide explicit flags
+when running a script or piping output.
 
-A revision conflict means the record changed since it was read. Fetch it again,
-check the current values, and retry the change using the latest revision if
-you supplied one.
+Do not combine `--interactive` with `--json`, `--non-interactive`, or `--agent`.
+Those modes never prompt. Press Escape or Ctrl-C to cancel a guided command
+before saving.
 
-`CATEGORY_CYCLE_MISMATCH` means the category belongs to another cycle. Choose a
-category from the expense's new cycle or use `--clear-category` on the edit.
-An archived account must be reactivated before it can receive new activity.
+If prompts are hard to read, add `--accessible` or set `ACCESSIBLE=1` for static
+numbered prompts that do not redraw earlier terminal lines.
 
-## A cycle cannot be saved or deleted
+</details>
 
-`CYCLE_OVERLAP` means its dates intersect another owned cycle. Ends are
-exclusive, so adjacent cycles may share an end/start boundary.
-`CYCLE_REVISION_CONFLICT` requires a fresh `cycles get CYCLE_ID` and preview.
-`CYCLE_COPY_CONFLICT` (exit 5) means the effective category copy no longer matches
-the reviewed snapshot. Stop, obtain a fresh creation dry run, and get approval
-before a new commit; do not blindly retry or change the payload. Capture
-`data.copySnapshot` and commit with `--if-copy-snapshot HASH` using identical
-source, selection, and plan inputs. The hash must be 64 lowercase hex characters;
-the flag requires `--copy-from-cycle-id` and cannot accompany `--dry-run`.
-An invalid or missing backend copy guard is `INVALID_INPUT` (exit 2); ordinary
-CLI copying writes obtain the guard automatically.
-`CYCLE_HAS_EXPENSES` blocks deletion while any expense is linked to that cycle;
-removing categories or changing dates does not remove those links.
-Deletion also removes every category. Invalid/expired confirmation tokens
-require a new `cycles delete CYCLE_ID --dry-run`, reviewed before committing.
+<details className="docs-disclosure">
+<summary id="a-record-changed-since-you-opened-it">A record changed since you opened it</summary>
 
-## A connection failed while saving
+A revision conflict means someone changed the record after it was read. A
+revision is the record's version used to prevent overwriting newer changes.
+Fetch the record again, check its current values, and review a fresh preview.
+If you supplied a revision, use the latest one for the new change.
 
-The change may have saved even if the response was lost. Check the affected
-expense, cycle, or account history first. Write commands do not retry automatically. Only when the
-user explicitly asks to recover the intended write, repeat the identical command
-with its original `--idempotency-key` so it cannot create a second change. If
-you don't have the key, or the retry is also uncertain, stop and report the
+For a cycle, replace `CYCLE_ID` with its ID from `spendly cycles list`:
+
+```bash
+spendly cycles get CYCLE_ID
+```
+
+</details>
+
+<details className="docs-disclosure">
+<summary id="a-category-does-not-fit-or-an-account-is-archived">A category does not fit or an account is archived</summary>
+
+`CATEGORY_CYCLE_MISMATCH` means the selected category belongs to another cycle
+(the date range used to group expenses). For example, Food from one cycle
+cannot categorize Lunch in another. Choose a category from the expense's new
+cycle, or use `--clear-category` when editing to leave it uncategorized.
+
+An archived account cannot receive new activity. Choose an active account, or
+reactivate the archived account if that is what you intend.
+
+</details>
+
+<details className="docs-disclosure">
+<summary id="a-cycle-cannot-be-saved-or-deleted">A cycle cannot be saved or deleted</summary>
+
+- `CYCLE_OVERLAP`: the dates intersect another cycle you own. Choose dates that
+  do not overlap. End dates are exclusive: the end day is not included, so one
+  cycle can end on the day the next begins.
+- `CYCLE_REVISION_CONFLICT`: the cycle changed. Read it again with
+  `spendly cycles get CYCLE_ID`, then review a new preview.
+- `CYCLE_COPY_CONFLICT`: the categories being copied no longer match the preview.
+  Stop, get a fresh creation preview, and approve it before saving. Do not
+  blindly retry or change the inputs to force the save. Script details are below.
+- `CYCLE_HAS_EXPENSES`: expenses are still linked to the cycle. Move them to
+  another cycle or delete them only if you intend to remove those expenses.
+  Removing categories or changing cycle dates does not remove the links.
+
+**Deleting a cycle permanently removes all its categories too.** Review that
+loss before confirming. If a deletion confirmation token is invalid or expired,
+create and review a new deletion preview. A token is the value Spendly issues
+to confirm the reviewed deletion.
+
+`--dry-run` previews the action without deleting the cycle. A cycle deletion
+preview does create a confirmation record. Replace `CYCLE_ID` with the intended
+cycle's ID:
+
+```bash
+spendly cycles delete CYCLE_ID --dry-run
+```
+
+For the full preview, confirmation, and verification flow, see
+[Cycles](/docs/cli/cycles).
+
+</details>
+
+<details className="docs-disclosure">
+<summary id="a-connection-failed-while-saving">A connection failed while saving</summary>
+
+The change may have saved even if its response was lost. **Do not repeat the
+write blindly.** Check the affected expense, cycle, or account history first.
+For example, look for Lunch and inspect Daily checking's activity:
+
+```bash
+spendly expenses list
+spendly accounts transactions "Daily checking"
+```
+
+Write commands do not retry automatically. Recovery requires the original
+`--idempotency-key`, a value that identifies one intended write so repeating it
+does not create a second change. Only when the user explicitly asks to recover
+that write should it be repeated, with the original key and identical inputs.
+See the recovery details below.
+
+If the key is missing, or the retry is also uncertain, stop and report the
 outcome as unknown rather than attempting another write.
 
-For cycle writes, human errors also print the resolved inputs and generated
-key. If you explicitly choose to recover that same write, supply its original
-inputs, copy snapshot, revision, token, and key with `--non-interactive`; keep
-the original agent mode. An explicit `--if-copy-snapshot` makes no new
-preview/source read in this mode. Backend idempotency returns a saved result
-before checking the guard, even if the copy source later changed or was deleted.
-This also avoids human preview/read checks that would otherwise prevent replaying
-an edit with an old revision or a deletion of an already-removed cycle.
-A fresh intent after a conflict instead needs a fresh read, preview, and key.
+</details>
 
-An idempotency conflict means a key was used with different input. Check the
-original action; a new action needs a new key. For an expired deletion token,
-run the deletion preview again to get a current one.
+## Check the fix
 
-## Update or remove the CLI
+After fixing installation or sign-in, run `spendly --version` or
+`spendly auth status` again to check the result.
 
-Update the CLI and skill with:
+After fixing an input problem, read the current data and review a fresh preview
+before approving a new change. Follow the relevant task page, such as
+[Expenses](/docs/cli/expenses), for its preview, save, and verification steps.
 
-```bash
-npm install --global spendly
-npx skills update spendly --global
-```
+**If a previous save may have succeeded, do not start a new save to test the
+fix.** Follow the uncertain-write recovery rules above instead.
 
-Check `spendly --version` after every update. To reinstall the exact initial
-version, use `npm install --global spendly@0.1.2`. Spendly supports Node.js 22 or
-newer on the platforms listed in Quick start and will remain below `1.0.0`
-until real usage proves its CLI contract is stable.
+## Other things you can do
 
-To remove the CLI:
-
-```bash
-spendly auth logout
-npm uninstall --global spendly
-```
-
-## Get help
+<details className="docs-disclosure">
+<summary id="view-command-help">View command help</summary>
 
 ```bash
 spendly --help
@@ -168,10 +336,115 @@ spendly expenses add --help
 spendly accounts transfer --help
 ```
 
-`--debug` adds redacted diagnostic details on stderr if you need to investigate
-an error. Review diagnostic output before sharing it in a bug report. Use
-[GitHub issues](https://github.com/akhilesh-dalvi/spendly/issues) for ordinary
+</details>
+
+<details className="docs-disclosure">
+<summary id="update-the-cli-and-optional-ai-skill">Update the CLI and optional AI skill</summary>
+
+```bash
+npm install --global spendly@latest
+spendly --version
+```
+
+If you installed the Spendly skill, update it separately:
+
+```bash
+npx skills update spendly --global
+```
+
+Check `spendly --version` after every update. The `@latest` tag selects the latest
+release, so you do not need to look up a version number.
+
+</details>
+
+<details className="docs-disclosure">
+<summary id="remove-the-cli">Remove the CLI</summary>
+
+Sign out first to revoke the CLI session and remove local credentials, then
+uninstall:
+
+```bash
+spendly auth logout
+npm uninstall --global spendly
+```
+
+</details>
+
+## Things to know
+
+Spendly requires Node.js 22 or newer. macOS is the currently verified platform;
+Linux verification is planned, and Windows is not supported in the initial
+release. See [Quick start](/docs/cli) for setup.
+
+## Next step
+
+Return to [Expenses](/docs/cli/expenses) to preview, save, and check your next
+expense.
+
+## For scripts and AI agents
+
+You can skip this reference when using guided commands.
+
+<details className="docs-disclosure">
+<summary>Optional: automation and technical reference</summary>
+
+### Non-interactive input
+
+Use explicit commands and flags with `--non-interactive`. `--json` and `--agent`
+also disable prompts, even in a terminal. Missing required inputs produce an
+error rather than waiting for input. Guided prompts are unavailable when input
+or prompt output is redirected or piped.
+
+### Category-copy conflicts
+
+`CYCLE_COPY_CONFLICT` exits with code 5. The effective category copy no longer
+matches the reviewed snapshot (the fingerprint of the copy inputs and result).
+Stop, obtain a fresh creation dry run, and get approval before a new commit.
+Do not blindly retry or change the payload.
+
+Capture `data.copySnapshot` and commit with `--if-copy-snapshot HASH`, replacing
+`HASH` with that value. Keep the source, category selection, and plan inputs
+identical. The hash must be 64 lowercase hex characters. The flag requires
+`--copy-from-cycle-id` and cannot accompany `--dry-run`.
+
+An invalid or missing backend copy guard produces `INVALID_INPUT` (exit 2).
+Ordinary CLI copying writes obtain the guard automatically.
+
+### Recovering an uncertain write
+
+Check current state first. Only after the user explicitly asks to recover the
+same intended write, repeat its identical inputs with the original
+`--idempotency-key`. Do not generate a new key to recover an uncertain save.
+If the key is unavailable or the retry is also uncertain, stop and report the
+outcome as unknown.
+
+For cycle writes, human-readable errors also print the resolved inputs and
+generated key. To recover that same write, supply its original inputs, copy
+snapshot, revision, confirmation token, and key with `--non-interactive`. Keep
+the original agent mode.
+
+In this mode, an explicit `--if-copy-snapshot` makes no new preview or source
+read. Backend idempotency returns a saved result before checking the guard,
+even if the copy source later changed or was deleted. This also avoids human
+preview/read checks that would otherwise prevent replaying an edit with an old
+revision or a deletion of an already-removed cycle.
+
+An idempotency conflict means the key was used with different input. Check the
+original action. A fresh intent after a conflict needs a fresh read, preview,
+and key. A new action needs a new key. For an expired deletion token, create
+and review a new deletion preview to get a current token; do not silently
+substitute a new token in an uncertain-write replay.
+
+### Diagnostics and private reports
+
+`--debug` adds redacted diagnostic details on stderr, the terminal's diagnostic
+output stream. Review output before sharing it. Do not rerun an uncertain write
+just to add `--debug`.
+
+Use [GitHub issues](https://github.com/akhilesh-dalvi/spendly/issues) for ordinary
 problems. Report suspected vulnerabilities through
 [private vulnerability reporting](https://github.com/akhilesh-dalvi/spendly/security/advisories/new),
-never a public issue. Do not include tokens, OAuth URLs, headers, credential
-files, environment values, or personal financial output.
+never a public issue. Do not include tokens, OAuth sign-in URLs, headers,
+credential files, environment values, or personal financial output.
+
+</details>

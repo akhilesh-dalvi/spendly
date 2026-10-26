@@ -3,126 +3,193 @@ title: Quick start
 description: Set up Spendly, then use it from your terminal or with an AI agent.
 ---
 
-Spendly CLI lets you track expenses and manage account balances and cycles from your
-terminal using the same data as Spendly Web.
+Spendly CLI lets you track expenses from your terminal using the same data as
+Spendly Web. For example, you can record Lunch and check your account balance
+without opening the web app.
 
-The initial `0.1.2` release is available on npm for macOS. Production
-authentication and read-only use through the Spendly skill in Codex have been
-verified. Broader production workflows remain subject to ongoing validation.
+Prefer to ask an AI agent? After installing and signing in below, continue to
+[AI agents](/docs/cli/ai-agents) for Codex or Claude Code. You do not need to
+learn the expense commands first.
 
-## Install
+## Before you start
 
-You'll need Node.js 22 or newer and a Spendly account. macOS is the currently
-verified platform; Linux verification is planned, and Windows is not supported
-in the initial release. Install only on a computer you trust. Run this in your
-terminal:
+- **Required:** Node.js 22+, a [Spendly account](/sign-up), and completed Web setup.
+- **Platform:** macOS is verified. Linux verification is planned; Windows is unsupported.
+- **Safety:** use a trusted computer. Never share sign-in links or credentials.
+- **Optional:** accounts, categories, and tags. You can organize the expense later.
+
+## Open your terminal and check Node.js
+
+On macOS, press Command-Space, type **Terminal**, and press Enter. This is where
+you run commands. Copy only the command text, not the surrounding backticks.
+
+Check that Node.js and npm (the tool that installs Spendly) are available:
 
 ```bash
-npm install --global spendly
-spendly --version
+node --version
+npm --version
 ```
 
-This makes the `spendly` command available in your terminal.
+Node.js must have a major version of 22 or higher. If either command is missing,
+or Node.js is too old, follow the [Node.js installation instructions](https://nodejs.org/en/download).
+Choose a supported LTS release, then open a new terminal and check again.
 
-To install the exact initial version, use `npm install --global spendly@0.1.2`.
-Spendly will continue with `0.x` releases until real usage proves the CLI
-contract is ready for `1.0.0`.
+## Install and sign in
 
-## Sign in
-
-Open Spendly Web and finish setting up your account if you haven't already.
-Then run:
+Choose your installed package manager in the tabs; the choice stays in sync
+across these docs. Not sure? Use **npm**, which comes with Node.js.
+These commands install the latest release:
 
 ```bash
+npm install --global spendly@latest
+spendly --version
 spendly auth login
 ```
 
-Complete sign-in in the browser, then return to your terminal. To check your
-session:
+Installation makes the `spendly` command available. Complete sign-in in the
+browser, then return to your terminal and check your session:
 
 ```bash
 spendly auth status
 ```
 
-Authorization lasts for at most 30 days before browser sign-in is required
-again. Sign out and remove the locally stored session with:
+## Try your first expense
 
-```bash
-spendly auth logout
-```
-
-## Choose how to use Spendly
-
-### Use an AI agent
-
-Continue to [AI agents](/docs/cli/ai-agents) to install the skill for Codex or
-Claude Code. Then ask things like "Show my account balances" or "Record 18.75
-for lunch today." You can go straight there without learning the commands below.
-
-### Try the CLI yourself
-
-Explicitly open the guided command launcher in your interactive terminal:
-
-```bash
-spendly --interactive
-```
-
-On CLI `0.1.5` or newer, bare `spendly` also opens the menu when both input
-(stdin) and prompt output (stderr) are TTYs. Without both, it prints help and
-exits without prompting. Older installed releases may
-print help even in a terminal; `spendly --interactive` remains the explicit way
-to open the menu. Source changes alone do not mean an npm release is available.
-Explicit commands, `--help`, and `--version` keep their existing behavior.
-
-Scripts and agents should use explicit commands with `--non-interactive`, for
-example `spendly --agent --json --non-interactive context`. `--agent` and `--json`
-never prompt, even in a terminal; missing required inputs report an error instead
-of waiting for input. Do not combine these modes with `--interactive`.
-
-Use the arrow keys or type to search, then press Enter. Guided commands use
-single-choice selectors for Spendly records, checkbox-style selectors for tags
-and filters, and a preview before saving. Press Escape or Ctrl-C to cancel
-without making a change. `›` marks the focused choice. In date inputs, brackets
-mark the active segment, for example `[2026]-09-15`; use Left/Right to change
-the segment and Up/Down to change its value.
-
-For a screen reader or a terminal that does not handle cursor redraws well, use
-static numbered prompts:
-
-```bash
-spendly --interactive --accessible
-```
-
-You can also set `ACCESSIBLE=1`. This mode uses numbered single-choice inputs,
-comma-separated checkbox selections, plain yes/no confirmations, and no ANSI
-cursor movement. Spendly automatically selects it when `TERM=dumb`. Color is
-never required to understand focus, warnings, or errors.
-
-See your current currency and cycle, account balances, and spending summary:
-
-```bash
-spendly context
-spendly accounts list
-spendly summary --current
-```
-
-Preview an expense without saving it:
+The `--interactive` option opens a guided form. The `--dry-run` option previews
+this expense without saving it:
 
 ```bash
 spendly expenses add --interactive --dry-run
 ```
 
-The guided form asks for the amount, date, description, category, account, and
-tags. The amount prompt includes the currency configured during onboarding, for
-example `Expense amount (INR)`. To record the expense, run the same command
-without `--dry-run`, review the preview, and confirm it. Values already supplied
-as flags are kept. The category list contains visible categories from the cycle
-covering the selected date, followed by an explicit `Uncategorized` choice.
-Automatic history inference remains available to scripts that omit a category,
-but it is not exposed as a guided choice.
+Use a real purchase. Enter its amount in the shown currency, description, and
+date - for example, `18.75` for `Lunch`.
 
-Install local command and global-option completion by generating the script for
-your shell and following that shell's normal sourcing setup:
+Choose existing records, or leave the category **Uncategorized**, account
+**unassigned**, and tags empty. Use arrow keys and Enter; Escape or Ctrl-C cancels.
+
+For a screen reader or a terminal that has trouble redrawing lines, add
+`--accessible` to the command for static numbered prompts.
+
+## Check and save
+
+Check every detail and the balance change. To save, reopen the form without
+`--dry-run`, enter the same details, review, and confirm:
+
+```bash
+spendly expenses add --interactive
+```
+
+Keep the saved expense's ID (its unique identifier) and date. Later pages update
+this same Lunch; do not record it again.
+
+Verify that Lunch appears in your expenses, then check your balances:
+
+```bash
+spendly expenses list
+spendly accounts list
+```
+
+If the save result is unclear, check your expenses before trying again. A lost
+response does not mean the save failed; see
+[Troubleshooting](/docs/cli/troubleshooting) before repeating a write.
+
+## Other things you can do
+
+<details className="docs-disclosure">
+<summary>Balances, summaries, help, and signing out</summary>
+
+See your currency, current cycle (your spending period), and spending summary:
+
+```bash
+spendly context
+spendly summary --current
+```
+
+Open the guided menu to find more actions, or ask for help with a command:
+
+```bash
+spendly --interactive
+spendly --help
+spendly expenses add --help
+```
+
+To sign out and remove your locally stored session:
+
+```bash
+spendly auth logout
+```
+
+</details>
+
+## Things to know
+
+<details className="docs-disclosure">
+<summary>Defaults, limits, and important behavior</summary>
+
+- Authorization lasts at most 30 days before browser sign-in is required again.
+- Guided category choices come from the cycle covering the selected date,
+  followed by Uncategorized. The automatic category inference available when
+  scripts omit a category is not a guided choice.
+- Flags you supply are kept when you open the guided form.
+- Production authentication and read-only use through the Spendly skill in Codex
+  have been verified; broader production workflows remain subject to ongoing
+  validation.
+
+</details>
+
+## If something goes wrong
+
+<details className="docs-disclosure">
+<summary>Common problems and fixes</summary>
+
+- **Command not found:** Your terminal cannot locate Spendly. Check installation
+  and your terminal's command search path using [Troubleshooting](/docs/cli/troubleshooting).
+- **Sign-in or setup required:** Run `spendly auth login`, or finish account
+  setup in Spendly Web, then check `spendly auth status`.
+- **Prompts unavailable:** Guided forms need an interactive terminal. See
+  [Troubleshooting](/docs/cli/troubleshooting) for redirected input and accessible prompts.
+
+</details>
+
+## Next step
+
+**Your first expense is saved - you can stop here.** Continue to
+[AI agents](/docs/cli/ai-agents) to use Spendly through plain-language requests.
+
+## For scripts and AI agents
+
+You can skip this reference when using guided commands.
+
+<details className="docs-disclosure">
+<summary>Optional: automation and technical reference</summary>
+
+Use explicit commands with `--non-interactive`, for example:
+
+```bash
+spendly --agent --json --non-interactive context
+```
+
+`--agent` and `--json` never prompt, even in a terminal. Missing required inputs
+produce an error instead of waiting. Do not combine these modes or
+`--non-interactive` with `--interactive`. See [AI agents](/docs/cli/ai-agents)
+for machine-readable output, write safeguards, and privacy boundaries.
+
+Bare `spendly` opens the menu only when both input (stdin) and prompt output
+(stderr) are terminals (TTYs). Otherwise it prints help and exits without
+prompting. Use `spendly --interactive` to explicitly open the menu. Explicit
+commands, `--help`, and `--version` keep their existing behavior.
+
+In guided forms, `›` marks the focused choice. Tags and filters use checkbox
+selections. In date inputs, brackets mark the active segment, such as
+`[2026]-09-15`: Left/Right changes the segment and Up/Down changes its value.
+Accessible mode uses numbered choices, comma-separated checkbox selections,
+plain yes/no confirmations, and no ANSI cursor movement. Enable it with
+`--accessible` or `ACCESSIBLE=1`; Spendly selects it automatically when
+`TERM=dumb`. Color is never required to understand focus, warnings, or errors.
+
+For shell completion, generate the script for your shell and follow that shell's
+normal sourcing setup:
 
 ```bash
 spendly completion zsh
@@ -130,15 +197,4 @@ spendly completion bash
 spendly completion fish
 ```
 
-## Find your next command
-
-```bash
-spendly --help
-spendly expenses --help
-spendly expenses add --help
-```
-
-Explore [expenses](/docs/cli/expenses), [accounts](/docs/cli/accounts),
-[cycles](/docs/cli/cycles), [categories](/docs/cli/categories), or
-[tags](/docs/cli/tags). If something fails, see
-[Troubleshooting](/docs/cli/troubleshooting).
+</details>
