@@ -9,7 +9,8 @@ permissions:
 jobs:
   browser-smoke:
     name: Browser smoke (production Chromium)
-    runs-on: ubuntu-latest
+    # Playwright 1.58.2 does not support Ubuntu 26.04 (ubuntu-latest).
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       NEXT_PUBLIC_CONVEX_URL: https://ci-placeholder.convex.cloud
