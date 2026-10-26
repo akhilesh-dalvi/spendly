@@ -10,11 +10,10 @@ Use `spendly` to work with the user's Spendly data from their local computer.
 ## Get started
 
 Public documentation: [Spendly CLI](https://spendly.akhileshdalvi.com/docs/cli).
-The initial `0.1.2` release is available on npm for macOS. Install that exact
-version with `npm install --global spendly@0.1.2` on Node.js 22 or newer, or use
-`npm install --global spendly` for the default release. Production authentication
-and Codex read-only skill use are verified; broader workflows remain subject to
-ongoing validation. If npm cannot find the package, report the installation
+Install or update to the latest release with `npm install --global spendly@latest`
+on Node.js 22 or newer. macOS is the currently verified platform. Production
+authentication and Codex read-only skill use are verified; broader workflows
+remain subject to ongoing validation. If npm cannot find the package, report the installation
 failure; do not substitute an unrelated package.
 
 ```bash
