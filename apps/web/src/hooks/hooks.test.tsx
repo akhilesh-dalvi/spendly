@@ -24,9 +24,9 @@ describe("user currency", () => {
 		const { result } = renderHook(useCurrency);
 		expect(result.current).toMatchObject({
 			currency: "USD",
-			locale: "en-US",
 			hasUserCurrency: false,
 			isLoading: false,
+			locale: "en-US",
 		});
 		expect(result.current.format(1234.5)).toBe("$1,234.50");
 		expect(useQuery).toHaveBeenCalledWith(expect.anything(), "skip");
@@ -35,25 +35,28 @@ describe("user currency", () => {
 	it.each([
 		{ isLoaded: false, isSignedIn: false },
 		{ isLoaded: true, isSignedIn: true },
-	])("exposes loading before authentication or the user query resolves %#", (auth) => {
-		state.auth = auth;
-		const { result } = renderHook(useCurrency);
-		expect(result.current.isLoading).toBe(true);
-	});
+	])(
+		"exposes loading before authentication or the user query resolves %#",
+		(auth) => {
+			state.auth = auth;
+			const { result } = renderHook(useCurrency);
+			expect(result.current.isLoading).toBe(true);
+		}
+	);
 
 	it.each([
-		{ user: {}, currency: "USD", locale: "en-US", hasUserCurrency: false },
+		{ currency: "USD", hasUserCurrency: false, locale: "en-US", user: {} },
 		{
-			user: { currency: "EUR" },
 			currency: "EUR",
-			locale: "en-US",
 			hasUserCurrency: true,
+			locale: "en-US",
+			user: { currency: "EUR" },
 		},
 		{
-			user: { currency: "INR" },
 			currency: "INR",
-			locale: "en-IN",
 			hasUserCurrency: true,
+			locale: "en-IN",
+			user: { currency: "INR" },
 		},
 	])("resolves user preference $currency", ({ user, ...expected }) => {
 		state.user = user;
@@ -66,47 +69,48 @@ describe("user currency", () => {
 });
 
 describe("mobile breakpoint", () => {
-	it.each([
-		767, 768, 1024,
-	])("classifies a %spx viewport and subscribes to breakpoint changes", (width) => {
-		vi.stubGlobal("innerWidth", width);
-		const listeners = new Set<EventListenerOrEventListenerObject>();
-		const mediaQuery: MediaQueryList = {
-			matches: width < 768,
-			media: "(max-width: 767px)",
-			onchange: null,
-			addListener: vi.fn(),
-			removeListener: vi.fn(),
-			addEventListener: vi.fn((_event, listener) => {
-				if (listener) {
-					listeners.add(listener);
+	it.each([767, 768, 1024])(
+		"classifies a %spx viewport and subscribes to breakpoint changes",
+		(width) => {
+			vi.stubGlobal("innerWidth", width);
+			const listeners = new Set<EventListenerOrEventListenerObject>();
+			const mediaQuery: MediaQueryList = {
+				addEventListener: vi.fn((_event, listener) => {
+					if (listener) {
+						listeners.add(listener);
+					}
+				}),
+				addListener: vi.fn(),
+				dispatchEvent: vi.fn(() => true),
+				matches: width < 768,
+				media: "(max-width: 767px)",
+				onchange: null,
+				removeEventListener: vi.fn((_event, listener) => {
+					if (listener) {
+						listeners.delete(listener);
+					}
+				}),
+				removeListener: vi.fn(),
+			};
+			const matchMedia = vi
+				.spyOn(window, "matchMedia")
+				.mockReturnValue(mediaQuery);
+			const { result, unmount } = renderHook(useIsMobile);
+			expect(result.current).toBe(width < 768);
+			expect(matchMedia).toHaveBeenCalledWith("(max-width: 767px)");
+			act(() => {
+				vi.stubGlobal("innerWidth", width < 768 ? 1000 : 400);
+				for (const listener of listeners) {
+					if (typeof listener === "function") {
+						listener(new Event("change"));
+					}
 				}
-			}),
-			removeEventListener: vi.fn((_event, listener) => {
-				if (listener) {
-					listeners.delete(listener);
-				}
-			}),
-			dispatchEvent: vi.fn(() => true),
-		};
-		const matchMedia = vi
-			.spyOn(window, "matchMedia")
-			.mockReturnValue(mediaQuery);
-		const { result, unmount } = renderHook(useIsMobile);
-		expect(result.current).toBe(width < 768);
-		expect(matchMedia).toHaveBeenCalledWith("(max-width: 767px)");
-		act(() => {
-			vi.stubGlobal("innerWidth", width < 768 ? 1000 : 400);
-			for (const listener of listeners) {
-				if (typeof listener === "function") {
-					listener(new Event("change"));
-				}
-			}
-		});
-		expect(result.current).toBe(width >= 768);
-		unmount();
-		expect(listeners.size).toBe(0);
-		matchMedia.mockRestore();
-		vi.unstubAllGlobals();
-	});
+			});
+			expect(result.current).toBe(width >= 768);
+			unmount();
+			expect(listeners.size).toBe(0);
+			matchMedia.mockRestore();
+			vi.unstubAllGlobals();
+		}
+	);
 });

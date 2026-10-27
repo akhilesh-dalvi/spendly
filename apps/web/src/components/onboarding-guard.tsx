@@ -74,7 +74,7 @@ export function OnboardingGuard({ children }: { children: React.ReactNode }) {
 		}
 	}, [isLoaded, isSignedIn, onboardingState, pathname, router]);
 
-	if (!isLoaded || onboardingState == null) {
+	if (!isLoaded || onboardingState === null || onboardingState === undefined) {
 		return (
 			<div className="flex min-h-screen w-full items-center justify-center">
 				<Loader />

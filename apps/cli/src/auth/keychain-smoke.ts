@@ -26,12 +26,11 @@ export const runKeychainSmokeTest = (): {
 		cleanup = true;
 		return { cleanup: true, platform: process.platform, roundTrip: true };
 	} catch (error) {
-		throw new CliError(
+		throw CliError.fromCause(
+			error,
 			"KEYCHAIN_UNAVAILABLE",
 			"Native keychain security test failed",
-			{
-				cause: error,
-			}
+			{}
 		);
 	} finally {
 		if (!cleanup) {

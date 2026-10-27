@@ -12,19 +12,19 @@ const setup = async () => {
 	await owner.mutation(api.users.create, { email: "owner@example.com" });
 	await stranger.mutation(api.users.create, { email: "stranger@example.com" });
 	const cycle = await owner.mutation(api.cycles.create, {
+		endDate: "2026-02-01",
 		name: "January",
 		startDate: "2026-01-01",
-		endDate: "2026-02-01",
 	});
-	return { test, owner, stranger, cycle };
+	return { cycle, owner, stranger, test };
 };
 
 describe("web categories and tags", () => {
 	it("counts category type usage and detaches categories when a type is deleted", async () => {
 		const { owner, cycle } = await setup();
 		const type = await owner.mutation(api.categories.createType, {
-			name: "Custom",
 			color: "#112233",
+			name: "Custom",
 		});
 		if (!type) {
 			throw new Error("Expected category type");
@@ -35,20 +35,20 @@ describe("web categories and tags", () => {
 			order: 20,
 		});
 		const category = await owner.mutation(api.categories.create, {
+			categoryTypeId: type._id,
 			cycleId: cycle._id,
 			name: "Food",
-			categoryTypeId: type._id,
 		});
 		await owner.mutation(api.categories.create, {
+			categoryTypeId: type._id,
 			cycleId: cycle._id,
 			name: "Rent",
-			categoryTypeId: type._id,
 		});
 		await owner.mutation(api.categories.create, {
 			cycleId: cycle._id,
+			isHidden: true,
 			name: "Other",
 			order: 10,
-			isHidden: true,
 		});
 		expect(await owner.query(api.categories.listTypesWithUsage, {})).toEqual(
 			expect.arrayContaining([
@@ -62,10 +62,10 @@ describe("web categories and tags", () => {
 			expect.arrayContaining([
 				expect.objectContaining({
 					name: "Food",
-					typeName: "Custom",
 					typeColor: "#112233",
+					typeName: "Custom",
 				}),
-				expect.objectContaining({ name: "Other", isHidden: true }),
+				expect.objectContaining({ isHidden: true, name: "Other" }),
 			])
 		);
 		await expect(
@@ -79,17 +79,17 @@ describe("web categories and tags", () => {
 		).rejects.toThrow("already exists");
 		expect(
 			await owner.mutation(api.categories.updateType, {
+				color: "#445566",
 				id: type._id,
 				name: "Custom",
-				color: "#445566",
 				order: 5,
 			})
-		).toMatchObject({ name: "Custom", color: "#445566", order: 5 });
+		).toMatchObject({ color: "#445566", name: "Custom", order: 5 });
 		expect(
 			await owner.mutation(api.categories.updateType, {
+				color: "#778899",
 				id: type._id,
 				name: "Renamed",
-				color: "#778899",
 				order: 6,
 			})
 		).toMatchObject({ name: "Renamed" });
@@ -163,9 +163,9 @@ describe("web categories and tags", () => {
 			name: "Rent",
 		});
 		const next = await owner.mutation(api.cycles.create, {
+			endDate: "2026-03-01",
 			name: "February",
 			startDate: "2026-02-01",
-			endDate: "2026-03-01",
 		});
 		await owner.mutation(api.categories.create, {
 			cycleId: next._id,
@@ -185,8 +185,8 @@ describe("web categories and tags", () => {
 			async (ctx) =>
 				await ctx.db.insert("users", {
 					clerkId: "legacy-types",
-					email: "legacy@example.com",
 					createdAt: 0,
+					email: "legacy@example.com",
 				})
 		);
 		await owner.mutation(api.categories.seedDefaults, {});
@@ -204,21 +204,21 @@ describe("web categories and tags", () => {
 			tagId
 		);
 		const expense = await owner.mutation(api.expenses.create, {
+			accountId: null,
 			amount: 5,
 			date: "2026-01-03",
-			accountId: null,
 			tagIds: [tagId, otherId],
 		});
 		await owner.mutation(api.expenses.create, {
+			accountId: null,
 			amount: 2,
 			date: "2026-01-04",
-			accountId: null,
 			tagIds: [tagId],
 		});
 		const untouched = await owner.mutation(api.expenses.create, {
+			accountId: null,
 			amount: 1,
 			date: "2026-01-05",
-			accountId: null,
 		});
 		expect(await owner.query(api.tags.listWithUsage, {})).toEqual(
 			expect.arrayContaining([
@@ -227,7 +227,7 @@ describe("web categories and tags", () => {
 			])
 		);
 		expect(
-			await owner.mutation(api.tags.update, { tagId, name: "Renamed" })
+			await owner.mutation(api.tags.update, { name: "Renamed", tagId })
 		).toMatchObject({ name: "Renamed" });
 		expect(await owner.mutation(api.tags.remove, { tagId })).toEqual({
 			success: true,
@@ -235,11 +235,11 @@ describe("web categories and tags", () => {
 		expect(
 			await owner.query(api.expenses.get, { expenseId: expense._id })
 		).toMatchObject({
+			cycleId: cycle._id,
+			lastModifiedSource: "web",
+			revision: 2,
 			tagIds: [otherId],
 			tagNames: ["Other"],
-			revision: 2,
-			lastModifiedSource: "web",
-			cycleId: cycle._id,
 		});
 		expect(
 			await owner.query(api.expenses.get, { expenseId: untouched._id })
@@ -256,14 +256,14 @@ describe("web categories and tags", () => {
 		const tagId = await owner.mutation(api.tags.create, { name: "Private" });
 		expect(await stranger.query(api.tags.list, {})).toEqual([]);
 		await expect(
-			stranger.mutation(api.tags.update, { tagId, name: "Stolen" })
+			stranger.mutation(api.tags.update, { name: "Stolen", tagId })
 		).rejects.toThrow("Tag not found");
 		await expect(stranger.mutation(api.tags.remove, { tagId })).rejects.toThrow(
 			"Tag not found"
 		);
 		await owner.mutation(api.tags.remove, { tagId });
 		await expect(
-			owner.mutation(api.tags.update, { tagId, name: "Gone" })
+			owner.mutation(api.tags.update, { name: "Gone", tagId })
 		).rejects.toThrow("Tag not found");
 		await expect(owner.mutation(api.tags.remove, { tagId })).rejects.toThrow(
 			"Tag not found"

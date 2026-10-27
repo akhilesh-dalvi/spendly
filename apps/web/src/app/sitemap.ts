@@ -27,18 +27,18 @@ export default function sitemap(): MetadataRoute.Sitemap {
 	};
 
 	const marketingEntries: MetadataRoute.Sitemap = publicRoutes.map((route) => ({
-		url: absoluteUrl(route),
-		lastModified,
 		changeFrequency: route === "/" ? "weekly" : "monthly",
+		lastModified,
 		priority: getPriority(route),
+		url: absoluteUrl(route),
 	}));
 	const cliDocsEntries: MetadataRoute.Sitemap = cliDocsSource
 		.getPages()
 		.map((page) => ({
-			url: absoluteUrl(page.url),
-			lastModified,
 			changeFrequency: "monthly",
+			lastModified,
 			priority: page.slugs.length === 0 ? 0.9 : 0.7,
+			url: absoluteUrl(page.url),
 		}));
 
 	return [...marketingEntries, ...cliDocsEntries];

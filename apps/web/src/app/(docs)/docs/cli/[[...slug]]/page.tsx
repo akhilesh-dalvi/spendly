@@ -29,19 +29,19 @@ export async function generateMetadata({
 	const title = createMarketingTitle(`${page.data.title} — CLI docs`);
 
 	return {
-		title,
-		description: page.data.description,
 		alternates: { canonical: absoluteUrl(page.url) },
+		description: page.data.description,
 		openGraph: {
-			title,
 			description: page.data.description,
+			title,
 			type: "article",
 			url: absoluteUrl(page.url),
 		},
+		title,
 		twitter: {
 			card: "summary",
-			title,
 			description: page.data.description,
+			title,
 		},
 	};
 }

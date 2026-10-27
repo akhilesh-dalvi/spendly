@@ -1,7 +1,9 @@
 // biome-ignore-all lint/style/useFilenamingConvention: Convex module filenames use camelCase.
+
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "./_generated/api";
+import { forEachSequential } from "./lib/async";
 import schema from "./schema";
 import { modules } from "./test.setup";
 
@@ -16,27 +18,27 @@ const setup = async () => {
 		throw new Error("Expected seeded account type");
 	}
 	const account = await owner.mutation(api.accounts.create, {
-		name: "Wallet",
 		accountTypeId: accountType._id,
+		name: "Wallet",
 		startingBalance: 100,
 	});
 	const cycle = await owner.mutation(api.cycles.create, {
+		endDate: "2026-02-01",
 		name: "January",
 		startDate: "2026-01-01",
-		endDate: "2026-02-01",
 	});
 	const categoryType = await owner.mutation(api.categories.createType, {
-		name: "Essential",
 		color: "#123456",
+		name: "Essential",
 	});
 	if (!categoryType) {
 		throw new Error("Expected created category type");
 	}
 	const category = await owner.mutation(api.categories.create, {
-		cycleId: cycle._id,
-		name: "Food",
 		categoryTypeId: categoryType._id,
+		cycleId: cycle._id,
 		icon: "apple",
+		name: "Food",
 	});
 	if (!category) {
 		throw new Error("Expected created category");
@@ -44,36 +46,36 @@ const setup = async () => {
 	const tag = await owner.mutation(api.tags.create, { name: "shared" });
 	const secondTag = await owner.mutation(api.tags.create, { name: "special" });
 	const first = await owner.mutation(api.expenses.create, {
-		amount: 10,
-		date: "2026-01-05",
 		accountId: account._id,
+		amount: 10,
 		categoryId: category._id,
-		tagIds: [tag, secondTag],
+		date: "2026-01-05",
 		spentOn: "Lunch",
+		tagIds: [tag, secondTag],
 	});
 	const second = await owner.mutation(api.expenses.create, {
-		amount: 20,
-		date: "2026-01-10",
 		accountId: account._id,
+		amount: 20,
 		categoryId: category._id,
+		date: "2026-01-10",
 		tagIds: [tag],
 	});
 	const unlinked = await owner.mutation(api.expenses.create, {
+		accountId: null,
 		amount: 3,
 		date: "2026-02-01",
-		accountId: null,
 	});
 	return {
-		test,
-		owner,
-		stranger,
 		account,
-		cycle,
 		category,
-		tag,
-		secondTag,
+		cycle,
 		first,
+		owner,
 		second,
+		secondTag,
+		stranger,
+		tag,
+		test,
 		unlinked,
 	};
 };
@@ -86,12 +88,12 @@ describe("web expense queries", () => {
 		).toMatchObject({
 			accountName: "Wallet",
 			accountTypeId: account.accountTypeId,
-			categoryName: "Food",
+			amount: 10,
 			categoryIcon: "apple",
+			categoryName: "Food",
 			categoryTypeColor: "#123456",
 			cycleName: "January",
 			tagNames: ["shared", "special"],
-			amount: 10,
 		});
 		expect(
 			await owner.query(api.expenses.get, { expenseId: unlinked._id })
@@ -133,10 +135,10 @@ describe("web expense queries", () => {
 			(
 				await owner.query(api.expenses.list, {
 					accountId: account._id,
-					cycleId: cycle._id,
 					categoryId: category._id,
-					startDate: "2026-01-05",
+					cycleId: cycle._id,
 					endDate: "2026-01-10",
+					startDate: "2026-01-05",
 					tagIds: [tag, secondTag],
 				})
 			).map((expense) => expense._id)
@@ -154,10 +156,10 @@ describe("web expense queries", () => {
 		expect(
 			(
 				await owner.query(api.expenses.list, {
-					startDate: "2026-01-05",
 					endDate: "2026-02-01",
-					offset: 1,
 					limit: 1,
+					offset: 1,
+					startDate: "2026-01-05",
 				})
 			).map((expense) => expense._id)
 		).toEqual([first._id]);
@@ -175,9 +177,9 @@ describe("web expense queries", () => {
 	it("limits recent results without exposing another user's expenses", async () => {
 		const { owner, stranger, first, second, unlinked } = await setup();
 		await stranger.mutation(api.expenses.create, {
+			accountId: null,
 			amount: 99,
 			date: "2026-03-01",
-			accountId: null,
 		});
 		expect(
 			(await owner.query(api.expenses.listRecent, {})).map(
@@ -196,19 +198,19 @@ describe("web expense queries", () => {
 
 	it("rejects invalid pagination and excessive tag filters", async () => {
 		const { owner, tag } = await setup();
-		for (const offset of [-1, 0.5]) {
+		await forEachSequential([-1, 0.5], async (offset) => {
 			await expect(owner.query(api.expenses.list, { offset })).rejects.toThrow(
 				"INVALID_OFFSET"
 			);
-		}
-		for (const limit of [0, -1, 1.5]) {
+		});
+		await forEachSequential([0, -1, 1.5], async (limit) => {
 			await expect(owner.query(api.expenses.list, { limit })).rejects.toThrow(
 				"INVALID_LIMIT"
 			);
 			await expect(
 				owner.query(api.expenses.listRecent, { limit })
 			).rejects.toThrow("INVALID_LIMIT");
-		}
+		});
 		await expect(
 			owner.query(api.expenses.list, {
 				tagIds: Array.from({ length: 101 }, () => tag),
@@ -222,19 +224,22 @@ describe("web expense queries", () => {
 		await expect(test.query(api.expenses.list, {})).rejects.toThrow(
 			"UNAUTHENTICATED"
 		);
-		for (const filters of [
-			{ accountId: account._id },
-			{ categoryId: category._id },
-		]) {
-			await expect(stranger.query(api.expenses.list, filters)).rejects.toThrow(
-				"UNAUTHORIZED"
-			);
-		}
-		for (const filters of [{ cycleId: cycle._id }, { tagIds: [tag] }]) {
-			await expect(stranger.query(api.expenses.list, filters)).rejects.toThrow(
-				"NOT_FOUND"
-			);
-		}
+		await forEachSequential(
+			[{ accountId: account._id }, { categoryId: category._id }],
+			async (filters) => {
+				await expect(
+					stranger.query(api.expenses.list, filters)
+				).rejects.toThrow("UNAUTHORIZED");
+			}
+		);
+		await forEachSequential(
+			[{ cycleId: cycle._id }, { tagIds: [tag] }],
+			async (filters) => {
+				await expect(
+					stranger.query(api.expenses.list, filters)
+				).rejects.toThrow("NOT_FOUND");
+			}
+		);
 		await expect(
 			stranger.query(api.expenses.get, { expenseId: first._id })
 		).rejects.toThrow("NOT_FOUND");

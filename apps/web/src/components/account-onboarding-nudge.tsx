@@ -4,7 +4,7 @@ import { api } from "@spendly/backend/convex/_generated/api";
 import { useMutation } from "convex/react";
 import { ArrowRight, WalletCards } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { reportError } from "@/lib/report-error";
@@ -15,7 +15,7 @@ export function AccountOnboardingNudge() {
 	);
 	const [isDismissing, setIsDismissing] = useState(false);
 
-	const handleDismiss = async () => {
+	const handleDismiss = useCallback(async () => {
 		setIsDismissing(true);
 		try {
 			await dismissAccountsOnboarding({});
@@ -24,7 +24,7 @@ export function AccountOnboardingNudge() {
 			toast.error("We couldn't dismiss this reminder. Please try again.");
 			setIsDismissing(false);
 		}
-	};
+	}, [dismissAccountsOnboarding]);
 
 	return (
 		<div className="flex flex-col gap-4 border-t bg-primary/[0.035] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">

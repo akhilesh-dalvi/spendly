@@ -10,12 +10,12 @@ import { AccountActionDialogs } from "./account-actions";
 
 const mocks = vi.hoisted(() => ({
 	adjust: vi.fn(),
-	transfer: vi.fn(),
-	push: vi.fn(),
-	success: vi.fn(),
 	error: vi.fn(),
 	info: vi.fn(),
+	push: vi.fn(),
 	report: vi.fn(),
+	success: vi.fn(),
+	transfer: vi.fn(),
 }));
 vi.mock("convex/react", () => ({
 	useMutation: (reference: Parameters<typeof getFunctionName>[0]) =>
@@ -25,45 +25,45 @@ vi.mock("convex/react", () => ({
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push }) }));
 vi.mock("sonner", () => ({
-	toast: { success: mocks.success, error: mocks.error, info: mocks.info },
+	toast: { error: mocks.error, info: mocks.info, success: mocks.success },
 }));
 vi.mock("@/lib/report-error", () => ({ reportError: mocks.report }));
 
 const source: ResolvedAccount = {
-	_id: "checking" as Id<"accounts">,
 	_creationTime: 1,
-	userId: "user-1" as Id<"users">,
-	createdAt: 1,
-	name: "Checking",
-	accountTypeId: "type-1" as Id<"account_types">,
-	accountTypeName: "Bank",
+	_id: "checking" as Id<"accounts">,
 	accountTypeBalanceNature: "asset",
 	accountTypeColor: null,
 	accountTypeIcon: "landmark",
-	startingBalance: 100,
+	accountTypeId: "type-1" as Id<"account_types">,
+	accountTypeName: "Bank",
+	createdAt: 1,
 	currentBalance: 100,
 	isArchived: false,
+	name: "Checking",
+	startingBalance: 100,
+	userId: "user-1" as Id<"users">,
 };
 const savings: ResolvedAccount = {
 	...source,
 	_id: "savings" as Id<"accounts">,
-	name: "Savings",
-	currentBalance: 40,
-	currency: "USD",
 	accountTypeColor: "#14B8A6",
 	accountTypeIcon: null,
+	currency: "USD",
+	currentBalance: 40,
+	name: "Savings",
 };
 const otherCurrency: ResolvedAccount = {
 	...savings,
 	_id: "euro" as Id<"accounts">,
-	name: "Euro wallet",
 	currency: "EUR",
+	name: "Euro wallet",
 };
 const archived: ResolvedAccount = {
 	...savings,
 	_id: "old" as Id<"accounts">,
-	name: "Old savings",
 	isArchived: true,
+	name: "Old savings",
 };
 const accounts = [source, savings, otherCurrency, archived];
 const CURRENT_BALANCE = /Current Spendly balance/;
@@ -253,14 +253,14 @@ describe("AccountActionDialogs", () => {
 			amount: 125.5,
 			date: "2026-02-05",
 			fromAccountId: source._id,
-			toAccountId: savings._id,
 			note: "Emergency fund",
+			toAccountId: savings._id,
 		});
 		expect(mocks.success).toHaveBeenCalledWith(
 			"Transfer recorded",
 			expect.objectContaining({
-				description: "$125.50 moved from Checking to Savings (Bank).",
 				action: { label: "View Savings", onClick: expect.any(Function) },
+				description: "$125.50 moved from Checking to Savings (Bank).",
 			})
 		);
 		const toastOptions = mocks.success.mock.calls[0][1] as {

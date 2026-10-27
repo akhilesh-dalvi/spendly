@@ -17,7 +17,6 @@ const accountTypeValidator = v.object({
 
 export const list = query({
 	args: { includeArchived: v.optional(v.boolean()) },
-	returns: v.array(accountTypeValidator),
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -48,4 +47,5 @@ export const list = query({
 					).toISOString(),
 				}));
 		}),
+	returns: v.array(accountTypeValidator),
 });

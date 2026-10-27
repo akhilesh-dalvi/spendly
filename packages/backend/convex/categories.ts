@@ -8,6 +8,7 @@ import {
 	validateCategoryOwnership,
 	validateCycleOwnership,
 } from "./helpers";
+import { forEachSequential } from "./lib/async";
 
 const MAX_ONBOARDING_CATEGORIES = 100;
 
@@ -85,9 +86,9 @@ const removeUnretainedOnboardingCategories = async (
 	existingCategories: Doc<"categories">[],
 	retainedCategoryIds: Set<Id<"categories">>
 ): Promise<void> => {
-	for (const category of existingCategories) {
+	await forEachSequential(existingCategories, async (category) => {
 		if (retainedCategoryIds.has(category._id)) {
-			continue;
+			return;
 		}
 		const linkedExpense = await ctx.db
 			.query("expenses")
@@ -100,7 +101,7 @@ const removeUnretainedOnboardingCategories = async (
 		} else {
 			await ctx.db.delete(category._id);
 		}
-	}
+	});
 };
 
 export const listTypes = query({
@@ -147,8 +148,8 @@ export const listTypesWithUsage = query({
 
 export const createType = mutation({
 	args: {
-		name: v.string(),
 		color: v.optional(v.string()),
+		name: v.string(),
 		order: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
@@ -164,7 +165,7 @@ export const createType = mutation({
 			throw new ConvexError("A category type with this name already exists");
 		}
 
-		let order = args.order;
+		let { order } = args;
 		if (order === undefined) {
 			const lastType = await ctx.db
 				.query("category_types")
@@ -174,11 +175,11 @@ export const createType = mutation({
 			order = (lastType?.order ?? -1) + 1;
 		}
 		const id = await ctx.db.insert("category_types", {
-			userId: user._id,
-			name: args.name,
 			color: args.color,
-			order,
 			createdAt: Date.now(),
+			name: args.name,
+			order,
+			userId: user._id,
 		});
 		return await ctx.db.get(id);
 	},
@@ -186,9 +187,9 @@ export const createType = mutation({
 
 export const updateType = mutation({
 	args: {
+		color: v.optional(v.string()),
 		id: v.id("category_types"),
 		name: v.optional(v.string()),
-		color: v.optional(v.string()),
 		order: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
@@ -211,8 +212,8 @@ export const updateType = mutation({
 		}
 
 		await ctx.db.patch(args.id, {
-			name: args.name,
 			color: args.color,
+			name: args.name,
 			order: args.order,
 		});
 		return await ctx.db.get(args.id);
@@ -233,9 +234,9 @@ export const deleteType = mutation({
 			.filter((q) => q.eq(q.field("categoryTypeId"), args.id))
 			.collect();
 
-		for (const cat of categories) {
+		await forEachSequential(categories, async (cat) => {
 			await ctx.db.patch(cat._id, { categoryTypeId: undefined });
-		}
+		});
 
 		await ctx.db.delete(args.id);
 		return { success: true };
@@ -253,25 +254,25 @@ export const seedDefaults = mutation({
 
 		if (!existing) {
 			await ctx.db.insert("category_types", {
-				userId: user._id,
-				name: "Needs",
 				color: "#3b82f6",
+				createdAt: Date.now(),
+				name: "Needs",
 				order: 0,
-				createdAt: Date.now(),
+				userId: user._id,
 			});
 			await ctx.db.insert("category_types", {
-				userId: user._id,
-				name: "Wants",
 				color: "#f59e0b",
-				order: 1,
 				createdAt: Date.now(),
+				name: "Wants",
+				order: 1,
+				userId: user._id,
 			});
 			await ctx.db.insert("category_types", {
-				userId: user._id,
-				name: "Savings",
 				color: "#10b981",
-				order: 2,
 				createdAt: Date.now(),
+				name: "Savings",
+				order: 2,
+				userId: user._id,
 			});
 		}
 	},
@@ -296,8 +297,8 @@ export const list = query({
 					: null;
 				return {
 					...cat,
-					typeName: type?.name,
 					typeColor: type?.color,
+					typeName: type?.name,
 				};
 			})
 		);
@@ -360,19 +361,19 @@ export const get = query({
 
 export const create = mutation({
 	args: {
-		cycleId: v.id("expense_cycles"),
-		name: v.string(),
 		categoryTypeId: v.optional(v.id("category_types")),
-		plannedAmount: v.optional(v.number()),
+		cycleId: v.id("expense_cycles"),
 		icon: v.optional(v.string()),
 		isHidden: v.optional(v.boolean()),
+		name: v.string(),
 		order: v.optional(v.number()),
+		plannedAmount: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		await validateCycleOwnership(ctx, args.cycleId, user._id);
 
-		let order = args.order;
+		let { order } = args;
 		if (order === undefined) {
 			const lastCat = await ctx.db
 				.query("categories")
@@ -383,15 +384,15 @@ export const create = mutation({
 		}
 
 		const id = await ctx.db.insert("categories", {
-			userId: user._id,
-			cycleId: args.cycleId,
-			name: args.name,
 			categoryTypeId: args.categoryTypeId,
-			plannedAmount: args.plannedAmount,
+			createdAt: Date.now(),
+			cycleId: args.cycleId,
 			icon: args.icon,
 			isHidden: args.isHidden ?? false,
+			name: args.name,
 			order,
-			createdAt: Date.now(),
+			plannedAmount: args.plannedAmount,
+			userId: user._id,
 		});
 		return await ctx.db.get(id);
 	},
@@ -410,7 +411,6 @@ export const saveOnboardingCategories = mutation({
 		),
 		cycleId: v.id("expense_cycles"),
 	},
-	returns: v.null(),
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		await validateCycleOwnership(ctx, args.cycleId, user._id);
@@ -432,19 +432,22 @@ export const saveOnboardingCategories = mutation({
 		);
 		const retainedCategoryIds = new Set<Id<"categories">>();
 
-		for (const [order, category] of args.categories.entries()) {
-			const retainedCategoryId = await persistOnboardingCategory(
-				ctx,
-				category,
-				args.cycleId,
-				existingCategoryIds,
-				order,
-				user._id
-			);
-			if (retainedCategoryId) {
-				retainedCategoryIds.add(retainedCategoryId);
+		await forEachSequential(
+			args.categories.entries(),
+			async ([order, category]) => {
+				const retainedCategoryId = await persistOnboardingCategory(
+					ctx,
+					category,
+					args.cycleId,
+					existingCategoryIds,
+					order,
+					user._id
+				);
+				if (retainedCategoryId) {
+					retainedCategoryIds.add(retainedCategoryId);
+				}
 			}
-		}
+		);
 
 		await removeUnretainedOnboardingCategories(
 			ctx,
@@ -454,17 +457,18 @@ export const saveOnboardingCategories = mutation({
 		await ctx.db.patch(user._id, { onboardingStep: "account" });
 		return null;
 	},
+	returns: v.null(),
 });
 
 export const update = mutation({
 	args: {
-		id: v.id("categories"),
-		name: v.optional(v.string()),
 		categoryTypeId: v.optional(v.id("category_types")),
-		plannedAmount: v.optional(v.number()),
 		icon: v.optional(v.string()),
+		id: v.id("categories"),
 		isHidden: v.optional(v.boolean()),
+		name: v.optional(v.string()),
 		order: v.optional(v.number()),
+		plannedAmount: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
@@ -506,15 +510,15 @@ export const remove = mutation({
 			.withIndex("by_categoryId", (q) => q.eq("categoryId", args.categoryId))
 			.collect();
 
-		for (const exp of expenses) {
+		await forEachSequential(expenses, async (exp) => {
 			await ctx.db.patch(exp._id, {
 				categoryId: undefined,
 				lastModifiedSource: "web",
 				revision: nextRevision(exp.revision),
 			});
-		}
+		});
 
 		await ctx.db.delete(args.categoryId);
-		return { success: true, affectedExpenses: expenses.length };
+		return { affectedExpenses: expenses.length, success: true };
 	},
 });

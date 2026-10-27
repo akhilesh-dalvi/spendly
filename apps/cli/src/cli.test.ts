@@ -72,25 +72,25 @@ describe("CLI foundation", () => {
 		expect(testRuntime.getStderr()).toBe("");
 	});
 
-	it.each([
-		false,
-		true,
-	])("describes npm installation without stale release claims (JSON: %s)", async (json) => {
-		const testRuntime = createTestRuntime();
-		const args = json ? ["--json", "--help"] : ["--help"];
+	it.each([false, true])(
+		"describes npm installation without stale release claims (JSON: %s)",
+		async (json) => {
+			const testRuntime = createTestRuntime();
+			const args = json ? ["--json", "--help"] : ["--help"];
 
-		const exitCode = await runCli(args, testRuntime.runtime);
-		const stdout = testRuntime.getStdout();
-		const help = json ? JSON.parse(stdout).data.help : stdout;
+			const exitCode = await runCli(args, testRuntime.runtime);
+			const stdout = testRuntime.getStdout();
+			const help = json ? JSON.parse(stdout).data.help : stdout;
 
-		expect(exitCode).toBe(CLI_EXIT_CODE.success);
-		expect(help).toContain(
-			"Install from npm (next channel): npm install --global spendly@next"
-		);
-		expect(help).not.toContain("Initial release");
-		expect(help).not.toContain("once published");
-		expect(testRuntime.getStderr()).toBe("");
-	});
+			expect(exitCode).toBe(CLI_EXIT_CODE.success);
+			expect(help).toContain(
+				"Install from npm (next channel): npm install --global spendly@next"
+			);
+			expect(help).not.toContain("Initial release");
+			expect(help).not.toContain("once published");
+			expect(testRuntime.getStderr()).toBe("");
+		}
+	);
 
 	it("renders the package version without authentication", async () => {
 		const testRuntime = createTestRuntime();
@@ -175,9 +175,9 @@ describe("CLI foundation", () => {
 		});
 		expect(versionExitCode).toBe(CLI_EXIT_CODE.success);
 		expect(JSON.parse(versionRuntime.getStdout())).toEqual({
-			schemaVersion: 1,
 			data: { version: "0.1.5" },
 			meta: {},
+			schemaVersion: 1,
 		});
 	});
 

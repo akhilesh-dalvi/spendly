@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { use, useMemo, useState } from "react";
+import { use, useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CategoryForm } from "@/components/category-form";
 import { ExpenseForm } from "@/components/expense-form";
@@ -45,12 +45,12 @@ import { cn } from "@/lib/utils";
 import { columns } from "./columns";
 
 interface CategoryStatsSummary {
-	planned: number;
-	remaining: number;
-	progress: number;
 	isOver: boolean;
-	typeColor: string;
 	percentageSpent: number;
+	planned: number;
+	progress: number;
+	remaining: number;
+	typeColor: string;
 }
 
 interface HistoricalSpent {
@@ -125,12 +125,12 @@ function buildCategoryStats({
 	const planned = plannedAmount || 0;
 
 	return {
-		planned,
-		remaining: planned - totalSpent,
-		progress: planned > 0 ? (totalSpent / planned) * 100 : 0,
 		isOver: totalSpent > planned && planned > 0,
-		typeColor: typeColor || "hsl(var(--primary))",
 		percentageSpent: planned > 0 ? Math.round((totalSpent / planned) * 100) : 0,
+		planned,
+		progress: planned > 0 ? (totalSpent / planned) * 100 : 0,
+		remaining: planned - totalSpent,
+		typeColor: typeColor || "hsl(var(--primary))",
 	};
 }
 
@@ -145,7 +145,7 @@ function getHistoricalSpentValue(
 	categoryName: string
 ) {
 	if (!historicalStats) {
-		return undefined;
+		return;
 	}
 
 	const amount = historicalStats.stats[categoryName];
@@ -181,7 +181,7 @@ async function deleteCategoryAndRedirect({
 			toast.success("Category deleted");
 		}
 		router.push("/dashboard");
-	} catch (_error) {
+	} catch {
 		setIsDeleting(false);
 		toast.error("Failed to delete category");
 	}
@@ -215,7 +215,7 @@ async function toggleCategoryVisibility({
 				? "Category now visible on dashboard"
 				: "Category hidden from dashboard"
 		);
-	} catch (_error) {
+	} catch {
 		toast.error("Failed to update visibility");
 	}
 }
@@ -234,6 +234,14 @@ function CategoryDetailHeader({
 	setIsEditModalOpen,
 	totalSpent,
 }: CategoryDetailHeaderProps) {
+	const closeExpense = useCallback(
+		() => setIsAddExpenseModalOpen(false),
+		[setIsAddExpenseModalOpen]
+	);
+	const closeEdit = useCallback(
+		() => setIsEditModalOpen(false),
+		[setIsEditModalOpen]
+	);
 	return (
 		<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 			<div className="flex items-center gap-4">
@@ -261,7 +269,7 @@ function CategoryDetailHeader({
 							{category.name}
 						</h1>
 						<div className="flex items-center gap-2">
-							{categoryType && (
+							{categoryType !== null && (
 								<span
 									className="font-bold text-[10px] uppercase tracking-widest"
 									style={{ color: categoryType.color || undefined }}
@@ -269,7 +277,7 @@ function CategoryDetailHeader({
 									{categoryType.name}
 								</span>
 							)}
-							{cycleName && (
+							{Boolean(cycleName) && (
 								<p className="font-medium text-muted-foreground text-xs">
 									• {cycleName}
 								</p>
@@ -297,7 +305,7 @@ function CategoryDetailHeader({
 							defaultValues={{
 								categoryId,
 							}}
-							onSuccess={() => setIsAddExpenseModalOpen(false)}
+							onSuccess={closeExpense}
 						/>
 					</DialogContent>
 				</Dialog>
@@ -317,13 +325,13 @@ function CategoryDetailHeader({
 							categoryId={categoryId}
 							cycleId={category.cycleId}
 							defaultValues={{
-								name: category.name,
 								categoryTypeId: category.categoryTypeId ?? undefined,
-								plannedAmount: category.plannedAmount ?? undefined,
 								icon: category.icon ?? undefined,
+								name: category.name,
+								plannedAmount: category.plannedAmount ?? undefined,
 							}}
 							historicalSpent={historicalSpent}
-							onSuccess={() => setIsEditModalOpen(false)}
+							onSuccess={closeEdit}
 						/>
 					</DialogContent>
 				</Dialog>
@@ -429,8 +437,8 @@ function CategorySummaryCards({
 								<div
 									className="h-full transition-all"
 									style={{
-										width: `${Math.min(stats.progress, 100)}%`,
 										backgroundColor: getCategoryProgressColor(stats),
+										width: `${Math.min(stats.progress, 100)}%`,
 									}}
 								/>
 							</div>
@@ -577,9 +585,32 @@ export default function CategoryDetailPage({
 		return categoryTypes.find((t) => t._id === category.categoryTypeId) || null;
 	}, [category, categoryTypes, isDeleting]);
 
-	const totalSpent = useMemo(() => {
-		return expenses?.reduce((acc, curr) => acc + curr.amount, 0) || 0;
-	}, [expenses]);
+	const totalSpent = useMemo(
+		() => expenses?.reduce((acc, curr) => acc + curr.amount, 0) || 0,
+		[expenses]
+	);
+
+	const handleDelete = useCallback(
+		() =>
+			deleteCategoryAndRedirect({
+				categoryId,
+				removeCategory,
+				router,
+				setIsDeleting,
+			}),
+		[categoryId, removeCategory, router]
+	);
+	const handleVisibility = useCallback(
+		() =>
+			toggleCategoryVisibility({
+				category: category ?? null,
+				categoryId,
+				isDeleting,
+				updateCategory,
+			}),
+		[category, categoryId, isDeleting, updateCategory]
+	);
+	const addExpense = useCallback(() => setIsAddExpenseModalOpen(true), []);
 
 	if (isDeleting) {
 		return <Loader />;
@@ -613,22 +644,8 @@ export default function CategoryDetailPage({
 				historicalSpent={historicalSpent}
 				isAddExpenseModalOpen={isAddExpenseModalOpen}
 				isEditModalOpen={isEditModalOpen}
-				onDelete={() =>
-					deleteCategoryAndRedirect({
-						categoryId,
-						removeCategory,
-						router,
-						setIsDeleting,
-					})
-				}
-				onToggleVisibility={() =>
-					toggleCategoryVisibility({
-						category,
-						categoryId,
-						isDeleting,
-						updateCategory,
-					})
-				}
+				onDelete={handleDelete}
+				onToggleVisibility={handleVisibility}
 				setIsAddExpenseModalOpen={setIsAddExpenseModalOpen}
 				setIsEditModalOpen={setIsEditModalOpen}
 				totalSpent={totalSpent}
@@ -642,7 +659,7 @@ export default function CategoryDetailPage({
 
 			<CategoryTransactionsSection
 				expenses={expenses}
-				onAddExpense={() => setIsAddExpenseModalOpen(true)}
+				onAddExpense={addExpense}
 			/>
 		</div>
 	);

@@ -13,8 +13,8 @@ const YARN_RUNNER_NOTE = /One-off tools use npx/;
 async function renderBlocks(...sources: string[]) {
 	const blocks = await Promise.all(
 		sources.map(async (source) => ({
-			source,
 			element: await DocsCodeBlock({ children: <code>{source}</code> }),
+			source,
 		}))
 	);
 	return render(
@@ -71,29 +71,32 @@ describe("synchronized package-manager blocks", () => {
 		);
 	});
 
-	it.each(
-		PACKAGE_MANAGERS
-	)("uses the same highlighted frame for %s", async (manager) => {
-		window.localStorage.setItem(STORAGE_KEY, manager);
-		const { container } = await renderBlocks(
-			"npm install --global spendly@latest"
-		);
-		const panel = screen.getByRole("tabpanel");
-		expect(panel.querySelector("span[style*='--shiki-light']")).not.toBeNull();
-		expect(container.querySelector("[data-slot=code-block]")).toHaveClass(
-			"shiki"
-		);
-		expect(
-			container.querySelector("[data-slot=code-block-header]")
-		).toHaveClass("h-11", "px-4");
-		expect(panel.querySelector("pre")).toHaveClass(
-			"p-4",
-			"text-[13px]",
-			"leading-6"
-		);
-		expect(panel.querySelectorAll("pre code")).toHaveLength(1);
-		expect(panel.querySelector("code code")).toBeNull();
-	});
+	it.each(PACKAGE_MANAGERS)(
+		"uses the same highlighted frame for %s",
+		async (manager) => {
+			window.localStorage.setItem(STORAGE_KEY, manager);
+			const { container } = await renderBlocks(
+				"npm install --global spendly@latest"
+			);
+			const panel = screen.getByRole("tabpanel");
+			expect(
+				panel.querySelector("span[style*='--shiki-light']")
+			).not.toBeNull();
+			expect(container.querySelector("[data-slot=code-block]")).toHaveClass(
+				"shiki"
+			);
+			expect(
+				container.querySelector("[data-slot=code-block-header]")
+			).toHaveClass("h-11", "px-4");
+			expect(panel.querySelector("pre")).toHaveClass(
+				"p-4",
+				"text-[13px]",
+				"leading-6"
+			);
+			expect(panel.querySelectorAll("pre code")).toHaveLength(1);
+			expect(panel.querySelector("code code")).toBeNull();
+		}
+	);
 
 	it("restores the preference when navigating to another page", async () => {
 		window.localStorage.setItem(STORAGE_KEY, "pnpm");

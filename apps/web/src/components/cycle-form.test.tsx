@@ -2,7 +2,13 @@
 
 import { api } from "@spendly/backend/convex/_generated/api";
 import type { Id } from "@spendly/backend/convex/_generated/dataModel";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
 	type FunctionReference,
@@ -20,26 +26,26 @@ const JULY_5_LABEL = /July 5th, 2026/;
 const JULY_18_LABEL = /July 18th, 2026/;
 
 const mocks = vi.hoisted(() => ({
-	queries: new Map<string, unknown>(),
 	create: vi.fn(),
-	update: vi.fn(),
-	success: vi.fn(),
 	error: vi.fn(),
+	queries: new Map<string, unknown>(),
 	query: vi.fn(),
+	success: vi.fn(),
+	update: vi.fn(),
 }));
 vi.mock("convex/react", async () => {
 	const { getFunctionName: name } = await import("convex/server");
 	return {
+		useMutation: (ref: FunctionReference<"mutation">) =>
+			name(ref) === name(api.cycles.create) ? mocks.create : mocks.update,
 		useQuery: (ref: FunctionReference<"query">, args?: unknown) => {
 			mocks.query(name(ref), args);
 			return args === "skip" ? undefined : mocks.queries.get(name(ref));
 		},
-		useMutation: (ref: FunctionReference<"mutation">) =>
-			name(ref) === name(api.cycles.create) ? mocks.create : mocks.update,
 	};
 });
 vi.mock("sonner", () => ({
-	toast: { success: mocks.success, error: mocks.error },
+	toast: { error: mocks.error, success: mocks.success },
 }));
 function fixture<T extends FunctionReference<"query">>(
 	ref: T,
@@ -52,37 +58,37 @@ const sourceId = "previous" as Id<"expense_cycles">;
 const foodId = "food" as Id<"categories">;
 const rentId = "rent" as Id<"categories">;
 const source: FunctionReturnType<typeof api.cycles.list>[number] = {
-	_id: sourceId,
 	_creationTime: 0,
+	_id: sourceId,
 	createdAt: 0,
-	userId,
+	endDate: "2026-07-01",
 	name: "June budget",
 	startDate: "2026-06-01",
-	endDate: "2026-07-01",
+	userId,
 };
 const categories: FunctionReturnType<typeof api.categories.list> = [
 	{
-		_id: foodId,
 		_creationTime: 0,
-		userId,
-		cycleId: sourceId,
+		_id: foodId,
 		createdAt: 0,
+		cycleId: sourceId,
 		name: "Food",
-		plannedAmount: 300,
 		order: 0,
-		typeName: "Needs",
+		plannedAmount: 300,
 		typeColor: undefined,
+		typeName: "Needs",
+		userId,
 	},
 	{
-		_id: rentId,
 		_creationTime: 0,
-		userId,
-		cycleId: sourceId,
+		_id: rentId,
 		createdAt: 0,
+		cycleId: sourceId,
 		name: "Rent",
 		order: 1,
-		typeName: undefined,
 		typeColor: undefined,
+		typeName: undefined,
+		userId,
 	},
 ];
 beforeEach(() => {
@@ -121,13 +127,13 @@ describe("CycleForm", () => {
 			.click(screen.getByRole("button", { name: "Create Cycle" }));
 		await waitFor(() =>
 			expect(mocks.create).toHaveBeenCalledWith({
+				categoryPlannedOverrides: undefined,
+				copyCategoryIds: undefined,
+				copyFromCycleId: undefined,
+				endDate: "2026-07-31",
+				includePlannedAmounts: true,
 				name: "July 2026",
 				startDate: "2026-07-01",
-				endDate: "2026-07-31",
-				copyFromCycleId: undefined,
-				includePlannedAmounts: true,
-				copyCategoryIds: undefined,
-				categoryPlannedOverrides: undefined,
 			})
 		);
 		expect(mocks.success).toHaveBeenCalledWith("Cycle created successfully");
@@ -174,9 +180,9 @@ describe("CycleForm", () => {
 		await waitFor(() =>
 			expect(mocks.create).toHaveBeenCalledWith(
 				expect.objectContaining({
+					endDate: "2026-08-20",
 					name: "August 2026",
 					startDate: "2026-08-05",
-					endDate: "2026-08-20",
 				})
 			)
 		);
@@ -207,10 +213,10 @@ describe("CycleForm", () => {
 		await waitFor(() =>
 			expect(mocks.create).toHaveBeenCalledWith(
 				expect.objectContaining({
+					categoryPlannedOverrides: [{ id: foodId, plannedAmount: 450 }],
+					copyCategoryIds: [foodId],
 					copyFromCycleId: sourceId,
 					includePlannedAmounts: true,
-					copyCategoryIds: [foodId],
-					categoryPlannedOverrides: [{ id: foodId, plannedAmount: 450 }],
 				})
 			)
 		);
@@ -240,9 +246,9 @@ describe("CycleForm", () => {
 		await waitFor(() =>
 			expect(mocks.create).toHaveBeenCalledWith(
 				expect.objectContaining({
-					copyFromCycleId: sourceId,
-					copyCategoryIds: undefined,
 					categoryPlannedOverrides: undefined,
+					copyCategoryIds: undefined,
+					copyFromCycleId: sourceId,
 				})
 			)
 		);
@@ -274,8 +280,8 @@ describe("CycleForm", () => {
 		await waitFor(() =>
 			expect(mocks.create).toHaveBeenCalledWith(
 				expect.objectContaining({
-					includePlannedAmounts: false,
 					categoryPlannedOverrides: [{ id: foodId, plannedAmount: undefined }],
+					includePlannedAmounts: false,
 				})
 			)
 		);
@@ -309,15 +315,17 @@ describe("CycleForm", () => {
 		);
 	});
 
-	it.each([
-		undefined,
-		[],
-	])("does not offer copy controls before any previous cycles are available (%s)", (cycles) => {
-		fixture(api.cycles.list, cycles);
-		render(<CycleForm />);
-		expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Create Cycle" })).toBeEnabled();
-	});
+	it.each([undefined, []])(
+		"does not offer copy controls before any previous cycles are available (%s)",
+		(cycles) => {
+			fixture(api.cycles.list, cycles);
+			render(<CycleForm />);
+			expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+			expect(
+				screen.getByRole("button", { name: "Create Cycle" })
+			).toBeEnabled();
+		}
+	);
 
 	it("edits the existing cycle and preserves its custom name while changing dates", async () => {
 		const onSuccess = vi.fn();
@@ -325,9 +333,9 @@ describe("CycleForm", () => {
 			<CycleForm
 				cycleId={sourceId}
 				defaultValues={{
+					endDate: "2026-06-20",
 					name: "Pay period",
 					startDate: "2026-06-01",
-					endDate: "2026-06-20",
 				}}
 				onSuccess={onSuccess}
 			/>
@@ -354,10 +362,10 @@ describe("CycleForm", () => {
 		);
 		await waitFor(() =>
 			expect(mocks.update).toHaveBeenCalledWith({
+				endDate: "2026-07-18",
 				id: sourceId,
 				name: "Pay period",
 				startDate: "2026-07-05",
-				endDate: "2026-07-18",
 			})
 		);
 		expect(mocks.create).not.toHaveBeenCalled();
@@ -365,24 +373,24 @@ describe("CycleForm", () => {
 		expect(onSuccess).toHaveBeenCalledWith(sourceId);
 	});
 
-	it.each([
-		new Error("ConvexError: Overlapping cycles"),
-		"offline",
-	])("surfaces save errors and retains the draft (%s)", async (error) => {
-		mocks.create.mockRejectedValue(error);
-		const onSuccess = vi.fn();
-		render(<CycleForm onSuccess={onSuccess} />);
-		await userEvent
-			.setup()
-			.click(screen.getByRole("button", { name: "Create Cycle" }));
-		await waitFor(() =>
-			expect(mocks.error).toHaveBeenCalledWith(
-				error instanceof Error ? "Overlapping cycles" : "Failed to save cycle"
-			)
-		);
-		expect(onSuccess).not.toHaveBeenCalled();
-		expect(screen.getByLabelText("Cycle Name")).toHaveValue("July 2026");
-	});
+	it.each([new Error("ConvexError: Overlapping cycles"), "offline"])(
+		"surfaces save errors and retains the draft (%s)",
+		async (error) => {
+			mocks.create.mockRejectedValue(error);
+			const onSuccess = vi.fn();
+			render(<CycleForm onSuccess={onSuccess} />);
+			await userEvent
+				.setup()
+				.click(screen.getByRole("button", { name: "Create Cycle" }));
+			await waitFor(() =>
+				expect(mocks.error).toHaveBeenCalledWith(
+					error instanceof Error ? "Overlapping cycles" : "Failed to save cycle"
+				)
+			);
+			expect(onSuccess).not.toHaveBeenCalled();
+			expect(screen.getByLabelText("Cycle Name")).toHaveValue("July 2026");
+		}
+	);
 
 	it("does not navigate when creation returns no saved document", async () => {
 		mocks.create.mockResolvedValue(null);
@@ -395,6 +403,53 @@ describe("CycleForm", () => {
 			expect(mocks.success).toHaveBeenCalledWith("Cycle created successfully")
 		);
 		expect(onSuccess).not.toHaveBeenCalled();
+	});
+
+	it("allows retry after creation fails", async () => {
+		mocks.create
+			.mockRejectedValueOnce(new Error("ConvexError: Overlapping cycles"))
+			.mockResolvedValueOnce({ _id: "retried-cycle" });
+		const onSuccess = vi.fn();
+		render(<CycleForm onSuccess={onSuccess} />);
+		const interaction = userEvent.setup();
+		const submit = screen.getByRole("button", { name: "Create Cycle" });
+		await interaction.click(submit);
+		await waitFor(() =>
+			expect(mocks.error).toHaveBeenCalledWith("Overlapping cycles")
+		);
+		expect(onSuccess).not.toHaveBeenCalled();
+		await interaction.click(submit);
+		await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(2));
+		expect(onSuccess).toHaveBeenCalledExactlyOnceWith("retried-cycle");
+	});
+
+	it("guards against a second update until the first settles", async () => {
+		let resolve: (value: unknown) => void = () => {
+			throw new Error("Mutation has not started");
+		};
+		mocks.update.mockImplementation(
+			() =>
+				new Promise((done) => {
+					resolve = done;
+				})
+		);
+		const onSuccess = vi.fn();
+		render(<CycleForm cycleId={sourceId} onSuccess={onSuccess} />);
+		const interaction = userEvent.setup();
+		const submit = screen.getByRole("button", { name: "Save Changes" });
+		await interaction.click(submit);
+		await waitFor(() => expect(mocks.update).toHaveBeenCalledOnce());
+		expect(submit).toBeDisabled();
+		const formElement = submit.closest("form");
+		if (!formElement) {
+			throw new Error("Cycle form was not rendered");
+		}
+		// Native submits must be protected even when they bypass the disabled button.
+		await act(async () => fireEvent.submit(formElement));
+		expect(mocks.update).toHaveBeenCalledOnce();
+		expect(onSuccess).not.toHaveBeenCalled();
+		await act(async () => resolve(null));
+		expect(onSuccess).toHaveBeenCalledExactlyOnceWith(sourceId);
 	});
 
 	it("guards against a second submit until creation settles", async () => {
@@ -413,8 +468,13 @@ describe("CycleForm", () => {
 		const submit = screen.getByRole("button", { name: "Create Cycle" });
 		await interaction.click(submit);
 		await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
-		// The loading UI is stale; the form must still prevent duplicate submission.
-		await interaction.click(submit);
+		expect(submit).toBeDisabled();
+		const formElement = submit.closest("form");
+		if (!formElement) {
+			throw new Error("Cycle form was not rendered");
+		}
+		// A programmatic submit can bypass disabled UI and must not start another save.
+		await act(async () => fireEvent.submit(formElement));
 		expect(mocks.create).toHaveBeenCalledOnce();
 		await act(async () => resolve({ _id: "new-cycle" }));
 		expect(onSuccess).toHaveBeenCalledWith("new-cycle");

@@ -6,9 +6,9 @@ describe("package-manager command alternatives", () => {
 		const source =
 			"npm install --global spendly@latest\nspendly --version\nspendly auth login\n";
 		expect(packageManagerCommands(source)).toEqual({
+			bun: "bun add --global spendly@latest\nspendly --version\nspendly auth login\n",
 			npm: source,
 			pnpm: "pnpm add --global spendly@latest\nspendly --version\nspendly auth login\n",
-			bun: "bun add --global spendly@latest\nspendly --version\nspendly auth login\n",
 			yarn: "yarn global add spendly@latest\nspendly --version\nspendly auth login\n",
 		});
 	});
@@ -25,9 +25,9 @@ describe("package-manager command alternatives", () => {
 		const args =
 			"skills add akhilesh-dalvi/spendly --skill spendly --global --agent codex";
 		expect(packageManagerCommands(`DISABLE_TELEMETRY=1 npx ${args}`)).toEqual({
+			bun: `DISABLE_TELEMETRY=1 bunx ${args}`,
 			npm: `DISABLE_TELEMETRY=1 npx ${args}`,
 			pnpm: `DISABLE_TELEMETRY=1 pnpm dlx ${args}`,
-			bun: `DISABLE_TELEMETRY=1 bunx ${args}`,
 			yarn: `DISABLE_TELEMETRY=1 npx ${args}`,
 		});
 	});

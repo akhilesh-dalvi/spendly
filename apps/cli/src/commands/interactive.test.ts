@@ -149,8 +149,8 @@ const createTestRuntime = (
 		before: account,
 	}));
 	const queryResponses: Record<string, unknown> = {
-		"cli/v1/accountTypes:list": accountMutationsFixture.accountTypes,
 		"cli/v1/accounts:list": accountMutationsFixture.accounts,
+		"cli/v1/accountTypes:list": accountMutationsFixture.accountTypes,
 		"cli/v1/context:get": contextFixture,
 		"cli/v1/expenses:get": (expensePageFixture.items as unknown[])[0],
 		"cli/v1/expenses:list": expensePageFixture,
@@ -167,11 +167,11 @@ const createTestRuntime = (
 	};
 	const mutationResponses: Record<string, unknown> = {
 		"cli/v1/accounts:archiveBatch": archivedAccounts,
+		"cli/v1/accounts:previewArchiveBatch": archiveBatchPreview,
 		"cli/v1/accounts:previewBalanceAdjustment":
 			accountMutationsFixture.balanceAdjustmentPreview,
 		"cli/v1/accounts:previewCreate":
 			accountMutationsFixture.accountCreateProposal,
-		"cli/v1/accounts:previewArchiveBatch": archiveBatchPreview,
 		"cli/v1/accounts:previewReactivateBatch": reactivateBatchPreview,
 		"cli/v1/accounts:previewTransfer": accountMutationsFixture.transferPreview,
 		"cli/v1/accounts:transfer": accountMutationsFixture.transferResult,
@@ -280,42 +280,45 @@ describe("Phase 8.8 guided interactive inputs", () => {
 		[true, false],
 		[false, true],
 		[undefined, undefined],
-	])("prints help for a bare invocation without terminal input and output (%s, %s)", async (inputIsTTY, outputIsTTY) => {
-		const testRuntime = createTestRuntime({});
-		setTerminalState(testRuntime.runtime, inputIsTTY, outputIsTTY);
-		testRuntime.runtime.getConfig = () => {
-			throw new Error("configuration should stay lazy");
-		};
+	])(
+		"prints help for a bare invocation without terminal input and output (%s, %s)",
+		async (inputIsTTY, outputIsTTY) => {
+			const testRuntime = createTestRuntime({});
+			setTerminalState(testRuntime.runtime, inputIsTTY, outputIsTTY);
+			testRuntime.runtime.getConfig = () => {
+				throw new Error("configuration should stay lazy");
+			};
 
-		const exitCode = await runCli([], testRuntime.runtime);
+			const exitCode = await runCli([], testRuntime.runtime);
 
-		expect(exitCode).toBe(CLI_EXIT_CODE.success);
-		expect(testRuntime.getStdout()).toContain("Usage: spendly");
-		expect(testRuntime.getStderr()).toBe("");
-		expect(testRuntime.calls).toEqual([]);
-		expect(testRuntime.messages).toEqual([]);
-	});
+			expect(exitCode).toBe(CLI_EXIT_CODE.success);
+			expect(testRuntime.getStdout()).toContain("Usage: spendly");
+			expect(testRuntime.getStderr()).toBe("");
+			expect(testRuntime.calls).toEqual([]);
+			expect(testRuntime.messages).toEqual([]);
+		}
+	);
 
-	it.each([
-		"--help",
-		"--version",
-	])("keeps %s prompt-free in a terminal", async (flag) => {
-		const testRuntime = createTestRuntime({});
-		setTerminalState(testRuntime.runtime, true, true);
-		testRuntime.runtime.getConfig = () => {
-			throw new Error("configuration should stay lazy");
-		};
+	it.each(["--help", "--version"])(
+		"keeps %s prompt-free in a terminal",
+		async (flag) => {
+			const testRuntime = createTestRuntime({});
+			setTerminalState(testRuntime.runtime, true, true);
+			testRuntime.runtime.getConfig = () => {
+				throw new Error("configuration should stay lazy");
+			};
 
-		const exitCode = await runCli([flag], testRuntime.runtime);
+			const exitCode = await runCli([flag], testRuntime.runtime);
 
-		expect(exitCode).toBe(CLI_EXIT_CODE.success);
-		expect(testRuntime.getStdout()).toContain(
-			flag === "--help" ? "Usage: spendly" : "0.1.5"
-		);
-		expect(testRuntime.getStderr()).toBe("");
-		expect(testRuntime.calls).toEqual([]);
-		expect(testRuntime.messages).toEqual([]);
-	});
+			expect(exitCode).toBe(CLI_EXIT_CODE.success);
+			expect(testRuntime.getStdout()).toContain(
+				flag === "--help" ? "Usage: spendly" : "0.1.5"
+			);
+			expect(testRuntime.getStderr()).toBe("");
+			expect(testRuntime.calls).toEqual([]);
+			expect(testRuntime.messages).toEqual([]);
+		}
+	);
 
 	it("runs an explicit command without launching the menu in a terminal", async () => {
 		const testRuntime = createTestRuntime({});
@@ -328,53 +331,51 @@ describe("Phase 8.8 guided interactive inputs", () => {
 		expect(testRuntime.messages).toEqual([]);
 	});
 
-	it.each([
-		"--agent",
-		"--json",
-		"--non-interactive",
-	])("does not launch the menu for %s alone in a terminal", async (flag) => {
-		const testRuntime = createTestRuntime({});
-		setTerminalState(testRuntime.runtime, true, true);
+	it.each(["--agent", "--json", "--non-interactive"])(
+		"does not launch the menu for %s alone in a terminal",
+		async (flag) => {
+			const testRuntime = createTestRuntime({});
+			setTerminalState(testRuntime.runtime, true, true);
 
-		const exitCode = await runCli([flag], testRuntime.runtime);
+			const exitCode = await runCli([flag], testRuntime.runtime);
 
-		expect(exitCode).toBe(CLI_EXIT_CODE.invalidInput);
-		expect(testRuntime.calls).toEqual([]);
-		expect(testRuntime.messages).toEqual([]);
-		if (flag === "--json") {
-			expect(JSON.parse(testRuntime.getStdout())).toMatchObject({
-				error: { code: "INVALID_COMMAND" },
-			});
+			expect(exitCode).toBe(CLI_EXIT_CODE.invalidInput);
+			expect(testRuntime.calls).toEqual([]);
+			expect(testRuntime.messages).toEqual([]);
+			if (flag === "--json") {
+				expect(JSON.parse(testRuntime.getStdout())).toMatchObject({
+					error: { code: "INVALID_COMMAND" },
+				});
+			}
 		}
-	});
+	);
 
-	it.each([
-		"--agent",
-		"--json",
-		"--non-interactive",
-	])("reports missing required inputs without prompting in %s mode", async (flag) => {
-		const testRuntime = createTestRuntime({});
-		setTerminalState(testRuntime.runtime, true, true);
+	it.each(["--agent", "--json", "--non-interactive"])(
+		"reports missing required inputs without prompting in %s mode",
+		async (flag) => {
+			const testRuntime = createTestRuntime({});
+			setTerminalState(testRuntime.runtime, true, true);
 
-		const exitCode = await runCli(
-			["expenses", "add", flag],
-			testRuntime.runtime
-		);
-
-		expect(exitCode).toBe(CLI_EXIT_CODE.invalidInput);
-		expect(testRuntime.calls).toEqual([]);
-		expect(testRuntime.messages).toEqual([]);
-		if (flag === "--json") {
-			expect(testRuntime.getStderr()).toBe("");
-			expect(JSON.parse(testRuntime.getStdout())).toMatchObject({
-				error: { code: "NON_INTERACTIVE_INPUT_REQUIRED" },
-			});
-		} else {
-			expect(testRuntime.getStderr()).toContain(
-				"NON_INTERACTIVE_INPUT_REQUIRED"
+			const exitCode = await runCli(
+				["expenses", "add", flag],
+				testRuntime.runtime
 			);
+
+			expect(exitCode).toBe(CLI_EXIT_CODE.invalidInput);
+			expect(testRuntime.calls).toEqual([]);
+			expect(testRuntime.messages).toEqual([]);
+			if (flag === "--json") {
+				expect(testRuntime.getStderr()).toBe("");
+				expect(JSON.parse(testRuntime.getStdout())).toMatchObject({
+					error: { code: "NON_INTERACTIVE_INPUT_REQUIRED" },
+				});
+			} else {
+				expect(testRuntime.getStderr()).toContain(
+					"NON_INTERACTIVE_INPUT_REQUIRED"
+				);
+			}
 		}
-	});
+	);
 	it("rejects interactive JSON mode before backend or prompt access", async () => {
 		const testRuntime = createTestRuntime({});
 
@@ -405,53 +406,51 @@ describe("Phase 8.8 guided interactive inputs", () => {
 		);
 	});
 
-	it.each([
-		{ args: [] },
-		{ args: ["--interactive"] },
-	])("launches a selected command from the guided command chooser (args: $args)", async ({
-		args,
-	}) => {
-		const testRuntime = createTestRuntime({
-			selects: {
-				"Choose an action": "cycles list",
-				"What would you like to work with?": "planning",
-			},
-		});
+	it.each([{ args: [] }, { args: ["--interactive"] }])(
+		"launches a selected command from the guided command chooser (args: $args)",
+		async ({ args }) => {
+			const testRuntime = createTestRuntime({
+				selects: {
+					"Choose an action": "cycles list",
+					"What would you like to work with?": "planning",
+				},
+			});
 
-		setTerminalState(testRuntime.runtime, true, true);
+			setTerminalState(testRuntime.runtime, true, true);
 
-		const exitCode = await runCli(args, testRuntime.runtime);
+			const exitCode = await runCli(args, testRuntime.runtime);
 
-		expect(exitCode, testRuntime.getStderr()).toBe(CLI_EXIT_CODE.success);
-		expect(testRuntime.messages).toEqual([
-			"What would you like to work with?",
-			"Choose an action",
-		]);
-		expect(testRuntime.getStdout()).toContain("September");
-	});
+			expect(exitCode, testRuntime.getStderr()).toBe(CLI_EXIT_CODE.success);
+			expect(testRuntime.messages).toEqual([
+				"What would you like to work with?",
+				"Choose an action",
+			]);
+			expect(testRuntime.getStdout()).toContain("September");
+		}
+	);
 
-	it.each([
-		{ args: [] },
-		{ args: ["--interactive"] },
-	])("offers a launcher exit without backend access (args: $args)", async ({
-		args,
-	}) => {
-		const testRuntime = createTestRuntime({
-			selects: { "What would you like to work with?": "exit" },
-		});
+	it.each([{ args: [] }, { args: ["--interactive"] }])(
+		"offers a launcher exit without backend access (args: $args)",
+		async ({ args }) => {
+			const testRuntime = createTestRuntime({
+				selects: { "What would you like to work with?": "exit" },
+			});
 
-		setTerminalState(testRuntime.runtime, true, true);
-		testRuntime.runtime.getConfig = () => {
-			throw new Error("configuration should stay lazy");
-		};
+			setTerminalState(testRuntime.runtime, true, true);
+			testRuntime.runtime.getConfig = () => {
+				throw new Error("configuration should stay lazy");
+			};
 
-		const exitCode = await runCli(args, testRuntime.runtime);
+			const exitCode = await runCli(args, testRuntime.runtime);
 
-		expect(exitCode).toBe(CLI_EXIT_CODE.success);
-		expect(testRuntime.calls).toEqual([]);
-		expect(testRuntime.messages).toEqual(["What would you like to work with?"]);
-		expect(testRuntime.getStderr()).toContain("Exited guided mode.");
-	});
+			expect(exitCode).toBe(CLI_EXIT_CODE.success);
+			expect(testRuntime.calls).toEqual([]);
+			expect(testRuntime.messages).toEqual([
+				"What would you like to work with?",
+			]);
+			expect(testRuntime.getStderr()).toContain("Exited guided mode.");
+		}
+	);
 
 	it("returns from an action menu to the launcher group list", async () => {
 		const testRuntime = createTestRuntime({
@@ -761,8 +760,8 @@ describe("Phase 8.8 guided interactive inputs", () => {
 		const testRuntime = createTestRuntime({
 			multiselects: { "What would you like to change?": ["category"] },
 			selects: {
-				"Save these expense changes?": ["edit", "confirm"],
 				"New category for 2026-09-02": "clear",
+				"Save these expense changes?": ["edit", "confirm"],
 			},
 		});
 

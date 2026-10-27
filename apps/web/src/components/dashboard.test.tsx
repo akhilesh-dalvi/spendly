@@ -11,11 +11,11 @@ vi.mock("@clerk/nextjs", () => ({
 	useAuth: () => ({ isLoaded: true, isSignedIn: true }),
 }));
 vi.mock("convex/react", () => ({
+	useMutation: () => vi.fn(),
 	useQuery: (ref: Parameters<typeof getFunctionName>[0]) =>
 		getFunctionName(ref) === "users:get"
 			? { currency: service.currency }
 			: undefined,
-	useMutation: () => vi.fn(),
 }));
 
 beforeEach(() => {
@@ -26,11 +26,11 @@ afterEach(() => vi.useRealTimers());
 
 const emptyAccounts = { accounts: [], totals: [] };
 const activeSummary = {
-	totalSpent: 25,
-	totalPlanned: 100,
-	startDate: "2026-06-01",
-	endDate: "2026-06-30",
 	daysRemaining: 15,
+	endDate: "2026-06-30",
+	startDate: "2026-06-01",
+	totalPlanned: 100,
+	totalSpent: 25,
 };
 
 describe("dashboard budget and tracked funds", () => {
@@ -40,8 +40,8 @@ describe("dashboard budget and tracked funds", () => {
 			<DashboardSummary
 				accountSummary={{
 					accounts: [
-						{ name: "Bank", accountTypeName: "Checking", isDefault: true },
-						{ name: "Credit", accountTypeName: "Liability", isDefault: false },
+						{ accountTypeName: "Checking", isDefault: true, name: "Bank" },
+						{ accountTypeName: "Liability", isDefault: false, name: "Credit" },
 					],
 					totals: [
 						{ currency: "USD", total: 1250 },
@@ -75,142 +75,135 @@ describe("dashboard budget and tracked funds", () => {
 	it.each([
 		{
 			label: "Over budget",
-			spent: 150,
-			planned: 100,
-			value: "$50.00",
-			progress: "100",
 			percentage: "150% spent",
+			planned: 100,
+			progress: "100",
+			spent: 150,
+			value: "$50.00",
 		},
 		{
 			label: "Over budget",
-			spent: 20,
-			planned: 0,
-			value: "$20.00",
-			progress: "100",
 			percentage: null,
+			planned: 0,
+			progress: "100",
+			spent: 20,
+			value: "$20.00",
 		},
 		{
 			label: "No budget planned",
-			spent: 0,
-			planned: 0,
-			value: "—",
-			progress: "0",
 			percentage: null,
+			planned: 0,
+			progress: "0",
+			spent: 0,
+			value: "—",
 		},
-	])("explains $label with spent=$spent and planned=$planned", ({
-		label,
-		spent,
-		planned,
-		value,
-		progress,
-		percentage,
-	}) => {
-		render(
-			<DashboardSummary
-				accountSummary={emptyAccounts}
-				summary={{
-					...activeSummary,
-					totalSpent: spent,
-					totalPlanned: planned,
-					daysRemaining: null,
-				}}
-			/>
-		);
-		const budget = screen.getByRole("region", { name: label });
-		expect(budget).toHaveTextContent(value);
-		expect(budget).toHaveTextContent("0 days left");
-		expect(screen.getByRole("progressbar")).toHaveAttribute(
-			"aria-valuenow",
-			progress
-		);
-		expect(screen.getByRole("progressbar").firstElementChild).toHaveStyle({
-			transform: `translateX(-${100 - Number(progress)}%)`,
-		});
-		if (percentage) {
-			expect(budget).toHaveTextContent(percentage);
-		} else {
-			expect(budget).not.toHaveTextContent("% spent");
+	])(
+		"explains $label with spent=$spent and planned=$planned",
+		({ label, spent, planned, value, progress, percentage }) => {
+			render(
+				<DashboardSummary
+					accountSummary={emptyAccounts}
+					summary={{
+						...activeSummary,
+						daysRemaining: null,
+						totalPlanned: planned,
+						totalSpent: spent,
+					}}
+				/>
+			);
+			const budget = screen.getByRole("region", { name: label });
+			expect(budget).toHaveTextContent(value);
+			expect(budget).toHaveTextContent("0 days left");
+			expect(screen.getByRole("progressbar")).toHaveAttribute(
+				"aria-valuenow",
+				progress
+			);
+			expect(screen.getByRole("progressbar").firstElementChild).toHaveStyle({
+				transform: `translateX(-${100 - Number(progress)}%)`,
+			});
+			if (percentage) {
+				expect(budget).toHaveTextContent(percentage);
+			} else {
+				expect(budget).not.toHaveTextContent("% spent");
+			}
+			expect(
+				screen.getByRole("region", { name: "Tracked funds" })
+			).toHaveTextContent("Across 0 accounts");
+			expect(screen.getByText("No default")).toBeVisible();
 		}
-		expect(
-			screen.getByRole("region", { name: "Tracked funds" })
-		).toHaveTextContent("Across 0 accounts");
-		expect(screen.getByText("No default")).toBeVisible();
-	});
+	);
 
 	it.each([
 		{
-			startDate: "2026-06-16",
-			endDate: "2026-06-30",
-			status: "Upcoming",
-			detail: "Starts in 1 day",
-			label: "Planned budget",
-			value: "$100.00",
 			daysRemaining: 14,
-		},
-		{
-			startDate: "2026-06-18",
+			detail: "Starts in 1 day",
 			endDate: "2026-06-30",
-			status: "Upcoming",
-			detail: "Starts in 3 days",
 			label: "Planned budget",
+			startDate: "2026-06-16",
+			status: "Upcoming",
 			value: "$100.00",
+		},
+		{
 			daysRemaining: 12,
+			detail: "Starts in 3 days",
+			endDate: "2026-06-30",
+			label: "Planned budget",
+			startDate: "2026-06-18",
+			status: "Upcoming",
+			value: "$100.00",
 		},
 		{
-			startDate: "2026-05-01",
-			endDate: "2026-05-31",
-			status: "Ended",
-			detail: "Past cycle",
-			label: "Unspent budget",
-			value: "$75.00",
 			daysRemaining: null,
+			detail: "Past cycle",
+			endDate: "2026-05-31",
+			label: "Unspent budget",
+			startDate: "2026-05-01",
+			status: "Ended",
+			value: "$75.00",
 		},
 		{
-			startDate: "2026-06-01",
-			endDate: "2026-06-30",
-			status: "Active",
-			detail: "1 day left",
-			label: "Budget left",
-			value: "$75.00",
 			daysRemaining: 1,
+			detail: "1 day left",
+			endDate: "2026-06-30",
+			label: "Budget left",
+			startDate: "2026-06-01",
+			status: "Active",
+			value: "$75.00",
 		},
 		{
-			startDate: "2026-06-01",
-			endDate: "2026-06-30",
-			status: "Active",
-			detail: "0 days left",
-			label: "Budget left",
-			value: "$75.00",
 			daysRemaining: -2,
+			detail: "0 days left",
+			endDate: "2026-06-30",
+			label: "Budget left",
+			startDate: "2026-06-01",
+			status: "Active",
+			value: "$75.00",
 		},
-	])("distinguishes $status cycles: $detail", ({
-		status,
-		detail,
-		label,
-		value,
-		...dates
-	}) => {
-		render(
-			<DashboardSummary
-				accountSummary={{
-					accounts: [
-						{ name: "Cash", accountTypeName: "Cash", isDefault: false },
-					],
-					totals: [{ currency: "USD", total: 0 }],
-				}}
-				summary={{ ...activeSummary, ...dates }}
-			/>
-		);
-		expect(screen.getByRole("region", { name: label })).toHaveTextContent(
-			value
-		);
-		expect(screen.getByText(status)).toBeVisible();
-		expect(screen.getByText(detail)).toBeVisible();
-		expect(screen.getByText("Across 1 account")).toBeVisible();
-		expect(
-			screen.queryByText("Balances stay separate")
-		).not.toBeInTheDocument();
-	});
+	])(
+		"distinguishes $status cycles: $detail",
+		({ status, detail, label, value, ...dates }) => {
+			render(
+				<DashboardSummary
+					accountSummary={{
+						accounts: [
+							{ accountTypeName: "Cash", isDefault: false, name: "Cash" },
+						],
+						totals: [{ currency: "USD", total: 0 }],
+					}}
+					summary={{ ...activeSummary, ...dates }}
+				/>
+			);
+			expect(screen.getByRole("region", { name: label })).toHaveTextContent(
+				value
+			);
+			expect(screen.getByText(status)).toBeVisible();
+			expect(screen.getByText(detail)).toBeVisible();
+			expect(screen.getByText("Across 1 account")).toBeVisible();
+			expect(
+				screen.queryByText("Balances stay separate")
+			).not.toBeInTheDocument();
+		}
+	);
 });
 
 describe("account-only dashboard", () => {
@@ -219,8 +212,8 @@ describe("account-only dashboard", () => {
 			<DashboardAccountsSummary
 				summary={{
 					accounts: [
-						{ name: "Travel", accountTypeName: "Wallet", isDefault: false },
-						{ name: "Daily", accountTypeName: "Bank", isDefault: true },
+						{ accountTypeName: "Wallet", isDefault: false, name: "Travel" },
+						{ accountTypeName: "Bank", isDefault: true, name: "Daily" },
 					],
 					totals: [
 						{ currency: "USD", total: 200 },

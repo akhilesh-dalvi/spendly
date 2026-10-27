@@ -18,6 +18,20 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ExpenseForm } from "./expense-form";
 
+function pendingMutation() {
+	let resolve: () => void = () => {
+		throw new Error("Mutation has not started");
+	};
+	let reject: (reason: Error) => void = (_reason) => {
+		throw new Error("Mutation has not started");
+	};
+	const promise = new Promise<void>((done, fail) => {
+		resolve = done;
+		reject = fail;
+	});
+	return { promise, reject, resolve };
+}
+
 const FOOD_LABEL = /Food/;
 const NOTE_LABEL = /Note/;
 const CASH_LABEL = /Cash/;
@@ -32,24 +46,20 @@ const CREATE_LABEL = /Create/;
 const ADD_LABEL = /Add/;
 
 const mocks = vi.hoisted(() => ({
-	queries: new Map<string, unknown>(),
 	create: vi.fn(),
-	update: vi.fn(),
 	createTag: vi.fn(),
+	error: vi.fn(),
 	push: vi.fn(),
+	queries: new Map<string, unknown>(),
+	query: vi.fn(),
 	report: vi.fn(),
 	success: vi.fn(),
-	error: vi.fn(),
+	update: vi.fn(),
 	warning: vi.fn(),
-	query: vi.fn(),
 }));
 vi.mock("convex/react", async () => {
 	const { getFunctionName: name } = await import("convex/server");
 	return {
-		useQuery: (ref: FunctionReference<"query">, args?: unknown) => {
-			mocks.query(name(ref), args);
-			return args === "skip" ? undefined : mocks.queries.get(name(ref));
-		},
 		useMutation: (ref: FunctionReference<"mutation">) => {
 			const mutations = new Map([
 				[name(api.expenses.create), mocks.create],
@@ -58,6 +68,10 @@ vi.mock("convex/react", async () => {
 			]);
 			return mutations.get(name(ref));
 		},
+		useQuery: (ref: FunctionReference<"query">, args?: unknown) => {
+			mocks.query(name(ref), args);
+			return args === "skip" ? undefined : mocks.queries.get(name(ref));
+		},
 	};
 });
 vi.mock("@clerk/nextjs", () => ({
@@ -65,7 +79,7 @@ vi.mock("@clerk/nextjs", () => ({
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push }) }));
 vi.mock("sonner", () => ({
-	toast: { success: mocks.success, error: mocks.error, warning: mocks.warning },
+	toast: { error: mocks.error, success: mocks.success, warning: mocks.warning },
 }));
 vi.mock("@/lib/report-error", () => ({ reportError: mocks.report }));
 
@@ -85,102 +99,102 @@ const typeId = "needs" as Id<"category_types">;
 const workId = "work" as Id<"tags">;
 const travelId = "travel" as Id<"tags">;
 const cycle: NonNullable<FunctionReturnType<typeof api.cycles.getCurrent>> = {
-	_id: cycleId,
 	_creationTime: 0,
-	userId,
+	_id: cycleId,
 	createdAt: 0,
+	endDate: "2026-08-01",
 	name: "July budget",
 	startDate: "2026-07-01",
-	endDate: "2026-08-01",
+	userId,
 };
 const user: FunctionReturnType<typeof api.users.get> = {
-	_id: userId,
 	_creationTime: 0,
+	_id: userId,
 	clerkId: "clerk",
-	email: "test@example.com",
 	createdAt: 0,
 	currency: "USD",
 	defaultAccountId: accountId,
+	email: "test@example.com",
 };
 const accounts: FunctionReturnType<typeof api.accounts.list> = [
 	{
-		_id: accountId,
 		_creationTime: 0,
-		userId,
-		accountTypeId: "bank" as Id<"account_types">,
-		createdAt: 0,
-		name: "Cash",
-		startingBalance: 200,
-		currentBalance: 150,
-		accountTypeName: "Bank",
+		_id: accountId,
 		accountTypeBalanceNature: "asset",
 		accountTypeColor: "#123456",
 		accountTypeIcon: "wallet",
+		accountTypeId: "bank" as Id<"account_types">,
+		accountTypeName: "Bank",
+		createdAt: 0,
+		currentBalance: 150,
+		name: "Cash",
+		startingBalance: 200,
+		userId,
 	},
 	{
-		_id: cardId,
 		_creationTime: 0,
-		userId,
-		accountTypeId: "credit" as Id<"account_types">,
-		createdAt: 0,
-		name: "Credit card",
-		startingBalance: 0,
-		currentBalance: 50,
-		accountTypeName: "Credit",
+		_id: cardId,
 		accountTypeBalanceNature: "liability",
 		accountTypeColor: null,
 		accountTypeIcon: null,
+		accountTypeId: "credit" as Id<"account_types">,
+		accountTypeName: "Credit",
+		createdAt: 0,
+		currentBalance: 50,
+		name: "Credit card",
+		startingBalance: 0,
+		userId,
 	},
 ];
 const categories: FunctionReturnType<typeof api.categories.list> = [
 	{
-		_id: categoryId,
 		_creationTime: 0,
-		userId,
-		cycleId,
-		createdAt: 0,
-		name: "Food",
+		_id: categoryId,
 		categoryTypeId: typeId,
-		plannedAmount: 300,
+		createdAt: 0,
+		cycleId,
 		icon: "🍲",
+		name: "Food",
 		order: 0,
-		typeName: "Needs",
+		plannedAmount: 300,
 		typeColor: undefined,
+		typeName: "Needs",
+		userId,
 	},
 	{
-		_id: otherCategoryId,
 		_creationTime: 0,
-		userId,
-		cycleId,
+		_id: otherCategoryId,
 		createdAt: 0,
+		cycleId,
 		name: "Misc",
-		plannedAmount: 50,
 		order: 1,
-		typeName: undefined,
+		plannedAmount: 50,
 		typeColor: undefined,
+		typeName: undefined,
+		userId,
 	},
 ];
 const recent: FunctionReturnType<typeof api.expenses.listRecent> = [
 	{
-		_id: "recent" as Id<"expenses">,
 		_creationTime: 0,
-		userId,
-		createdAt: 0,
-		amount: 20,
-		date: "2026-07-08",
+		_id: "recent" as Id<"expenses">,
 		accountId: cardId,
-		categoryId,
 		accountName: "Credit card",
-		accountTypeId: "credit" as Id<"account_types">,
-		accountTypeName: "Credit",
 		accountTypeBalanceNature: "liability",
 		accountTypeColor: null,
 		accountTypeIcon: null,
-		categoryName: "Food",
+		accountTypeId: "credit" as Id<"account_types">,
+		accountTypeName: "Credit",
+		amount: 20,
 		categoryIcon: "🍲",
+		categoryId,
+		categoryName: "Food",
 		categoryTypeColor: null,
+		createdAt: 0,
 		cycleName: "July budget",
+		date: "2026-07-08",
 		tagNames: [],
+		userId,
 	},
 ];
 
@@ -198,24 +212,24 @@ beforeEach(() => {
 	fixture(api.categories.list, categories);
 	fixture(api.categories.listTypes, [
 		{
-			_id: typeId,
 			_creationTime: 0,
-			userId,
-			name: "Needs",
+			_id: typeId,
 			color: "#123456",
 			createdAt: 0,
+			name: "Needs",
+			userId,
 		},
 		{
-			_id: "unused" as Id<"category_types">,
 			_creationTime: 0,
-			userId,
-			name: "Unused",
+			_id: "unused" as Id<"category_types">,
 			createdAt: 0,
+			name: "Unused",
+			userId,
 		},
 	]);
 	fixture(api.tags.list, [
-		{ _id: workId, _creationTime: 0, userId, name: "Work", createdAt: 0 },
-		{ _id: travelId, _creationTime: 0, userId, name: "Travel", createdAt: 0 },
+		{ _creationTime: 0, _id: workId, createdAt: 0, name: "Work", userId },
+		{ _creationTime: 0, _id: travelId, createdAt: 0, name: "Travel", userId },
 	]);
 	fixture(api.expenses.listRecent, recent);
 });
@@ -246,6 +260,65 @@ async function enterAmount(value = "12.50") {
 }
 
 describe("ExpenseForm", () => {
+	it.each([false, true])(
+		"blocks native duplicate submissions until settlement and allows retry after rejection (editing=%s)",
+		async (editing) => {
+			const first = pendingMutation();
+			const retry = pendingMutation();
+			const mutation = editing ? mocks.update : mocks.create;
+			mutation
+				.mockReturnValueOnce(first.promise)
+				.mockReturnValueOnce(retry.promise);
+			const onSuccess = vi.fn();
+			render(
+				<ExpenseForm
+					defaultValues={{ amount: 24 }}
+					expenseId={editing ? "edit" : undefined}
+					onSuccess={onSuccess}
+				/>
+			);
+			const button = screen.getByRole("button", {
+				name: editing ? "Save Changes" : "Add Expense",
+			});
+			const form = button.closest("form");
+			if (!form) {
+				throw new Error("Missing form");
+			}
+			// Native submits bypass disabled buttons and can arrive in the same render.
+			await act(() => {
+				fireEvent.submit(form);
+				fireEvent.submit(form);
+			});
+			await waitFor(() => expect(mutation).toHaveBeenCalledTimes(1));
+			expect(button).toBeDisabled();
+			await act(() => {
+				fireEvent.submit(form);
+			});
+			expect(mutation).toHaveBeenCalledTimes(1);
+			expect(onSuccess).not.toHaveBeenCalled();
+			await act(() => first.reject(new Error("offline")));
+			await waitFor(() =>
+				expect(mocks.error).toHaveBeenCalledWith(
+					editing ? "Failed to update expense" : "Failed to add expense"
+				)
+			);
+			expect(screen.getByLabelText("Amount")).toHaveValue("24");
+			expect(button).toBeEnabled();
+			await act(() => {
+				fireEvent.submit(form);
+				fireEvent.submit(form);
+			});
+			await waitFor(() => expect(mutation).toHaveBeenCalledTimes(2));
+			await act(() => {
+				fireEvent.submit(form);
+			});
+			expect(mutation).toHaveBeenCalledTimes(2);
+			expect(onSuccess).not.toHaveBeenCalled();
+			await act(() => retry.resolve());
+			await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce());
+		}
+	);
+
 	it("uses the user's default account before the recent account and submits a complete expense", async () => {
 		const onSuccess = vi.fn();
 		render(<ExpenseForm onSuccess={onSuccess} />);
@@ -259,8 +332,8 @@ describe("ExpenseForm", () => {
 		);
 		await waitFor(() =>
 			expect(mocks.create).toHaveBeenCalledWith({
-				amount: 12.5,
 				accountId,
+				amount: 12.5,
 				categoryId,
 				date: "2026-07-10",
 				spentOn: "Lunch",
@@ -276,21 +349,24 @@ describe("ExpenseForm", () => {
 		["missing default", undefined, false, "Credit card"],
 		["archived default", accountId, true, "Credit card"],
 		["archived recent", undefined, false, "No account selected"],
-	] as const)("resolves smart defaults for %s", (_label, defaultId, archived, expected) => {
-		fixture(api.users.get, { ...user, defaultAccountId: defaultId });
-		fixture(
-			api.accounts.list,
-			accounts.map((account) => ({
-				...account,
-				isArchived:
-					account._id === accountId
-						? archived
-						: expected === "No account selected",
-			}))
-		);
-		render(<ExpenseForm />);
-		expect(combobox(expected)).toBeInTheDocument();
-	});
+	] as const)(
+		"resolves smart defaults for %s",
+		(_label, defaultId, archived, expected) => {
+			fixture(api.users.get, { ...user, defaultAccountId: defaultId });
+			fixture(
+				api.accounts.list,
+				accounts.map((account) => ({
+					...account,
+					isArchived:
+						account._id === accountId
+							? archived
+							: expected === "No account selected",
+				}))
+			);
+			render(<ExpenseForm />);
+			expect(combobox(expected)).toBeInTheDocument();
+		}
+	);
 
 	it("waits for user/account/recent defaults and never replaces an explicit selection", async () => {
 		fixture(api.users.get, undefined);
@@ -482,23 +558,26 @@ describe("ExpenseForm", () => {
 	it.each([
 		[new Date(2026, 0, 1), OLD_DATE_WARNING],
 		[new Date(2026, 8, 1), "This is a future expense."],
-	])("warns but still saves unusually dated and large expenses (%s)", async (date, warning) => {
-		render(<ExpenseForm defaultValues={{ date, amount: 10_001 }} />);
-		await userEvent
-			.setup()
-			.click(screen.getByRole("button", { name: "Add Expense" }));
-		await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
-		expect(mocks.warning).toHaveBeenCalledWith(
-			"That's a big expense! Double-check the amount."
-		);
-		if (typeof warning === "string") {
-			expect(mocks.warning).toHaveBeenCalledWith(warning);
-		} else {
+	])(
+		"warns but still saves unusually dated and large expenses (%s)",
+		async (date, warning) => {
+			render(<ExpenseForm defaultValues={{ amount: 10_001, date }} />);
+			await userEvent
+				.setup()
+				.click(screen.getByRole("button", { name: "Add Expense" }));
+			await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
 			expect(mocks.warning).toHaveBeenCalledWith(
-				expect.stringMatching(warning)
+				"That's a big expense! Double-check the amount."
 			);
+			if (typeof warning === "string") {
+				expect(mocks.warning).toHaveBeenCalledWith(warning);
+			} else {
+				expect(mocks.warning).toHaveBeenCalledWith(
+					expect.stringMatching(warning)
+				);
+			}
 		}
-	});
+	);
 
 	it("selects/searches/removes tags and sends their IDs", async () => {
 		render(<ExpenseForm />);
@@ -618,8 +697,8 @@ describe("ExpenseForm", () => {
 		);
 		await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(2));
 		expect(mocks.create).toHaveBeenLastCalledWith({
-			amount: 9,
 			accountId,
+			amount: 9,
 			categoryId,
 			date: "2026-07-10",
 			spentOn: undefined,
@@ -632,10 +711,10 @@ describe("ExpenseForm", () => {
 		render(
 			<ExpenseForm
 				defaultValues={{
-					amount: 42,
-					date: new Date(2026, 6, 9),
 					accountId: cardId,
+					amount: 42,
 					categoryId: otherCategoryId,
+					date: new Date(2026, 6, 9),
 					spentOn: "Taxi",
 					tagIds: [travelId],
 				}}
@@ -662,11 +741,11 @@ describe("ExpenseForm", () => {
 		);
 		await waitFor(() =>
 			expect(mocks.update).toHaveBeenCalledWith({
-				id: "edit-1",
-				amount: 42,
 				accountId: null,
+				amount: 42,
 				categoryId: undefined,
 				date: "2026-07-09",
+				id: "edit-1",
 				spentOn: "Taxi",
 				tagIds: [travelId],
 			})
@@ -676,37 +755,37 @@ describe("ExpenseForm", () => {
 		expect(onSuccess).toHaveBeenCalledOnce();
 	});
 
-	it.each([
-		false,
-		true,
-	])("preserves data and reports a failed mutation (editing=%s)", async (editing) => {
-		const error = new Error("network unavailable");
-		(editing ? mocks.update : mocks.create).mockRejectedValue(error);
-		const onSuccess = vi.fn();
-		render(
-			<ExpenseForm
-				defaultValues={{ amount: 24 }}
-				expenseId={editing ? "edit" : undefined}
-				onSuccess={onSuccess}
-			/>
-		);
-		await userEvent.setup().click(
-			screen.getByRole("button", {
-				name: editing ? "Save Changes" : "Add Expense",
-			})
-		);
-		await waitFor(() =>
-			expect(mocks.error).toHaveBeenCalledWith(
-				editing ? "Failed to update expense" : "Failed to add expense"
-			)
-		);
-		expect(mocks.report).toHaveBeenCalledWith(error, {
-			feature: "expenses",
-			operation: editing ? "update" : "create",
-		});
-		expect(screen.getByLabelText("Amount")).toHaveValue("24");
-		expect(onSuccess).not.toHaveBeenCalled();
-	});
+	it.each([false, true])(
+		"preserves data and reports a failed mutation (editing=%s)",
+		async (editing) => {
+			const error = new Error("network unavailable");
+			(editing ? mocks.update : mocks.create).mockRejectedValue(error);
+			const onSuccess = vi.fn();
+			render(
+				<ExpenseForm
+					defaultValues={{ amount: 24 }}
+					expenseId={editing ? "edit" : undefined}
+					onSuccess={onSuccess}
+				/>
+			);
+			await userEvent.setup().click(
+				screen.getByRole("button", {
+					name: editing ? "Save Changes" : "Add Expense",
+				})
+			);
+			await waitFor(() =>
+				expect(mocks.error).toHaveBeenCalledWith(
+					editing ? "Failed to update expense" : "Failed to add expense"
+				)
+			);
+			expect(mocks.report).toHaveBeenCalledWith(error, {
+				feature: "expenses",
+				operation: editing ? "update" : "create",
+			});
+			expect(screen.getByLabelText("Amount")).toHaveValue("24");
+			expect(onSuccess).not.toHaveBeenCalled();
+		}
+	);
 
 	it("prevents duplicate mutations while a save is pending", async () => {
 		let resolve: (value: unknown) => void = () => {

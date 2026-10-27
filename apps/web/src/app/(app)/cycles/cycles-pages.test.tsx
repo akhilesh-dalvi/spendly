@@ -22,28 +22,24 @@ const JULY_LABEL = /July budget/;
 const JUNE_LABEL = /June budget/;
 
 const mocks = vi.hoisted(() => ({
+	back: vi.fn(),
+	create: vi.fn(),
+	createCategory: vi.fn(),
+	error: vi.fn(),
+	push: vi.fn(),
 	queries: new Map<string, unknown>(),
 	query: vi.fn(),
-	create: vi.fn(),
-	update: vi.fn(),
 	remove: vi.fn(),
 	removeCategory: vi.fn(),
-	createCategory: vi.fn(),
-	updateCategory: vi.fn(),
-	push: vi.fn(),
 	replace: vi.fn(),
-	back: vi.fn(),
 	search: new URLSearchParams(),
 	success: vi.fn(),
-	error: vi.fn(),
+	update: vi.fn(),
+	updateCategory: vi.fn(),
 }));
 vi.mock("convex/react", async () => {
 	const { getFunctionName: name } = await import("convex/server");
 	return {
-		useQuery: (ref: FunctionReference<"query">, args?: unknown) => {
-			mocks.query(name(ref), args);
-			return args === "skip" ? undefined : mocks.queries.get(name(ref));
-		},
 		useMutation: (ref: FunctionReference<"mutation">) =>
 			new Map([
 				[name(api.cycles.create), mocks.create],
@@ -53,6 +49,10 @@ vi.mock("convex/react", async () => {
 				[name(api.categories.create), mocks.createCategory],
 				[name(api.categories.update), mocks.updateCategory],
 			]).get(name(ref)),
+		useQuery: (ref: FunctionReference<"query">, args?: unknown) => {
+			mocks.query(name(ref), args);
+			return args === "skip" ? undefined : mocks.queries.get(name(ref));
+		},
 	};
 });
 vi.mock("@clerk/nextjs", () => ({
@@ -60,14 +60,14 @@ vi.mock("@clerk/nextjs", () => ({
 }));
 vi.mock("next/navigation", () => ({
 	useRouter: () => ({
+		back: mocks.back,
 		push: mocks.push,
 		replace: mocks.replace,
-		back: mocks.back,
 	}),
 	useSearchParams: () => mocks.search,
 }));
 vi.mock("sonner", () => ({
-	toast: { success: mocks.success, error: mocks.error },
+	toast: { error: mocks.error, success: mocks.success },
 }));
 // Responsive Recharts sizing is peripheral to the route's behavior in jsdom.
 vi.mock("@/components/category-type-chart", () => ({
@@ -92,13 +92,13 @@ function cycle(
 	endDate: string
 ): Doc<"expense_cycles"> {
 	return {
-		_id: id as Id<"expense_cycles">,
 		_creationTime: 0,
-		userId,
+		_id: id as Id<"expense_cycles">,
 		createdAt: 0,
+		endDate,
 		name,
 		startDate,
-		endDate,
+		userId,
 	};
 }
 const current = cycle("july", "July budget", "2026-07-01", "2026-08-01");
@@ -107,30 +107,30 @@ const past = cycle("june", "June budget", "2026-06-01", "2026-07-01");
 const older = cycle("may", "May budget", "2026-05-01", "2026-06-01");
 const categories: FunctionReturnType<typeof api.categories.list> = [
 	{
-		_id: foodId,
 		_creationTime: 0,
-		cycleId,
-		userId,
+		_id: foodId,
 		createdAt: 0,
-		name: "Food",
+		cycleId,
 		icon: "🍲",
-		plannedAmount: 100,
+		name: "Food",
 		order: 0,
-		typeName: "Needs",
+		plannedAmount: 100,
 		typeColor: "#123456",
+		typeName: "Needs",
+		userId,
 	},
 ];
 function setSummary(spent = 25, planned = 100) {
 	fixture(api.aggregations.getCycleSummary, {
+		categoryStats: [],
 		cycleId,
 		cycleName: current.name,
-		startDate: current.startDate,
-		endDate: current.endDate,
-		totalSpent: spent,
-		totalPlanned: planned,
-		remaining: planned - spent,
 		daysRemaining: 22,
-		categoryStats: [],
+		endDate: current.endDate,
+		remaining: planned - spent,
+		startDate: current.startDate,
+		totalPlanned: planned,
+		totalSpent: spent,
 		typeStats: [],
 	});
 }
@@ -147,12 +147,12 @@ beforeEach(() => {
 	mocks.createCategory.mockReset().mockResolvedValue({ _id: foodId });
 	mocks.updateCategory.mockReset().mockResolvedValue({ _id: foodId });
 	fixture(api.users.get, {
-		_id: userId,
 		_creationTime: 0,
+		_id: userId,
 		clerkId: "clerk",
-		email: "test@example.com",
 		createdAt: 0,
 		currency: "USD",
+		email: "test@example.com",
 	});
 	fixture(api.cycles.list, [upcoming, current, past, older]);
 	fixture(api.cycles.get, current);
@@ -327,10 +327,10 @@ describe("new and edit cycle routes", () => {
 		);
 		await waitFor(() =>
 			expect(mocks.update).toHaveBeenCalledWith({
+				endDate: "2026-08-01",
 				id: cycleId,
 				name: "July budget",
 				startDate: "2026-07-01",
-				endDate: "2026-08-01",
 			})
 		);
 		expect(mocks.push).toHaveBeenCalledWith("/cycles/july");
@@ -384,28 +384,30 @@ describe("new and edit cycle routes", () => {
 		expect(mocks.push).toHaveBeenCalledWith("/cycles");
 	});
 
-	it.each([
-		new Error("ConvexError: Cycle has expenses"),
-		"offline",
-	])("reports delete failure without navigating (%s)", async (error) => {
-		mocks.remove.mockRejectedValue(error);
-		await renderEdit();
-		const interaction = userEvent.setup();
-		await interaction.click(
-			screen.getByRole("button", { name: "Delete Cycle" })
-		);
-		await interaction.click(
-			within(screen.getByRole("alertdialog")).getByRole("button", {
-				name: "Delete Cycle",
-			})
-		);
-		await waitFor(() =>
-			expect(mocks.error).toHaveBeenCalledWith(
-				error instanceof Error ? "Cycle has expenses" : "Failed to delete cycle"
-			)
-		);
-		expect(mocks.push).not.toHaveBeenCalled();
-	});
+	it.each([new Error("ConvexError: Cycle has expenses"), "offline"])(
+		"reports delete failure without navigating (%s)",
+		async (error) => {
+			mocks.remove.mockRejectedValue(error);
+			await renderEdit();
+			const interaction = userEvent.setup();
+			await interaction.click(
+				screen.getByRole("button", { name: "Delete Cycle" })
+			);
+			await interaction.click(
+				within(screen.getByRole("alertdialog")).getByRole("button", {
+					name: "Delete Cycle",
+				})
+			);
+			await waitFor(() =>
+				expect(mocks.error).toHaveBeenCalledWith(
+					error instanceof Error
+						? "Cycle has expenses"
+						: "Failed to delete cycle"
+				)
+			);
+			expect(mocks.push).not.toHaveBeenCalled();
+		}
+	);
 });
 
 describe("cycle detail route", () => {
@@ -529,24 +531,26 @@ describe("cycle detail route", () => {
 		).toHaveAttribute("href", "/cycles");
 	});
 
-	it.each([
-		new Error("ConvexError: Cycle has expenses"),
-		"offline",
-	])("handles detail deletion errors without navigating (%s)", async (error) => {
-		mocks.remove.mockRejectedValue(error);
-		await renderDetail();
-		const interaction = userEvent.setup();
-		await interaction.click(screen.getByRole("button", { name: "Delete" }));
-		await interaction.click(
-			screen.getByRole("button", { name: "Delete Cycle" })
-		);
-		await waitFor(() =>
-			expect(mocks.error).toHaveBeenCalledWith(
-				error instanceof Error ? "Cycle has expenses" : "Failed to delete cycle"
-			)
-		);
-		expect(mocks.push).not.toHaveBeenCalled();
-	});
+	it.each([new Error("ConvexError: Cycle has expenses"), "offline"])(
+		"handles detail deletion errors without navigating (%s)",
+		async (error) => {
+			mocks.remove.mockRejectedValue(error);
+			await renderDetail();
+			const interaction = userEvent.setup();
+			await interaction.click(screen.getByRole("button", { name: "Delete" }));
+			await interaction.click(
+				screen.getByRole("button", { name: "Delete Cycle" })
+			);
+			await waitFor(() =>
+				expect(mocks.error).toHaveBeenCalledWith(
+					error instanceof Error
+						? "Cycle has expenses"
+						: "Failed to delete cycle"
+				)
+			);
+			expect(mocks.push).not.toHaveBeenCalled();
+		}
+	);
 
 	it("closes the add-category dialog only after the real form saves", async () => {
 		await renderDetail("plan");

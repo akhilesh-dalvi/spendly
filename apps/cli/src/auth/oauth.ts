@@ -65,8 +65,12 @@ const readJson = async (
 ): Promise<unknown> => {
 	try {
 		return await response.json();
-	} catch {
-		throw new CliError(
+	} catch (error) {
+		throw CliError.fromCause(
+			// Keep response snippets out of debug output, but retain the parse cause.
+			new Error("Authentication response JSON could not be decoded", {
+				cause: error,
+			}),
 			errorCode,
 			"The authentication provider returned an invalid JSON response"
 		);
@@ -104,10 +108,11 @@ export const discoverOAuth = async (
 			fetchImplementation
 		);
 	} catch (error) {
-		throw new CliError(
+		throw CliError.fromCause(
+			error,
 			"NETWORK_ERROR",
 			"Unable to reach the authentication provider",
-			{ cause: error, retryable: true }
+			{ retryable: true }
 		);
 	}
 
@@ -189,8 +194,7 @@ const requestTokens = async (
 			fetchImplementation
 		);
 	} catch (error) {
-		throw new CliError("NETWORK_ERROR", "Token request failed", {
-			cause: error,
+		throw CliError.fromCause(error, "NETWORK_ERROR", "Token request failed", {
 			retryable: true,
 		});
 	}
@@ -344,16 +348,17 @@ export const verifyIdToken = async (options: {
 		return { expiresAt: payload.exp * 1000, subject: payload.sub };
 	} catch (error) {
 		if (isNetworkVerificationError(error)) {
-			throw new CliError(
+			throw CliError.fromCause(
+				error,
 				"NETWORK_ERROR",
 				"Unable to retrieve authentication verification keys",
-				{ cause: error, retryable: true }
+				{ retryable: true }
 			);
 		}
-		throw new CliError(
+		throw CliError.fromCause(
+			error,
 			"AUTHENTICATION_REQUIRED",
-			"ID token validation failed",
-			{ cause: error }
+			"ID token validation failed"
 		);
 	}
 };

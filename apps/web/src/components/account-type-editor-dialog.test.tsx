@@ -9,36 +9,36 @@ import { AccountTypeEditorDialog } from "./account-type-editor-dialog";
 
 const mocks = vi.hoisted(() => ({
 	create: vi.fn(),
-	update: vi.fn(),
-	query: vi.fn(),
-	success: vi.fn(),
 	error: vi.fn(),
+	query: vi.fn(),
 	report: vi.fn(),
+	success: vi.fn(),
+	update: vi.fn(),
 }));
 vi.mock("convex/react", () => ({
-	useQuery: (...args: unknown[]) => mocks.query(...args),
 	useMutation: (reference: Parameters<typeof getFunctionName>[0]) =>
 		getFunctionName(reference) === "accountTypes:create"
 			? mocks.create
 			: mocks.update,
+	useQuery: (...args: unknown[]) => mocks.query(...args),
 }));
 vi.mock("sonner", () => ({
-	toast: { success: mocks.success, error: mocks.error },
+	toast: { error: mocks.error, success: mocks.success },
 }));
 vi.mock("@/lib/report-error", () => ({ reportError: mocks.report }));
 
 const accountType: Doc<"account_types"> = {
-	_id: "type-savings" as Id<"account_types">,
 	_creationTime: 1,
-	userId: "user-1" as Id<"users">,
-	createdAt: 1,
-	order: 0,
-	normalizedName: "savings",
-	name: "Savings",
+	_id: "type-savings" as Id<"account_types">,
 	balanceNature: "asset",
 	color: "#14B8A6",
+	createdAt: 1,
 	icon: "piggy-bank",
 	isArchived: false,
+	name: "Savings",
+	normalizedName: "savings",
+	order: 0,
+	userId: "user-1" as Id<"users">,
 };
 
 const LIABILITY_DESCRIPTION = /Negative balances represent money owed/;
@@ -106,10 +106,10 @@ describe("AccountTypeEditorDialog", () => {
 		await user.click(submit);
 		await waitFor(() =>
 			expect(mocks.create).toHaveBeenCalledWith({
-				name: "Mortgage",
 				balanceNature: "liability",
 				color: "#EF4444",
 				icon: "credit-card",
+				name: "Mortgage",
 			})
 		);
 		expect(onSuccess).toHaveBeenCalledWith(accountType);
@@ -129,35 +129,35 @@ describe("AccountTypeEditorDialog", () => {
 		await user.click(screen.getByRole("button", { name: "Create type" }));
 		await waitFor(() =>
 			expect(mocks.create).toHaveBeenCalledWith({
-				name: "Cash",
 				balanceNature: "asset",
 				color: undefined,
 				icon: undefined,
+				name: "Cash",
 			})
 		);
 	});
 
-	it.each([
-		undefined,
-		{ accountCount: 3 },
-	])("locks nature until usage is known and no accounts use it: %j", (usage) => {
-		mocks.query.mockReturnValue(usage);
-		render(
-			<AccountTypeEditorDialog
-				accountType={accountType}
-				onOpenChange={vi.fn()}
-				open
-			/>
-		);
-		expect(screen.getByLabelText("Balance nature")).toBeDisabled();
-		expect(screen.getByText("Balance nature is locked")).toBeVisible();
-		expect(screen.getByText(USAGE_DESCRIPTION)).toHaveTextContent(
-			usage ? "3 accounts" : "one or more accounts"
-		);
-		expect(mocks.query).toHaveBeenCalledWith(expect.anything(), {
-			accountTypeId: accountType._id,
-		});
-	});
+	it.each([undefined, { accountCount: 3 }])(
+		"locks nature until usage is known and no accounts use it: %j",
+		(usage) => {
+			mocks.query.mockReturnValue(usage);
+			render(
+				<AccountTypeEditorDialog
+					accountType={accountType}
+					onOpenChange={vi.fn()}
+					open
+				/>
+			);
+			expect(screen.getByLabelText("Balance nature")).toBeDisabled();
+			expect(screen.getByText("Balance nature is locked")).toBeVisible();
+			expect(screen.getByText(USAGE_DESCRIPTION)).toHaveTextContent(
+				usage ? "3 accounts" : "one or more accounts"
+			);
+			expect(mocks.query).toHaveBeenCalledWith(expect.anything(), {
+				accountTypeId: accountType._id,
+			});
+		}
+	);
 
 	it("edits an unused type, clears optional fields with null and disables actions while saving", async () => {
 		const user = userEvent.setup();
@@ -184,10 +184,10 @@ describe("AccountTypeEditorDialog", () => {
 		await user.click(screen.getByRole("button", { name: "Save changes" }));
 		expect(mocks.update).toHaveBeenCalledWith({
 			accountTypeId: accountType._id,
-			name: "Reserve",
 			balanceNature: "asset",
 			color: null,
 			icon: null,
+			name: "Reserve",
 		});
 		expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
 		expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
@@ -196,50 +196,52 @@ describe("AccountTypeEditorDialog", () => {
 		expect(mocks.success).toHaveBeenCalledWith("Account type updated");
 	});
 
-	it.each([
-		false,
-		true,
-	])("keeps failed %s saves open and reports a safe actionable error", async (editing) => {
-		const user = userEvent.setup();
-		const error = new Error("ACCOUNT_TYPE_NAME_TAKEN");
-		(editing ? mocks.update : mocks.create).mockRejectedValueOnce(error);
-		const onOpenChange = vi.fn();
-		const onSuccess = vi.fn();
-		render(
-			<AccountTypeEditorDialog
-				accountType={
-					editing ? { ...accountType, color: undefined, icon: undefined } : null
-				}
-				onOpenChange={onOpenChange}
-				onSuccess={onSuccess}
-				open
-			/>
-		);
-		if (!editing) {
-			await user.type(screen.getByLabelText("Name"), "Savings");
+	it.each([false, true])(
+		"keeps failed %s saves open and reports a safe actionable error",
+		async (editing) => {
+			const user = userEvent.setup();
+			const error = new Error("ACCOUNT_TYPE_NAME_TAKEN");
+			(editing ? mocks.update : mocks.create).mockRejectedValueOnce(error);
+			const onOpenChange = vi.fn();
+			const onSuccess = vi.fn();
+			render(
+				<AccountTypeEditorDialog
+					accountType={
+						editing
+							? { ...accountType, color: undefined, icon: undefined }
+							: null
+					}
+					onOpenChange={onOpenChange}
+					onSuccess={onSuccess}
+					open
+				/>
+			);
+			if (!editing) {
+				await user.type(screen.getByLabelText("Name"), "Savings");
+			}
+			await user.click(
+				screen.getByRole("button", {
+					name: editing ? "Save changes" : "Create type",
+				})
+			);
+			await waitFor(() =>
+				expect(mocks.error).toHaveBeenCalledWith(
+					"An account type with this name already exists."
+				)
+			);
+			expect(mocks.report).toHaveBeenCalledWith(error, {
+				feature: "account-types",
+				operation: editing ? "update" : "create",
+			});
+			expect(onOpenChange).not.toHaveBeenCalled();
+			expect(onSuccess).not.toHaveBeenCalled();
+			expect(
+				screen.getByRole("button", {
+					name: editing ? "Save changes" : "Create type",
+				})
+			).toBeEnabled();
 		}
-		await user.click(
-			screen.getByRole("button", {
-				name: editing ? "Save changes" : "Create type",
-			})
-		);
-		await waitFor(() =>
-			expect(mocks.error).toHaveBeenCalledWith(
-				"An account type with this name already exists."
-			)
-		);
-		expect(mocks.report).toHaveBeenCalledWith(error, {
-			feature: "account-types",
-			operation: editing ? "update" : "create",
-		});
-		expect(onOpenChange).not.toHaveBeenCalled();
-		expect(onSuccess).not.toHaveBeenCalled();
-		expect(
-			screen.getByRole("button", {
-				name: editing ? "Save changes" : "Create type",
-			})
-		).toBeEnabled();
-	});
+	);
 
 	it("cancels without a mutation and skips usage queries for a closed dialog", async () => {
 		const user = userEvent.setup();

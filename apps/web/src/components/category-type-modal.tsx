@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
 	Dialog,
 	DialogContent,
@@ -11,11 +11,11 @@ import {
 import { CategoryTypeForm } from "./category-type-form";
 
 interface CategoryTypeModalProps {
-	trigger?: React.ReactNode;
-	open?: boolean;
+	existingTypeNames?: string[];
 	onOpenChange?: (open: boolean) => void;
 	onSuccess?: (typeId: string) => void;
-	existingTypeNames?: string[];
+	open?: boolean;
+	trigger?: React.ReactNode;
 }
 
 export function CategoryTypeModal({
@@ -29,27 +29,34 @@ export function CategoryTypeModal({
 
 	const isControlled = controlledOpen !== undefined;
 	const open = isControlled ? controlledOpen : internalOpen;
-	const setOpen = (val: boolean) => {
-		if (isControlled) {
-			onOpenChange?.(val);
-		} else {
-			setInternalOpen(val);
-		}
-	};
+	const setOpen = useCallback(
+		(val: boolean) => {
+			if (isControlled) {
+				onOpenChange?.(val);
+			} else {
+				setInternalOpen(val);
+			}
+		},
+		[isControlled, onOpenChange]
+	);
+	const handleSuccess = useCallback(
+		(typeId: string) => {
+			onSuccess?.(typeId);
+			setOpen(false);
+		},
+		[onSuccess, setOpen]
+	);
 
 	return (
 		<Dialog onOpenChange={setOpen} open={open}>
-			{trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
+			{trigger ? <DialogTrigger asChild>{trigger}</DialogTrigger> : null}
 			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>Add Category Type</DialogTitle>
 				</DialogHeader>
 				<CategoryTypeForm
 					existingTypeNames={existingTypeNames}
-					onSuccess={(typeId) => {
-						onSuccess?.(typeId);
-						setOpen(false);
-					}}
+					onSuccess={handleSuccess}
 				/>
 			</DialogContent>
 		</Dialog>

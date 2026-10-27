@@ -4,7 +4,7 @@ import { api } from "@spendly/backend/convex/_generated/api";
 import Color from "color";
 import { useMutation } from "convex/react";
 import { Check, Pipette, Plus } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import {
 	ColorPicker,
@@ -37,19 +37,77 @@ const PRESET_COLORS = [
 ];
 
 const SUGGESTED_TYPES = [
-	{ name: "Needs", color: "#3b82f6" },
-	{ name: "Wants", color: "#f59e0b" },
-	{ name: "Savings", color: "#10b981" },
-	{ name: "Fixed", color: "#6366f1" },
-	{ name: "Variable", color: "#ec4899" },
-	{ name: "Debt", color: "#ef4444" },
-	{ name: "Investments", color: "#8b5cf6" },
-	{ name: "Business", color: "#14b8a6" },
+	{ color: "#3b82f6", name: "Needs" },
+	{ color: "#f59e0b", name: "Wants" },
+	{ color: "#10b981", name: "Savings" },
+	{ color: "#6366f1", name: "Fixed" },
+	{ color: "#ec4899", name: "Variable" },
+	{ color: "#ef4444", name: "Debt" },
+	{ color: "#8b5cf6", name: "Investments" },
+	{ color: "#14b8a6", name: "Business" },
 ];
 
 interface CategoryTypeFormProps {
-	onSuccess?: (typeId: string) => void;
 	existingTypeNames?: string[];
+	onSuccess?: (typeId: string) => void;
+}
+
+function PresetColor({
+	color,
+	selected,
+	onSelect,
+}: {
+	color: string;
+	selected: boolean;
+	onSelect: (color: string) => void;
+}) {
+	const select = useCallback(() => onSelect(color), [onSelect, color]);
+	return (
+		<button
+			aria-label={`Use ${color}`}
+			aria-pressed={selected}
+			className={cn(
+				"group relative flex h-7 w-7 items-center justify-center rounded-full transition-all hover:scale-110 active:scale-95",
+				selected
+					? "ring-2 ring-foreground ring-offset-2 ring-offset-background"
+					: ""
+			)}
+			onClick={select}
+			style={{ backgroundColor: color }}
+			type="button"
+		>
+			{Boolean(selected) && (
+				<Check className="h-3 w-3 text-white drop-shadow-md" />
+			)}
+		</button>
+	);
+}
+
+function TypeSuggestion({
+	suggestion,
+	onSelect,
+}: {
+	suggestion: { name: string; color: string };
+	onSelect: (suggestion: { name: string; color: string }) => void;
+}) {
+	const select = useCallback(
+		() => onSelect(suggestion),
+		[onSelect, suggestion]
+	);
+	return (
+		<Button
+			className="h-8 gap-1.5 rounded-full border-dashed px-3 text-xs"
+			onClick={select}
+			type="button"
+			variant="outline"
+		>
+			<div
+				className="h-2 w-2 rounded-full"
+				style={{ backgroundColor: suggestion.color }}
+			/>
+			{suggestion.name}
+		</Button>
+	);
 }
 
 export function CategoryTypeForm({
@@ -65,33 +123,52 @@ export function CategoryTypeForm({
 		(t) => !existingTypeNames.includes(t.name)
 	);
 
-	const handleColorChange = (rgba: [number, number, number, number]) => {
-		const hex = Color.rgb(rgba[0], rgba[1], rgba[2]).hex();
-		setColor(hex);
-	};
+	const handleColorChange = useCallback(
+		(rgba: [number, number, number, number]) => {
+			const hex = Color.rgb(rgba[0], rgba[1], rgba[2]).hex();
+			setColor(hex);
+		},
+		[]
+	);
+	const changeName = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) => setName(event.target.value),
+		[]
+	);
+	const useSuggestion = useCallback(
+		(suggestion: { name: string; color: string }) => {
+			setName(suggestion.name);
+			setColor(suggestion.color);
+		},
+		[]
+	);
 
-	const handleSubmit = async (e: React.FormEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-		if (!name) {
-			return;
-		}
-
-		setIsSubmitting(true);
-		try {
-			const result = await createType({ name, color });
-			toast.success("Category type added");
-			if (result?._id) {
-				onSuccess?.(result._id);
+	const handleSubmit = useCallback(
+		async (e: React.FormEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			if (!name) {
+				return;
 			}
-		} catch (error) {
-			const message =
-				error instanceof Error ? error.message : "Failed to add category type";
-			toast.error(message.replace("ConvexError: ", ""));
-		} finally {
-			setIsSubmitting(false);
-		}
-	};
+
+			setIsSubmitting(true);
+			try {
+				const result = await createType({ color, name });
+				toast.success("Category type added");
+				if (result?._id) {
+					onSuccess?.(result._id);
+				}
+			} catch (error) {
+				const message =
+					error instanceof Error
+						? error.message
+						: "Failed to add category type";
+				toast.error(message.replace("ConvexError: ", ""));
+			} finally {
+				setIsSubmitting(false);
+			}
+		},
+		[name, createType, color, onSuccess]
+	);
 
 	return (
 		<form className="space-y-6" onSubmit={handleSubmit}>
@@ -100,7 +177,7 @@ export function CategoryTypeForm({
 				<Input
 					autoFocus
 					id="type-name"
-					onChange={(e) => setName(e.target.value)}
+					onChange={changeName}
 					placeholder="e.g. Fixed, Variable, Business"
 					value={name}
 				/>
@@ -118,22 +195,12 @@ export function CategoryTypeForm({
 				<div className="flex flex-wrap items-center gap-2">
 					<div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
 						{PRESET_COLORS.map((c) => (
-							<button
-								className={cn(
-									"group relative flex h-7 w-7 items-center justify-center rounded-full transition-all hover:scale-110 active:scale-95",
-									color.toLowerCase() === c.toLowerCase()
-										? "ring-2 ring-foreground ring-offset-2 ring-offset-background"
-										: ""
-								)}
+							<PresetColor
+								color={c}
 								key={c}
-								onClick={() => setColor(c)}
-								style={{ backgroundColor: c }}
-								type="button"
-							>
-								{color.toLowerCase() === c.toLowerCase() && (
-									<Check className="h-3 w-3 text-white drop-shadow-md" />
-								)}
-							</button>
+								onSelect={setColor}
+								selected={color.toLowerCase() === c.toLowerCase()}
+							/>
 						))}
 					</div>
 
@@ -181,22 +248,11 @@ export function CategoryTypeForm({
 					</Label>
 					<div className="flex flex-wrap gap-2">
 						{filteredSuggestions.map((t) => (
-							<Button
-								className="h-8 gap-1.5 rounded-full border-dashed px-3 text-xs"
+							<TypeSuggestion
 								key={t.name}
-								onClick={() => {
-									setName(t.name);
-									setColor(t.color);
-								}}
-								type="button"
-								variant="outline"
-							>
-								<div
-									className="h-2 w-2 rounded-full"
-									style={{ backgroundColor: t.color }}
-								/>
-								{t.name}
-							</Button>
+								onSelect={useSuggestion}
+								suggestion={t}
+							/>
 						))}
 					</div>
 				</div>

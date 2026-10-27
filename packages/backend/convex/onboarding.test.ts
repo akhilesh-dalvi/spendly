@@ -146,7 +146,7 @@ describe("onboarding persistence", () => {
 		const testContext = createBackendTest();
 		const { client } = await beginWithCycle(testContext, "create-account");
 		const accountTypes = await client.query(api.accountTypes.list, {});
-		const accountType = accountTypes[0];
+		const [accountType] = accountTypes;
 		if (!accountType) {
 			throw new Error("Expected a default account type");
 		}

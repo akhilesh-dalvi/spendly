@@ -7,8 +7,8 @@ import { getCurrentUser, getCurrentUserOrNull } from "./helpers";
 import { supportedCurrencyValidator } from "./onboardingValidators";
 
 const userValidator = v.object({
-	_id: v.id("users"),
 	_creationTime: v.number(),
+	_id: v.id("users"),
 	accountsOnboardingStatus: v.optional(
 		v.union(v.literal("pending"), v.literal("skipped"), v.literal("completed"))
 	),
@@ -35,18 +35,15 @@ const userValidator = v.object({
 
 export const get = query({
 	args: {},
+	handler: async (ctx) => await getCurrentUser(ctx),
 	returns: userValidator,
-	handler: async (ctx) => {
-		return await getCurrentUser(ctx);
-	},
 });
 
 export const create = mutation({
 	args: {
-		name: v.optional(v.string()),
 		email: v.string(),
+		name: v.optional(v.string()),
 	},
-	returns: v.id("users"),
 	handler: async (ctx, args) => {
 		const identity = await ctx.auth.getUserIdentity();
 		if (!identity) {
@@ -63,40 +60,41 @@ export const create = mutation({
 		}
 
 		const userId = await ctx.db.insert("users", {
+			accountsOnboardingStatus: "pending",
 			clerkId: identity.subject,
+			createdAt: Date.now(),
+			currency: "USD",
 			email: args.email,
 			name: args.name,
-			currency: "USD",
 			onboardingStep: "start",
-			accountsOnboardingStatus: "pending",
-			createdAt: Date.now(),
 		});
 		await seedDefaultAccountTypes(ctx, userId);
 
 		await ctx.db.insert("category_types", {
-			userId,
-			name: "Needs",
 			color: "#3b82f6",
+			createdAt: Date.now(),
+			name: "Needs",
 			order: 0,
-			createdAt: Date.now(),
+			userId,
 		});
 		await ctx.db.insert("category_types", {
-			userId,
-			name: "Wants",
 			color: "#f59e0b",
-			order: 1,
 			createdAt: Date.now(),
+			name: "Wants",
+			order: 1,
+			userId,
 		});
 		await ctx.db.insert("category_types", {
-			userId,
-			name: "Savings",
 			color: "#10b981",
-			order: 2,
 			createdAt: Date.now(),
+			name: "Savings",
+			order: 2,
+			userId,
 		});
 
 		return userId;
 	},
+	returns: v.id("users"),
 });
 
 export const beginOnboarding = mutation({
@@ -104,7 +102,6 @@ export const beginOnboarding = mutation({
 		currency: supportedCurrencyValidator,
 		path: v.union(v.literal("free"), v.literal("plan")),
 	},
-	returns: v.null(),
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		await seedDefaultAccountTypes(ctx, user._id);
@@ -117,44 +114,11 @@ export const beginOnboarding = mutation({
 		});
 		return null;
 	},
+	returns: v.null(),
 });
 
 export const getOnboardingState = query({
 	args: {},
-	returns: v.union(
-		v.null(),
-		v.object({
-			accountStatus: v.union(
-				v.literal("pending"),
-				v.literal("skipped"),
-				v.literal("completed")
-			),
-			currency: v.string(),
-			cycle: v.union(
-				v.null(),
-				v.object({
-					_id: v.id("expense_cycles"),
-					_creationTime: v.number(),
-					createdAt: v.number(),
-					endDate: v.string(),
-					revision: v.optional(v.number()),
-					createdSource: v.optional(actionSourceValidator),
-					lastModifiedSource: v.optional(actionSourceValidator),
-					name: v.string(),
-					startDate: v.string(),
-					userId: v.id("users"),
-				})
-			),
-			path: v.union(v.null(), v.literal("free"), v.literal("plan")),
-			step: v.union(
-				v.literal("start"),
-				v.literal("cycle"),
-				v.literal("categories"),
-				v.literal("account"),
-				v.literal("complete")
-			),
-		})
-	),
 	handler: async (ctx) => {
 		const user = await getCurrentUserOrNull(ctx);
 		if (!user) {
@@ -190,11 +154,44 @@ export const getOnboardingState = query({
 			step: user.onboardingStep ?? "start",
 		};
 	},
+	returns: v.union(
+		v.null(),
+		v.object({
+			accountStatus: v.union(
+				v.literal("pending"),
+				v.literal("skipped"),
+				v.literal("completed")
+			),
+			currency: v.string(),
+			cycle: v.union(
+				v.null(),
+				v.object({
+					_creationTime: v.number(),
+					_id: v.id("expense_cycles"),
+					createdAt: v.number(),
+					createdSource: v.optional(actionSourceValidator),
+					endDate: v.string(),
+					lastModifiedSource: v.optional(actionSourceValidator),
+					name: v.string(),
+					revision: v.optional(v.number()),
+					startDate: v.string(),
+					userId: v.id("users"),
+				})
+			),
+			path: v.union(v.null(), v.literal("free"), v.literal("plan")),
+			step: v.union(
+				v.literal("start"),
+				v.literal("cycle"),
+				v.literal("categories"),
+				v.literal("account"),
+				v.literal("complete")
+			),
+		})
+	),
 });
 
 export const advanceOnboarding = mutation({
 	args: { step: v.literal("account") },
-	returns: v.null(),
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		if (!user.onboardingCycleId) {
@@ -203,13 +200,13 @@ export const advanceOnboarding = mutation({
 		await ctx.db.patch(user._id, { onboardingStep: args.step });
 		return null;
 	},
+	returns: v.null(),
 });
 
 export const completeOnboarding = mutation({
 	args: {
 		accountStatus: v.union(v.literal("skipped"), v.literal("completed")),
 	},
-	returns: v.null(),
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		if (!user.onboardingCycleId) {
@@ -222,11 +219,11 @@ export const completeOnboarding = mutation({
 		});
 		return null;
 	},
+	returns: v.null(),
 });
 
 export const updateCurrency = mutation({
 	args: { currency: supportedCurrencyValidator },
-	returns: userValidator,
 	handler: async (ctx, args) => {
 		const identity = await ctx.auth.getUserIdentity();
 		if (!identity) {
@@ -249,11 +246,11 @@ export const updateCurrency = mutation({
 		}
 		return updatedUser;
 	},
+	returns: userValidator,
 });
 
 export const updateDefaultAccount = mutation({
 	args: { accountId: v.id("accounts") },
-	returns: v.id("accounts"),
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		await commitDefaultAccount(ctx, {
@@ -263,11 +260,11 @@ export const updateDefaultAccount = mutation({
 		});
 		return args.accountId;
 	},
+	returns: v.id("accounts"),
 });
 
 export const dismissAccountsOnboarding = mutation({
 	args: {},
-	returns: v.literal("skipped"),
 	handler: async (ctx) => {
 		const user = await getCurrentUser(ctx);
 		await ctx.db.patch(user._id, {
@@ -275,11 +272,11 @@ export const dismissAccountsOnboarding = mutation({
 		});
 		return "skipped" as const;
 	},
+	returns: v.literal("skipped"),
 });
 
 export const updateDashboardViewMode = mutation({
 	args: { viewMode: v.string() },
-	returns: userValidator,
 	handler: async (ctx, args) => {
 		const identity = await ctx.auth.getUserIdentity();
 		if (!identity) {
@@ -302,4 +299,5 @@ export const updateDashboardViewMode = mutation({
 		}
 		return updatedUser;
 	},
+	returns: userValidator,
 });

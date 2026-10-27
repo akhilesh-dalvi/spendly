@@ -31,7 +31,7 @@ describe("accessible prompts", () => {
 		const answer = createAccessiblePrompter(streams).select({
 			message: "Account",
 			options: [
-				{ label: "Archived", value: "old", disabled: true, hint: "Read only" },
+				{ disabled: true, hint: "Read only", label: "Archived", value: "old" },
 				{ label: "Wallet", value: "wallet" },
 			],
 		});
@@ -51,7 +51,7 @@ describe("accessible prompts", () => {
 			message: "Fields",
 			options: [
 				{ label: "Amount", value: "amount" },
-				{ label: "Locked", value: "locked", disabled: true },
+				{ disabled: true, label: "Locked", value: "locked" },
 				{ label: "Date", value: "date" },
 			],
 			required: true,
@@ -69,67 +69,64 @@ describe("accessible prompts", () => {
 
 	it.each([
 		{
+			expected: [],
 			initialValues: undefined,
 			required: false,
-			expected: [],
 			summary: "None",
 		},
 		{
+			expected: ["amount"],
 			initialValues: ["amount"],
 			required: true,
-			expected: ["amount"],
 			summary: "Amount",
 		},
-	])("accepts an empty answer with initial values $initialValues", async ({
-		initialValues,
-		required,
-		expected,
-		summary,
-	}) => {
-		const streams = createStreams();
-		const answer = createAccessiblePrompter(streams).multiselect({
-			message: "Fields",
-			options: [{ label: "Amount", value: "amount" }],
-			initialValues,
-			required,
-		});
-		await reply(streams.input, "");
-		await expect(answer).resolves.toEqual(expected);
-		expect(streams.getRendered()).toContain(`Selected: ${summary}`);
-		if (initialValues) {
-			expect(streams.getRendered()).toContain("[x] Amount");
+	])(
+		"accepts an empty answer with initial values $initialValues",
+		async ({ initialValues, required, expected, summary }) => {
+			const streams = createStreams();
+			const answer = createAccessiblePrompter(streams).multiselect({
+				initialValues,
+				message: "Fields",
+				options: [{ label: "Amount", value: "amount" }],
+				required,
+			});
+			await reply(streams.input, "");
+			await expect(answer).resolves.toEqual(expected);
+			expect(streams.getRendered()).toContain(`Selected: ${summary}`);
+			if (initialValues) {
+				expect(streams.getRendered()).toContain("[x] Amount");
+			}
 		}
-	});
+	);
 
 	it.each([
-		{ answer: "", initialValue: undefined, expected: false },
-		{ answer: "", initialValue: true, expected: true },
-		{ answer: "Y", initialValue: false, expected: true },
-		{ answer: "yes", initialValue: false, expected: true },
-		{ answer: "n", initialValue: true, expected: false },
-		{ answer: "NO", initialValue: true, expected: false },
-	])("confirms $answer with default $initialValue", async ({
-		answer,
-		initialValue,
-		expected,
-	}) => {
-		const streams = createStreams();
-		const result = createAccessiblePrompter(streams).confirm({
-			message: "Continue?",
-			initialValue,
-		});
-		await reply(streams.input, "maybe");
-		await reply(streams.input, answer);
-		await expect(result).resolves.toBe(expected);
-		expect(streams.getRendered()).toContain("Enter yes or no.");
-		expect(streams.getRendered()).toContain(initialValue ? "[Y/n]" : "[y/N]");
-	});
+		{ answer: "", expected: false, initialValue: undefined },
+		{ answer: "", expected: true, initialValue: true },
+		{ answer: "Y", expected: true, initialValue: false },
+		{ answer: "yes", expected: true, initialValue: false },
+		{ answer: "n", expected: false, initialValue: true },
+		{ answer: "NO", expected: false, initialValue: true },
+	])(
+		"confirms $answer with default $initialValue",
+		async ({ answer, initialValue, expected }) => {
+			const streams = createStreams();
+			const result = createAccessiblePrompter(streams).confirm({
+				initialValue,
+				message: "Continue?",
+			});
+			await reply(streams.input, "maybe");
+			await reply(streams.input, answer);
+			await expect(result).resolves.toBe(expected);
+			expect(streams.getRendered()).toContain("Enter yes or no.");
+			expect(streams.getRendered()).toContain(initialValue ? "[Y/n]" : "[y/N]");
+		}
+	);
 
 	it("validates text before returning and accepts the initial value", async () => {
 		const streams = createStreams();
 		const answer = createAccessiblePrompter(streams).text({
-			message: "Description",
 			initialValue: "Lunch",
+			message: "Description",
 			validate: (value) => (value.length < 3 ? "Too short" : undefined),
 		});
 		await reply(streams.input, "x");
@@ -139,19 +136,19 @@ describe("accessible prompts", () => {
 		expect(streams.getRendered()).toContain("Too short");
 	});
 
-	it.each([
-		"not-a-date",
-		"2026-02-29",
-		"2026-13-01",
-		"0099-01-01",
-	])("rejects invalid date %s before accepting a leap day", async (invalid) => {
-		const streams = createStreams();
-		const answer = createAccessiblePrompter(streams).date({ message: "Date" });
-		await reply(streams.input, invalid);
-		await reply(streams.input, "2024-02-29");
-		await expect(answer).resolves.toBe("2024-02-29");
-		expect(streams.getRendered()).toContain("Enter a date as YYYY-MM-DD.");
-	});
+	it.each(["not-a-date", "2026-02-29", "2026-13-01", "0099-01-01"])(
+		"rejects invalid date %s before accepting a leap day",
+		async (invalid) => {
+			const streams = createStreams();
+			const answer = createAccessiblePrompter(streams).date({
+				message: "Date",
+			});
+			await reply(streams.input, invalid);
+			await reply(streams.input, "2024-02-29");
+			await expect(answer).resolves.toBe("2024-02-29");
+			expect(streams.getRendered()).toContain("Enter a date as YYYY-MM-DD.");
+		}
+	);
 	it("uses static prompts when explicitly requested or TERM is dumb", () => {
 		expect(shouldUseStaticPrompts(true, "xterm-256color")).toBe(true);
 		expect(shouldUseStaticPrompts(false, "dumb")).toBe(true);

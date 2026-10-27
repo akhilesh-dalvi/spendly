@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 
 import type { Id } from "@spendly/backend/convex/_generated/dataModel";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { getFunctionName } from "convex/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,23 +15,23 @@ import { CategoryForm } from "./category-form";
 
 const mocks = vi.hoisted(() => ({
 	create: vi.fn(),
-	update: vi.fn(),
 	createType: vi.fn(),
+	error: vi.fn(),
 	query: vi.fn(),
 	success: vi.fn(),
-	error: vi.fn(),
+	update: vi.fn(),
 }));
 vi.mock("convex/react", () => ({
-	useQuery: (...args: unknown[]) => mocks.query(...args),
 	useMutation: (reference: Parameters<typeof getFunctionName>[0]) =>
 		({
 			"categories:create": mocks.create,
-			"categories:update": mocks.update,
 			"categories:createType": mocks.createType,
+			"categories:update": mocks.update,
 		})[getFunctionName(reference)],
+	useQuery: (...args: unknown[]) => mocks.query(...args),
 }));
 vi.mock("sonner", () => ({
-	toast: { success: mocks.success, error: mocks.error },
+	toast: { error: mocks.error, success: mocks.success },
 }));
 vi.mock("@/hooks/use-currency", () => ({
 	useCurrency: () => ({ format: (amount: number) => `$${amount.toFixed(2)}` }),
@@ -34,19 +40,33 @@ vi.mock("@/hooks/use-currency", () => ({
 const cycleId = "cycle-march" as Id<"expense_cycles">;
 const categoryId = "category-rent" as Id<"categories">;
 const types = [
-	{ _id: "type-needs", name: "Needs", color: "#3b82f6" },
+	{ _id: "type-needs", color: "#3b82f6", name: "Needs" },
 	{ _id: "type-wants", name: "Wants" },
 ];
 const previous = [
 	{
 		_id: "old-rent",
-		name: "Rent",
-		plannedAmount: 1200,
 		categoryTypeId: "type-needs",
 		icon: "🏠",
+		name: "Rent",
+		plannedAmount: 1200,
 	},
 	{ _id: "old-books", name: "Books", plannedAmount: 30 },
 ];
+function pendingMutation() {
+	let resolve: () => void = () => {
+		throw new Error("Mutation has not started");
+	};
+	let reject: (reason: Error) => void = (_reason) => {
+		throw new Error("Mutation has not started");
+	};
+	const promise = new Promise<void>((done, fail) => {
+		resolve = done;
+		reject = fail;
+	});
+	return { promise, reject, resolve };
+}
+
 const names = () => screen.getAllByPlaceholderText("Category name");
 const amounts = () => screen.getAllByPlaceholderText("0.00");
 const typeSelects = () =>
@@ -71,6 +91,65 @@ afterEach(() => {
 });
 
 describe("CategoryForm", () => {
+	it.each([false, true])(
+		"blocks native duplicate submissions until settlement and allows retry after rejection (editing=%s)",
+		async (editing) => {
+			vi.spyOn(console, "error").mockImplementation(() => undefined);
+			const first = pendingMutation();
+			const retry = pendingMutation();
+			const mutation = editing ? mocks.update : mocks.create;
+			mutation
+				.mockReturnValueOnce(first.promise)
+				.mockReturnValueOnce(retry.promise);
+			const onSuccess = vi.fn();
+			render(
+				<CategoryForm
+					categoryId={editing ? categoryId : undefined}
+					cycleId={cycleId}
+					defaultValues={{ name: "Books", plannedAmount: 25 }}
+					onSuccess={onSuccess}
+				/>
+			);
+			const button = screen.getByRole("button", {
+				name: editing ? "Save Changes" : "Add Category",
+			});
+			const form = button.closest("form");
+			if (!form) {
+				throw new Error("Missing form");
+			}
+			// Native submits bypass disabled buttons and can arrive in the same render.
+			await act(() => {
+				fireEvent.submit(form);
+				fireEvent.submit(form);
+			});
+			await waitFor(() => expect(mutation).toHaveBeenCalledTimes(1));
+			await act(() => {
+				fireEvent.submit(form);
+			});
+			expect(mutation).toHaveBeenCalledTimes(1);
+			expect(onSuccess).not.toHaveBeenCalled();
+			await act(() => first.reject(new Error("offline")));
+			await waitFor(() =>
+				expect(mocks.error).toHaveBeenCalledWith(
+					editing ? "Failed to update category" : "Failed to add categories"
+				)
+			);
+			expect(names()[0]).toHaveValue("Books");
+			await act(() => {
+				fireEvent.submit(form);
+				fireEvent.submit(form);
+			});
+			await waitFor(() => expect(mutation).toHaveBeenCalledTimes(2));
+			await act(() => {
+				fireEvent.submit(form);
+			});
+			expect(mutation).toHaveBeenCalledTimes(2);
+			expect(onSuccess).not.toHaveBeenCalled();
+			await act(() => retry.resolve());
+			await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce());
+		}
+	);
+
 	it("requires a named category and creates a typed budget with a real emoji selection", async () => {
 		const user = userEvent.setup();
 		const onSuccess = vi.fn();
@@ -94,11 +173,11 @@ describe("CategoryForm", () => {
 		await user.click(screen.getByRole("button", { name: "Add Category" }));
 		await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce());
 		expect(mocks.create).toHaveBeenCalledWith({
+			categoryTypeId: "type-needs",
 			cycleId,
+			icon: "🥗",
 			name: "Groceries",
 			plannedAmount: 125.5,
-			categoryTypeId: "type-needs",
-			icon: "🥗",
 		});
 		expect(mocks.success).toHaveBeenCalledWith("Category added successfully");
 		expect(names()[0]).toHaveValue("");
@@ -141,18 +220,18 @@ describe("CategoryForm", () => {
 		);
 		expect(mocks.create).toHaveBeenCalledTimes(2);
 		expect(mocks.create).toHaveBeenNthCalledWith(1, {
-			cycleId,
-			name: "Rent",
 			categoryTypeId: "type-needs",
-			plannedAmount: 1200,
+			cycleId,
 			icon: "🏠",
+			name: "Rent",
+			plannedAmount: 1200,
 		});
 		expect(mocks.create).toHaveBeenNthCalledWith(2, {
-			cycleId,
-			name: "Books",
 			categoryTypeId: undefined,
-			plannedAmount: 30,
+			cycleId,
 			icon: "📦",
+			name: "Books",
+			plannedAmount: 30,
 		});
 	});
 
@@ -182,10 +261,10 @@ describe("CategoryForm", () => {
 				categoryId={categoryId}
 				cycleId={cycleId}
 				defaultValues={{
-					name: "Rent",
 					categoryTypeId: "type-needs",
-					plannedAmount: 1200,
 					icon: "🏠",
+					name: "Rent",
+					plannedAmount: 1200,
 				}}
 				historicalSpent={{ amount: 1100, cycleName: "February" }}
 				onSuccess={onSuccess}
@@ -210,11 +289,11 @@ describe("CategoryForm", () => {
 		await user.click(screen.getByRole("button", { name: "Save Changes" }));
 		await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce());
 		expect(mocks.update).toHaveBeenCalledWith({
+			categoryTypeId: undefined,
+			icon: "🏠",
 			id: categoryId,
 			name: "Housing",
-			categoryTypeId: undefined,
 			plannedAmount: undefined,
-			icon: "🏠",
 		});
 		expect(mocks.create).not.toHaveBeenCalled();
 		expect(mocks.success).toHaveBeenCalledWith("Category updated");
@@ -240,11 +319,11 @@ describe("CategoryForm", () => {
 		await user.click(screen.getByRole("button", { name: "Save Changes" }));
 		expect(screen.getByRole("button", { name: "Saving..." })).toBeDisabled();
 		expect(mocks.update).toHaveBeenCalledWith({
+			categoryTypeId: "type-wants",
+			icon: "📦",
 			id: categoryId,
 			name: "Books",
-			categoryTypeId: "type-wants",
 			plannedAmount: undefined,
-			icon: "📦",
 		});
 		finish();
 		await waitFor(() =>
@@ -252,44 +331,44 @@ describe("CategoryForm", () => {
 		);
 	});
 
-	it.each([
-		false,
-		true,
-	])("preserves values on failed saves and supports retry (editing=%s)", async (editing) => {
-		const user = userEvent.setup();
-		vi.spyOn(console, "error").mockImplementation(() => undefined);
-		(editing ? mocks.update : mocks.create).mockRejectedValueOnce(
-			new Error("offline")
-		);
-		const onSuccess = vi.fn();
-		render(
-			<CategoryForm
-				categoryId={editing ? categoryId : undefined}
-				cycleId={cycleId}
-				defaultValues={{ name: "Books", plannedAmount: 25 }}
-				onSuccess={onSuccess}
-			/>
-		);
-		await user.click(
-			screen.getByRole("button", {
-				name: editing ? "Save Changes" : "Add Category",
-			})
-		);
-		await waitFor(() =>
-			expect(mocks.error).toHaveBeenCalledWith(
-				editing ? "Failed to update category" : "Failed to add categories"
-			)
-		);
-		expect(onSuccess).not.toHaveBeenCalled();
-		expect(names()[0]).toHaveValue("Books");
-		expect(amounts()[0]).toHaveValue("25");
-		await user.click(
-			screen.getByRole("button", {
-				name: editing ? "Save Changes" : "Add Category",
-			})
-		);
-		await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce());
-	});
+	it.each([false, true])(
+		"preserves values on failed saves and supports retry (editing=%s)",
+		async (editing) => {
+			const user = userEvent.setup();
+			vi.spyOn(console, "error").mockImplementation(() => undefined);
+			(editing ? mocks.update : mocks.create).mockRejectedValueOnce(
+				new Error("offline")
+			);
+			const onSuccess = vi.fn();
+			render(
+				<CategoryForm
+					categoryId={editing ? categoryId : undefined}
+					cycleId={cycleId}
+					defaultValues={{ name: "Books", plannedAmount: 25 }}
+					onSuccess={onSuccess}
+				/>
+			);
+			await user.click(
+				screen.getByRole("button", {
+					name: editing ? "Save Changes" : "Add Category",
+				})
+			);
+			await waitFor(() =>
+				expect(mocks.error).toHaveBeenCalledWith(
+					editing ? "Failed to update category" : "Failed to add categories"
+				)
+			);
+			expect(onSuccess).not.toHaveBeenCalled();
+			expect(names()[0]).toHaveValue("Books");
+			expect(amounts()[0]).toHaveValue("25");
+			await user.click(
+				screen.getByRole("button", {
+					name: editing ? "Save Changes" : "Add Category",
+				})
+			);
+			await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce());
+		}
+	);
 
 	it("creates a type inside the selector and applies it to the category", async () => {
 		const user = userEvent.setup();
@@ -299,7 +378,7 @@ describe("CategoryForm", () => {
 					getFunctionName(reference) === "categories:listTypes"
 						? [
 								...types,
-								{ _id: "type-custom", name: "Travel", color: "#3b82f6" },
+								{ _id: "type-custom", color: "#3b82f6", name: "Travel" },
 							]
 						: previous
 			);
@@ -323,11 +402,11 @@ describe("CategoryForm", () => {
 		await user.click(screen.getByRole("button", { name: "Add Category" }));
 		await waitFor(() =>
 			expect(mocks.create).toHaveBeenCalledWith({
-				cycleId,
-				name: "Flights",
 				categoryTypeId: "type-custom",
-				plannedAmount: undefined,
+				cycleId,
 				icon: "📦",
+				name: "Flights",
+				plannedAmount: undefined,
 			})
 		);
 	});

@@ -3,15 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "build": "next build --webpack",
+    "check-types": "next typegen && tsc --noEmit",
+    "dev": "next dev --port 3001",
+    "docs:validate": "npm --prefix ../cli run build && node scripts/validate-cli-docs.mjs",
+    "start": "next start",
     "test": "vitest run",
     "test:browser": "playwright test",
     "test:browser:install": "playwright install --with-deps chromium",
-    "test:coverage": "vitest run --coverage",
-    "check-types": "next typegen && tsc --noEmit",
-    "dev": "next dev --port 3001",
-    "build": "next build --webpack",
-    "docs:validate": "npm --prefix ../cli run build && node scripts/validate-cli-docs.mjs",
-    "start": "next start"
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@clerk/nextjs": "6.39.8",
@@ -33,7 +33,7 @@
     "@sentry/nextjs": "11.8.0",
     "@spendly/backend": "workspace:*",
     "@spendly/env": "workspace:*",
-    "@tanstack/react-form": "1.28.6",
+    "@tanstack/react-form": "1.33.5",
     "@tanstack/react-table": "^8.21.3",
     "babel-plugin-react-compiler": "^1.0.0",
     "class-variance-authority": "^0.7.1",
@@ -57,7 +57,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@playwright/test": "1.58.2",
+    "@playwright/test": "1.64.1",
     "@tailwindcss/postcss": "^4.1.10",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.3",

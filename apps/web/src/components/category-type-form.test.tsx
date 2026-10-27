@@ -7,12 +7,12 @@ import { CategoryTypeForm } from "./category-type-form";
 
 const mocks = vi.hoisted(() => ({
 	create: vi.fn(),
-	success: vi.fn(),
 	error: vi.fn(),
+	success: vi.fn(),
 }));
 vi.mock("convex/react", () => ({ useMutation: () => mocks.create }));
 vi.mock("sonner", () => ({
-	toast: { success: mocks.success, error: mocks.error },
+	toast: { error: mocks.error, success: mocks.success },
 }));
 
 beforeEach(() => {
@@ -44,8 +44,8 @@ describe("CategoryTypeForm", () => {
 		await user.click(screen.getByRole("button", { name: "Add Category Type" }));
 		await waitFor(() => expect(onSuccess).toHaveBeenCalledWith("type-needs"));
 		expect(mocks.create).toHaveBeenCalledWith({
-			name: "Savings",
 			color: "#10b981",
+			name: "Savings",
 		});
 		expect(mocks.success).toHaveBeenCalledWith("Category type added");
 	});
@@ -79,8 +79,8 @@ describe("CategoryTypeForm", () => {
 		await user.click(screen.getByRole("button", { name: "Add Category Type" }));
 		await waitFor(() =>
 			expect(mocks.create).toHaveBeenCalledWith({
-				name: "Travel",
 				color: "#ef4444",
+				name: "Travel",
 			})
 		);
 		expect(mocks.success).toHaveBeenCalledWith("Category type added");
@@ -132,22 +132,29 @@ describe("CategoryTypeForm", () => {
 	it.each([
 		[new Error("ConvexError: Type already exists"), "Type already exists"],
 		["network down", "Failed to add category type"],
-	])("reports a mutation failure and preserves input for retry: %s", async (failure, expectedMessage) => {
-		const user = userEvent.setup();
-		mocks.create.mockRejectedValueOnce(failure);
-		const onSuccess = vi.fn();
-		render(<CategoryTypeForm onSuccess={onSuccess} />);
-		await user.type(screen.getByLabelText("Type Name"), "Needs");
-		await user.click(screen.getByRole("button", { name: "Add Category Type" }));
-		await waitFor(() =>
-			expect(mocks.error).toHaveBeenCalledWith(expectedMessage)
-		);
-		expect(onSuccess).not.toHaveBeenCalled();
-		expect(screen.getByLabelText("Type Name")).toHaveValue("Needs");
-		expect(
-			screen.getByRole("button", { name: "Add Category Type" })
-		).toBeEnabled();
-		await user.click(screen.getByRole("button", { name: "Add Category Type" }));
-		await waitFor(() => expect(onSuccess).toHaveBeenCalledWith("type-needs"));
-	});
+	])(
+		"reports a mutation failure and preserves input for retry: %s",
+		async (failure, expectedMessage) => {
+			const user = userEvent.setup();
+			mocks.create.mockRejectedValueOnce(failure);
+			const onSuccess = vi.fn();
+			render(<CategoryTypeForm onSuccess={onSuccess} />);
+			await user.type(screen.getByLabelText("Type Name"), "Needs");
+			await user.click(
+				screen.getByRole("button", { name: "Add Category Type" })
+			);
+			await waitFor(() =>
+				expect(mocks.error).toHaveBeenCalledWith(expectedMessage)
+			);
+			expect(onSuccess).not.toHaveBeenCalled();
+			expect(screen.getByLabelText("Type Name")).toHaveValue("Needs");
+			expect(
+				screen.getByRole("button", { name: "Add Category Type" })
+			).toBeEnabled();
+			await user.click(
+				screen.getByRole("button", { name: "Add Category Type" })
+			);
+			await waitFor(() => expect(onSuccess).toHaveBeenCalledWith("type-needs"));
+		}
+	);
 });

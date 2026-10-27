@@ -2,8 +2,9 @@
 
 import {
 	type ChangeEvent,
-	forwardRef,
 	type InputHTMLAttributes,
+	type Ref,
+	useCallback,
 	useEffect,
 	useState,
 } from "react";
@@ -14,19 +15,26 @@ const DECIMAL_INPUT_REGEX = /^\d*\.?\d*$/;
 
 interface CurrencyInputProps
 	extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange"> {
-	value?: number;
 	onChange?: (value: number | undefined) => void;
+	ref?: Ref<HTMLInputElement>;
+	value?: number;
 }
 
-export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
-	({ value, onChange, className, ...props }, ref) => {
-		const [displayValue, setDisplayValue] = useState(value?.toString() || "");
+export function CurrencyInput({
+	value,
+	onChange,
+	className,
+	ref,
+	...props
+}: CurrencyInputProps) {
+	const [displayValue, setDisplayValue] = useState(value?.toString() || "");
 
-		useEffect(() => {
-			setDisplayValue(value?.toString() || "");
-		}, [value]);
+	useEffect(() => {
+		setDisplayValue(value?.toString() || "");
+	}, [value]);
 
-		const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+	const handleChange = useCallback(
+		(e: ChangeEvent<HTMLInputElement>) => {
 			const inputValue = e.target.value;
 
 			if (inputValue === "") {
@@ -40,25 +48,24 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
 				const numValue = Number.parseFloat(inputValue);
 				onChange?.(Number.isNaN(numValue) ? undefined : numValue);
 			}
-		};
+		},
+		[onChange]
+	);
 
-		return (
-			<div className="relative">
-				<span className="absolute inset-y-0 left-3 flex items-center text-muted-foreground">
-					₹
-				</span>
-				<Input
-					className={cn("pl-7", className)}
-					inputMode="decimal"
-					onChange={handleChange}
-					ref={ref}
-					type="text"
-					value={displayValue}
-					{...props}
-				/>
-			</div>
-		);
-	}
-);
-
-CurrencyInput.displayName = "CurrencyInput";
+	return (
+		<div className="relative">
+			<span className="absolute inset-y-0 left-3 flex items-center text-muted-foreground">
+				₹
+			</span>
+			<Input
+				className={cn("pl-7", className)}
+				inputMode="decimal"
+				onChange={handleChange}
+				ref={ref}
+				type="text"
+				value={displayValue}
+				{...props}
+			/>
+		</div>
+	);
+}

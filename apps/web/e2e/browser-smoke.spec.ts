@@ -41,7 +41,7 @@ for (const [slug, title] of docs) {
 		const response = await page.goto(path);
 		expect(response?.status()).toBe(200);
 		await expect(
-			page.getByRole("heading", { level: 1, name: title, exact: true })
+			page.getByRole("heading", { exact: true, level: 1, name: title })
 		).toBeVisible();
 		await expect(page).toHaveTitle(`Spendly | ${title} — CLI docs`);
 		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
@@ -54,7 +54,7 @@ for (const [slug, title] of docs) {
 test("docs navigation works in the browser", async ({ page }) => {
 	await page.goto("/docs/cli");
 	await page
-		.getByRole("link", { name: "AI agents", exact: true })
+		.getByRole("link", { exact: true, name: "AI agents" })
 		.first()
 		.click();
 	await expect(page).toHaveURL("/docs/cli/ai-agents");
@@ -68,7 +68,7 @@ const accountsResult = /accounts/i;
 test("docs search hydrates and returns local results", async ({ page }) => {
 	await page.goto("/docs/cli");
 	await page
-		.getByRole("button", { name: "Open Search", exact: true })
+		.getByRole("button", { exact: true, name: "Open Search" })
 		.last()
 		.press("ControlOrMeta+k");
 	const dialog = page.getByRole("dialog");
@@ -117,7 +117,7 @@ for (const path of ["/dashboard", "/expenses", "/accounts", "/onboarding"]) {
 		// Assert the server boundary without following any hosted auth endpoint.
 		const response = await request.get(path, { maxRedirects: 0 });
 		expect(response.status()).toBe(307);
-		const location = response.headers().location;
+		const { location } = response.headers();
 		expect(location).toBeTruthy();
 		const redirect = new URL(location, baseURL);
 		expect(redirect.origin).toBe(baseURL);

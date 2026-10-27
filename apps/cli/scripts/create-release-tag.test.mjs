@@ -4,11 +4,11 @@ import { createReleaseTag } from "./create-release-tag.mjs";
 const createFixture = (version = "0.1.0") => {
 	const commit = "a".repeat(40);
 	const environment = {
-		GITHUB_REPOSITORY: "akhilesh-dalvi/spendly",
 		GITHUB_REF: "refs/heads/master",
+		GITHUB_REPOSITORY: "akhilesh-dalvi/spendly",
 		GITHUB_SHA: commit,
-		SOURCE_COMMIT: commit,
 		RELEASE_VERSION: version,
+		SOURCE_COMMIT: commit,
 	};
 	const ref = `refs/tags/v${version}`;
 	const refPath = `git/ref/tags/v${version}`;
@@ -19,11 +19,11 @@ const createFixture = (version = "0.1.0") => {
 			{
 				workflow_runs: [
 					{
-						head_sha: commit,
-						head_branch: "master",
-						event: "push",
 						conclusion: "success",
+						event: "push",
+						head_branch: "master",
 						head_repository: { full_name: environment.GITHUB_REPOSITORY },
+						head_sha: commit,
 					},
 				],
 			},
@@ -33,8 +33,8 @@ const createFixture = (version = "0.1.0") => {
 	const request = vi.fn((path, options = {}) => {
 		if (path === "git/refs" && options.method === "POST") {
 			responses[refPath] = {
+				object: { sha: options.body.sha, type: "commit" },
 				ref: options.body.ref,
-				object: { type: "commit", sha: options.body.sha },
 			};
 			return responses[refPath];
 		}
@@ -43,28 +43,27 @@ const createFixture = (version = "0.1.0") => {
 		}
 		return responses[path];
 	});
-	return { environment, responses, request, refPath, commitPath, ref, commit };
+	return { commit, commitPath, environment, ref, refPath, request, responses };
 };
 
 describe("automatic version tags", () => {
-	it.each([
-		"0.1.0",
-		"0.1.1",
-		"0.2.0",
-	])("tags verified package %s at its exact source commit", async (version) => {
-		const fixture = createFixture(version);
-		await expect(
-			createReleaseTag(fixture.environment, fixture.request, version)
-		).resolves.toEqual({
-			tag: `v${version}`,
-			commit: fixture.commit,
-			created: true,
-		});
-		expect(fixture.request).toHaveBeenCalledWith("git/refs", {
-			method: "POST",
-			body: { ref: `refs/tags/v${version}`, sha: fixture.commit },
-		});
-	});
+	it.each(["0.1.0", "0.1.1", "0.2.0"])(
+		"tags verified package %s at its exact source commit",
+		async (version) => {
+			const fixture = createFixture(version);
+			await expect(
+				createReleaseTag(fixture.environment, fixture.request, version)
+			).resolves.toEqual({
+				commit: fixture.commit,
+				created: true,
+				tag: `v${version}`,
+			});
+			expect(fixture.request).toHaveBeenCalledWith("git/refs", {
+				body: { ref: `refs/tags/v${version}`, sha: fixture.commit },
+				method: "POST",
+			});
+		}
+	);
 	it("reuses an identical tag on reruns without another write", async () => {
 		const fixture = createFixture();
 		await createReleaseTag(fixture.environment, fixture.request, "0.1.0");
@@ -79,18 +78,18 @@ describe("automatic version tags", () => {
 	it("accepts an existing annotated tag resolving to the same commit", async () => {
 		const fixture = createFixture();
 		fixture.responses[fixture.refPath] = {
+			object: { sha: "b".repeat(40), type: "tag" },
 			ref: fixture.ref,
-			object: { type: "tag", sha: "b".repeat(40) },
 		};
 		await expect(
 			createReleaseTag(fixture.environment, fixture.request, "0.1.0")
-		).resolves.toMatchObject({ created: false, commit: fixture.commit });
+		).resolves.toMatchObject({ commit: fixture.commit, created: false });
 	});
 	it("never moves an existing tag to a new commit", async () => {
 		const fixture = createFixture();
 		fixture.responses[fixture.refPath] = {
+			object: { sha: "b".repeat(40), type: "commit" },
 			ref: fixture.ref,
-			object: { type: "commit", sha: "b".repeat(40) },
 		};
 		fixture.responses[fixture.commitPath] = { sha: "b".repeat(40) };
 		await expect(

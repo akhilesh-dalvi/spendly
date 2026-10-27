@@ -12,7 +12,7 @@ import {
 	Save,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AccountTypeEditorDialog } from "@/components/account-type-editor-dialog";
 import { AccountTypeIcon } from "@/components/account-type-icon";
@@ -75,6 +75,19 @@ function AccountTypeField({
 	selectedAccountType,
 	value,
 }: AccountTypeFieldProps) {
+	const selectType = useCallback(
+		(nextValue: string) => {
+			const selected = selectableAccountTypes.find(
+				(type) => type._id === nextValue
+			);
+			if (selected) {
+				onSelect(selected._id);
+			}
+		},
+		[onSelect, selectableAccountTypes]
+	);
+	const createType = useCallback(() => onManage("create"), [onManage]);
+	const editType = useCallback(() => onManage("edit"), [onManage]);
 	return (
 		<Field data-invalid={Boolean(accountTypeError)}>
 			<FieldLabel htmlFor="account-type">Account type</FieldLabel>
@@ -84,9 +97,7 @@ function AccountTypeField({
 					(!allowManagement && selectableAccountTypes.length === 0)
 				}
 				onOpenChange={onOpenChange}
-				onValueChange={(nextValue) =>
-					onSelect(nextValue as Id<"account_types">)
-				}
+				onValueChange={selectType}
 				open={isOpen}
 				value={value ?? ""}
 			>
@@ -102,7 +113,7 @@ function AccountTypeField({
 						<div className="grid grid-cols-2 gap-1 border-b p-1">
 							<Button
 								className="justify-start"
-								onClick={() => onManage("create")}
+								onClick={createType}
 								size="sm"
 								type="button"
 								variant="ghost"
@@ -113,7 +124,7 @@ function AccountTypeField({
 							<Button
 								className="justify-start"
 								disabled={!selectedAccountType}
-								onClick={() => onManage("edit")}
+								onClick={editType}
 								size="sm"
 								type="button"
 								variant="ghost"
@@ -175,7 +186,9 @@ export function AccountForm({
 		includeArchived: true,
 	});
 	const [name, setName] = useState(defaultValues?.name ?? "");
-	const [accountTypeId, setAccountTypeId] = useState<Id<"account_types">>();
+	const [accountTypeId, setAccountTypeId] = useState<
+		Id<"account_types"> | undefined
+	>(undefined);
 	const [startingBalance, setStartingBalance] = useState("0");
 	const [nameError, setNameError] = useState<string>();
 	const [accountTypeError, setAccountTypeError] = useState<string>();
@@ -191,12 +204,15 @@ export function AccountForm({
 	const currentAccountType = accountTypes?.find(
 		(accountType) => accountType._id === defaultValues?.accountTypeId
 	);
-	const selectableAccountTypes =
-		accountTypes?.filter(
-			(accountType) =>
-				!accountType.isArchived ||
-				accountType._id === defaultValues?.accountTypeId
-		) ?? [];
+	const selectableAccountTypes = useMemo(
+		() =>
+			accountTypes?.filter(
+				(accountType) =>
+					!accountType.isArchived ||
+					accountType._id === defaultValues?.accountTypeId
+			) ?? [],
+		[accountTypes, defaultValues?.accountTypeId]
+	);
 	const resolvedAccountTypeId =
 		accountTypeId ?? defaultValues?.accountTypeId ?? activeAccountTypes[0]?._id;
 	const selectedAccountType = selectableAccountTypes.find(
@@ -205,75 +221,116 @@ export function AccountForm({
 	const hasNoActiveAccountTypes =
 		accountTypes !== undefined && activeAccountTypes.length === 0;
 	const isCurrentTypeArchived = Boolean(currentAccountType?.isArchived);
-	const openAccountTypeDialog = (mode: "create" | "edit") => {
+	const openAccountTypeDialog = useCallback((mode: "create" | "edit") => {
 		setIsAccountTypeSelectOpen(false);
 		setAccountTypeDialogMode(mode);
-	};
+	}, []);
+	const createType = useCallback(
+		() => openAccountTypeDialog("create"),
+		[openAccountTypeDialog]
+	);
+	const changeName = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) => setName(event.target.value),
+		[]
+	);
+	const changeBalance = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) =>
+			setStartingBalance(event.target.value),
+		[]
+	);
+	const selectType = useCallback((id: Id<"account_types">) => {
+		setAccountTypeId(id);
+		setAccountTypeError(undefined);
+	}, []);
+	const closeTypeDialog = useCallback((open: boolean) => {
+		if (!open) {
+			setAccountTypeDialogMode(null);
+		}
+	}, []);
+	const saveType = useCallback(
+		(saved: Doc<"account_types">) => selectType(saved._id),
+		[selectType]
+	);
 
 	const saveOperation = isEditing ? "update" : "create";
 
-	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
-		const normalizedName = name.trim();
-		const parsedBalance = Number(startingBalance);
-		const nextNameError = normalizedName ? undefined : "Enter an account name.";
-		const nextAccountTypeError = resolvedAccountTypeId
-			? undefined
-			: "Choose an account type.";
-		const nextBalanceError = Number.isFinite(parsedBalance)
-			? undefined
-			: "Enter a valid opening balance.";
+	const handleSubmit = useCallback(
+		async (event: React.FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			const normalizedName = name.trim();
+			const parsedBalance = Number(startingBalance);
+			const nextNameError = normalizedName
+				? undefined
+				: "Enter an account name.";
+			const nextAccountTypeError = resolvedAccountTypeId
+				? undefined
+				: "Choose an account type.";
+			const nextBalanceError = Number.isFinite(parsedBalance)
+				? undefined
+				: "Enter a valid opening balance.";
 
-		setNameError(nextNameError);
-		setAccountTypeError(nextAccountTypeError);
-		setBalanceError(nextBalanceError);
-		if (
-			nextNameError ||
-			nextAccountTypeError ||
-			(!isEditing && nextBalanceError) ||
-			!resolvedAccountTypeId
-		) {
-			return;
-		}
-
-		setIsSubmitting(true);
-		try {
-			if (accountId) {
-				await updateAccount({
-					accountId,
-					accountTypeId: resolvedAccountTypeId,
-					name: normalizedName,
-				});
-				toast.success("Account updated");
-				onSuccess(accountId);
+			setNameError(nextNameError);
+			setAccountTypeError(nextAccountTypeError);
+			setBalanceError(nextBalanceError);
+			if (
+				nextNameError ||
+				nextAccountTypeError ||
+				(!isEditing && nextBalanceError) ||
+				!resolvedAccountTypeId
+			) {
 				return;
 			}
 
-			const account = await createAccount({
-				accountTypeId: resolvedAccountTypeId,
-				name: normalizedName,
-				startingBalance: parsedBalance,
-			});
-			if (!account) {
-				throw new Error("Account could not be loaded after creation");
+			setIsSubmitting(true);
+			try {
+				if (accountId) {
+					await updateAccount({
+						accountId,
+						accountTypeId: resolvedAccountTypeId,
+						name: normalizedName,
+					});
+					toast.success("Account updated");
+					onSuccess(accountId);
+					return;
+				}
+
+				const account = await createAccount({
+					accountTypeId: resolvedAccountTypeId,
+					name: normalizedName,
+					startingBalance: parsedBalance,
+				});
+				if (!account) {
+					throw new Error("Account could not be loaded after creation");
+				}
+				toast.success("Account created");
+				onSuccess(account._id);
+			} catch (error) {
+				reportError(error, {
+					feature: "accounts",
+					operation: saveOperation,
+				});
+				toast.error(
+					getAccountActionErrorMessage(
+						error,
+						isEditing ? "Failed to update account" : "Failed to create account"
+					)
+				);
+			} finally {
+				setIsSubmitting(false);
 			}
-			toast.success("Account created");
-			onSuccess(account._id);
-		} catch (error) {
-			reportError(error, {
-				feature: "accounts",
-				operation: saveOperation,
-			});
-			toast.error(
-				getAccountActionErrorMessage(
-					error,
-					isEditing ? "Failed to update account" : "Failed to create account"
-				)
-			);
-		} finally {
-			setIsSubmitting(false);
-		}
-	};
+		},
+		[
+			name,
+			startingBalance,
+			resolvedAccountTypeId,
+			isEditing,
+			accountId,
+			updateAccount,
+			createAccount,
+			onSuccess,
+			saveOperation,
+		]
+	);
 
 	return (
 		<>
@@ -285,7 +342,7 @@ export function AccountForm({
 							aria-invalid={Boolean(nameError)}
 							autoComplete="off"
 							id="account-name"
-							onChange={(event) => setName(event.target.value)}
+							onChange={changeName}
 							placeholder="Everyday checking"
 							value={name}
 						/>
@@ -302,10 +359,7 @@ export function AccountForm({
 						isOpen={isAccountTypeSelectOpen}
 						onManage={openAccountTypeDialog}
 						onOpenChange={setIsAccountTypeSelectOpen}
-						onSelect={(nextAccountTypeId) => {
-							setAccountTypeId(nextAccountTypeId);
-							setAccountTypeError(undefined);
-						}}
+						onSelect={selectType}
 						selectableAccountTypes={selectableAccountTypes}
 						selectedAccountType={selectedAccountType}
 						value={resolvedAccountTypeId}
@@ -320,7 +374,7 @@ export function AccountForm({
 								aria-invalid={Boolean(balanceError)}
 								id="starting-balance"
 								inputMode="decimal"
-								onChange={(event) => setStartingBalance(event.target.value)}
+								onChange={changeBalance}
 								step="0.01"
 								type="number"
 								value={startingBalance}
@@ -344,7 +398,7 @@ export function AccountForm({
 							</span>
 							{allowAccountTypeManagement ? (
 								<Button
-									onClick={() => openAccountTypeDialog("create")}
+									onClick={createType}
 									size="sm"
 									type="button"
 									variant="outline"
@@ -400,15 +454,8 @@ export function AccountForm({
 						: null
 				}
 				key={accountTypeDialogMode ?? "closed"}
-				onOpenChange={(open) => {
-					if (!open) {
-						setAccountTypeDialogMode(null);
-					}
-				}}
-				onSuccess={(savedAccountType) => {
-					setAccountTypeId(savedAccountType._id);
-					setAccountTypeError(undefined);
-				}}
+				onOpenChange={closeTypeDialog}
+				onSuccess={saveType}
 				open={allowAccountTypeManagement && accountTypeDialogMode !== null}
 			/>
 		</>

@@ -9,30 +9,30 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import CategoryDetailPage from "./page";
 
 const mocks = vi.hoisted(() => ({
+	error: vi.fn(),
+	push: vi.fn(),
 	query: vi.fn(),
-	update: vi.fn(),
 	remove: vi.fn(),
 	removeExpense: vi.fn(),
-	push: vi.fn(),
-	success: vi.fn(),
-	error: vi.fn(),
 	report: vi.fn(),
+	success: vi.fn(),
+	update: vi.fn(),
 }));
 vi.mock("convex/react", () => ({
-	useQuery: (...args: unknown[]) => mocks.query(...args),
 	useMutation: (reference: Parameters<typeof getFunctionName>[0]) =>
 		({
-			"categories:update": mocks.update,
 			"categories:remove": mocks.remove,
+			"categories:update": mocks.update,
 			"expenses:remove": mocks.removeExpense,
 		})[getFunctionName(reference)],
+	useQuery: (...args: unknown[]) => mocks.query(...args),
 }));
 vi.mock("@clerk/nextjs", () => ({
 	useAuth: () => ({ isLoaded: true, isSignedIn: true }),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push }) }));
 vi.mock("sonner", () => ({
-	toast: { success: mocks.success, error: mocks.error },
+	toast: { error: mocks.error, success: mocks.success },
 }));
 vi.mock("@/lib/report-error", () => ({ reportError: mocks.report }));
 // Forms have dedicated tests; inspect the public defaults and close callbacks here.
@@ -60,12 +60,12 @@ const categoryId = "category-rent";
 const cycleId = "cycle-march";
 const category = {
 	_id: categoryId,
-	cycleId,
-	name: "Rent",
 	categoryTypeId: "type-needs",
-	plannedAmount: 100,
+	cycleId,
 	icon: "🏠",
 	isHidden: false,
+	name: "Rent",
+	plannedAmount: 100,
 };
 const expenses = [
 	{ _id: "expense-coffee", amount: 25, date: "2026-03-02", spentOn: "Coffee" },
@@ -84,7 +84,7 @@ const renderPage = async () => {
 		view = render(page(params));
 		await params;
 	});
-	await screen.findByRole("heading", { name: "Rent", level: 1 });
+	await screen.findByRole("heading", { level: 1, name: "Rent" });
 	return { ...view, refresh: () => view.rerender(page(params)) };
 };
 
@@ -93,7 +93,7 @@ beforeEach(() => {
 	fixtures.clear();
 	fixtures.set(getFunctionName(api.categories.get), category);
 	fixtures.set(getFunctionName(api.categories.listTypes), [
-		{ _id: "type-needs", name: "Needs", color: "#123456" },
+		{ _id: "type-needs", color: "#123456", name: "Needs" },
 	]);
 	fixtures.set(getFunctionName(api.cycles.get), { name: "March" });
 	fixtures.set(getFunctionName(api.aggregations.getHistoricalCategoryStats), {
@@ -188,61 +188,57 @@ describe("category detail and transaction columns", () => {
 
 	it.each([
 		{
-			spent: 40,
-			planned: 100,
-			label: "Remaining",
-			remainder: "$60.00",
-			width: "40%",
 			color: "rgb(18, 52, 86)",
-		},
-		{
-			spent: 90,
-			planned: 100,
 			label: "Remaining",
-			remainder: "$10.00",
-			width: "90%",
-			color: "hsl(var(--amber-500))",
+			planned: 100,
+			remainder: "$60.00",
+			spent: 40,
+			width: "40%",
 		},
 		{
-			spent: 125,
+			color: "hsl(var(--amber-500))",
+			label: "Remaining",
 			planned: 100,
-			label: "Over Budget",
-			remainder: "$25.00",
-			width: "100%",
-			color: "hsl(var(--destructive))",
+			remainder: "$10.00",
+			spent: 90,
+			width: "90%",
 		},
-	])("renders $spent spent against a $planned plan", async ({
-		spent,
-		planned,
-		label,
-		remainder,
-		width,
-		color,
-	}) => {
-		fixtures.set(getFunctionName(api.categories.get), {
-			...category,
-			plannedAmount: planned,
-		});
-		fixtures.set(getFunctionName(api.expenses.list), [
-			{ ...expenses[0], amount: spent },
-		]);
-		const { container } = await renderPage();
-		expect(screen.getByText(label)).toBeVisible();
-		expect(screen.getByRole("heading", { name: remainder })).toBeVisible();
-		const progress = container.querySelector<HTMLElement>(
-			".h-full.transition-all"
-		);
-		expect(progress?.style.width).toBe(width);
-		expect(progress?.style.backgroundColor).toBe(color);
-	});
+		{
+			color: "hsl(var(--destructive))",
+			label: "Over Budget",
+			planned: 100,
+			remainder: "$25.00",
+			spent: 125,
+			width: "100%",
+		},
+	])(
+		"renders $spent spent against a $planned plan",
+		async ({ spent, planned, label, remainder, width, color }) => {
+			fixtures.set(getFunctionName(api.categories.get), {
+				...category,
+				plannedAmount: planned,
+			});
+			fixtures.set(getFunctionName(api.expenses.list), [
+				{ ...expenses[0], amount: spent },
+			]);
+			const { container } = await renderPage();
+			expect(screen.getByText(label)).toBeVisible();
+			expect(screen.getByRole("heading", { name: remainder })).toBeVisible();
+			const progress = container.querySelector<HTMLElement>(
+				".h-full.transition-all"
+			);
+			expect(progress?.style.width).toBe(width);
+			expect(progress?.style.backgroundColor).toBe(color);
+		}
+	);
 
 	it("handles absent plans, type, cycle and historical record, and opens an expense from the empty state", async () => {
 		const user = userEvent.setup();
 		fixtures.set(getFunctionName(api.categories.get), {
 			...category,
-			plannedAmount: undefined,
 			categoryTypeId: undefined,
 			icon: undefined,
+			plannedAmount: undefined,
 		});
 		fixtures.set(getFunctionName(api.categories.listTypes), undefined);
 		fixtures.set(getFunctionName(api.cycles.get), undefined);
@@ -278,10 +274,10 @@ describe("category detail and transaction columns", () => {
 			categoryId,
 			cycleId,
 			defaultValues: {
-				name: "Rent",
 				categoryTypeId: "type-needs",
-				plannedAmount: 100,
 				icon: "🏠",
+				name: "Rent",
+				plannedAmount: 100,
 			},
 			historicalSpent: { amount: 60, cycleName: "February" },
 		});
@@ -302,8 +298,8 @@ describe("category detail and transaction columns", () => {
 		fixtures.set(getFunctionName(api.categories.get), {
 			...category,
 			categoryTypeId: null,
-			plannedAmount: null,
 			icon: null,
+			plannedAmount: null,
 		});
 		fixtures.set(getFunctionName(api.aggregations.getHistoricalCategoryStats), {
 			cycleName: "February",
@@ -316,66 +312,69 @@ describe("category detail and transaction columns", () => {
 		).toEqual({ categoryId, cycleId, defaultValues: { name: "Rent" } });
 	});
 
-	it.each([
-		false,
-		true,
-	])("toggles dashboard visibility from hidden=%s and surfaces mutation failure", async (isHidden) => {
-		const user = userEvent.setup();
-		fixtures.set(getFunctionName(api.categories.get), {
-			...category,
-			isHidden,
-		});
-		await renderPage();
-		const button = screen.getByRole("button", {
-			name: isHidden ? "Show on Dashboard" : "Hide from Dashboard",
-		});
-		await user.click(button);
-		expect(mocks.update).toHaveBeenCalledWith({
-			id: categoryId,
-			isHidden: !isHidden,
-		});
-		await waitFor(() =>
-			expect(mocks.success).toHaveBeenCalledWith(
-				isHidden
-					? "Category now visible on dashboard"
-					: "Category hidden from dashboard"
-			)
-		);
-		mocks.update.mockRejectedValueOnce(new Error("offline"));
-		await user.click(button);
-		await waitFor(() =>
-			expect(mocks.error).toHaveBeenCalledWith("Failed to update visibility")
-		);
-		expect(mocks.push).not.toHaveBeenCalled();
-	});
+	it.each([false, true])(
+		"toggles dashboard visibility from hidden=%s and surfaces mutation failure",
+		async (isHidden) => {
+			const user = userEvent.setup();
+			fixtures.set(getFunctionName(api.categories.get), {
+				...category,
+				isHidden,
+			});
+			await renderPage();
+			const button = screen.getByRole("button", {
+				name: isHidden ? "Show on Dashboard" : "Hide from Dashboard",
+			});
+			await user.click(button);
+			expect(mocks.update).toHaveBeenCalledWith({
+				id: categoryId,
+				isHidden: !isHidden,
+			});
+			await waitFor(() =>
+				expect(mocks.success).toHaveBeenCalledWith(
+					isHidden
+						? "Category now visible on dashboard"
+						: "Category hidden from dashboard"
+				)
+			);
+			mocks.update.mockRejectedValueOnce(new Error("offline"));
+			await user.click(button);
+			await waitFor(() =>
+				expect(mocks.error).toHaveBeenCalledWith("Failed to update visibility")
+			);
+			expect(mocks.push).not.toHaveBeenCalled();
+		}
+	);
 
-	it.each([
-		0, 2,
-	])("requires confirmation and redirects after deletion with %s affected expenses", async (affectedExpenses) => {
-		const user = userEvent.setup();
-		mocks.remove.mockResolvedValueOnce({ affectedExpenses });
-		await renderPage();
-		await user.click(screen.getByRole("button", { name: "Delete" }));
-		expect(screen.getByRole("alertdialog")).toHaveTextContent(
-			'Any expenses in this category will become "Uncategorized".'
-		);
-		await user.click(screen.getByRole("button", { name: "Cancel" }));
-		expect(mocks.remove).not.toHaveBeenCalled();
-		await user.click(screen.getByRole("button", { name: "Delete" }));
-		await user.click(screen.getByRole("button", { name: "Delete Category" }));
-		await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/dashboard"));
-		expect(mocks.remove).toHaveBeenCalledWith({ categoryId });
-		expect(mocks.success).toHaveBeenCalledWith(
-			affectedExpenses
-				? "Category deleted. 2 expenses moved to Uncategorized."
-				: "Category deleted"
-		);
-		expect(
-			screen.queryByRole("heading", { name: "Rent" })
-		).not.toBeInTheDocument();
-		expect(mocks.query).toHaveBeenCalledWith(api.categories.get, "skip");
-		expect(mocks.query).toHaveBeenCalledWith(api.expenses.list, "skip");
-	});
+	it.each([0, 2])(
+		"requires confirmation and redirects after deletion with %s affected expenses",
+		async (affectedExpenses) => {
+			const user = userEvent.setup();
+			mocks.remove.mockResolvedValueOnce({ affectedExpenses });
+			await renderPage();
+			await user.click(screen.getByRole("button", { name: "Delete" }));
+			expect(screen.getByRole("alertdialog")).toHaveTextContent(
+				'Any expenses in this category will become "Uncategorized".'
+			);
+			await user.click(screen.getByRole("button", { name: "Cancel" }));
+			expect(mocks.remove).not.toHaveBeenCalled();
+			await user.click(screen.getByRole("button", { name: "Delete" }));
+			await user.click(screen.getByRole("button", { name: "Delete Category" }));
+			await waitFor(() =>
+				expect(mocks.push).toHaveBeenCalledWith("/dashboard")
+			);
+			expect(mocks.remove).toHaveBeenCalledWith({ categoryId });
+			expect(mocks.success).toHaveBeenCalledWith(
+				affectedExpenses
+					? "Category deleted. 2 expenses moved to Uncategorized."
+					: "Category deleted"
+			);
+			expect(
+				screen.queryByRole("heading", { name: "Rent" })
+			).not.toBeInTheDocument();
+			expect(mocks.query).toHaveBeenCalledWith(api.categories.get, "skip");
+			expect(mocks.query).toHaveBeenCalledWith(api.expenses.list, "skip");
+		}
+	);
 
 	it("recovers from deletion failure without leaving the page, and omits the expense warning for an empty category", async () => {
 		const user = userEvent.setup();

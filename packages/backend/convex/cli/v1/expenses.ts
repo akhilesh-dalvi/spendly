@@ -22,6 +22,7 @@ import {
 	validateCategoryOwnership,
 	validateCycleOwnership,
 } from "../../helpers";
+import { forEachSequential } from "../../lib/async";
 import { withCliErrors } from "./errors";
 import {
 	presentAccount,
@@ -185,13 +186,13 @@ const matchesListFilters = (
 
 export const get = query({
 	args: { expenseId: v.id("expenses") },
-	returns: expenseSummaryValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
 			const expense = await requireOwnedExpense(ctx, args.expenseId, user._id);
 			return await presentExpense(ctx, expense, user);
 		}),
+	returns: expenseSummaryValidator,
 });
 
 export const list = query({
@@ -207,22 +208,17 @@ export const list = query({
 		unassigned: v.optional(v.boolean()),
 		uncategorized: v.optional(v.boolean()),
 	},
-	returns: v.object({
-		hasMore: v.boolean(),
-		items: v.array(expenseSummaryValidator),
-		nextCursor: v.union(v.string(), v.null()),
-	}),
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
 			validateListOptions(args);
 			await validateListFilters(ctx, user._id, args);
-			for (const tagId of args.tagIds ?? []) {
+			await forEachSequential(args.tagIds ?? [], async (tagId) => {
 				const tag = await ctx.db.get(tagId);
 				if (!tag || tag.userId !== user._id) {
 					throw new ConvexError("TAG_NOT_FOUND");
 				}
-			}
+			});
 			const page = await ctx.db
 				.query("expenses")
 				.withIndex("by_userId_date_createdAt", (queryBuilder) => {
@@ -254,11 +250,15 @@ export const list = query({
 				nextCursor: page.isDone ? null : page.continueCursor,
 			};
 		}),
+	returns: v.object({
+		hasMore: v.boolean(),
+		items: v.array(expenseSummaryValidator),
+		nextCursor: v.union(v.string(), v.null()),
+	}),
 });
 
 export const previewCreate = query({
 	args: expenseCreateInputValidator,
-	returns: expenseProposalValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -272,6 +272,7 @@ export const previewCreate = query({
 			);
 			return { ...presentExpenseProposal(prepared), accountEffects };
 		}),
+	returns: expenseProposalValidator,
 });
 
 export const create = mutation({
@@ -280,7 +281,6 @@ export const create = mutation({
 		agent: v.optional(v.boolean()),
 		idempotencyKey: v.string(),
 	},
-	returns: expenseCreateResultValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -314,6 +314,7 @@ export const create = mutation({
 				userId: user._id,
 			});
 		}),
+	returns: expenseCreateResultValidator,
 });
 
 export const previewUpdate = query({
@@ -321,11 +322,6 @@ export const previewUpdate = query({
 		...expenseUpdateInputValidator,
 		expenseId: v.id("expenses"),
 	},
-	returns: v.object({
-		accountEffects: v.array(accountBalanceEffectValidator),
-		after: expenseSummaryValidator,
-		before: expenseSummaryValidator,
-	}),
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -345,6 +341,11 @@ export const previewUpdate = query({
 				before: await presentExpense(ctx, prepared.before, user),
 			};
 		}),
+	returns: v.object({
+		accountEffects: v.array(accountBalanceEffectValidator),
+		after: expenseSummaryValidator,
+		before: expenseSummaryValidator,
+	}),
 });
 
 export const update = mutation({
@@ -355,7 +356,6 @@ export const update = mutation({
 		expenseId: v.id("expenses"),
 		idempotencyKey: v.string(),
 	},
-	returns: expenseMutationResultValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -385,17 +385,11 @@ export const update = mutation({
 				userId: user._id,
 			});
 		}),
+	returns: expenseMutationResultValidator,
 });
 
 export const previewDelete = mutation({
 	args: { expenseId: v.id("expenses") },
-	returns: v.object({
-		accountEffects: v.array(accountBalanceEffectValidator),
-		confirmationToken: v.id("cli_deletion_confirmations"),
-		expiresAt: v.string(),
-		expense: expenseSummaryValidator,
-		revision: v.number(),
-	}),
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -414,8 +408,8 @@ export const previewDelete = mutation({
 				"cli_deletion_confirmations",
 				{
 					createdAt: now,
-					expiresAt,
 					expenseId: expense._id,
+					expiresAt,
 					revision,
 					userId: user._id,
 				}
@@ -423,11 +417,18 @@ export const previewDelete = mutation({
 			return {
 				accountEffects,
 				confirmationToken,
-				expiresAt: new Date(expiresAt).toISOString(),
 				expense: await presentExpense(ctx, expense, user),
+				expiresAt: new Date(expiresAt).toISOString(),
 				revision,
 			};
 		}),
+	returns: v.object({
+		accountEffects: v.array(accountBalanceEffectValidator),
+		confirmationToken: v.id("cli_deletion_confirmations"),
+		expense: expenseSummaryValidator,
+		expiresAt: v.string(),
+		revision: v.number(),
+	}),
 });
 
 export const remove = mutation({
@@ -438,11 +439,6 @@ export const remove = mutation({
 		expenseId: v.id("expenses"),
 		idempotencyKey: v.string(),
 	},
-	returns: v.object({
-		accountEffects: v.array(accountBalanceEffectValidator),
-		deleted: v.literal(true),
-		expense: expenseSummaryValidator,
-	}),
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -505,4 +501,9 @@ export const remove = mutation({
 				userId: user._id,
 			});
 		}),
+	returns: v.object({
+		accountEffects: v.array(accountBalanceEffectValidator),
+		deleted: v.literal(true),
+		expense: expenseSummaryValidator,
+	}),
 });

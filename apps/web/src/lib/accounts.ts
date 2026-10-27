@@ -11,9 +11,9 @@ export type ResolvedAccount = Doc<"accounts"> & {
 };
 
 const TRANSACTION_TYPE_LABELS = {
-	opening_balance: "Opening balance",
 	expense: "Expense",
 	manual_adjustment: "Balance adjustment",
+	opening_balance: "Opening balance",
 	transfer_in: "Transfer in",
 	transfer_out: "Transfer out",
 } as const;

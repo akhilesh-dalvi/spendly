@@ -2,6 +2,7 @@ import { convexTest } from "convex-test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
+import { forEachSequential } from "./lib/async";
 import schema from "./schema";
 import { modules } from "./test.setup";
 
@@ -47,37 +48,43 @@ const seedCycle = async (
 			userId,
 		});
 		const categoryIds: Id<"categories">[] = [];
-		for (const [order, category] of (options.categories ?? []).entries()) {
-			const { amounts = [], accountId, ...fields } = category;
-			const categoryId = await ctx.db.insert("categories", {
-				...fields,
-				createdAt: 1,
-				cycleId,
-				order,
-				userId,
-			});
-			categoryIds.push(categoryId);
-			for (const amount of amounts) {
+		await forEachSequential(
+			(options.categories ?? []).entries(),
+			async ([order, category]) => {
+				const { amounts = [], accountId, ...fields } = category;
+				const categoryId = await ctx.db.insert("categories", {
+					...fields,
+					createdAt: 1,
+					cycleId,
+					order,
+					userId,
+				});
+				categoryIds.push(categoryId);
+				await forEachSequential(amounts, async (amount) => {
+					await ctx.db.insert("expenses", {
+						accountId,
+						amount,
+						categoryId,
+						createdAt: 1,
+						cycleId,
+						date: startDate,
+						userId,
+					});
+				});
+			}
+		);
+		await forEachSequential(
+			options.uncategorizedAmounts ?? [],
+			async (amount) => {
 				await ctx.db.insert("expenses", {
-					accountId,
 					amount,
-					categoryId,
 					createdAt: 1,
 					cycleId,
 					date: startDate,
 					userId,
 				});
 			}
-		}
-		for (const amount of options.uncategorizedAmounts ?? []) {
-			await ctx.db.insert("expenses", {
-				amount,
-				createdAt: 1,
-				cycleId,
-				date: startDate,
-				userId,
-			});
-		}
+		);
 		return { categoryIds, cycleId };
 	});
 
@@ -108,18 +115,19 @@ afterEach(() => {
 });
 
 describe("aggregation authentication and ownership", () => {
-	it.each(reports)("requires a provisioned user for $name", async ({
-		query,
-	}) => {
-		const test = createBackendTest();
-		const owner = await createAuthenticatedUser(test, "auth-owner");
-		const { cycleId } = await seedCycle(test, owner.userId);
+	it.each(reports)(
+		"requires a provisioned user for $name",
+		async ({ query }) => {
+			const test = createBackendTest();
+			const owner = await createAuthenticatedUser(test, "auth-owner");
+			const { cycleId } = await seedCycle(test, owner.userId);
 
-		await expect(query(test, cycleId)).rejects.toThrow("UNAUTHENTICATED");
-		await expect(
-			query(test.withIdentity({ subject: "unprovisioned" }), cycleId)
-		).rejects.toThrow("User not found");
-	});
+			await expect(query(test, cycleId)).rejects.toThrow("UNAUTHENTICATED");
+			await expect(
+				query(test.withIdentity({ subject: "unprovisioned" }), cycleId)
+			).rejects.toThrow("User not found");
+		}
+	);
 
 	it("denies foreign and missing cycles without exposing report data", async () => {
 		const test = createBackendTest();
@@ -134,21 +142,27 @@ describe("aggregation authentication and ownership", () => {
 		});
 		const own = await seedCycle(test, owner.userId);
 
-		for (const cycleId of [foreign.cycleId, missing.cycleId]) {
-			await expect(
-				owner.client.query(api.aggregations.getCycleSummary, { cycleId })
-			).rejects.toThrow("UNAUTHORIZED");
-			expect(
-				await owner.client.query(api.aggregations.getHistoricalCategoryStats, {
-					currentCycleId: cycleId,
-				})
-			).toBeNull();
-			await expect(
-				owner.client.query(api.aggregations.compareMultiple, {
-					cycleIds: [own.cycleId, cycleId],
-				})
-			).rejects.toThrow("not found or access denied");
-		}
+		await forEachSequential(
+			[foreign.cycleId, missing.cycleId],
+			async (cycleId) => {
+				await expect(
+					owner.client.query(api.aggregations.getCycleSummary, { cycleId })
+				).rejects.toThrow("UNAUTHORIZED");
+				expect(
+					await owner.client.query(
+						api.aggregations.getHistoricalCategoryStats,
+						{
+							currentCycleId: cycleId,
+						}
+					)
+				).toBeNull();
+				await expect(
+					owner.client.query(api.aggregations.compareMultiple, {
+						cycleIds: [own.cycleId, cycleId],
+					})
+				).rejects.toThrow("not found or access denied");
+			}
+		);
 	});
 });
 
@@ -165,7 +179,7 @@ describe("cycle summary", () => {
 		}
 		const accountIds = await test.run(async (ctx) => {
 			const ids: Id<"accounts">[] = [];
-			for (const isArchived of [false, true]) {
+			await forEachSequential([false, true], async (isArchived) => {
 				ids.push(
 					await ctx.db.insert("accounts", {
 						accountTypeId: accountType._id,
@@ -177,30 +191,30 @@ describe("cycle summary", () => {
 						userId: owner.userId,
 					})
 				);
-			}
+			});
 			return ids;
 		});
 		const { cycleId, categoryIds } = await seedCycle(test, owner.userId, {
 			categories: [
 				{
-					name: "Food",
-					plannedAmount: 100,
+					accountId: accountIds[0],
+					amounts: [20, 30],
 					categoryTypeId: needs._id,
 					icon: "🍴",
-					amounts: [20, 30],
-					accountId: accountIds[0],
+					name: "Food",
+					plannedAmount: 100,
 				},
 				{
-					name: "Rent",
-					plannedAmount: 50,
+					accountId: accountIds[1],
+					amounts: [70],
 					categoryTypeId: needs._id,
 					isHidden: true,
-					amounts: [70],
-					accountId: accountIds[1],
+					name: "Rent",
+					plannedAmount: 50,
 				},
-				{ name: "Snacks", amounts: [5] },
-				{ name: "Spare", plannedAmount: 0, amounts: [3] },
-				{ name: "Fun", plannedAmount: 25, categoryTypeId: wants._id },
+				{ amounts: [5], name: "Snacks" },
+				{ amounts: [3], name: "Spare", plannedAmount: 0 },
+				{ categoryTypeId: wants._id, name: "Fun", plannedAmount: 25 },
 			],
 			uncategorizedAmounts: [7, 8],
 		});
@@ -223,119 +237,119 @@ describe("cycle summary", () => {
 		expect(summary).toMatchObject({
 			cycleId,
 			cycleName: "September",
-			startDate: "2026-09-01",
 			endDate: "2026-10-01",
-			totalSpent: 143,
-			totalPlanned: 175,
 			remaining: 32,
+			startDate: "2026-09-01",
+			totalPlanned: 175,
+			totalSpent: 143,
 		});
 		expect(summary.categoryStats).toEqual([
 			{
 				categoryId: categoryIds[0],
-				name: "Food",
+				diff: 50,
 				icon: "🍴",
+				isHidden: false,
+				name: "Food",
+				planned: 100,
+				progress: 50,
+				spent: 50,
+				typeColor: "#3b82f6",
 				typeId: needs._id,
 				typeName: "Needs",
-				typeColor: "#3b82f6",
-				planned: 100,
-				spent: 50,
-				isHidden: false,
-				diff: 50,
-				progress: 50,
 			},
 			{
 				categoryId: categoryIds[1],
-				name: "Rent",
+				diff: -20,
 				icon: null,
+				isHidden: true,
+				name: "Rent",
+				planned: 50,
+				progress: 140,
+				spent: 70,
+				typeColor: "#3b82f6",
 				typeId: needs._id,
 				typeName: "Needs",
-				typeColor: "#3b82f6",
-				planned: 50,
-				spent: 70,
-				isHidden: true,
-				diff: -20,
-				progress: 140,
 			},
 			{
 				categoryId: categoryIds[2],
-				name: "Snacks",
+				diff: null,
 				icon: null,
+				isHidden: false,
+				name: "Snacks",
+				planned: null,
+				progress: null,
+				spent: 5,
+				typeColor: null,
 				typeId: null,
 				typeName: null,
-				typeColor: null,
-				planned: null,
-				spent: 5,
-				isHidden: false,
-				diff: null,
-				progress: null,
 			},
 			{
 				categoryId: categoryIds[3],
-				name: "Spare",
+				diff: -3,
 				icon: null,
+				isHidden: false,
+				name: "Spare",
+				planned: 0,
+				progress: null,
+				spent: 3,
+				typeColor: null,
 				typeId: null,
 				typeName: null,
-				typeColor: null,
-				planned: 0,
-				spent: 3,
-				isHidden: false,
-				diff: -3,
-				progress: null,
 			},
 			{
 				categoryId: categoryIds[4],
-				name: "Fun",
+				diff: 25,
 				icon: null,
+				isHidden: false,
+				name: "Fun",
+				planned: 25,
+				progress: 0,
+				spent: 0,
+				typeColor: "#f59e0b",
 				typeId: wants._id,
 				typeName: "Wants",
-				typeColor: "#f59e0b",
-				planned: 25,
-				spent: 0,
-				isHidden: false,
-				diff: 25,
-				progress: 0,
 			},
 			{
 				categoryId: "uncategorized",
-				name: "Uncategorized",
+				diff: null,
 				icon: "❓",
+				isHidden: false,
+				name: "Uncategorized",
+				planned: null,
+				progress: null,
+				spent: 15,
+				typeColor: null,
 				typeId: null,
 				typeName: "Uncategorized",
-				typeColor: null,
-				planned: null,
-				spent: 15,
-				isHidden: false,
-				diff: null,
-				progress: null,
 			},
 		]);
 		expect(summary.typeStats).toMatchObject([
 			{
-				typeId: needs._id,
-				typeName: "Needs",
-				typeColor: "#3b82f6",
+				categories: [summary.categoryStats[0], summary.categoryStats[1]],
 				totalPlanned: 150,
 				totalSpent: 120,
-				categories: [summary.categoryStats[0], summary.categoryStats[1]],
+				typeColor: "#3b82f6",
+				typeId: needs._id,
+				typeName: "Needs",
 			},
 			{
-				typeId: wants._id,
+				categories: [summary.categoryStats[4]],
 				totalPlanned: 25,
 				totalSpent: 0,
-				categories: [summary.categoryStats[4]],
+				typeId: wants._id,
 			},
-			{ typeName: "Savings", totalPlanned: 0, totalSpent: 0, categories: [] },
+			{ categories: [], totalPlanned: 0, totalSpent: 0, typeName: "Savings" },
 			{
-				typeId: null,
-				typeName: "Uncategorized",
-				typeColor: null,
-				totalPlanned: 0,
-				totalSpent: 23,
 				categories: [
 					summary.categoryStats[2],
 					summary.categoryStats[3],
 					summary.categoryStats[5],
 				],
+				totalPlanned: 0,
+				totalSpent: 23,
+				typeColor: null,
+				typeId: null,
+				typeName: "Uncategorized",
 			},
 		]);
 	});
@@ -350,41 +364,44 @@ describe("cycle summary", () => {
 		});
 
 		expect(summary).toMatchObject({
-			totalSpent: 0,
-			totalPlanned: 0,
-			remaining: 0,
 			categoryStats: [],
+			remaining: 0,
+			totalPlanned: 0,
+			totalSpent: 0,
 		});
 		expect(summary.typeStats).toHaveLength(4);
 		for (const type of summary.typeStats) {
 			expect(type).toMatchObject({
-				totalSpent: 0,
-				totalPlanned: 0,
 				categories: [],
+				totalPlanned: 0,
+				totalSpent: 0,
 			});
 		}
 	});
 
 	it.each([
-		{ endDate: "2026-09-18", daysRemaining: 2 },
-		{ endDate: "2026-09-16", daysRemaining: null },
-		{ endDate: "2026-09-15", daysRemaining: null },
-	])("uses UTC today for days remaining when the cycle ends $endDate", async ({
-		endDate,
-		daysRemaining,
-	}) => {
-		vi.useFakeTimers({ toFake: ["Date"] });
-		vi.setSystemTime(new Date("2026-09-15T23:30:00-07:00"));
-		const test = createBackendTest();
-		const owner = await createAuthenticatedUser(test, "days");
-		const { cycleId } = await seedCycle(test, owner.userId, { endDate });
+		{ daysRemaining: 2, endDate: "2026-09-18" },
+		{ daysRemaining: null, endDate: "2026-09-16" },
+		{ daysRemaining: null, endDate: "2026-09-15" },
+	])(
+		"uses UTC today for days remaining when the cycle ends $endDate",
+		async ({ endDate, daysRemaining }) => {
+			vi.useFakeTimers({ toFake: ["Date"] });
+			vi.setSystemTime(new Date("2026-09-15T23:30:00-07:00"));
+			const test = createBackendTest();
+			const owner = await createAuthenticatedUser(test, "days");
+			const { cycleId } = await seedCycle(test, owner.userId, { endDate });
 
-		const summary = await owner.client.query(api.aggregations.getCycleSummary, {
-			cycleId,
-		});
+			const summary = await owner.client.query(
+				api.aggregations.getCycleSummary,
+				{
+					cycleId,
+				}
+			);
 
-		expect(summary.daysRemaining).toBe(daysRemaining);
-	});
+			expect(summary.daysRemaining).toBe(daysRemaining);
+		}
+	);
 });
 
 describe("historical category stats", () => {
@@ -392,35 +409,35 @@ describe("historical category stats", () => {
 		const test = createBackendTest();
 		const owner = await createAuthenticatedUser(test, "history");
 		const current = await seedCycle(test, owner.userId, {
-			categories: [{ name: "Food", amounts: [1000] }],
+			categories: [{ amounts: [1000], name: "Food" }],
 		});
 		await seedCycle(test, owner.userId, {
-			name: "August",
-			startDate: "2026-08-01",
-			endDate: "2026-09-01",
 			categories: [
-				{ name: "Food", amounts: [10, 15] },
-				{ name: "Hidden", isHidden: true, amounts: [7] },
+				{ amounts: [10, 15], name: "Food" },
+				{ amounts: [7], isHidden: true, name: "Hidden" },
 				{ name: "Unused" },
 			],
+			endDate: "2026-09-01",
+			name: "August",
+			startDate: "2026-08-01",
 			uncategorizedAmounts: [30],
 		});
 		await seedCycle(test, owner.userId, {
+			categories: [{ amounts: [999], name: "Food" }],
+			endDate: "2026-08-01",
 			name: "July",
 			startDate: "2026-07-01",
-			endDate: "2026-08-01",
-			categories: [{ name: "Food", amounts: [999] }],
 		});
 		await seedCycle(test, owner.userId, {
+			categories: [{ amounts: [888], name: "Food" }],
+			endDate: "2026-11-01",
 			name: "October",
 			startDate: "2026-10-01",
-			endDate: "2026-11-01",
-			categories: [{ name: "Food", amounts: [888] }],
 		});
 		const other = await createAuthenticatedUser(test, "history-other");
 		await seedCycle(test, other.userId, {
+			categories: [{ amounts: [777], name: "Food" }],
 			startDate: "2026-08-31",
-			categories: [{ name: "Food", amounts: [777] }],
 		});
 
 		expect(
@@ -444,9 +461,9 @@ describe("historical category stats", () => {
 			})
 		).toBeNull();
 		await seedCycle(test, owner.userId, {
+			endDate: "2026-09-01",
 			name: "Empty August",
 			startDate: "2026-08-01",
-			endDate: "2026-09-01",
 		});
 		expect(
 			await owner.client.query(api.aggregations.getHistoricalCategoryStats, {
@@ -462,16 +479,16 @@ describe("multi-cycle comparison", () => {
 		const owner = await createAuthenticatedUser(test, "compare");
 		const populated = await seedCycle(test, owner.userId, {
 			categories: [
-				{ name: "Food", plannedAmount: 100, amounts: [15, 25] },
-				{ name: "Hidden", isHidden: true, plannedAmount: 0, amounts: [5] },
+				{ amounts: [15, 25], name: "Food", plannedAmount: 100 },
+				{ amounts: [5], isHidden: true, name: "Hidden", plannedAmount: 0 },
 				{ name: "Unplanned" },
 			],
 			uncategorizedAmounts: [10],
 		});
 		const empty = await seedCycle(test, owner.userId, {
+			endDate: "2026-11-01",
 			name: "October",
 			startDate: "2026-10-01",
-			endDate: "2026-11-01",
 		});
 
 		expect(
@@ -480,26 +497,26 @@ describe("multi-cycle comparison", () => {
 			})
 		).toEqual([
 			{
+				categoryBreakdown: [],
 				cycleId: empty.cycleId,
 				cycleName: "October",
-				startDate: "2026-10-01",
 				endDate: "2026-11-01",
-				totalSpent: 0,
+				startDate: "2026-10-01",
 				totalPlanned: 0,
-				categoryBreakdown: [],
+				totalSpent: 0,
 			},
 			{
+				categoryBreakdown: [
+					{ categoryName: "Food", planned: 100, spent: 40 },
+					{ categoryName: "Hidden", planned: 0, spent: 5 },
+					{ categoryName: "Unplanned", planned: null, spent: 0 },
+				],
 				cycleId: populated.cycleId,
 				cycleName: "September",
-				startDate: "2026-09-01",
 				endDate: "2026-10-01",
-				totalSpent: 55,
+				startDate: "2026-09-01",
 				totalPlanned: 100,
-				categoryBreakdown: [
-					{ categoryName: "Food", spent: 40, planned: 100 },
-					{ categoryName: "Hidden", spent: 5, planned: 0 },
-					{ categoryName: "Unplanned", spent: 0, planned: null },
-				],
+				totalSpent: 55,
 			},
 		]);
 	});
@@ -508,10 +525,13 @@ describe("multi-cycle comparison", () => {
 		const test = createBackendTest();
 		const owner = await createAuthenticatedUser(test, "comparison-limits");
 		const cycleIds: Id<"expense_cycles">[] = [];
-		for (const name of ["One", "Two", "Three", "Four", "Five", "Six"]) {
-			const { cycleId } = await seedCycle(test, owner.userId, { name });
-			cycleIds.push(cycleId);
-		}
+		await forEachSequential(
+			["One", "Two", "Three", "Four", "Five", "Six"],
+			async (name) => {
+				const { cycleId } = await seedCycle(test, owner.userId, { name });
+				cycleIds.push(cycleId);
+			}
+		);
 
 		const comparison = await owner.client.query(
 			api.aggregations.compareMultiple,
@@ -524,12 +544,15 @@ describe("multi-cycle comparison", () => {
 			"Four",
 			"Five",
 		]);
-		for (const selection of [[], cycleIds.slice(0, 1), cycleIds]) {
-			await expect(
-				owner.client.query(api.aggregations.compareMultiple, {
-					cycleIds: selection,
-				})
-			).rejects.toThrow("Select between 2 and 5 cycles for comparison");
-		}
+		await forEachSequential(
+			[[], cycleIds.slice(0, 1), cycleIds],
+			async (selection) => {
+				await expect(
+					owner.client.query(api.aggregations.compareMultiple, {
+						cycleIds: selection,
+					})
+				).rejects.toThrow("Select between 2 and 5 cycles for comparison");
+			}
+		);
 	});
 });

@@ -132,7 +132,7 @@ const getVerifiedTokens = async (options: {
 	tokens: OAuthTokenSet;
 	verifiedIdentity: VerifiedIdentity;
 }> => {
-	let tokens = options.session.tokens;
+	let { tokens } = options.session;
 	let refreshed =
 		options.forceRefresh || tokens.expiresAt - options.now <= REFRESH_SKEW_MS;
 	if (refreshed) {

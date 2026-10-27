@@ -2,7 +2,7 @@
 
 import { api } from "@spendly/backend/convex/_generated/api";
 import type { Id } from "@spendly/backend/convex/_generated/dataModel";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useStore } from "@tanstack/react-form";
 import { useMutation, useQuery } from "convex/react";
 import { differenceInDays, format, formatDistanceToNow } from "date-fns";
 import {
@@ -18,7 +18,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+	type ComponentProps,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { AccountTypeIcon } from "@/components/account-type-icon";
@@ -46,8 +53,8 @@ import { useCurrency } from "@/hooks/use-currency";
 import { reportError } from "@/lib/report-error";
 
 const expenseSchema = z.object({
-	amount: z.number().min(0.01, "Amount must be greater than 0"),
 	accountId: z.string().optional(),
+	amount: z.number().min(0.01, "Amount must be greater than 0"),
 	categoryId: z.string().optional(),
 	date: z.date(),
 	spentOn: z.string(),
@@ -57,8 +64,8 @@ const expenseSchema = z.object({
 const AMOUNT_REGEX = /^\d*\.?\d{0,2}$/;
 
 interface ExpenseFormValues {
-	amount: number | undefined;
 	accountId: string;
+	amount: number | undefined;
 	categoryId: string;
 	date: Date;
 	spentOn: string;
@@ -67,22 +74,22 @@ interface ExpenseFormValues {
 
 interface CyclePreviewData {
 	_id: Id<"expense_cycles">;
+	endDate: string;
 	name: string;
 	startDate: string;
-	endDate: string;
 }
 
 interface CategoryTypeItem {
 	_id: Id<"category_types">;
-	name: string;
 	color?: string;
+	name: string;
 }
 
 interface CategoryItem {
 	_id: Id<"categories">;
-	name: string;
-	icon?: string;
 	categoryTypeId?: Id<"category_types">;
+	icon?: string;
+	name: string;
 	plannedAmount?: number;
 }
 
@@ -92,16 +99,14 @@ interface AccountItem {
 	accountTypeColor: string | null;
 	accountTypeIcon: string | null;
 	accountTypeName: string;
-	name: string;
-	currentBalance: number;
 	currency?: string;
+	currentBalance: number;
 	isArchived?: boolean;
+	name: string;
 }
 
 interface ExpenseFormProps {
-	onSuccess?: () => void;
 	className?: string;
-	expenseId?: Id<"expenses"> | string;
 	defaultValues?: Partial<{
 		amount: number;
 		accountId: string;
@@ -110,6 +115,8 @@ interface ExpenseFormProps {
 		spentOn: string;
 		tagIds: string[];
 	}>;
+	expenseId?: Id<"expenses"> | string;
+	onSuccess?: () => void;
 }
 
 function resolveDefaultAccountId(
@@ -139,6 +146,45 @@ function resolveDefaultAccountId(
 
 	const recentAccountId = recentExpenses[0]?.accountId;
 	return isActiveAccount(recentAccountId) ? recentAccountId : "";
+}
+
+function ExpenseOption({
+	itemId,
+	onChoose,
+	...props
+}: Omit<ComponentProps<typeof CommandItem>, "onSelect"> & {
+	itemId: string;
+	onChoose: (id: string) => void;
+}) {
+	const select = useCallback(() => onChoose(itemId), [onChoose, itemId]);
+	return <CommandItem {...props} onSelect={select} />;
+}
+
+function SelectedTag({
+	tag,
+	onRemove,
+}: {
+	tag: { _id: string; name: string };
+	onRemove: (id: string) => void;
+}) {
+	const remove = useCallback(() => onRemove(tag._id), [onRemove, tag._id]);
+	return (
+		<span className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs">
+			{tag.name}
+			<button
+				aria-label={`Remove tag ${tag.name}`}
+				className="rounded-full p-0.5 text-foreground/70 transition-colors hover:bg-primary/20 hover:text-foreground"
+				onClick={remove}
+				type="button"
+			>
+				<X className="h-3 w-3" />
+			</button>
+		</span>
+	);
+}
+
+function stopWheel(event: React.WheelEvent<HTMLDivElement>) {
+	event.stopPropagation();
 }
 
 export function ExpenseForm({
@@ -209,25 +255,25 @@ export function ExpenseForm({
 
 		if (isEditing) {
 			await updateExpense({
-				id: expenseId as Id<"expenses">,
-				amount: Number(value.amount),
 				accountId: resolvedAccountId ?? null,
+				amount: Number(value.amount),
 				categoryId: resolvedCategoryId,
 				date: format(value.date, "yyyy-MM-dd"),
+				id: expenseId as Id<"expenses">,
 				spentOn: value.spentOn || undefined,
-				tagIds: (value.tagIds || []) as Id<"tags">[],
+				tagIds: value.tagIds as Id<"tags">[],
 			});
 			toast.success("Expense updated");
 			return true;
 		}
 
 		await createExpense({
-			amount: Number(value.amount),
 			accountId: resolvedAccountId,
+			amount: Number(value.amount),
 			categoryId: resolvedCategoryId,
 			date: format(value.date, "yyyy-MM-dd"),
 			spentOn: value.spentOn || undefined,
-			tagIds: (value.tagIds || []) as Id<"tags">[],
+			tagIds: value.tagIds as Id<"tags">[],
 		});
 		toast.success("Expense added successfully");
 		return true;
@@ -235,21 +281,12 @@ export function ExpenseForm({
 
 	const form = useForm({
 		defaultValues: {
-			amount: defaultValues?.amount ?? (undefined as number | undefined),
 			accountId: defaultValues?.accountId ?? "",
+			amount: defaultValues?.amount ?? (undefined as number | undefined),
 			categoryId: defaultValues?.categoryId ?? "",
 			date: defaultValues?.date ?? new Date(),
 			spentOn: defaultValues?.spentOn ?? "",
 			tagIds: defaultValues?.tagIds ?? ([] as string[]),
-		},
-		validators: {
-			onChange: ({ value }) => {
-				const result = expenseSchema.partial().safeParse(value);
-				if (!result.success) {
-					return result.error.flatten().fieldErrors;
-				}
-				return undefined;
-			},
 		},
 		onSubmit: async ({ value }) => {
 			try {
@@ -280,7 +317,17 @@ export function ExpenseForm({
 				);
 			}
 		},
+		validators: {
+			onChange: ({ value }) => {
+				const result = expenseSchema.partial().safeParse(value);
+				if (!result.success) {
+					return result.error.flatten().fieldErrors;
+				}
+			},
+		},
 	});
+
+	const isSubmitting = useStore(form.store, (state) => state.isSubmitting);
 
 	useEffect(() => {
 		if (!isEditing && defaultCategoryId && !form.state.values.categoryId) {
@@ -294,16 +341,43 @@ export function ExpenseForm({
 		}
 	}, [defaultAccountId, isEditing, form]);
 
+	const handleSubmit = useCallback(
+		(event: React.FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			event.stopPropagation();
+			if (!form.state.isSubmitting) {
+				return form.handleSubmit();
+			}
+		},
+		[form]
+	);
+	const changeAmount = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) => {
+			const { value } = event.target;
+			if (value === "" || AMOUNT_REGEX.test(value)) {
+				form.setFieldValue("amount", value === "" ? undefined : Number(value));
+			}
+		},
+		[form]
+	);
+	const changeDate = useCallback(
+		(date: Date | undefined) => {
+			if (date) {
+				form.setFieldValue("date", date);
+				setSelectedDate(date);
+			}
+		},
+		[form]
+	);
+	const changeNote = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) =>
+			form.setFieldValue("spentOn", event.target.value),
+		[form]
+	);
+
 	return (
 		<div className={className}>
-			<form
-				className="space-y-5"
-				onSubmit={(e) => {
-					e.preventDefault();
-					e.stopPropagation();
-					form.handleSubmit();
-				}}
-			>
+			<form className="space-y-5" onSubmit={handleSubmit}>
 				<form.Field name="amount">
 					{(field) => (
 						<div className="space-y-2">
@@ -315,12 +389,7 @@ export function ExpenseForm({
 									id={field.name}
 									inputMode="decimal"
 									onBlur={field.handleBlur}
-									onChange={(e) => {
-										const val = e.target.value;
-										if (val === "" || AMOUNT_REGEX.test(val)) {
-											field.handleChange(val === "" ? undefined : Number(val));
-										}
-									}}
+									onChange={changeAmount}
 									placeholder="0.00"
 									type="text"
 									value={
@@ -345,15 +414,7 @@ export function ExpenseForm({
 					{(field) => (
 						<div className="space-y-2">
 							<Label>Date</Label>
-							<DatePicker
-								date={field.state.value}
-								onDateChange={(date) => {
-									if (date) {
-										field.handleChange(date);
-										setSelectedDate(date);
-									}
-								}}
-							/>
+							<DatePicker date={field.state.value} onDateChange={changeDate} />
 							<CyclePreview cycle={cycle} />
 						</div>
 					)}
@@ -426,7 +487,7 @@ export function ExpenseForm({
 							<Input
 								id={field.name}
 								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
+								onChange={changeNote}
 								placeholder="What was this for? e.g., Lunch, Uber, Groceries"
 								value={field.state.value || ""}
 							/>
@@ -471,11 +532,11 @@ export function ExpenseForm({
 					)}
 					<Button
 						className="w-full"
-						disabled={form.state.isSubmitting || !cycle}
+						disabled={isSubmitting || !cycle}
 						size="lg"
 						type="submit"
 					>
-						{form.state.isSubmitting ? (
+						{isSubmitting ? (
 							<>
 								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
 								{isEditing ? "Saving..." : "Adding..."}
@@ -498,14 +559,14 @@ export function ExpenseForm({
 }
 
 interface TagMultiSelectProps {
+	onChange: (tagIds: string[]) => void;
+	selectedTagIds: string[];
 	tags:
 		| Array<{
 				_id: Id<"tags">;
 				name: string;
 		  }>
 		| undefined;
-	selectedTagIds: string[];
-	onChange: (tagIds: string[]) => void;
 }
 
 function TagMultiSelect({
@@ -518,19 +579,22 @@ function TagMultiSelect({
 	const createTag = useMutation(api.tags.create);
 	const inputRef = useRef<HTMLInputElement | null>(null);
 
-	const sortedTags = useMemo(() => {
-		return [...(tags || [])].sort((a, b) => a.name.localeCompare(b.name));
-	}, [tags]);
+	const sortedTags = useMemo(
+		() => [...(tags || [])].sort((a, b) => a.name.localeCompare(b.name)),
+		[tags]
+	);
 
 	const selectedSet = useMemo(() => new Set(selectedTagIds), [selectedTagIds]);
 
-	const selectedTags = useMemo(() => {
-		return sortedTags.filter((tag) => selectedSet.has(tag._id));
-	}, [sortedTags, selectedSet]);
+	const selectedTags = useMemo(
+		() => sortedTags.filter((tag) => selectedSet.has(tag._id)),
+		[sortedTags, selectedSet]
+	);
 
-	const unselectedTags = useMemo(() => {
-		return sortedTags.filter((tag) => !selectedSet.has(tag._id));
-	}, [sortedTags, selectedSet]);
+	const unselectedTags = useMemo(
+		() => sortedTags.filter((tag) => !selectedSet.has(tag._id)),
+		[sortedTags, selectedSet]
+	);
 
 	const normalizedQuery = query.trim().toLowerCase();
 
@@ -563,15 +627,18 @@ function TagMultiSelect({
 
 	const canCreate = normalizedQuery.length > 0 && !hasExactMatch;
 
-	const toggleTag = (tagId: string) => {
-		if (selectedSet.has(tagId)) {
-			onChange(selectedTagIds.filter((id) => id !== tagId));
-			return;
-		}
-		onChange([...selectedTagIds, tagId]);
-	};
+	const toggleTag = useCallback(
+		(tagId: string) => {
+			if (selectedSet.has(tagId)) {
+				onChange(selectedTagIds.filter((id) => id !== tagId));
+				return;
+			}
+			onChange([...selectedTagIds, tagId]);
+		},
+		[selectedSet, onChange, selectedTagIds]
+	);
 
-	const handleCreateTag = async () => {
+	const handleCreateTag = useCallback(async () => {
 		const nextName = query.trim();
 		if (nextName.length === 0) {
 			return;
@@ -597,7 +664,7 @@ function TagMultiSelect({
 			reportError(error, { feature: "tags", operation: "create" });
 			toast.error("Failed to create tag");
 		}
-	};
+	}, [query, sortedTags, createTag, onChange, selectedTagIds]);
 
 	const triggerLabel =
 		selectedTagIds.length === 0
@@ -609,20 +676,7 @@ function TagMultiSelect({
 			{selectedTags.length > 0 && (
 				<div className="flex flex-wrap gap-2">
 					{selectedTags.map((tag) => (
-						<span
-							className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs"
-							key={tag._id}
-						>
-							{tag.name}
-							<button
-								aria-label={`Remove tag ${tag.name}`}
-								className="rounded-full p-0.5 text-foreground/70 transition-colors hover:bg-primary/20 hover:text-foreground"
-								onClick={() => toggleTag(tag._id)}
-								type="button"
-							>
-								<X className="h-3 w-3" />
-							</button>
-						</span>
+						<SelectedTag key={tag._id} onRemove={toggleTag} tag={tag} />
 					))}
 				</div>
 			)}
@@ -651,7 +705,7 @@ function TagMultiSelect({
 							ref={inputRef}
 							value={query}
 						/>
-						<CommandList onWheel={(e) => e.stopPropagation()}>
+						<CommandList onWheel={stopWheel}>
 							{tags === undefined ? (
 								<div className="space-y-2 p-3">
 									<div className="h-4 animate-pulse rounded bg-muted" />
@@ -672,32 +726,34 @@ function TagMultiSelect({
 									{filteredSelected.length > 0 && (
 										<CommandGroup heading="Selected">
 											{filteredSelected.map((tag) => (
-												<CommandItem
+												<ExpenseOption
+													itemId={tag._id}
 													key={tag._id}
-													onSelect={() => toggleTag(tag._id)}
+													onChoose={toggleTag}
 													value={tag.name}
 												>
 													<Check className="mr-2 h-4 w-4 opacity-100" />
 													{tag.name}
-												</CommandItem>
+												</ExpenseOption>
 											))}
 										</CommandGroup>
 									)}
 									{filteredUnselected.length > 0 && (
 										<CommandGroup heading="Available">
 											{filteredUnselected.map((tag) => (
-												<CommandItem
+												<ExpenseOption
+													itemId={tag._id}
 													key={tag._id}
-													onSelect={() => toggleTag(tag._id)}
+													onChoose={toggleTag}
 													value={tag.name}
 												>
 													<Check className="mr-2 h-4 w-4 opacity-0" />
 													{tag.name}
-												</CommandItem>
+												</ExpenseOption>
 											))}
 										</CommandGroup>
 									)}
-									{canCreate && (
+									{Boolean(canCreate) && (
 										<CommandGroup heading="Actions">
 											<CommandItem
 												onSelect={handleCreateTag}
@@ -720,9 +776,9 @@ function TagMultiSelect({
 
 interface AccountComboboxProps {
 	accounts: AccountItem[] | undefined;
-	selectedAccountId: string;
-	onChange: (accountId: string) => void;
 	formatCurrency: (amount: number) => string;
+	onChange: (accountId: string) => void;
+	selectedAccountId: string;
 }
 
 function AccountCombobox({
@@ -736,9 +792,10 @@ function AccountCombobox({
 
 	const normalizedQuery = query.trim().toLowerCase();
 	const allAccounts = accounts || [];
-	const selectedAccount = useMemo(() => {
-		return allAccounts.find((account) => account._id === selectedAccountId);
-	}, [allAccounts, selectedAccountId]);
+	const selectedAccount = useMemo(
+		() => allAccounts.find((account) => account._id === selectedAccountId),
+		[allAccounts, selectedAccountId]
+	);
 	const filteredAccounts = useMemo(() => {
 		if (normalizedQuery.length === 0) {
 			return allAccounts;
@@ -750,10 +807,13 @@ function AccountCombobox({
 		);
 	}, [allAccounts, normalizedQuery]);
 
-	const handleSelectAccount = (accountId: string) => {
-		onChange(accountId);
-		setOpen(false);
-	};
+	const handleSelectAccount = useCallback(
+		(accountId: string) => {
+			onChange(accountId);
+			setOpen(false);
+		},
+		[onChange]
+	);
 
 	return (
 		<Popover onOpenChange={setOpen} open={open}>
@@ -797,7 +857,7 @@ function AccountCombobox({
 						placeholder="Search accounts..."
 						value={query}
 					/>
-					<CommandList onWheel={(e) => e.stopPropagation()}>
+					<CommandList onWheel={stopWheel}>
 						{accounts === undefined ? (
 							<div className="flex flex-col gap-2 p-3">
 								<Skeleton className="h-4 w-full" />
@@ -806,8 +866,9 @@ function AccountCombobox({
 						) : (
 							<>
 								<CommandGroup heading="General">
-									<CommandItem
-										onSelect={() => handleSelectAccount("")}
+									<ExpenseOption
+										itemId={""}
+										onChoose={handleSelectAccount}
 										value="no-account"
 									>
 										<Check
@@ -821,15 +882,16 @@ function AccountCombobox({
 												Do not change an account balance
 											</span>
 										</div>
-									</CommandItem>
+									</ExpenseOption>
 								</CommandGroup>
 
 								{filteredAccounts.length > 0 ? (
 									<CommandGroup heading="Accounts">
 										{filteredAccounts.map((account) => (
-											<CommandItem
+											<ExpenseOption
+												itemId={account._id}
 												key={account._id}
-												onSelect={() => handleSelectAccount(account._id)}
+												onChoose={handleSelectAccount}
 												value={`${account.name}-${account.accountTypeName}`}
 											>
 												<Check
@@ -868,7 +930,7 @@ function AccountCombobox({
 														{formatCurrency(account.currentBalance)}
 													</span>
 												</div>
-											</CommandItem>
+											</ExpenseOption>
 										))}
 									</CommandGroup>
 								) : null}
@@ -904,12 +966,12 @@ function AccountCombobox({
 }
 
 interface CategoryComboboxProps {
-	cycle: CyclePreviewData;
 	categories: CategoryItem[] | undefined;
-	types: CategoryTypeItem[] | undefined;
-	selectedCategoryId: string;
-	onChange: (categoryId: string) => void;
+	cycle: CyclePreviewData;
 	formatCurrency: (amount: number) => string;
+	onChange: (categoryId: string) => void;
+	selectedCategoryId: string;
+	types: CategoryTypeItem[] | undefined;
 }
 
 function CategoryCombobox({
@@ -935,11 +997,10 @@ function CategoryCombobox({
 		);
 	}, [allCategories, normalizedQuery]);
 
-	const selectedCategory = useMemo(() => {
-		return allCategories.find(
-			(category) => category._id === selectedCategoryId
-		);
-	}, [allCategories, selectedCategoryId]);
+	const selectedCategory = useMemo(
+		() => allCategories.find((category) => category._id === selectedCategoryId),
+		[allCategories, selectedCategoryId]
+	);
 
 	const grouped = useMemo(() => {
 		const byType = new Map<string, CategoryItem[]>();
@@ -962,10 +1023,17 @@ function CategoryCombobox({
 
 	const hasAnyResults = filteredCategories.length > 0;
 
-	const handleSelectCategory = (categoryId: string) => {
-		onChange(categoryId);
+	const handleSelectCategory = useCallback(
+		(categoryId: string) => {
+			onChange(categoryId);
+			setOpen(false);
+		},
+		[onChange]
+	);
+	const createCategory = useCallback(() => {
 		setOpen(false);
-	};
+		router.push(`/categories/new?id=${cycle._id}`);
+	}, [router, cycle._id]);
 
 	return (
 		<Popover onOpenChange={setOpen} open={open}>
@@ -996,7 +1064,7 @@ function CategoryCombobox({
 						placeholder="Search categories..."
 						value={query}
 					/>
-					<CommandList onWheel={(e) => e.stopPropagation()}>
+					<CommandList onWheel={stopWheel}>
 						<div className="border-b px-3 py-2 text-muted-foreground text-xs">
 							Type to search. Can&apos;t find one? Create a new category.
 						</div>
@@ -1008,8 +1076,9 @@ function CategoryCombobox({
 						) : (
 							<>
 								<CommandGroup heading="General">
-									<CommandItem
-										onSelect={() => handleSelectCategory("")}
+									<ExpenseOption
+										itemId={""}
+										onChoose={handleSelectCategory}
 										value="uncategorized"
 									>
 										<Check
@@ -1021,7 +1090,7 @@ function CategoryCombobox({
 											<span>❓</span>
 											<span>Uncategorized</span>
 										</div>
-									</CommandItem>
+									</ExpenseOption>
 								</CommandGroup>
 
 								{types?.map((type) => {
@@ -1033,9 +1102,10 @@ function CategoryCombobox({
 									return (
 										<CommandGroup heading={type.name} key={type._id}>
 											{typeCategories.map((category) => (
-												<CommandItem
+												<ExpenseOption
+													itemId={category._id}
 													key={category._id}
-													onSelect={() => handleSelectCategory(category._id)}
+													onChoose={handleSelectCategory}
 													value={category.name}
 												>
 													<Check
@@ -1056,7 +1126,7 @@ function CategoryCombobox({
 															</span>
 														)}
 													</div>
-												</CommandItem>
+												</ExpenseOption>
 											))}
 										</CommandGroup>
 									);
@@ -1065,9 +1135,10 @@ function CategoryCombobox({
 								{grouped.untyped.length > 0 && (
 									<CommandGroup heading="Other">
 										{grouped.untyped.map((category) => (
-											<CommandItem
+											<ExpenseOption
+												itemId={category._id}
 												key={category._id}
-												onSelect={() => handleSelectCategory(category._id)}
+												onChoose={handleSelectCategory}
 												value={category.name}
 											>
 												<Check
@@ -1088,7 +1159,7 @@ function CategoryCombobox({
 														</span>
 													)}
 												</div>
-											</CommandItem>
+											</ExpenseOption>
 										))}
 									</CommandGroup>
 								)}
@@ -1103,10 +1174,7 @@ function CategoryCombobox({
 
 								<CommandGroup heading="Actions">
 									<CommandItem
-										onSelect={() => {
-											setOpen(false);
-											router.push(`/categories/new?id=${cycle._id}`);
-										}}
+										onSelect={createCategory}
 										value="create-new-category"
 									>
 										<Plus className="mr-2 h-4 w-4" />
@@ -1146,7 +1214,7 @@ function CyclePreview({
 						Will be added to{" "}
 						<span className="text-foreground">{cycle.name}</span>
 					</p>
-					{isActive && (
+					{Boolean(isActive) && (
 						<Badge className="text-xs" variant="secondary">
 							Active
 						</Badge>

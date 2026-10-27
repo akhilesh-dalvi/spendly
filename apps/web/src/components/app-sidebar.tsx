@@ -28,8 +28,8 @@ import {
 } from "@/components/ui/sidebar";
 import { Logo } from "./logo";
 
-const addActiveState = (pathname: string, items: readonly NavItem[]) => {
-	return items.map((item: NavItem) => ({
+const addActiveState = (pathname: string, items: readonly NavItem[]) =>
+	items.map((item: NavItem) => ({
 		...item,
 		isActive: isNavItemActive(pathname, item),
 		items: item.items?.map((subItem: NavSubItem) => ({
@@ -37,29 +37,30 @@ const addActiveState = (pathname: string, items: readonly NavItem[]) => {
 			isActive: isSubNavItemActive(pathname, subItem),
 		})),
 	}));
-};
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 	const convexUser = useQuery(api.users.get);
 	const { user: clerkUser } = useUser();
 	const pathname = usePathname();
 
-	const user = useMemo(() => {
-		return {
-			name: convexUser?.name ?? clerkUser?.fullName ?? "User",
+	const user = useMemo(
+		() => ({
+			avatar: clerkUser?.imageUrl ?? "",
 			email:
 				convexUser?.email ?? clerkUser?.primaryEmailAddress?.emailAddress ?? "",
-			avatar: clerkUser?.imageUrl ?? "",
-		};
-	}, [convexUser, clerkUser]);
+			name: convexUser?.name ?? clerkUser?.fullName ?? "User",
+		}),
+		[convexUser, clerkUser]
+	);
 
-	const navigation = useMemo(() => {
-		return {
+	const navigation = useMemo(
+		() => ({
 			core: addActiveState(pathname, CORE_NAV_ITEMS),
-			management: addActiveState(pathname, MANAGEMENT_NAV_ITEMS),
 			docs: addActiveState(pathname, [CLI_DOCS_NAV_ITEM]),
-		};
-	}, [pathname]);
+			management: addActiveState(pathname, MANAGEMENT_NAV_ITEMS),
+		}),
+		[pathname]
+	);
 
 	return (
 		<Sidebar variant="inset" {...props}>

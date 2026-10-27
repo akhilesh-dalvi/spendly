@@ -29,7 +29,7 @@ export const getCycleSummary = query({
 			0
 		);
 
-		const today = new Date().toISOString().split("T")[0];
+		const [today] = new Date().toISOString().split("T");
 		let daysRemaining: number | null = null;
 		if (cycle.endDate > today) {
 			const end = new Date(cycle.endDate).getTime();
@@ -47,20 +47,20 @@ export const getCycleSummary = query({
 
 				return {
 					categoryId: cat._id,
-					name: cat.name,
-					icon: cat.icon ?? null,
-					typeId: cat.categoryTypeId ?? null,
-					typeName: type?.name ?? null,
-					typeColor: type?.color ?? null,
-					planned: cat.plannedAmount ?? null,
-					spent,
-					isHidden: cat.isHidden ?? false,
 					diff:
-						cat.plannedAmount !== undefined ? cat.plannedAmount - spent : null,
+						cat.plannedAmount === undefined ? null : cat.plannedAmount - spent,
+					icon: cat.icon ?? null,
+					isHidden: cat.isHidden ?? false,
+					name: cat.name,
+					planned: cat.plannedAmount ?? null,
 					progress:
 						cat.plannedAmount && cat.plannedAmount > 0
 							? (spent / cat.plannedAmount) * 100
 							: null,
+					spent,
+					typeColor: type?.color ?? null,
+					typeId: cat.categoryTypeId ?? null,
+					typeName: type?.name ?? null,
 				};
 			})
 		);
@@ -72,16 +72,16 @@ export const getCycleSummary = query({
 				? [
 						{
 							categoryId: "uncategorized",
-							name: "Uncategorized",
+							diff: null,
 							icon: "❓",
+							isHidden: false,
+							name: "Uncategorized",
+							planned: null,
+							progress: null,
+							spent: uncategorizedSpent,
+							typeColor: null,
 							typeId: null,
 							typeName: "Uncategorized",
-							typeColor: null,
-							planned: null,
-							spent: uncategorizedSpent,
-							isHidden: false,
-							diff: null,
-							progress: null,
 						},
 					]
 				: [];
@@ -96,43 +96,43 @@ export const getCycleSummary = query({
 					(c) => c.typeId === type._id
 				);
 				return {
-					typeId: type._id,
-					typeName: type.name,
-					typeColor: type.color ?? null,
+					categories: typeCategories,
 					totalPlanned: typeCategories.reduce(
 						(sum, c) => sum + (c.planned || 0),
 						0
 					),
 					totalSpent: typeCategories.reduce((sum, c) => sum + c.spent, 0),
-					categories: typeCategories,
+					typeColor: type.color ?? null,
+					typeId: type._id,
+					typeName: type.name,
 				};
 			}),
 			{
-				typeId: null,
-				typeName: "Uncategorized",
-				typeColor: null,
+				categories: categoryStatsWithUncategorized.filter(
+					(c) => c.typeId === null
+				),
 				totalPlanned: categoryStatsWithUncategorized
 					.filter((c) => c.typeId === null)
 					.reduce((sum, c) => sum + (c.planned || 0), 0),
 				totalSpent: categoryStatsWithUncategorized
 					.filter((c) => c.typeId === null)
 					.reduce((sum, c) => sum + c.spent, 0),
-				categories: categoryStatsWithUncategorized.filter(
-					(c) => c.typeId === null
-				),
+				typeColor: null,
+				typeId: null,
+				typeName: "Uncategorized",
 			},
 		];
 
 		return {
+			categoryStats: categoryStatsWithUncategorized,
 			cycleId: cycle._id,
 			cycleName: cycle.name,
-			startDate: cycle.startDate,
-			endDate: cycle.endDate,
-			totalSpent,
-			totalPlanned,
-			remaining: totalPlanned - totalSpent,
 			daysRemaining,
-			categoryStats: categoryStatsWithUncategorized,
+			endDate: cycle.endDate,
+			remaining: totalPlanned - totalSpent,
+			startDate: cycle.startDate,
+			totalPlanned,
+			totalSpent,
 			typeStats,
 		};
 	},
@@ -218,19 +218,19 @@ export const compareMultiple = query({
 					const catExpenses = expenses.filter((e) => e.categoryId === cat._id);
 					return {
 						categoryName: cat.name,
-						spent: catExpenses.reduce((sum, e) => sum + e.amount, 0),
 						planned: cat.plannedAmount ?? null,
+						spent: catExpenses.reduce((sum, e) => sum + e.amount, 0),
 					};
 				});
 
 				return {
+					categoryBreakdown,
 					cycleId: cycle._id,
 					cycleName: cycle.name,
-					startDate: cycle.startDate,
 					endDate: cycle.endDate,
-					totalSpent,
+					startDate: cycle.startDate,
 					totalPlanned,
-					categoryBreakdown,
+					totalSpent,
 				};
 			})
 		);

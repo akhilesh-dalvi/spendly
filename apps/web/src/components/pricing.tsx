@@ -11,31 +11,31 @@ import {
 
 const usageModes = [
 	{
-		title: "Track Freely",
-		subtitle: "Start with zero setup",
 		points: [
 			"Add expenses quickly",
 			"No income tracking",
 			"No hard enforcement",
 		],
+		subtitle: "Start with zero setup",
+		title: "Track Freely",
 	},
 	{
-		title: "Plan & Track",
-		subtitle: "Add structure when it helps",
 		points: [
 			"Set planned amounts per cycle",
 			"Group with custom types",
 			"Adjust anytime as priorities change",
 		],
+		subtitle: "Add structure when it helps",
+		title: "Plan & Track",
 	},
 	{
-		title: "Compare Cycles",
-		subtitle: "Spot trends across time",
 		points: [
 			"Compare multiple cycles",
 			"Spot category changes clearly",
 			"Make calmer, informed decisions",
 		],
+		subtitle: "Spot trends across time",
+		title: "Compare Cycles",
 	},
 ];
 

@@ -1,8 +1,10 @@
 // biome-ignore-all lint/style/useFilenamingConvention: Convex module filenames use camelCase.
+
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "../../_generated/api";
 import type { Id } from "../../_generated/dataModel";
+import { forEachSequential } from "../../lib/async";
 import schema from "../../schema";
 import { modules } from "../../test.setup";
 
@@ -748,14 +750,14 @@ describe("cli/v1 facade", () => {
 			currency: preview.currency,
 			currentBalance: preview.currentBalance,
 			name: preview.name,
-			revision: preview.revision,
-			startingBalance: preview.startingBalance,
 			openingTransaction: {
 				amount: -10,
 				balanceAfter: -10,
 				date: "2026-09-02",
 				type: "opening_balance",
 			},
+			revision: preview.revision,
+			startingBalance: preview.startingBalance,
 		});
 		const createReplay = await owner.client.mutation(
 			api.cli.v1.accounts.create,
@@ -1286,33 +1288,35 @@ describe("cli/v1 facade", () => {
 		if (!(augustCategory && septemberCategory)) {
 			throw new Error("Expected categories");
 		}
-		for (const [index, date] of [
-			"2026-08-10",
-			"2026-08-20",
-			"2026-08-30",
-		].entries()) {
-			await owner.client.mutation(api.cli.v1.expenses.create, {
-				amount: 10 + index,
-				categoryId: augustCategory._id,
-				date,
-				idempotencyKey: `history-expense-${index}`,
-				spentOn: "Local Market",
-			});
-		}
-		await test.run(async (ctx) => {
-			for (const index of Array.from({ length: 501 }, (_, value) => value)) {
-				await ctx.db.insert("expenses", {
-					amount: 1,
+		await forEachSequential(
+			["2026-08-10", "2026-08-20", "2026-08-30"].entries(),
+			async ([index, date]) => {
+				await owner.client.mutation(api.cli.v1.expenses.create, {
+					amount: 10 + index,
 					categoryId: augustCategory._id,
-					createdAt: 1000 + index,
-					cycleId: august._id,
-					date: "2026-08-31",
-					normalizedSpentOn: `noise ${index}`,
-					revision: 1,
-					spentOn: `Noise ${index}`,
-					userId: owner.userId,
+					date,
+					idempotencyKey: `history-expense-${index}`,
+					spentOn: "Local Market",
 				});
 			}
+		);
+		await test.run(async (ctx) => {
+			await forEachSequential(
+				Array.from({ length: 501 }, (_, value) => value),
+				async (index) => {
+					await ctx.db.insert("expenses", {
+						amount: 1,
+						categoryId: augustCategory._id,
+						createdAt: 1000 + index,
+						cycleId: august._id,
+						date: "2026-08-31",
+						normalizedSpentOn: `noise ${index}`,
+						revision: 1,
+						spentOn: `Noise ${index}`,
+						userId: owner.userId,
+					});
+				}
+			);
 		});
 		const preview = await owner.client.query(
 			api.cli.v1.expenses.previewCreate,
@@ -1375,21 +1379,19 @@ describe("cli/v1 facade", () => {
 	it("paginates expenses deterministically without duplicate records", async () => {
 		const test = createBackendTest();
 		const owner = await createAuthenticatedUser(test, "expense-pagination");
-		for (const [index, date] of [
-			"2026-09-01",
-			"2026-09-02",
-			"2026-09-03",
-		].entries()) {
-			await owner.client.mutation(api.cli.v1.expenses.create, {
-				amount: index + 1,
-				date,
-				idempotencyKey: `pagination-expense-${index}`,
-			});
-		}
+		await forEachSequential(
+			["2026-09-01", "2026-09-02", "2026-09-03"].entries(),
+			async ([index, date]) => {
+				await owner.client.mutation(api.cli.v1.expenses.create, {
+					amount: index + 1,
+					date,
+					idempotencyKey: `pagination-expense-${index}`,
+				});
+			}
+		);
 
 		const seenIds = new Set<string>();
-		let cursor: string | undefined;
-		do {
+		async function visitPage(cursor?: string): Promise<void> {
 			const page = await owner.client.query(api.cli.v1.expenses.list, {
 				cursor,
 				limit: 1,
@@ -1398,8 +1400,11 @@ describe("cli/v1 facade", () => {
 				expect(seenIds.has(expense.id)).toBe(false);
 				seenIds.add(expense.id);
 			}
-			cursor = page.nextCursor ?? undefined;
-		} while (cursor);
+			if (page.nextCursor) {
+				await visitPage(page.nextCursor);
+			}
+		}
+		await visitPage();
 
 		expect(seenIds.size).toBe(3);
 	});

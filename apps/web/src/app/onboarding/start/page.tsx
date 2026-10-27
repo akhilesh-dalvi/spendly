@@ -12,7 +12,7 @@ import {
 	Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { OnboardingStepControls } from "@/components/onboarding-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -52,6 +52,51 @@ const PATH_OPTIONS = [
 	},
 ] as const;
 
+function PathOption({
+	option,
+	isSelected,
+	onSelect,
+}: {
+	option: (typeof PATH_OPTIONS)[number];
+	isSelected: boolean;
+	onSelect: (path: SetupPath) => void;
+}) {
+	const Icon = option.icon;
+	const select = useCallback(
+		() => onSelect(option.path),
+		[onSelect, option.path]
+	);
+	return (
+		<button
+			aria-pressed={isSelected}
+			className={cn(
+				"relative flex min-h-48 flex-col rounded-xl border p-5 text-left outline-none transition-all hover:-translate-y-0.5 hover:border-foreground/30 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+				isSelected && "border-primary bg-primary/[0.04] shadow-sm"
+			)}
+			onClick={select}
+			type="button"
+		>
+			<div className="flex items-center gap-3">
+				<span className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+					<Icon className="size-5" />
+				</span>
+				<p className="font-semibold text-lg">{option.title}</p>
+			</div>
+			<div className="mt-4">
+				<p className="text-muted-foreground text-sm leading-5">
+					{option.description}
+				</p>
+			</div>
+			<div className="mt-auto flex items-center justify-between gap-3 pt-5 text-sm">
+				<span className="flex items-center gap-1.5 text-muted-foreground">
+					<Clock3 className="size-3.5" /> {option.effort}
+				</span>
+				{isSelected ? <Check className="size-5 text-primary" /> : null}
+			</div>
+		</button>
+	);
+}
+
 export default function OnboardingStartPage() {
 	const router = useRouter();
 	const onboardingState = useQuery(api.users.getOnboardingState);
@@ -73,14 +118,19 @@ export default function OnboardingStartPage() {
 		}
 	}, [onboardingState]);
 
+	const changeCurrency = useCallback((value: string) => {
+		if (isSupportedCurrency(value)) {
+			setCurrency(value);
+		}
+	}, []);
 	const handleContinue = async () => {
 		setIsSaving(true);
 		setError(undefined);
 		try {
 			await beginOnboarding({ currency, path: selectedPath });
 			router.push(`/onboarding/cycle?mode=${selectedPath}`);
-		} catch (error) {
-			reportError(error, { feature: "onboarding", operation: "start" });
+		} catch (cause) {
+			reportError(cause, { feature: "onboarding", operation: "start" });
 			setError(
 				"We couldn't save your setup choice. Your selections are still here—please try again."
 			);
@@ -104,10 +154,7 @@ export default function OnboardingStartPage() {
 				<div className="space-y-7 px-5 py-6 sm:px-8 sm:py-8">
 					<div className="space-y-2">
 						<Label htmlFor="onboarding-currency">Primary currency</Label>
-						<Select
-							onValueChange={(value) => setCurrency(value as SupportedCurrency)}
-							value={currency}
-						>
+						<Select onValueChange={changeCurrency} value={currency}>
 							<SelectTrigger
 								className="w-full sm:max-w-sm"
 								id="onboarding-currency"
@@ -133,42 +180,14 @@ export default function OnboardingStartPage() {
 							How would you like to begin?
 						</legend>
 						<div className="grid gap-3 sm:grid-cols-2">
-							{PATH_OPTIONS.map((option) => {
-								const Icon = option.icon;
-								const isSelected = selectedPath === option.path;
-								return (
-									<button
-										aria-pressed={isSelected}
-										className={cn(
-											"relative flex min-h-48 flex-col rounded-xl border p-5 text-left outline-none transition-all hover:-translate-y-0.5 hover:border-foreground/30 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-											isSelected && "border-primary bg-primary/[0.04] shadow-sm"
-										)}
-										key={option.path}
-										onClick={() => setSelectedPath(option.path)}
-										type="button"
-									>
-										<div className="flex items-center gap-3">
-											<span className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-												<Icon className="size-5" />
-											</span>
-											<p className="font-semibold text-lg">{option.title}</p>
-										</div>
-										<div className="mt-4">
-											<p className="text-muted-foreground text-sm leading-5">
-												{option.description}
-											</p>
-										</div>
-										<div className="mt-auto flex items-center justify-between gap-3 pt-5 text-sm">
-											<span className="flex items-center gap-1.5 text-muted-foreground">
-												<Clock3 className="size-3.5" /> {option.effort}
-											</span>
-											{isSelected ? (
-												<Check className="size-5 text-primary" />
-											) : null}
-										</div>
-									</button>
-								);
-							})}
+							{PATH_OPTIONS.map((option) => (
+								<PathOption
+									isSelected={selectedPath === option.path}
+									key={option.path}
+									onSelect={setSelectedPath}
+									option={option}
+								/>
+							))}
 						</div>
 					</fieldset>
 

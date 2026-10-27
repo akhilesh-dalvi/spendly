@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { type FunctionReference, getFunctionName } from "convex/server";
+import { useCallback } from "react";
 import type { DateRange } from "react-day-picker";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountOnboardingNudge } from "../../components/account-onboarding-nudge";
@@ -26,30 +27,26 @@ const FREE_PATH = /Start tracking freely/;
 const OPTIONAL_ACCOUNT_MESSAGE = /add an account whenever/;
 
 const state = vi.hoisted(() => ({
-	pathname: "/onboarding/start",
-	search: new URLSearchParams(),
-	onboarding: undefined as unknown,
-	types: [] as unknown[],
 	begin: vi.fn(),
-	saveCycle: vi.fn(),
+	complete: vi.fn(),
 	createAccount: vi.fn(),
 	createType: vi.fn(),
-	complete: vi.fn(),
 	dismiss: vi.fn(),
-	router: { push: vi.fn(), replace: vi.fn() },
+	onboarding: undefined as unknown,
+	pathname: "/onboarding/start",
 	report: vi.fn(),
+	router: { push: vi.fn(), replace: vi.fn() },
+	saveCycle: vi.fn(),
+	search: new URLSearchParams(),
 	toastError: vi.fn(),
+	types: [] as unknown[],
 }));
 vi.mock("next/navigation", () => ({
-	useRouter: () => state.router,
 	usePathname: () => state.pathname,
+	useRouter: () => state.router,
 	useSearchParams: () => state.search,
 }));
 vi.mock("convex/react", () => ({
-	useQuery: (reference: FunctionReference<"query">) =>
-		getFunctionName(reference) === "accountTypes:list"
-			? state.types
-			: state.onboarding,
 	useMutation: (reference: FunctionReference<"mutation">) => {
 		const name = getFunctionName(reference);
 		if (name === "users:beginOnboarding") {
@@ -69,6 +66,10 @@ vi.mock("convex/react", () => ({
 		}
 		return state.complete;
 	},
+	useQuery: (reference: FunctionReference<"query">) =>
+		getFunctionName(reference) === "accountTypes:list"
+			? state.types
+			: state.onboarding,
 }));
 vi.mock("@/lib/report-error", () => ({ reportError: state.report }));
 vi.mock("sonner", () => ({ toast: { error: state.toastError } }));
@@ -80,45 +81,53 @@ vi.mock("@/components/ui/date-picker", () => ({
 	}: {
 		date?: DateRange;
 		onDateChange: (date?: DateRange) => void;
-	}) => (
-		<div>
-			<input
-				aria-label="Start date"
-				onChange={(event) =>
-					onDateChange({
-						from: event.target.value
-							? new Date(`${event.target.value}T00:00:00`)
-							: undefined,
-						to: date?.to,
-					})
-				}
-				type="date"
-				value={date?.from?.toISOString().slice(0, 10) ?? ""}
-			/>
-			<input
-				aria-label="End date"
-				onChange={(event) =>
-					onDateChange({
-						from: date?.from,
-						to: event.target.value
-							? new Date(`${event.target.value}T00:00:00`)
-							: undefined,
-					})
-				}
-				type="date"
-				value={date?.to?.toISOString().slice(0, 10) ?? ""}
-			/>
-		</div>
-	),
+	}) => {
+		const changeStart = useCallback(
+			(event: React.ChangeEvent<HTMLInputElement>) =>
+				onDateChange({
+					from: event.target.value
+						? new Date(`${event.target.value}T00:00:00`)
+						: undefined,
+					to: date?.to,
+				}),
+			[onDateChange, date?.to]
+		);
+		const changeEnd = useCallback(
+			(event: React.ChangeEvent<HTMLInputElement>) =>
+				onDateChange({
+					from: date?.from,
+					to: event.target.value
+						? new Date(`${event.target.value}T00:00:00`)
+						: undefined,
+				}),
+			[onDateChange, date?.from]
+		);
+		return (
+			<div>
+				<input
+					aria-label="Start date"
+					onChange={changeStart}
+					type="date"
+					value={date?.from?.toISOString().slice(0, 10) ?? ""}
+				/>
+				<input
+					aria-label="End date"
+					onChange={changeEnd}
+					type="date"
+					value={date?.to?.toISOString().slice(0, 10) ?? ""}
+				/>
+			</div>
+		);
+	},
 }));
 
 const cycle = {
 	_id: "cycle",
+	endDate: "2026-09-30",
 	name: "My cycle",
 	startDate: "2026-09-01",
-	endDate: "2026-09-30",
 };
-const cash = { _id: "cash", name: "Cash", balanceNature: "asset" };
+const cash = { _id: "cash", balanceNature: "asset", name: "Cash" };
 
 beforeEach(() => {
 	vi.resetAllMocks();
@@ -126,10 +135,10 @@ beforeEach(() => {
 	vi.setSystemTime(new Date("2026-09-15T12:00:00Z"));
 	state.pathname = "/onboarding/start";
 	state.search = new URLSearchParams();
-	state.onboarding = { currency: "USD", path: "free", step: "account", cycle };
+	state.onboarding = { currency: "USD", cycle, path: "free", step: "account" };
 	state.types = [
 		cash,
-		{ _id: "credit", name: "Credit", balanceNature: "liability" },
+		{ _id: "credit", balanceNature: "liability", name: "Credit" },
 	];
 	state.begin.mockResolvedValue(undefined);
 	state.saveCycle.mockResolvedValue("cycle");
@@ -155,7 +164,7 @@ describe("setup choice", () => {
 		await userEvent
 			.setup()
 			.click(screen.getByRole("button", { name: "Save and continue" }));
-		expect(state.begin).toHaveBeenCalledWith({ path: "free", currency: "USD" });
+		expect(state.begin).toHaveBeenCalledWith({ currency: "USD", path: "free" });
 		expect(state.router.push).toHaveBeenCalledWith(
 			"/onboarding/cycle?mode=free"
 		);
@@ -175,7 +184,7 @@ describe("setup choice", () => {
 		await user.click(screen.getByRole("option", { name: EURO_OPTION }));
 		await user.click(screen.getByRole("button", { name: FREE_PATH }));
 		await user.click(screen.getByRole("button", { name: "Save and continue" }));
-		expect(state.begin).toHaveBeenCalledWith({ path: "free", currency: "EUR" });
+		expect(state.begin).toHaveBeenCalledWith({ currency: "EUR", path: "free" });
 	});
 
 	it("retains selections after a save failure and falls back from unsupported saved currency", async () => {
@@ -188,7 +197,7 @@ describe("setup choice", () => {
 		expect(await screen.findByRole("alert")).toHaveTextContent(
 			"selections are still here"
 		);
-		expect(state.begin).toHaveBeenCalledWith({ path: "plan", currency: "USD" });
+		expect(state.begin).toHaveBeenCalledWith({ currency: "USD", path: "plan" });
 		expect(
 			screen.getByRole("button", { name: "Save and continue" })
 		).toBeEnabled();
@@ -201,32 +210,32 @@ describe("onboarding cycle", () => {
 		state.pathname = "/onboarding/cycle";
 	});
 
-	it.each([
-		"free",
-		"plan",
-	])("saves a named period and advances the %s path", async (path) => {
-		state.onboarding = { path, cycle: null };
-		state.search = new URLSearchParams({ mode: path });
-		const user = userEvent.setup();
-		render(<CyclePage />);
-		await user.clear(screen.getByLabelText("Cycle name"));
-		await user.type(screen.getByLabelText("Cycle name"), "  September  ");
-		fireEvent.submit(
-			screen.getByLabelText("Cycle name").closest("form") ??
-				screen.getByLabelText("Cycle name")
-		);
-		await waitFor(() =>
-			expect(state.saveCycle).toHaveBeenCalledWith({
-				cycleId: undefined,
-				name: "September",
-				startDate: "2026-09-01",
-				endDate: "2026-09-30",
-			})
-		);
-		expect(state.router.push).toHaveBeenCalledWith(
-			`/onboarding/${path === "plan" ? "categories" : "accounts"}?cycleId=cycle`
-		);
-	});
+	it.each(["free", "plan"])(
+		"saves a named period and advances the %s path",
+		async (path) => {
+			state.onboarding = { cycle: null, path };
+			state.search = new URLSearchParams({ mode: path });
+			const user = userEvent.setup();
+			render(<CyclePage />);
+			await user.clear(screen.getByLabelText("Cycle name"));
+			await user.type(screen.getByLabelText("Cycle name"), "  September  ");
+			fireEvent.submit(
+				screen.getByLabelText("Cycle name").closest("form") ??
+					screen.getByLabelText("Cycle name")
+			);
+			await waitFor(() =>
+				expect(state.saveCycle).toHaveBeenCalledWith({
+					cycleId: undefined,
+					endDate: "2026-09-30",
+					name: "September",
+					startDate: "2026-09-01",
+				})
+			);
+			expect(state.router.push).toHaveBeenCalledWith(
+				`/onboarding/${path === "plan" ? "categories" : "accounts"}?cycleId=cycle`
+			);
+		}
+	);
 
 	it("switches presets and preserves a manually named custom cycle", async () => {
 		state.onboarding = undefined;
@@ -245,22 +254,21 @@ describe("onboarding cycle", () => {
 		expect(screen.getByLabelText("Cycle name")).toHaveValue("September 2026");
 	});
 
-	it.each([
-		"",
-		"2026-09-01",
-		"2026-08-31",
-	])("rejects an absent, equal, or backwards end date %s", (endDate) => {
-		render(<CyclePage />);
-		fireEvent.change(screen.getByLabelText("End date"), {
-			target: { value: endDate },
-		});
-		fireEvent.submit(
-			screen.getByLabelText("Cycle name").closest("form") ??
-				screen.getByLabelText("Cycle name")
-		);
-		expect(screen.getByRole("alert")).toHaveTextContent("end date after it");
-		expect(state.saveCycle).not.toHaveBeenCalled();
-	});
+	it.each(["", "2026-09-01", "2026-08-31"])(
+		"rejects an absent, equal, or backwards end date %s",
+		(endDate) => {
+			render(<CyclePage />);
+			fireEvent.change(screen.getByLabelText("End date"), {
+				target: { value: endDate },
+			});
+			fireEvent.submit(
+				screen.getByLabelText("Cycle name").closest("form") ??
+					screen.getByLabelText("Cycle name")
+			);
+			expect(screen.getByRole("alert")).toHaveTextContent("end date after it");
+			expect(state.saveCycle).not.toHaveBeenCalled();
+		}
+	);
 
 	it("requires a name and keeps the current cycle visible after a save conflict", async () => {
 		state.saveCycle.mockRejectedValue(new Error("overlap"));
@@ -313,8 +321,8 @@ describe("optional first account", () => {
 			screen.getByRole("button", { name: "Create account and finish" })
 		);
 		expect(state.createAccount).toHaveBeenCalledWith({
-			name: "Everyday",
 			accountTypeId: "cash",
+			name: "Everyday",
 			openingBalance: 123.45,
 		});
 		expect(
@@ -327,26 +335,26 @@ describe("optional first account", () => {
 		).toHaveAttribute("href", "/expenses/new");
 	});
 
-	it.each([
-		false,
-		true,
-	])("allows skipping the optional account and handles failure=%s", async (failure) => {
-		if (failure) {
-			state.complete.mockRejectedValue(new Error("offline"));
+	it.each([false, true])(
+		"allows skipping the optional account and handles failure=%s",
+		async (failure) => {
+			if (failure) {
+				state.complete.mockRejectedValue(new Error("offline"));
+			}
+			render(<AccountsPage />);
+			await userEvent
+				.setup()
+				.click(screen.getByRole("button", { name: "Skip account setup" }));
+			expect(state.complete).toHaveBeenCalledWith({ accountStatus: "skipped" });
+			if (failure) {
+				expect(await screen.findByRole("alert")).toHaveTextContent(
+					"couldn't skip"
+				);
+			} else {
+				expect(screen.getByText(OPTIONAL_ACCOUNT_MESSAGE)).toBeVisible();
+			}
 		}
-		render(<AccountsPage />);
-		await userEvent
-			.setup()
-			.click(screen.getByRole("button", { name: "Skip account setup" }));
-		expect(state.complete).toHaveBeenCalledWith({ accountStatus: "skipped" });
-		if (failure) {
-			expect(await screen.findByRole("alert")).toHaveTextContent(
-				"couldn't skip"
-			);
-		} else {
-			expect(screen.getByText(OPTIONAL_ACCOUNT_MESSAGE)).toBeVisible();
-		}
-	});
+	);
 
 	it("validates account name and missing types before making a mutation", async () => {
 		state.types = [];
@@ -383,59 +391,66 @@ describe("optional first account", () => {
 		).toBeEnabled();
 	});
 
-	it.each([
-		false,
-		true,
-	])("creates a custom liability type and handles failure=%s", async (failure) => {
-		if (failure) {
-			state.createType.mockRejectedValue(new Error("duplicate"));
-		}
-		const user = userEvent.setup();
-		render(<AccountsPage />);
-		await user.click(screen.getByRole("combobox", { name: "Account type" }));
-		await user.click(screen.getByRole("option", { name: "Add account type" }));
-		const dialog = screen.getByRole("dialog");
-		await user.click(
-			within(dialog).getByRole("button", {
-				name: "Add account type",
-			})
-		);
-		expect(within(dialog).getByRole("alert")).toHaveTextContent("Enter a name");
-		await user.type(within(dialog).getByLabelText("Account type name"), "Loan");
-		await user.click(
-			within(dialog).getByRole("combobox", { name: "Balance treatment" })
-		);
-		await user.click(screen.getByRole("option", { name: "Money owed" }));
-		await user.click(
-			within(dialog).getByRole("button", {
-				name: "Add account type",
-			})
-		);
-		expect(state.createType).toHaveBeenCalledWith({
-			name: "Loan",
-			balanceNature: "liability",
-		});
-		if (failure) {
-			expect(await screen.findByRole("alert")).toHaveTextContent(
-				"different name"
+	it.each([false, true])(
+		"creates a custom liability type and handles failure=%s",
+		async (failure) => {
+			if (failure) {
+				state.createType.mockRejectedValue(new Error("duplicate"));
+			}
+			const user = userEvent.setup();
+			render(<AccountsPage />);
+			await user.click(screen.getByRole("combobox", { name: "Account type" }));
+			await user.click(
+				screen.getByRole("option", { name: "Add account type" })
 			);
-			await user.keyboard("{Escape}");
-		} else {
-			await waitFor(() =>
-				expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+			const dialog = screen.getByRole("dialog");
+			await user.click(
+				within(dialog).getByRole("button", {
+					name: "Add account type",
+				})
 			);
-			expect(
-				screen.getByRole("combobox", { name: "Account type" })
-			).toHaveTextContent("Loan");
+			expect(within(dialog).getByRole("alert")).toHaveTextContent(
+				"Enter a name"
+			);
+			await user.type(
+				within(dialog).getByLabelText("Account type name"),
+				"Loan"
+			);
+			await user.click(
+				within(dialog).getByRole("combobox", { name: "Balance treatment" })
+			);
+			await user.click(screen.getByRole("option", { name: "Money owed" }));
+			await user.click(
+				within(dialog).getByRole("button", {
+					name: "Add account type",
+				})
+			);
+			expect(state.createType).toHaveBeenCalledWith({
+				balanceNature: "liability",
+				name: "Loan",
+			});
+			if (failure) {
+				expect(await screen.findByRole("alert")).toHaveTextContent(
+					"different name"
+				);
+				await user.keyboard("{Escape}");
+			} else {
+				await waitFor(() =>
+					expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+				);
+				expect(
+					screen.getByRole("combobox", { name: "Account type" })
+				).toHaveTextContent("Loan");
+			}
 		}
-	});
+	);
 
 	it("does not restart account setup after completion", () => {
 		state.onboarding = {
 			currency: "USD",
+			cycle,
 			path: "free",
 			step: "complete",
-			cycle,
 		};
 		render(<AccountsPage />);
 		expect(state.router.replace).toHaveBeenCalledWith("/dashboard");
@@ -445,84 +460,81 @@ describe("optional first account", () => {
 describe("setup progress and reminders", () => {
 	it.each([
 		{
-			pathname: "/onboarding/start",
-			path: null,
+			back: null,
 			cycle: null,
 			label: "Step 1 of 3",
-			back: null,
+			path: null,
+			pathname: "/onboarding/start",
 		},
 		{
-			pathname: "/onboarding/cycle",
-			path: "free",
+			back: "/onboarding/start",
 			cycle: null,
 			label: "Step 2 of 3",
-			back: "/onboarding/start",
+			path: "free",
+			pathname: "/onboarding/cycle",
 		},
 		{
-			pathname: "/onboarding/categories",
-			path: "plan",
+			back: "/onboarding/cycle?mode=plan&cycleId=cycle",
 			cycle,
 			label: "Step 3 of 4",
-			back: "/onboarding/cycle?mode=plan&cycleId=cycle",
+			path: "plan",
+			pathname: "/onboarding/categories",
 		},
 		{
-			pathname: "/onboarding/categories",
-			path: "plan",
+			back: "/onboarding/cycle?mode=plan",
 			cycle: null,
 			label: "Step 3 of 4",
-			back: "/onboarding/cycle?mode=plan",
+			path: "plan",
+			pathname: "/onboarding/categories",
 		},
 		{
-			pathname: "/onboarding/accounts",
-			path: "free",
+			back: "/onboarding/cycle?mode=free&cycleId=cycle",
 			cycle,
 			label: "Step 3 of 3",
-			back: "/onboarding/cycle?mode=free&cycleId=cycle",
+			path: "free",
+			pathname: "/onboarding/accounts",
 		},
 		{
-			pathname: "/onboarding/accounts",
-			path: "plan",
+			back: "/onboarding/categories?cycleId=cycle",
 			cycle,
 			label: "Step 4 of 4",
-			back: "/onboarding/categories?cycleId=cycle",
+			path: "plan",
+			pathname: "/onboarding/accounts",
 		},
 		{
-			pathname: "/onboarding/accounts",
-			path: "plan",
+			back: "/onboarding/categories",
 			cycle: null,
 			label: "Step 4 of 4",
-			back: "/onboarding/categories",
+			path: "plan",
+			pathname: "/onboarding/accounts",
 		},
-	])("shows the right progress and back destination for $pathname %#", ({
-		pathname,
-		path,
-		cycle: setupCycle,
-		label,
-		back,
-	}) => {
-		state.pathname = pathname;
-		state.onboarding = { path, cycle: setupCycle };
-		render(
-			<OnboardingShell>
-				<OnboardingStepControls>
-					<button type="button">Continue</button>
-				</OnboardingStepControls>
-			</OnboardingShell>
-		);
-		expect(
-			screen.getByRole("progressbar", { name: label })
-		).toBeInTheDocument();
-		if (back) {
-			expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute(
-				"href",
-				back
+	])(
+		"shows the right progress and back destination for $pathname %#",
+		({ pathname, path, cycle: setupCycle, label, back }) => {
+			state.pathname = pathname;
+			state.onboarding = { cycle: setupCycle, path };
+			render(
+				<OnboardingShell>
+					<OnboardingStepControls>
+						<button type="button">Continue</button>
+					</OnboardingStepControls>
+				</OnboardingShell>
 			);
-		} else {
 			expect(
-				screen.queryByRole("link", { name: "Back" })
-			).not.toBeInTheDocument();
+				screen.getByRole("progressbar", { name: label })
+			).toBeInTheDocument();
+			if (back) {
+				expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute(
+					"href",
+					back
+				);
+			} else {
+				expect(
+					screen.queryByRole("link", { name: "Back" })
+				).not.toBeInTheDocument();
+			}
 		}
-	});
+	);
 
 	it.each([
 		undefined,
@@ -535,39 +547,41 @@ describe("setup progress and reminders", () => {
 		expect(container).toBeEmptyDOMElement();
 	});
 
-	it.each([
-		"categories",
-		"account",
-	])("resumes the unfinished %s setup stage", (step) => {
-		state.onboarding = { path: "plan", cycle, step };
-		render(<OnboardingResumeCard />);
-		expect(screen.getByRole("link", { name: "Resume setup" })).toHaveAttribute(
-			"href",
-			`/onboarding/${step === "account" ? "accounts" : step}?cycleId=cycle`
-		);
-	});
+	it.each(["categories", "account"])(
+		"resumes the unfinished %s setup stage",
+		(step) => {
+			state.onboarding = { cycle, path: "plan", step };
+			render(<OnboardingResumeCard />);
+			expect(
+				screen.getByRole("link", { name: "Resume setup" })
+			).toHaveAttribute(
+				"href",
+				`/onboarding/${step === "account" ? "accounts" : step}?cycleId=cycle`
+			);
+		}
+	);
 
-	it.each([
-		false,
-		true,
-	])("dismisses an optional account reminder with retry on failure=%s", async (failure) => {
-		if (failure) {
-			state.dismiss.mockRejectedValue(new Error("offline"));
+	it.each([false, true])(
+		"dismisses an optional account reminder with retry on failure=%s",
+		async (failure) => {
+			if (failure) {
+				state.dismiss.mockRejectedValue(new Error("offline"));
+			}
+			render(<AccountOnboardingNudge />);
+			expect(screen.getByRole("link", { name: "Add account" })).toHaveAttribute(
+				"href",
+				"/accounts/new"
+			);
+			await userEvent
+				.setup()
+				.click(screen.getByRole("button", { name: "Not now" }));
+			expect(state.dismiss).toHaveBeenCalledWith({});
+			if (failure) {
+				expect(state.toastError).toHaveBeenCalled();
+				expect(screen.getByRole("button", { name: "Not now" })).toBeEnabled();
+			} else {
+				expect(screen.getByRole("button", { name: "Not now" })).toBeDisabled();
+			}
 		}
-		render(<AccountOnboardingNudge />);
-		expect(screen.getByRole("link", { name: "Add account" })).toHaveAttribute(
-			"href",
-			"/accounts/new"
-		);
-		await userEvent
-			.setup()
-			.click(screen.getByRole("button", { name: "Not now" }));
-		expect(state.dismiss).toHaveBeenCalledWith({});
-		if (failure) {
-			expect(state.toastError).toHaveBeenCalled();
-			expect(screen.getByRole("button", { name: "Not now" })).toBeEnabled();
-		} else {
-			expect(screen.getByRole("button", { name: "Not now" })).toBeDisabled();
-		}
-	});
+	);
 });

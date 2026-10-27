@@ -3,11 +3,11 @@
 import { cn } from "@/lib/utils";
 
 interface EmptyStateProps {
-	icon?: React.ReactNode;
-	title: string;
-	description?: string;
 	action?: React.ReactNode;
 	className?: string;
+	description?: string;
+	icon?: React.ReactNode;
+	title: string;
 }
 
 export function EmptyState({
@@ -24,14 +24,16 @@ export function EmptyState({
 				className
 			)}
 		>
-			{icon && <div className="mb-4 text-muted-foreground">{icon}</div>}
+			{Boolean(icon) && (
+				<div className="mb-4 text-muted-foreground">{icon}</div>
+			)}
 			<h3 className="mb-2 font-semibold text-lg">{title}</h3>
-			{description && (
+			{Boolean(description) && (
 				<p className="mb-4 max-w-sm text-muted-foreground text-sm">
 					{description}
 				</p>
 			)}
-			{action && <div>{action}</div>}
+			{Boolean(action) && <div>{action}</div>}
 		</div>
 	);
 }

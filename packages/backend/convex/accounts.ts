@@ -27,10 +27,17 @@ import { actionSourceValidator } from "./domain/actionSource";
 import { getCurrentUser, validateAccountOwnership } from "./helpers";
 
 const accountTransactionValidator = v.object({
-	_id: v.id("account_transactions"),
 	_creationTime: v.number(),
-	userId: v.id("users"),
+	_id: v.id("account_transactions"),
 	accountId: v.id("accounts"),
+	amount: v.number(),
+	balanceAfter: v.number(),
+	createdAt: v.number(),
+	date: v.string(),
+	expenseId: v.optional(v.id("expenses")),
+	note: v.optional(v.string()),
+	source: v.optional(actionSourceValidator),
+	transferId: v.optional(v.id("account_transfers")),
 	type: v.union(
 		v.literal("opening_balance"),
 		v.literal("expense"),
@@ -38,27 +45,20 @@ const accountTransactionValidator = v.object({
 		v.literal("transfer_in"),
 		v.literal("transfer_out")
 	),
-	amount: v.number(),
-	balanceAfter: v.number(),
-	date: v.string(),
-	note: v.optional(v.string()),
-	expenseId: v.optional(v.id("expenses")),
-	transferId: v.optional(v.id("account_transfers")),
-	createdAt: v.number(),
-	source: v.optional(actionSourceValidator),
+	userId: v.id("users"),
 });
 
 const accountDocumentFields = {
-	_id: v.id("accounts"),
 	_creationTime: v.number(),
+	_id: v.id("accounts"),
 	accountTypeId: v.id("account_types"),
 	createdAt: v.number(),
 	createdSource: v.optional(actionSourceValidator),
 	currency: v.optional(v.string()),
 	currentBalance: v.number(),
 	isArchived: v.optional(v.boolean()),
-	name: v.string(),
 	lastModifiedSource: v.optional(actionSourceValidator),
+	name: v.string(),
 	revision: v.optional(v.number()),
 	startingBalance: v.number(),
 	updatedAt: v.optional(v.number()),
@@ -71,14 +71,14 @@ const resolvedAccountValidator = v.object({
 });
 
 const accountTransferValidator = v.object({
-	_id: v.id("account_transfers"),
 	_creationTime: v.number(),
+	_id: v.id("account_transfers"),
 	amount: v.number(),
 	createdAt: v.number(),
-	source: v.optional(actionSourceValidator),
 	date: v.string(),
 	fromAccountId: v.id("accounts"),
 	note: v.optional(v.string()),
+	source: v.optional(actionSourceValidator),
 	toAccountId: v.id("accounts"),
 	userId: v.id("users"),
 });
@@ -110,7 +110,6 @@ export const list = query({
 	args: {
 		includeArchived: v.optional(v.boolean()),
 	},
-	returns: v.array(resolvedAccountValidator),
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const accounts = await ctx.db
@@ -135,37 +134,11 @@ export const list = query({
 			sortedAccounts.map((account) => resolveAccount(ctx, account, user._id))
 		);
 	},
+	returns: v.array(resolvedAccountValidator),
 });
 
 export const getSummary = query({
 	args: {},
-	returns: v.object({
-		accountsOnboardingStatus: v.optional(
-			v.union(
-				v.literal("pending"),
-				v.literal("skipped"),
-				v.literal("completed")
-			)
-		),
-		accounts: v.array(
-			v.object({
-				_id: v.id("accounts"),
-				name: v.string(),
-				accountTypeId: v.id("account_types"),
-				...resolvedAccountTypeFields,
-				currentBalance: v.number(),
-				currency: v.string(),
-				isDefault: v.boolean(),
-			})
-		),
-		hasMoreAccounts: v.boolean(),
-		totals: v.array(
-			v.object({
-				currency: v.string(),
-				total: v.number(),
-			})
-		),
-	}),
 	handler: async (ctx) => {
 		const user = await getCurrentUser(ctx);
 		const [currentActiveAccounts, legacyActiveAccounts] = await Promise.all([
@@ -188,12 +161,12 @@ export const getSummary = query({
 			.slice(0, MAX_DASHBOARD_ACCOUNTS)
 			.map((account) => ({
 				_id: account._id,
-				name: account.name,
 				accountTypeId: account.accountTypeId,
-				currentBalance: account.currentBalance,
 				currency:
 					normalizeCurrencyCode(account.currency ?? user.currency) ?? "USD",
+				currentBalance: account.currentBalance,
 				isDefault: user.defaultAccountId === account._id,
+				name: account.name,
 			}))
 			.sort((a, b) => a.name.localeCompare(b.name));
 		const activeAccounts = await Promise.all(
@@ -216,8 +189,8 @@ export const getSummary = query({
 		}
 
 		return {
-			accountsOnboardingStatus: user.accountsOnboardingStatus,
 			accounts: activeAccounts,
+			accountsOnboardingStatus: user.accountsOnboardingStatus,
 			hasMoreAccounts,
 			totals: Array.from(totalsByCurrency, ([currency, total]) => ({
 				currency,
@@ -225,11 +198,37 @@ export const getSummary = query({
 			})).sort((a, b) => a.currency.localeCompare(b.currency)),
 		};
 	},
+	returns: v.object({
+		accounts: v.array(
+			v.object({
+				_id: v.id("accounts"),
+				accountTypeId: v.id("account_types"),
+				name: v.string(),
+				...resolvedAccountTypeFields,
+				currency: v.string(),
+				currentBalance: v.number(),
+				isDefault: v.boolean(),
+			})
+		),
+		accountsOnboardingStatus: v.optional(
+			v.union(
+				v.literal("pending"),
+				v.literal("skipped"),
+				v.literal("completed")
+			)
+		),
+		hasMoreAccounts: v.boolean(),
+		totals: v.array(
+			v.object({
+				currency: v.string(),
+				total: v.number(),
+			})
+		),
+	}),
 });
 
 export const get = query({
 	args: { accountId: v.id("accounts") },
-	returns: resolvedAccountValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const account = await validateAccountOwnership(
@@ -239,16 +238,16 @@ export const get = query({
 		);
 		return await resolveAccount(ctx, account, user._id);
 	},
+	returns: resolvedAccountValidator,
 });
 
 export const create = mutation({
 	args: {
-		name: v.string(),
 		accountTypeId: v.id("account_types"),
-		startingBalance: v.number(),
 		currency: v.optional(v.string()),
+		name: v.string(),
+		startingBalance: v.number(),
 	},
-	returns: resolvedAccountValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const prepared = await prepareAccountCreate(ctx, { ...args, user });
@@ -259,16 +258,16 @@ export const create = mutation({
 		});
 		return await resolveAccount(ctx, account, user._id);
 	},
+	returns: resolvedAccountValidator,
 });
 
 export const update = mutation({
 	args: {
 		accountId: v.id("accounts"),
-		name: v.optional(v.string()),
 		accountTypeId: v.optional(v.id("account_types")),
 		currency: v.optional(v.string()),
+		name: v.optional(v.string()),
 	},
-	returns: resolvedAccountValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const account = await commitAccountUpdate(ctx, {
@@ -279,6 +278,7 @@ export const update = mutation({
 		});
 		return await resolveAccount(ctx, account, user._id);
 	},
+	returns: resolvedAccountValidator,
 });
 
 export const createOnboardingAccount = mutation({
@@ -287,7 +287,6 @@ export const createOnboardingAccount = mutation({
 		name: v.string(),
 		openingBalance: v.number(),
 	},
-	returns: v.id("accounts"),
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		if (!user.onboardingCycleId) {
@@ -319,6 +318,7 @@ export const createOnboardingAccount = mutation({
 
 		return account._id;
 	},
+	returns: v.id("accounts"),
 });
 
 export const archive = mutation({
@@ -326,7 +326,6 @@ export const archive = mutation({
 		accountId: v.id("accounts"),
 		isArchived: v.boolean(),
 	},
-	returns: resolvedAccountValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const account = await commitAccountArchive(ctx, {
@@ -336,37 +335,33 @@ export const archive = mutation({
 		});
 		return await resolveAccount(ctx, account, user._id);
 	},
+	returns: resolvedAccountValidator,
 });
 
 export const updateBalance = mutation({
 	args: {
 		accountId: v.id("accounts"),
-		newBalance: v.number(),
 		date: v.optional(v.string()),
+		newBalance: v.number(),
 		note: v.optional(v.string()),
 	},
-	returns: resolvedAccountValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const prepared = await prepareBalanceAdjustment(ctx, { ...args, user });
 		const { account } = await commitBalanceAdjustment(ctx, prepared, "web");
 		return await resolveAccount(ctx, account, user._id);
 	},
+	returns: resolvedAccountValidator,
 });
 
 export const transfer = mutation({
 	args: {
-		fromAccountId: v.id("accounts"),
-		toAccountId: v.id("accounts"),
 		amount: v.number(),
 		date: v.optional(v.string()),
+		fromAccountId: v.id("accounts"),
 		note: v.optional(v.string()),
+		toAccountId: v.id("accounts"),
 	},
-	returns: v.object({
-		fromAccount: resolvedAccountValidator,
-		toAccount: resolvedAccountValidator,
-		transfer: accountTransferValidator,
-	}),
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const prepared = await prepareTransfer(ctx, { ...args, user });
@@ -377,6 +372,11 @@ export const transfer = mutation({
 			transfer: result.transfer,
 		};
 	},
+	returns: v.object({
+		fromAccount: resolvedAccountValidator,
+		toAccount: resolvedAccountValidator,
+		transfer: accountTransferValidator,
+	}),
 });
 
 export const listTransactions = query({
@@ -384,7 +384,6 @@ export const listTransactions = query({
 		accountId: v.optional(v.id("accounts")),
 		limit: v.optional(v.number()),
 	},
-	returns: v.array(accountTransactionValidator),
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const limit = normalizeResultLimit(args.limit, 100);
@@ -405,6 +404,7 @@ export const listTransactions = query({
 			.order("desc")
 			.take(limit);
 	},
+	returns: v.array(accountTransactionValidator),
 });
 
 export const listTransactionsPaginated = query({
@@ -412,7 +412,6 @@ export const listTransactionsPaginated = query({
 		accountId: v.id("accounts"),
 		paginationOpts: paginationOptsValidator,
 	},
-	returns: paginationResultValidator(accountTransactionValidator),
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		await validateAccountOwnership(ctx, args.accountId, user._id);
@@ -422,4 +421,5 @@ export const listTransactionsPaginated = query({
 			.order("desc")
 			.paginate(args.paginationOpts);
 	},
+	returns: paginationResultValidator(accountTransactionValidator),
 });

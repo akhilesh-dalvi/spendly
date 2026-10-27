@@ -16,12 +16,12 @@ const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
 const packageMetadata = JSON.parse(readFileSync(packagePath, "utf8"));
 const generationManifest = {
-	name: packageMetadata.name,
-	version: packageMetadata.version,
-	private: true,
-	license: packageMetadata.license,
-	engines: packageMetadata.engines,
 	dependencies: packageMetadata.dependencies,
+	engines: packageMetadata.engines,
+	license: packageMetadata.license,
+	name: packageMetadata.name,
+	private: true,
+	version: packageMetadata.version,
 };
 
 try {

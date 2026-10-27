@@ -1,3 +1,4 @@
+import { repeatAsync } from "../async-iteration.js";
 import type { BackendCommandContext } from "../client/convex-client.js";
 import { parseDate } from "../domain/dates.js";
 import {
@@ -203,11 +204,11 @@ export const selectAccount = async (options: {
 		options: choices,
 		searchable: choices.length > 8,
 	});
-	const account = eligible.find((candidate) => candidate.id === id);
-	if (!account) {
+	const selected = eligible.find((candidate) => candidate.id === id);
+	if (!selected) {
 		throw new CliError("INTERNAL_ERROR", "Selected account was not found");
 	}
-	return account;
+	return selected;
 };
 
 export const selectAccountType = async (options: {
@@ -235,11 +236,11 @@ export const selectAccountType = async (options: {
 		message: options.message,
 		options: choices,
 	});
-	const accountType = accountTypes.find((candidate) => candidate.id === id);
-	if (!accountType) {
+	const selected = accountTypes.find((candidate) => candidate.id === id);
+	if (!selected) {
 		throw new CliError("INTERNAL_ERROR", "Selected account type was not found");
 	}
-	return accountType;
+	return selected;
 };
 
 export const selectCycle = async (options: {
@@ -266,11 +267,11 @@ export const selectCycle = async (options: {
 		options: choices,
 		searchable: choices.length > 8,
 	});
-	const cycle = cycles.find((candidate) => candidate.id === id);
-	if (!cycle) {
+	const selected = cycles.find((candidate) => candidate.id === id);
+	if (!selected) {
 		throw new CliError("INTERNAL_ERROR", "Selected cycle was not found");
 	}
-	return cycle;
+	return selected;
 };
 
 export const listVisibleCategories = async (
@@ -331,13 +332,14 @@ export const selectExpenseId = async (options: {
 	prompter: InteractivePrompter;
 }): Promise<string> => {
 	let cursor: string | undefined;
-	for (;;) {
-		const page = await queryParsed(
+	for await (const page of repeatAsync(() =>
+		queryParsed(
 			options.context,
 			"expenses.list",
 			{ cursor, limit: PROMPT_PAGE_SIZE },
 			expensePageSchema
-		);
+		)
+	)) {
 		if (page.items.length === 0 && cursor === undefined) {
 			throw new CliError("RESOURCE_NOT_FOUND", "No expenses are available");
 		}
@@ -364,6 +366,7 @@ export const selectExpenseId = async (options: {
 		}
 		return selected;
 	}
+	throw new CliError("INTERNAL_ERROR", "Expense selection ended unexpectedly");
 };
 
 export const confirmMutation = async (options: {

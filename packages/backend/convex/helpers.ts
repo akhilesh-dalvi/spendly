@@ -121,17 +121,17 @@ export async function applyAccountBalanceChange(
 	});
 
 	return await ctx.db.insert("account_transactions", {
-		userId: args.userId,
 		accountId: args.accountId,
-		type: args.type,
 		amount: args.amount,
 		balanceAfter,
-		date: args.date,
-		note: args.note,
-		expenseId: args.expenseId,
-		transferId: args.transferId,
 		createdAt: Date.now(),
+		date: args.date,
+		expenseId: args.expenseId,
+		note: args.note,
 		source: args.source,
+		transferId: args.transferId,
+		type: args.type,
+		userId: args.userId,
 	});
 }
 

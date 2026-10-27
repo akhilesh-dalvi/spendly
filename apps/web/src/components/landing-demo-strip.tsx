@@ -11,66 +11,66 @@ import {
 } from "@/components/ui/dialog";
 
 interface StorySection {
-	eyebrow: string;
-	title: string;
 	description: string;
-	screenshot: string;
-	lightScreenshot: string;
-	screenshotAlt: string;
-	width: number;
+	eyebrow: string;
 	height: number;
+	lightScreenshot: string;
+	screenshot: string;
+	screenshotAlt: string;
+	title: string;
+	width: number;
 }
 
 const storySections = [
 	{
-		eyebrow: "Daily flow",
-		title: "Quick capture, calm history",
 		description:
 			"Add amount, category, date, tags, and notes in seconds. Come back to a clean, readable history instead of a cluttered log.",
-		screenshot: "/images/marketing/app-screenshots/add-expense.png",
+		eyebrow: "Daily flow",
+		height: 1548,
 		lightScreenshot: "/images/marketing/app-screenshots/add-expense-light.png",
+		screenshot: "/images/marketing/app-screenshots/add-expense.png",
 		screenshotAlt:
 			"Spendly expense entry form showing quick capture with category, date, tags, and notes fields",
+		title: "Quick capture, calm history",
 		width: 2938,
-		height: 1548,
 	},
 	{
-		eyebrow: "Expense history",
-		title: "Every expense stays easy to scan",
 		description:
 			"Review entries in a clean list with the details that matter, so edits, follow-ups, and quick checks never feel buried.",
-		screenshot: "/images/marketing/app-screenshots/expenses.png",
+		eyebrow: "Expense history",
+		height: 1956,
 		lightScreenshot: "/images/marketing/app-screenshots/expenses-light.png",
+		screenshot: "/images/marketing/app-screenshots/expenses.png",
 		screenshotAlt:
 			"Spendly expenses view showing a clear list of transactions with categories, dates, and amounts",
+		title: "Every expense stays easy to scan",
 		width: 2938,
-		height: 1956,
 	},
 	{
-		eyebrow: "Cycle clarity",
-		title: "Your schedule, not a forced month",
 		description:
 			"Track pay periods, projects, semesters, or travel windows. Compare cycles when you want insight, not pressure.",
-		screenshot: "/images/marketing/app-screenshots/compare-cycles.png",
+		eyebrow: "Cycle clarity",
+		height: 4296,
 		lightScreenshot:
 			"/images/marketing/app-screenshots/compare-cycles-light.png",
+		screenshot: "/images/marketing/app-screenshots/compare-cycles.png",
 		screenshotAlt:
 			"Spendly cycle comparison view showing spending across multiple custom time periods",
+		title: "Your schedule, not a forced month",
 		width: 2938,
-		height: 4296,
 	},
 	{
-		eyebrow: "Dashboard insight",
-		title: "A dashboard that keeps the picture clear",
 		description:
 			"See totals, comparisons, and recent activity in one place so you always know where things stand without digging through entries.",
-		screenshot: "/images/marketing/app-screenshots/dashboard-overview-mar.png",
+		eyebrow: "Dashboard insight",
+		height: 2712,
 		lightScreenshot:
 			"/images/marketing/app-screenshots/dashboard-overview-mar-light.png",
+		screenshot: "/images/marketing/app-screenshots/dashboard-overview-mar.png",
 		screenshotAlt:
 			"Spendly dashboard overview showing totals, cycle comparisons, charts, and recent activity",
+		title: "A dashboard that keeps the picture clear",
 		width: 2938,
-		height: 2712,
 	},
 ] as const satisfies readonly StorySection[];
 

@@ -104,7 +104,7 @@ export const verifyReleaseArtifact = (
 			shrinkwrap.packages?.[""]?.license === metadata.license,
 		"Candidate shrinkwrap identity mismatch"
 	);
-	return { version, commit, tarball, hash };
+	return { commit, hash, tarball, version };
 };
 
 if (

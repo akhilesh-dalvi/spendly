@@ -13,15 +13,14 @@ import TagsPage from "./tags/page";
 import TypesPage from "./types/page";
 
 const state = vi.hoisted(() => ({
-	data: undefined as unknown,
 	create: vi.fn(),
-	update: vi.fn(),
+	data: undefined as unknown,
+	error: vi.fn(),
 	remove: vi.fn(),
 	success: vi.fn(),
-	error: vi.fn(),
+	update: vi.fn(),
 }));
 vi.mock("convex/react", () => ({
-	useQuery: () => state.data,
 	useMutation: (reference: FunctionReference<"mutation">) => {
 		const name = getFunctionName(reference);
 		if (name.endsWith("create") || name.endsWith("createType")) {
@@ -32,67 +31,68 @@ vi.mock("convex/react", () => ({
 		}
 		return state.remove;
 	},
+	useQuery: () => state.data,
 }));
 vi.mock("sonner", () => ({
-	toast: { success: state.success, error: state.error },
+	toast: { error: state.error, success: state.success },
 }));
 
 const resources = [
 	{
-		label: "tags",
-		Page: TagsPage,
-		heading: "Tags",
-		newButton: "New Tag",
 		createButton: "Create Tag",
-		nameLabel: "Tag Name",
-		search: "Search tags...",
-		empty: "No tags found",
-		noMatch: "No matching tags",
-		suggestion: "Work",
-		createSuccess: "Tag created successfully",
-		idKey: "tagId",
 		createError: "Failed to create tag",
-		editError: "Failed to update tag",
+		createSuccess: "Tag created successfully",
 		deleteError: "Failed to delete tag",
+		editError: "Failed to update tag",
+		empty: "No tags found",
+		heading: "Tags",
+		idKey: "tagId",
+		label: "tags",
+		nameLabel: "Tag Name",
+		newButton: "New Tag",
+		noMatch: "No matching tags",
+		Page: TagsPage,
+		search: "Search tags...",
+		suggestion: "Work",
 	},
 	{
-		label: "types",
-		Page: TypesPage,
-		heading: "Category Types",
-		newButton: "New Type",
 		createButton: "Create Type",
-		nameLabel: "Type Name",
-		search: "Search types...",
-		empty: "No category types found",
-		noMatch: "No matching types",
-		suggestion: "Savings",
-		createSuccess: "Category type created successfully",
-		idKey: "id",
 		createError: "Failed to create category type",
-		editError: "Failed to update category type",
+		createSuccess: "Category type created successfully",
 		deleteError: "Failed to delete category type",
+		editError: "Failed to update category type",
+		empty: "No category types found",
+		heading: "Category Types",
+		idKey: "id",
+		label: "types",
+		nameLabel: "Type Name",
+		newButton: "New Type",
+		noMatch: "No matching types",
+		Page: TypesPage,
+		search: "Search types...",
+		suggestion: "Savings",
 	},
 ] as const;
 const records = [
 	{
 		_id: "first",
-		name: "Travel",
-		usageCount: 1,
 		color: "#3b82f6",
 		createdAt: Date.UTC(2026, 0, 1),
+		name: "Travel",
+		usageCount: 1,
 	},
 	{
 		_id: "second",
+		createdAt: Date.UTC(2026, 0, 2),
 		name: "Unused",
 		usageCount: 0,
-		createdAt: Date.UTC(2026, 0, 2),
 	},
 	{
 		_id: "third",
-		name: "Recurring",
-		usageCount: 2,
 		color: "invalid",
 		createdAt: Date.UTC(2026, 0, 3),
+		name: "Recurring",
+		usageCount: 2,
 	},
 ];
 
@@ -147,10 +147,13 @@ for (const resource of resources) {
 					selector: "[data-slot=badge]",
 				})
 			).toBeVisible();
-			for (const header of [resource.nameLabel, "Usage", "Created"]) {
-				await user.click(screen.getByRole("button", { name: header }));
-				await user.click(screen.getByRole("button", { name: header }));
-			}
+			const toggleBothDirections = async (name: string) => {
+				await user.click(screen.getByRole("button", { name }));
+				await user.click(screen.getByRole("button", { name }));
+			};
+			await toggleBothDirections(resource.nameLabel);
+			await toggleBothDirections("Usage");
+			await toggleBothDirections("Created");
 			expect(
 				within(screen.getByRole("table")).getAllByRole("row")
 			).toHaveLength(4);
@@ -209,7 +212,7 @@ for (const resource of resources) {
 				expect(state.create).toHaveBeenCalledWith(
 					resource.label === "tags"
 						? { name: "New item" }
-						: { name: "New item", color: "#10b981" }
+						: { color: "#10b981", name: "New item" }
 				)
 			);
 			expect(state.success).toHaveBeenCalledWith(resource.createSuccess);
@@ -221,113 +224,120 @@ for (const resource of resources) {
 			{ unexpected: true },
 			// biome-ignore lint/suspicious/useErrorMessage: Verify the fallback for blank backend messages.
 			new Error(" "),
-		])("keeps creation input available after backend failure %#", async (failure) => {
-			state.create.mockRejectedValue(failure);
-			const user = userEvent.setup();
-			render(<resource.Page />);
-			await user.click(
-				screen.getByRole("button", { name: resource.newButton })
-			);
-			await user.type(screen.getByLabelText(resource.nameLabel), "New item");
-			await user.click(
-				screen.getByRole("button", { name: resource.createButton })
-			);
-			await waitFor(() =>
-				expect(state.error).toHaveBeenCalledWith(
-					failure instanceof Error && failure.message.trim()
-						? "Name already exists"
-						: resource.createError
-				)
-			);
-			expect(screen.getByLabelText(resource.nameLabel)).toHaveValue("New item");
-			expect(
-				screen.getByRole("button", { name: resource.createButton })
-			).toBeEnabled();
-		});
-
-		it.each([
-			false,
-			true,
-		])("edits an existing row and preserves input on failure=$0", async (failure) => {
-			if (failure) {
-				state.update.mockRejectedValue({ unexpected: true });
-			}
-			const user = userEvent.setup();
-			render(<resource.Page />);
-			const row = within(screen.getByRole("table"))
-				.getByText("Unused", { selector: "[data-slot=badge]" })
-				.closest("tr");
-			if (!row) {
-				throw new Error("Expected item row");
-			}
-			await user.click(within(row).getByRole("button"));
-			await user.click(screen.getByRole("menuitem", { name: "Edit" }));
-			const input = screen.getByLabelText(resource.nameLabel);
-			await user.clear(input);
-			expect(
-				screen.getByRole("button", { name: "Save Changes" })
-			).toBeDisabled();
-			fireEvent.submit(input.closest("form") ?? input);
-			expect(state.update).not.toHaveBeenCalled();
-			await user.type(input, "  Renamed  ");
-			if (resource.label === "types") {
-				fireEvent.change(screen.getByLabelText("Color"), {
-					target: { value: "#ef4444" },
-				});
-			}
-			await user.click(screen.getByRole("button", { name: "Save Changes" }));
-			await waitFor(() =>
-				expect(state.update).toHaveBeenCalledWith(
-					expect.objectContaining({
-						[resource.idKey]: "second",
-						name: "Renamed",
-					})
-				)
-			);
-			if (failure) {
-				expect(state.error).toHaveBeenCalledWith(resource.editError);
-				expect(input).toHaveValue("  Renamed  ");
-				await user.keyboard("{Escape}");
-			} else {
-				expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-			}
-		});
-
-		it.each([
-			false,
-			true,
-		])("deletes the intended row and handles failure=$0", async (failure) => {
-			if (failure) {
-				state.remove.mockRejectedValue({ unexpected: true });
-			}
-			const user = userEvent.setup();
-			render(<resource.Page />);
-			const row = within(screen.getByRole("table"))
-				.getByText("Travel")
-				.closest("tr");
-			if (!row) {
-				throw new Error("Expected item row");
-			}
-			await user.click(within(row).getByRole("button"));
-			await user.click(screen.getByRole("menuitem", { name: "Delete" }));
-			if (resource.label === "types") {
-				expect(screen.getByRole("alertdialog")).toHaveTextContent(
-					"used by 1 category"
-				);
+		])(
+			"keeps creation input available after backend failure %#",
+			async (failure) => {
+				state.create.mockRejectedValue(failure);
+				const user = userEvent.setup();
+				render(<resource.Page />);
 				await user.click(
-					within(screen.getByRole("alertdialog")).getByRole("button", {
-						name: "Delete",
+					screen.getByRole("button", { name: resource.newButton })
+				);
+				await user.type(screen.getByLabelText(resource.nameLabel), "New item");
+				await user.click(
+					screen.getByRole("button", { name: resource.createButton })
+				);
+				await waitFor(() =>
+					expect(state.error).toHaveBeenCalledWith(
+						failure instanceof Error && failure.message.trim()
+							? "Name already exists"
+							: resource.createError
+					)
+				);
+				expect(screen.getByLabelText(resource.nameLabel)).toHaveValue(
+					"New item"
+				);
+				expect(
+					screen.getByRole("button", { name: resource.createButton })
+				).toBeEnabled();
+			}
+		);
+
+		it.each([false, true])(
+			"edits an existing row and preserves input on failure=$0",
+			async (failure) => {
+				if (failure) {
+					state.update.mockRejectedValue({ unexpected: true });
+				}
+				const user = userEvent.setup();
+				render(<resource.Page />);
+				const row = within(screen.getByRole("table"))
+					.getByText("Unused", { selector: "[data-slot=badge]" })
+					.closest("tr");
+				if (!row) {
+					throw new Error("Expected item row");
+				}
+				await user.click(within(row).getByRole("button"));
+				await user.click(screen.getByRole("menuitem", { name: "Edit" }));
+				const input = screen.getByLabelText(resource.nameLabel);
+				await user.clear(input);
+				expect(
+					screen.getByRole("button", { name: "Save Changes" })
+				).toBeDisabled();
+				fireEvent.submit(input.closest("form") ?? input);
+				expect(state.update).not.toHaveBeenCalled();
+				await user.type(input, "  Renamed  ");
+				if (resource.label === "types") {
+					fireEvent.change(screen.getByLabelText("Color"), {
+						target: { value: "#ef4444" },
+					});
+				}
+				await user.click(screen.getByRole("button", { name: "Save Changes" }));
+				await waitFor(() =>
+					expect(state.update).toHaveBeenCalledWith(
+						expect.objectContaining({
+							[resource.idKey]: "second",
+							name: "Renamed",
+						})
+					)
+				);
+				if (failure) {
+					expect(state.error).toHaveBeenCalledWith(resource.editError);
+					expect(input).toHaveValue("  Renamed  ");
+					await user.keyboard("{Escape}");
+				} else {
+					expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+				}
+			}
+		);
+
+		it.each([false, true])(
+			"deletes the intended row and handles failure=$0",
+			async (failure) => {
+				if (failure) {
+					state.remove.mockRejectedValue({ unexpected: true });
+				}
+				const user = userEvent.setup();
+				render(<resource.Page />);
+				const row = within(screen.getByRole("table"))
+					.getByText("Travel")
+					.closest("tr");
+				if (!row) {
+					throw new Error("Expected item row");
+				}
+				await user.click(within(row).getByRole("button"));
+				await user.click(screen.getByRole("menuitem", { name: "Delete" }));
+				if (resource.label === "types") {
+					expect(screen.getByRole("alertdialog")).toHaveTextContent(
+						"used by 1 category"
+					);
+					await user.click(
+						within(screen.getByRole("alertdialog")).getByRole("button", {
+							name: "Delete",
+						})
+					);
+				}
+				await waitFor(() =>
+					expect(state.remove).toHaveBeenCalledWith({
+						[resource.idKey]: "first",
 					})
 				);
+				if (failure) {
+					expect(state.error).toHaveBeenCalledWith(resource.deleteError);
+				} else {
+					expect(state.success).toHaveBeenCalled();
+				}
 			}
-			await waitFor(() =>
-				expect(state.remove).toHaveBeenCalledWith({ [resource.idKey]: "first" })
-			);
-			if (failure) {
-				expect(state.error).toHaveBeenCalledWith(resource.deleteError);
-			} else {
-				expect(state.success).toHaveBeenCalled();
-			}
-		});
+		);
 	});
 }

@@ -9,35 +9,35 @@ const termsDescription =
 	"Read the basic terms for using Spendly, including acceptable use, account responsibility, availability, and updates.";
 
 export const metadata: Metadata = createMarketingMetadata({
-	title: "Terms of Service",
 	description: termsDescription,
 	path: "/terms",
+	title: "Terms of Service",
 });
 
 const termsSections = [
 	{
-		title: "1. Using Spendly",
 		body: "Spendly is provided to help you track expenses, organize cycles, and review spending data. You agree to use the app lawfully and not interfere with the service or other users.",
+		title: "1. Using Spendly",
 	},
 	{
-		title: "2. Your account and data",
 		body: "You are responsible for the accuracy of the information you add and for keeping access to your account secure. You should not share account access in ways that create risk for you or others.",
+		title: "2. Your account and data",
 	},
 	{
-		title: "3. Availability and changes",
 		body: "The service may evolve over time. Features may be improved, adjusted, or removed as the product develops. Reasonable effort can be made to keep the app available, but uninterrupted service is not guaranteed.",
+		title: "3. Availability and changes",
 	},
 	{
-		title: "4. Responsible use",
 		body: "You may not use Spendly to upload malicious content, attempt unauthorized access, scrape private information, or abuse the product in ways that damage reliability or safety.",
+		title: "4. Responsible use",
 	},
 	{
-		title: "5. No financial advice",
 		body: "Spendly is a tool for organizing and reviewing spending information. It does not provide financial, tax, legal, or investment advice, and you remain responsible for your own decisions.",
+		title: "5. No financial advice",
 	},
 	{
-		title: "6. Updates to these terms",
 		body: "These terms can be updated as the product changes. Continued use of Spendly after material updates means you accept the revised terms.",
+		title: "6. Updates to these terms",
 	},
 ] as const;
 

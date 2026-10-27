@@ -49,12 +49,12 @@ describe("Sentry privacy", () => {
 	it("scrubs trace envelope metadata and retains trusted deployment details", () => {
 		const headers = {
 			trace: {
-				trace_id: "trace-id",
-				public_key: "public-key",
-				sampled: "true",
-				transaction: "GET /accounts/private-id?note=private",
-				release: "private",
 				environment: "private",
+				public_key: "public-key",
+				release: "private",
+				sampled: "true",
+				trace_id: "trace-id",
+				transaction: "GET /accounts/private-id?note=private",
 				user_segment: "private",
 			},
 		};
@@ -64,67 +64,67 @@ describe("Sentry privacy", () => {
 		});
 		expect(JSON.stringify(headers)).not.toContain("private");
 		expect(headers.trace).toEqual({
-			trace_id: "trace-id",
-			public_key: "public-key",
-			sampled: "true",
-			transaction: "/accounts/[id]",
 			environment: "production",
+			public_key: "public-key",
 			release: "commit-sha",
+			sampled: "true",
+			trace_id: "trace-id",
+			transaction: "/accounts/[id]",
 		});
 	});
 	it("removes financial data from every error payload surface while retaining source locations", () => {
 		const sensitive = "Private savings 9876.54 person@example.com";
 		const event: Event = {
-			event_id: "test-event",
-			release: "commit-sha",
-			environment: "production",
-			message: sensitive,
-			logentry: { message: sensitive, params: [sensitive] },
-			user: { email: sensitive, ip_address: "192.0.2.1" },
-			extra: { amount: sensitive },
-			tags: { feature: "accounts", operation: "transfer", account: sensitive },
 			breadcrumbs: [{ message: sensitive }],
-			server_name: sensitive,
-			fingerprint: [sensitive],
-			request: {
-				url: `https://spendly.example/accounts/private-id?note=${sensitive}`,
-				data: sensitive,
-				headers: { Authorization: sensitive },
-				cookies: { session: sensitive },
-			},
 			contexts: {
-				trace: {
-					trace_id: "trace",
-					span_id: "span",
-					data: { note: sensitive },
-				},
 				custom: { note: sensitive },
+				trace: {
+					data: { note: sensitive },
+					span_id: "span",
+					trace_id: "trace",
+				},
 			},
+			environment: "production",
+			event_id: "test-event",
 			exception: {
 				values: [
 					{
-						type: "TypeError",
-						value: sensitive,
 						mechanism: {
-							type: "generic",
-							handled: true,
 							data: { note: sensitive },
+							handled: true,
+							type: "generic",
 						},
 						stacktrace: {
 							frames: [
 								{
+									context_line: sensitive,
 									filename: "/src/expense-form.tsx?token=secret",
 									function: "submitExpense",
 									lineno: 42,
 									vars: { amount: sensitive },
-									context_line: sensitive,
 								},
 							],
 						},
+						type: "TypeError",
+						value: sensitive,
 					},
 				],
 			},
+			extra: { amount: sensitive },
+			fingerprint: [sensitive],
+			logentry: { message: sensitive, params: [sensitive] },
+			message: sensitive,
+			release: "commit-sha",
+			request: {
+				cookies: { session: sensitive },
+				data: sensitive,
+				headers: { Authorization: sensitive },
+				url: `https://spendly.example/accounts/private-id?note=${sensitive}`,
+			},
+			server_name: sensitive,
+			tags: { account: sensitive, feature: "accounts", operation: "transfer" },
 			threads: { values: [{ name: sensitive }] },
+			user: { email: sensitive, ip_address: "192.0.2.1" },
 		};
 		const scrubbed = scrubErrorEvent(event, {
 			originalException: new Error(sensitive),
@@ -133,9 +133,9 @@ describe("Sentry privacy", () => {
 		expect(JSON.stringify(scrubbed)).not.toContain("secret");
 		expect(JSON.stringify(scrubbed)).not.toContain("private-id");
 		expect(scrubbed?.tags).toEqual({
-			surface: "web",
 			feature: "accounts",
 			operation: "transfer",
+			surface: "web",
 		});
 		expect(
 			scrubbed?.exception?.values?.[0]?.stacktrace?.frames?.[0]
@@ -151,8 +151,8 @@ describe("Sentry privacy", () => {
 	it("normalizes dynamic routes and discards user-supplied operation tags", () => {
 		const event = scrubErrorEvent(
 			{
-				transaction: "GET /expenses/private-id?amount=99",
 				tags: { feature: "private account", operation: "private note" },
+				transaction: "GET /expenses/private-id?amount=99",
 			},
 			{}
 		);
@@ -162,52 +162,52 @@ describe("Sentry privacy", () => {
 
 	it("removes sensitive span names, attributes, and link attributes", () => {
 		const span: SentrySpan = {
-			trace_id: "trace",
-			span_id: "span",
-			start_timestamp: 1,
-			end_timestamp: 2,
-			status: "ok",
-			is_segment: true,
-			name: "GET /accounts/private-id?note=private",
 			attributes: {
+				"http.request.body": "private",
 				"sentry.op": "http.server",
 				"sentry.segment.id": "abcdef0123456789",
 				"sentry.segment.name": "/accounts/private-id",
-				"http.request.body": "private",
 				"user.email": "private",
 			},
+			end_timestamp: 2,
+			is_segment: true,
 			links: [
 				{
-					trace_id: "other",
-					span_id: "other",
 					attributes: { note: "private" },
+					span_id: "other",
+					trace_id: "other",
 				},
 			],
+			name: "GET /accounts/private-id?note=private",
+			span_id: "span",
+			start_timestamp: 1,
+			status: "ok",
+			trace_id: "trace",
 		};
 		const scrubbed = scrubSpan(span);
 		expect(JSON.stringify(scrubbed)).not.toContain("private");
 		expect(scrubbed).toMatchObject({
-			name: "/accounts/[id]",
 			attributes: {
 				"sentry.op": "http.server",
 				"sentry.segment.id": "abcdef0123456789",
 				"sentry.segment.name": "/accounts/[id]",
 			},
-			trace_id: "trace",
 			end_timestamp: 2,
+			name: "/accounts/[id]",
+			trace_id: "trace",
 		});
 	});
 
 	it("redacts child span descriptions including outbound URLs", () => {
 		expect(
 			scrubSpan({
-				trace_id: "trace",
+				attributes: { "sentry.op": "http.client" },
+				is_segment: false,
+				name: "https://private.example?token=secret",
 				span_id: "span",
 				start_timestamp: 1,
 				status: "error",
-				is_segment: false,
-				name: "https://private.example?token=secret",
-				attributes: { "sentry.op": "http.client" },
+				trace_id: "trace",
 			}).name
 		).toBe("Spendly http.client");
 	});
@@ -292,7 +292,7 @@ describe("Sentry configuration", () => {
 		const dsn = "https://public@example.com/1";
 		expect(getSentryOptions({ dsn, enabled: true }).enabled).toBe(true);
 		expect(
-			getSentryOptions({ dsn, environment: "production", enabled: false })
+			getSentryOptions({ dsn, enabled: false, environment: "production" })
 				.enabled
 		).toBe(false);
 	});
@@ -300,13 +300,13 @@ describe("Sentry configuration", () => {
 	it("blocks identity and payload collection and discards logs and metrics", () => {
 		const options = getSentryOptions({});
 		expect(options.dataCollection).toMatchObject({
-			userInfo: false,
-			httpBodies: [],
 			cookies: false,
-			httpHeaders: false,
-			urlQueryParams: false,
-			stackFrameVariables: false,
 			genAI: { inputs: false, outputs: false },
+			httpBodies: [],
+			httpHeaders: false,
+			stackFrameVariables: false,
+			urlQueryParams: false,
+			userInfo: false,
 		});
 		expect(options.sampleRate).toBe(1);
 		expect(options.tracesSampleRate).toBe(0.1);
@@ -316,20 +316,20 @@ describe("Sentry configuration", () => {
 				environment: "production",
 				release: "commit-sha",
 			}).beforeSendSpan?.({
-				trace_id: "trace-id",
+				attributes: { "sentry.op": "pageload", "user.email": "private" },
+				is_segment: true,
+				name: "/accounts/private-id",
 				span_id: "span-id",
 				start_timestamp: 1,
 				status: "ok",
-				is_segment: true,
-				name: "/accounts/private-id",
-				attributes: { "sentry.op": "pageload", "user.email": "private" },
+				trace_id: "trace-id",
 			})
 		).toMatchObject({
-			name: "/accounts/[id]",
 			attributes: {
 				"sentry.environment": "production",
 				"sentry.release": "commit-sha",
 			},
+			name: "/accounts/[id]",
 		});
 		expect(
 			options.beforeSendLog?.({

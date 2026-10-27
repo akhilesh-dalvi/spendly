@@ -344,7 +344,7 @@ const connectStdioHarness = async (
 };
 
 afterEach(async () => {
-	for (const harness of openHarnesses.splice(0)) {
+	for await (const harness of openHarnesses.splice(0)) {
 		await harness.client.close();
 		await harness.server.close();
 	}

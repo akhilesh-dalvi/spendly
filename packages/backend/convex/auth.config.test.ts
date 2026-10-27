@@ -10,8 +10,8 @@ const setEnvironment = (
 	const env = new Proxy(
 		{
 			...originalProcess.env,
-			CLERK_JWT_ISSUER_DOMAIN: options.issuer ?? clerkDomain,
 			CLERK_CLI_OAUTH_CLIENT_ID: cliClientId,
+			CLERK_JWT_ISSUER_DOMAIN: options.issuer ?? clerkDomain,
 		},
 		{
 			get(target, property, receiver) {
@@ -36,7 +36,7 @@ describe("Clerk authentication configuration", () => {
 		setEnvironment(undefined);
 		const { default: config } = await import("./auth.config");
 		expect(config.providers).toEqual([
-			{ domain: clerkDomain, applicationID: "convex" },
+			{ applicationID: "convex", domain: clerkDomain },
 		]);
 	});
 
@@ -48,7 +48,7 @@ describe("Clerk authentication configuration", () => {
 		});
 		const { default: config } = await import("./auth.config");
 		expect(config.providers).toEqual([
-			{ domain: clerkDomain, applicationID: "convex" },
+			{ applicationID: "convex", domain: clerkDomain },
 		]);
 	});
 
@@ -62,7 +62,7 @@ describe("Clerk authentication configuration", () => {
 		setEnvironment("approved-public-client-id");
 		const { default: config } = await import("./auth.config");
 		expect(config.providers).toEqual([
-			{ domain: clerkDomain, applicationID: "convex" },
+			{ applicationID: "convex", domain: clerkDomain },
 			{
 				algorithm: "RS256",
 				applicationID: "approved-public-client-id",

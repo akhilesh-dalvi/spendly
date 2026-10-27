@@ -249,7 +249,7 @@ describe("account types", () => {
 			"ACCOUNT_TYPE_ARCHIVED"
 		);
 
-		const defaultAccountType = aliceTypes[0];
+		const [defaultAccountType] = aliceTypes;
 		expect(defaultAccountType).toBeDefined();
 		if (!defaultAccountType) {
 			throw new Error("Expected a default account type");
@@ -288,7 +288,7 @@ describe("account types", () => {
 			0, 1, 2, 3, 4, 5,
 		]);
 
-		const checking = initialTypes[1];
+		const [, checking] = initialTypes;
 		expect(checking).toBeDefined();
 		if (!checking) {
 			throw new Error("Expected the Checking default account type");
@@ -425,16 +425,17 @@ describe("account types", () => {
 			name: "Holiday wallet",
 			startingBalance: 250,
 		});
-		const expenseId = await t.run(async (ctx) => {
-			return await ctx.db.insert("expenses", {
-				accountId: account._id,
-				amount: 30,
-				createdAt: Date.now(),
-				date: "2026-08-17",
-				spentOn: "Museum",
-				userId,
-			});
-		});
+		const expenseId = await t.run(
+			async (ctx) =>
+				await ctx.db.insert("expenses", {
+					accountId: account._id,
+					amount: 30,
+					createdAt: Date.now(),
+					date: "2026-08-17",
+					spentOn: "Museum",
+					userId,
+				})
+		);
 		await client.mutation(api.accountTypes.archive, {
 			accountTypeId: accountType._id,
 			isArchived: true,
@@ -463,7 +464,7 @@ describe("account types", () => {
 		const t = createBackendTest();
 		const { client } = await createAuthenticatedUser(t, "reassignment");
 		const defaultTypes = await client.query(api.accountTypes.list, {});
-		const replacementType = defaultTypes[0];
+		const [replacementType] = defaultTypes;
 		expect(replacementType).toBeDefined();
 		if (!replacementType) {
 			throw new Error("Expected a default replacement account type");
@@ -563,9 +564,9 @@ describe("account types", () => {
 		).toBe(-30);
 
 		await client.mutation(api.expenses.update, {
-			id: expense._id,
 			accountId: destination._id,
 			amount: 15,
+			id: expense._id,
 			spentOn: "Moved expense",
 		});
 		const [sourceAfterMove, destinationAfterMove] = await Promise.all([

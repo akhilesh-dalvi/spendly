@@ -166,16 +166,16 @@
 }
 
 .docs-disclosure {
+	padding-inline: 1rem;
 	margin-block: 0.75rem;
 	border: 1px solid var(--border);
 	border-radius: var(--radius);
-	padding-inline: 1rem;
 }
 
 .docs-disclosure > summary {
-	cursor: pointer;
 	padding-block: 0.75rem;
 	font-weight: 500;
+	cursor: pointer;
 }
 
 .docs-disclosure[open] {

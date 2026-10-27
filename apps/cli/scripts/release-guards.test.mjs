@@ -31,11 +31,11 @@ const createDirectory = () => {
 
 afterEach(() => {
 	for (const directory of temporaryDirectories.splice(0)) {
-		rmSync(directory, { recursive: true, force: true });
+		rmSync(directory, { force: true, recursive: true });
 	}
 });
 
-const createArtifact = (overrides = {}, mutateShrinkwrap = undefined) => {
+const createArtifact = (overrides = {}, mutateShrinkwrap = null) => {
 	const directory = createDirectory();
 	const contents = join(directory, "contents");
 	const packedDirectory = join(contents, "package");
@@ -183,8 +183,8 @@ describe("publication artifact guards", () => {
 	it("rejects development-only entries inside an otherwise verified tarball", () => {
 		const fixture = createArtifact({}, (shrinkwrap) => {
 			shrinkwrap.packages["node_modules/development-only"] = {
-				version: "1.0.0",
 				dev: true,
+				version: "1.0.0",
 			};
 		});
 		expect(() =>
@@ -217,28 +217,28 @@ describe("publication artifact guards", () => {
 const createSourceFixture = () => {
 	const commit = "a".repeat(40);
 	const environment = {
-		GITHUB_REPOSITORY: "akhilesh-dalvi/spendly",
-		GITHUB_REF: "refs/heads/master",
-		GITHUB_SHA: commit,
-		SOURCE_COMMIT: commit,
-		RELEASE_VERSION: "0.1.2",
 		CANDIDATE_RUN: "42",
+		GITHUB_REF: "refs/heads/master",
+		GITHUB_REPOSITORY: "akhilesh-dalvi/spendly",
+		GITHUB_SHA: commit,
+		RELEASE_VERSION: "0.1.2",
+		SOURCE_COMMIT: commit,
 	};
 	const run = {
-		head_sha: commit,
+		conclusion: "success",
+		event: "push",
 		head_branch: "master",
 		head_repository: { full_name: environment.GITHUB_REPOSITORY },
-		event: "push",
+		head_sha: commit,
 		status: "completed",
-		conclusion: "success",
 	};
 	const responses = {
 		"commits/master": { sha: commit },
 		"commits/refs%2Ftags%2Fv0.1.2": { sha: commit },
 		"releases/tags/v0.1.2": {
-			tag_name: "v0.1.2",
-			draft: false,
 			body: "Release notes",
+			draft: false,
+			tag_name: "v0.1.2",
 		},
 		[`actions/workflows/cli-ci.yml/runs?head_sha=${commit}&event=push&status=success&per_page=100`]:
 			{ workflow_runs: [run] },
@@ -254,7 +254,7 @@ const createSourceFixture = () => {
 		}
 		return responses[path];
 	};
-	return { environment, responses, request };
+	return { environment, request, responses };
 };
 
 describe("hosted release identity guards", () => {

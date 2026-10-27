@@ -24,8 +24,8 @@ export const createReleaseTag = async (
 	if (existing === null) {
 		// Create only. Never PATCH, force-push, or delete an existing version tag.
 		const result = await request("git/refs", {
-			method: "POST",
 			body: { ref, sha: commit },
+			method: "POST",
 		});
 		assertRelease(
 			result.ref === ref &&
@@ -43,7 +43,7 @@ export const createReleaseTag = async (
 		taggedCommit.sha === commit,
 		`Tag ${tag} already points to a different commit; choose a new version instead of moving the tag`
 	);
-	return { tag, commit, created };
+	return { commit, created, tag };
 };
 
 if (
@@ -57,15 +57,15 @@ if (
 		const response = await fetch(
 			`https://api.github.com/repos/akhilesh-dalvi/spendly/${path}`,
 			{
-				method: options.method ?? "GET",
+				body:
+					options.body === undefined ? undefined : JSON.stringify(options.body),
 				headers: {
 					Accept: "application/vnd.github+json",
 					Authorization: `Bearer ${process.env.GH_TOKEN}`,
 					"Content-Type": "application/json",
 					"X-GitHub-Api-Version": "2022-11-28",
 				},
-				body:
-					options.body === undefined ? undefined : JSON.stringify(options.body),
+				method: options.method ?? "GET",
 			}
 		);
 		if (options.allowNotFound && response.status === 404) {

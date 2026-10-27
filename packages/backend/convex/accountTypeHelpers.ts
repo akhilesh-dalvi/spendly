@@ -1,7 +1,9 @@
 // biome-ignore-all lint/style/useFilenamingConvention: Convex module paths cannot contain hyphens.
+
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { forEachSequential } from "./lib/async";
 
 export const DEFAULT_ACCOUNT_TYPES = [
 	{
@@ -145,7 +147,7 @@ export const seedDefaultAccountTypes = async (
 	userId: Id<"users">
 ): Promise<SeedDefaultAccountTypesResult> => {
 	const missingDefaults: (typeof DEFAULT_ACCOUNT_TYPES)[number][] = [];
-	for (const defaultType of DEFAULT_ACCOUNT_TYPES) {
+	await forEachSequential(DEFAULT_ACCOUNT_TYPES, async (defaultType) => {
 		const { normalizedName } = normalizeAccountTypeName(defaultType.name);
 		const existingType = await ctx.db
 			.query("account_types")
@@ -156,12 +158,12 @@ export const seedDefaultAccountTypes = async (
 		if (!existingType) {
 			missingDefaults.push(defaultType);
 		}
-	}
+	});
 
 	await assertAccountTypeCapacity(ctx, userId, missingDefaults.length);
 	let nextOrder = await getNextAccountTypeOrder(ctx, userId);
 	const createdAccountTypeIds: Id<"account_types">[] = [];
-	for (const defaultType of missingDefaults) {
+	await forEachSequential(missingDefaults, async (defaultType) => {
 		const { name, normalizedName } = normalizeAccountTypeName(defaultType.name);
 		const now = Date.now();
 		const accountTypeId = await ctx.db.insert("account_types", {
@@ -177,7 +179,7 @@ export const seedDefaultAccountTypes = async (
 		});
 		createdAccountTypeIds.push(accountTypeId);
 		nextOrder += 1;
-	}
+	});
 
 	return {
 		createdAccountTypeIds,

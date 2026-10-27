@@ -2,40 +2,32 @@
   "name": "spendly",
   "version": "0.1.5",
   "description": "Spendly command-line interface",
-  "type": "module",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/akhilesh-dalvi/spendly.git",
-    "directory": "apps/cli"
-  },
-  "homepage": "https://spendly.akhileshdalvi.com/docs/cli",
-  "bugs": {
-    "url": "https://github.com/akhilesh-dalvi/spendly/issues"
-  },
   "keywords": [
     "expense-tracker",
     "personal-finance",
     "cli",
     "ai-agent"
   ],
+  "homepage": "https://spendly.akhileshdalvi.com/docs/cli",
+  "bugs": {
+    "url": "https://github.com/akhilesh-dalvi/spendly/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/akhilesh-dalvi/spendly.git",
+    "directory": "apps/cli"
+  },
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "bin": {
+    "spendly": "dist/index.js"
+  },
   "files": [
     "dist",
     "npm-shrinkwrap.json",
     "LICENSE",
     "README.md"
   ],
-  "bin": {
-    "spendly": "dist/index.js"
-  },
-  "engines": {
-    "node": ">=22"
-  },
-  "publishConfig": {
-    "access": "public",
-    "provenance": true,
-    "registry": "https://registry.npmjs.org/",
-    "tag": "next"
-  },
   "scripts": {
     "audit:release": "node scripts/audit-release-dependencies.mjs",
     "build": "node scripts/clean-output.mjs dist && tsc -p tsconfig.json",
@@ -45,8 +37,8 @@
     "clean:development": "node scripts/clean-output.mjs development-dist",
     "clean:production": "node scripts/clean-output.mjs dist",
     "dev": "pnpm build:development && node --env-file=.env.local development-dist/development/index.js",
-    "pack:verify": "node scripts/verify-package.mjs",
     "prepack": "npm run release:check && npm run build",
+    "pack:verify": "node scripts/verify-package.mjs",
     "release:check": "node scripts/verify-release-metadata.mjs",
     "shrinkwrap:generate": "node scripts/generate-shrinkwrap.mjs",
     "start": "node dist/index.js",
@@ -68,5 +60,13 @@
     "typescript": "5.9.3",
     "vitest": "4.1.12"
   },
-  "license": "AGPL-3.0-only"
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true,
+    "registry": "https://registry.npmjs.org/",
+    "tag": "next"
+  }
 }

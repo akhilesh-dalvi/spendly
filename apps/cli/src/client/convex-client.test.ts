@@ -12,9 +12,9 @@ describe("Convex read client", () => {
 		new Error("Wrapped", { cause: { code: "ETIMEDOUT" } }),
 	])("classifies network failure %# as retryable", (failure) => {
 		expect(toBackendCliError(failure)).toMatchObject({
+			cause: failure,
 			code: "NETWORK_ERROR",
 			retryable: true,
-			cause: failure,
 		});
 	});
 
@@ -48,29 +48,28 @@ describe("Convex read client", () => {
 	});
 
 	it.each([
-		{ code: "NETWORK_ERROR", retryable: true, attempts: 3 },
-		{ code: "NETWORK_ERROR", retryable: false, attempts: 1 },
-		{ code: "INVALID_INPUT", retryable: true, attempts: 1 },
-	] as const)("bounds retries for $code retryable=$retryable", async ({
-		code,
-		retryable,
-		attempts,
-	}) => {
-		const failure = new CliError(code, "failed", { retryable });
-		const query = vi.fn(() => Promise.reject(failure));
-		const sleep = vi.fn(async () => undefined);
-		await expect(
-			queryWithRetry({
-				args: {},
-				functionName: "expenses:list",
-				query,
-				retry: true,
-				sleep,
-			})
-		).rejects.toBe(failure);
-		expect(query).toHaveBeenCalledTimes(attempts);
-		expect(sleep).toHaveBeenCalledTimes(attempts - 1);
-	});
+		{ attempts: 3, code: "NETWORK_ERROR", retryable: true },
+		{ attempts: 1, code: "NETWORK_ERROR", retryable: false },
+		{ attempts: 1, code: "INVALID_INPUT", retryable: true },
+	] as const)(
+		"bounds retries for $code retryable=$retryable",
+		async ({ code, retryable, attempts }) => {
+			const failure = new CliError(code, "failed", { retryable });
+			const query = vi.fn(() => Promise.reject(failure));
+			const sleep = vi.fn(async () => undefined);
+			await expect(
+				queryWithRetry({
+					args: {},
+					functionName: "expenses:list",
+					query,
+					retry: true,
+					sleep,
+				})
+			).rejects.toBe(failure);
+			expect(query).toHaveBeenCalledTimes(attempts);
+			expect(sleep).toHaveBeenCalledTimes(attempts - 1);
+		}
+	);
 	it("retries temporary read failures at most three times", async () => {
 		let attempts = 0;
 		const delays: number[] = [];

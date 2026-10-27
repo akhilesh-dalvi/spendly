@@ -2,20 +2,24 @@
 
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { EmojiPicker } from "./emoji-picker";
 
 function ControlledPicker({ onChange }: { onChange: (emoji: string) => void }) {
 	const [value, setValue] = useState("🏠");
+	const changeEmoji = useCallback(
+		(emoji: string) => {
+			setValue(emoji);
+			onChange(emoji);
+		},
+		[onChange]
+	);
 	return (
 		<EmojiPicker
 			ariaLabel="Budget icon"
 			id="budget-icon"
-			onChange={(emoji) => {
-				setValue(emoji);
-				onChange(emoji);
-			}}
+			onChange={changeEmoji}
 			value={value}
 		/>
 	);

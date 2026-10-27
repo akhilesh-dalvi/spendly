@@ -46,42 +46,42 @@ import { Button } from "./ui/button";
 import { EmptyState } from "./ui/empty-state";
 
 interface TypeStat {
-	typeId: string | null;
-	typeName: string;
-	typeColor: string | null;
+	categories: CategorySummaryItem[];
 	totalPlanned: number;
 	totalSpent: number;
-	categories: CategorySummaryItem[];
+	typeColor: string | null;
+	typeId: string | null;
+	typeName: string;
 }
 
 interface CategorySpendingChartProps {
-	typeStats: TypeStat[];
 	cycleId?: string;
+	typeStats: TypeStat[];
 }
 
 interface ChartDataItem {
 	categoryId: string;
 	categoryTypeId?: string;
-	name: string;
 	icon: string | null;
-	typeColor?: string;
-	plannedRaw?: number | null;
-	spent: number;
-	planned: number;
-	remaining: number;
 	isHidden: boolean;
-	isUncategorized: boolean;
 	isOver: boolean;
+	isUncategorized: boolean;
+	name: string;
+	planned: number;
+	plannedRaw?: number | null;
+	remaining: number;
+	spent: number;
+	typeColor?: string;
 }
 
 interface CategorySummaryItem {
 	categoryId: string;
 	categoryTypeId?: string | null;
-	name: string;
 	icon: string | null;
+	isHidden: boolean;
+	name: string;
 	planned: number | null;
 	spent: number;
-	isHidden: boolean;
 	typeColor?: string | null;
 }
 
@@ -96,6 +96,48 @@ type SortOption =
 	| "name-desc";
 
 type ViewMode = "grouped" | "list";
+
+function SortMenuItem({
+	value,
+	selected,
+	onSelect,
+	children,
+}: {
+	value: SortOption;
+	selected: SortOption;
+	onSelect: (value: SortOption) => void;
+	children: React.ReactNode;
+}) {
+	const select = useCallback(() => onSelect(value), [onSelect, value]);
+	return (
+		<DropdownMenuItem
+			className="flex items-center justify-between"
+			onClick={select}
+		>
+			{children}
+			{selected === value && <Check className="h-4 w-4" />}
+		</DropdownMenuItem>
+	);
+}
+
+function HiddenCategoryItem({
+	category,
+	onShow,
+}: {
+	category: CategorySummaryItem;
+	onShow: (category: CategorySummaryItem) => Promise<void>;
+}) {
+	const show = useCallback(() => onShow(category), [onShow, category]);
+	return (
+		<DropdownMenuItem
+			className="flex items-center justify-between"
+			onClick={show}
+		>
+			<span>{category.name}</span>
+			<Eye className="h-3.5 w-3.5 text-muted-foreground" />
+		</DropdownMenuItem>
+	);
+}
 
 export function CategorySpendingChart({
 	typeStats,
@@ -115,8 +157,8 @@ export function CategorySpendingChart({
 	const hasData = typeStats.some((t) => t.categories.length > 0);
 
 	const sortCategories = useCallback(
-		(cats: CategorySummaryItem[]) => {
-			return [...cats].sort((a, b) => {
+		(cats: CategorySummaryItem[]) =>
+			[...cats].sort((a, b) => {
 				const aPlanned = a.planned ?? 0;
 				const bPlanned = b.planned ?? 0;
 				const aRemaining = aPlanned - a.spent;
@@ -142,8 +184,7 @@ export function CategorySpendingChart({
 					default:
 						return 0;
 				}
-			});
-		},
+			}),
 		[sortBy]
 	);
 
@@ -156,6 +197,35 @@ export function CategorySpendingChart({
 
 	const hiddenCategories = flatCategories.filter((c) => c.isHidden);
 	const visibleFlatCategories = flatCategories.filter((c) => !c.isHidden);
+
+	const showGrouped = useCallback(
+		() => updateViewMode({ viewMode: "grouped" }),
+		[updateViewMode]
+	);
+	const showList = useCallback(
+		() => updateViewMode({ viewMode: "list" }),
+		[updateViewMode]
+	);
+	const closeEditor = useCallback(() => setEditingCategory(null), []);
+	const changeEditorOpen = useCallback((open: boolean) => {
+		if (!open) {
+			setEditingCategory(null);
+		}
+	}, []);
+	const showCategory = useCallback(
+		async (category: CategorySummaryItem) => {
+			try {
+				await updateCategory({
+					id: category.categoryId as Id<"categories">,
+					isHidden: false,
+				});
+				toast.success(`${category.name} is now visible`);
+			} catch {
+				toast.error("Failed to update visibility");
+			}
+		},
+		[updateCategory]
+	);
 
 	const actions = (
 		<div className="flex items-center gap-1">
@@ -174,7 +244,7 @@ export function CategorySpendingChart({
 					<DropdownMenuSeparator />
 					<DropdownMenuItem
 						className="flex items-center justify-between"
-						onClick={() => updateViewMode({ viewMode: "grouped" })}
+						onClick={showGrouped}
 					>
 						<div className="flex items-center gap-2">
 							<LayoutGrid className="h-4 w-4" />
@@ -184,7 +254,7 @@ export function CategorySpendingChart({
 					</DropdownMenuItem>
 					<DropdownMenuItem
 						className="flex items-center justify-between"
-						onClick={() => updateViewMode({ viewMode: "list" })}
+						onClick={showList}
 					>
 						<div className="flex items-center gap-2">
 							<List className="h-4 w-4" />
@@ -204,65 +274,61 @@ export function CategorySpendingChart({
 				<DropdownMenuContent align="end" className="w-52">
 					<DropdownMenuLabel>Sort by</DropdownMenuLabel>
 					<DropdownMenuSeparator />
-					<DropdownMenuItem
-						className="flex items-center justify-between"
-						onClick={() => setSortBy("spent-desc")}
+					<SortMenuItem
+						onSelect={setSortBy}
+						selected={sortBy}
+						value="spent-desc"
 					>
 						Spent (High to Low)
-						{sortBy === "spent-desc" && <Check className="h-4 w-4" />}
-					</DropdownMenuItem>
-					<DropdownMenuItem
-						className="flex items-center justify-between"
-						onClick={() => setSortBy("spent-asc")}
+					</SortMenuItem>
+					<SortMenuItem
+						onSelect={setSortBy}
+						selected={sortBy}
+						value="spent-asc"
 					>
 						Spent (Low to High)
-						{sortBy === "spent-asc" && <Check className="h-4 w-4" />}
-					</DropdownMenuItem>
+					</SortMenuItem>
 					<DropdownMenuSeparator />
-					<DropdownMenuItem
-						className="flex items-center justify-between"
-						onClick={() => setSortBy("planned-desc")}
+					<SortMenuItem
+						onSelect={setSortBy}
+						selected={sortBy}
+						value="planned-desc"
 					>
 						Planned (High to Low)
-						{sortBy === "planned-desc" && <Check className="h-4 w-4" />}
-					</DropdownMenuItem>
-					<DropdownMenuItem
-						className="flex items-center justify-between"
-						onClick={() => setSortBy("planned-asc")}
+					</SortMenuItem>
+					<SortMenuItem
+						onSelect={setSortBy}
+						selected={sortBy}
+						value="planned-asc"
 					>
 						Planned (Low to High)
-						{sortBy === "planned-asc" && <Check className="h-4 w-4" />}
-					</DropdownMenuItem>
+					</SortMenuItem>
 					<DropdownMenuSeparator />
-					<DropdownMenuItem
-						className="flex items-center justify-between"
-						onClick={() => setSortBy("remaining-desc")}
+					<SortMenuItem
+						onSelect={setSortBy}
+						selected={sortBy}
+						value="remaining-desc"
 					>
 						Remaining (High to Low)
-						{sortBy === "remaining-desc" && <Check className="h-4 w-4" />}
-					</DropdownMenuItem>
-					<DropdownMenuItem
-						className="flex items-center justify-between"
-						onClick={() => setSortBy("remaining-asc")}
+					</SortMenuItem>
+					<SortMenuItem
+						onSelect={setSortBy}
+						selected={sortBy}
+						value="remaining-asc"
 					>
 						Remaining (Low to High)
-						{sortBy === "remaining-asc" && <Check className="h-4 w-4" />}
-					</DropdownMenuItem>
+					</SortMenuItem>
 					<DropdownMenuSeparator />
-					<DropdownMenuItem
-						className="flex items-center justify-between"
-						onClick={() => setSortBy("name-asc")}
-					>
+					<SortMenuItem onSelect={setSortBy} selected={sortBy} value="name-asc">
 						Name (A-Z)
-						{sortBy === "name-asc" && <Check className="h-4 w-4" />}
-					</DropdownMenuItem>
-					<DropdownMenuItem
-						className="flex items-center justify-between"
-						onClick={() => setSortBy("name-desc")}
+					</SortMenuItem>
+					<SortMenuItem
+						onSelect={setSortBy}
+						selected={sortBy}
+						value="name-desc"
 					>
 						Name (Z-A)
-						{sortBy === "name-desc" && <Check className="h-4 w-4" />}
-					</DropdownMenuItem>
+					</SortMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>
 
@@ -277,30 +343,17 @@ export function CategorySpendingChart({
 						<DropdownMenuLabel>Hidden Categories</DropdownMenuLabel>
 						<DropdownMenuSeparator />
 						{hiddenCategories.map((cat) => (
-							<DropdownMenuItem
-								className="flex items-center justify-between"
+							<HiddenCategoryItem
+								category={cat}
 								key={cat.categoryId}
-								onClick={async () => {
-									try {
-										await updateCategory({
-											id: cat.categoryId as Id<"categories">,
-											isHidden: false,
-										});
-										toast.success(`${cat.name} is now visible`);
-									} catch (_error) {
-										toast.error("Failed to update visibility");
-									}
-								}}
-							>
-								<span>{cat.name}</span>
-								<Eye className="h-3.5 w-3.5 text-muted-foreground" />
-							</DropdownMenuItem>
+								onShow={showCategory}
+							/>
 						))}
 					</DropdownMenuContent>
 				</DropdownMenu>
 			)}
 
-			{cycleId && (
+			{Boolean(cycleId) && (
 				<Button asChild className="h-8 w-8" size="icon" variant="ghost">
 					<Link href={`/categories/new?id=${cycleId}`}>
 						<Plus className="h-4 w-4" />
@@ -397,14 +450,14 @@ export function CategorySpendingChart({
 												item={{
 													...cat,
 													categoryTypeId: cat.categoryTypeId ?? undefined,
-													typeColor: type.typeColor ?? undefined,
-													isUncategorized: cat.categoryId === "uncategorized",
-													plannedRaw: cat.planned,
-													planned: cat.planned ?? 0,
-													remaining: (cat.planned ?? 0) - cat.spent,
 													isOver:
 														(cat.planned ?? 0) > 0 &&
 														cat.spent > (cat.planned ?? 0),
+													isUncategorized: cat.categoryId === "uncategorized",
+													planned: cat.planned ?? 0,
+													plannedRaw: cat.planned,
+													remaining: (cat.planned ?? 0) - cat.spent,
+													typeColor: type.typeColor ?? undefined,
 												}}
 												key={cat.categoryId}
 												setEditingCategory={setEditingCategory}
@@ -425,13 +478,13 @@ export function CategorySpendingChart({
 							item={{
 								...item,
 								categoryTypeId: item.categoryTypeId ?? undefined,
-								typeColor: item.typeColor ?? undefined,
-								isUncategorized: item.categoryId === "uncategorized",
-								plannedRaw: item.planned,
-								planned: item.planned ?? 0,
-								remaining: (item.planned ?? 0) - item.spent,
 								isOver:
 									(item.planned ?? 0) > 0 && item.spent > (item.planned ?? 0),
+								isUncategorized: item.categoryId === "uncategorized",
+								planned: item.planned ?? 0,
+								plannedRaw: item.planned,
+								remaining: (item.planned ?? 0) - item.spent,
+								typeColor: item.typeColor ?? undefined,
 							}}
 							key={item.categoryId}
 							setEditingCategory={setEditingCategory}
@@ -441,28 +494,25 @@ export function CategorySpendingChart({
 				</div>
 			)}
 
-			<Dialog
-				onOpenChange={(open) => !open && setEditingCategory(null)}
-				open={!!editingCategory}
-			>
+			<Dialog onOpenChange={changeEditorOpen} open={!!editingCategory}>
 				<DialogContent>
 					<DialogHeader>
 						<DialogTitle>Edit Category</DialogTitle>
 					</DialogHeader>
-					{editingCategory && (
+					{editingCategory !== null && (
 						<CategoryForm
 							categoryId={editingCategory.categoryId as Id<"categories">}
 							cycleId={cycleId as Id<"expense_cycles">}
 							defaultValues={{
-								name: editingCategory.name,
 								categoryTypeId: editingCategory.categoryTypeId ?? "",
+								icon: editingCategory.icon ?? undefined,
+								name: editingCategory.name,
 								plannedAmount:
 									editingCategory.plannedRaw === null
 										? undefined
 										: editingCategory.plannedRaw,
-								icon: editingCategory.icon ?? undefined,
 							}}
-							onSuccess={() => setEditingCategory(null)}
+							onSuccess={closeEditor}
 						/>
 					)}
 				</DialogContent>
@@ -485,6 +535,21 @@ function CategoryStatItem({
 	}) => Promise<unknown>;
 	setEditingCategory: (item: ChartDataItem) => void;
 }) {
+	const edit = useCallback(
+		() => setEditingCategory(item),
+		[setEditingCategory, item]
+	);
+	const hide = useCallback(async () => {
+		try {
+			await updateCategory({
+				id: item.categoryId as Id<"categories">,
+				isHidden: true,
+			});
+			toast.success(`${item.name} hidden from dashboard`);
+		} catch {
+			toast.error("Failed to hide category");
+		}
+	}, [updateCategory, item.categoryId, item.name]);
 	return (
 		<div className="group flex items-center gap-1 rounded-xl px-1 transition-colors hover:bg-accent/40">
 			<Link
@@ -552,11 +617,11 @@ function CategoryStatItem({
 							item.planned <= 0 && "bg-muted-foreground/40"
 						)}
 						style={{
-							width: `${Math.min(item.planned > 0 ? (item.spent / item.planned) * 100 : 0, 100)}%`,
 							backgroundColor:
 								item.planned > 0 && !item.isOver && item.typeColor
 									? item.typeColor
 									: undefined,
+							width: `${Math.min(item.planned > 0 ? (item.spent / item.planned) * 100 : 0, 100)}%`,
 						}}
 					/>
 					{item.planned > 0 && item.spent > item.planned && (
@@ -586,23 +651,11 @@ function CategoryStatItem({
 						</DropdownMenuItem>
 						{!item.isUncategorized && (
 							<>
-								<DropdownMenuItem onClick={() => setEditingCategory(item)}>
+								<DropdownMenuItem onClick={edit}>
 									<Pencil className="mr-2 h-4 w-4" />
 									Edit Category
 								</DropdownMenuItem>
-								<DropdownMenuItem
-									onClick={async () => {
-										try {
-											await updateCategory({
-												id: item.categoryId as Id<"categories">,
-												isHidden: true,
-											});
-											toast.success(`${item.name} hidden from dashboard`);
-										} catch (_error) {
-											toast.error("Failed to hide category");
-										}
-									}}
-								>
+								<DropdownMenuItem onClick={hide}>
 									<EyeOff className="mr-2 h-4 w-4" />
 									Hide from Dashboard
 								</DropdownMenuItem>

@@ -1,7 +1,9 @@
 // biome-ignore-all lint/style/useFilenamingConvention: Convex module filenames use camelCase.
+
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "./_generated/api";
+import { forEachSequential } from "./lib/async";
 import schema from "./schema";
 import { modules } from "./test.setup";
 
@@ -17,33 +19,33 @@ const setup = async () => {
 	if (!accountType) {
 		throw new Error("Expected account type");
 	}
-	return { test, owner, stranger, userId, accountType };
+	return { accountType, owner, stranger, test, userId };
 };
 
 describe("web account queries and ledger", () => {
 	it("sorts active accounts before archived ones and summarizes balances separately by currency", async () => {
 		const { owner, accountType } = await setup();
 		const zulu = await owner.mutation(api.accounts.create, {
-			name: "Zulu",
 			accountTypeId: accountType._id,
-			startingBalance: 100,
 			currency: "usd",
+			name: "Zulu",
+			startingBalance: 100,
 		});
 		const alpha = await owner.mutation(api.accounts.create, {
-			name: "Alpha",
 			accountTypeId: accountType._id,
-			startingBalance: 50,
 			currency: "USD",
+			name: "Alpha",
+			startingBalance: 50,
 		});
 		await owner.mutation(api.accounts.create, {
-			name: "Euro",
 			accountTypeId: accountType._id,
-			startingBalance: 30,
 			currency: "eur",
+			name: "Euro",
+			startingBalance: 30,
 		});
 		const archived = await owner.mutation(api.accounts.create, {
-			name: "Archived",
 			accountTypeId: accountType._id,
+			name: "Archived",
 			startingBalance: 999,
 		});
 		await owner.mutation(api.accounts.archive, {
@@ -62,15 +64,15 @@ describe("web account queries and ledger", () => {
 			)
 		).toEqual(["Alpha", "Euro", "Zulu", "Archived"]);
 		expect(await owner.query(api.accounts.getSummary, {})).toMatchObject({
-			hasMoreAccounts: false,
-			totals: [
-				{ currency: "EUR", total: 30 },
-				{ currency: "USD", total: 150 },
-			],
 			accounts: [
 				expect.objectContaining({ _id: alpha._id, isDefault: false }),
 				expect.objectContaining({ name: "Euro" }),
 				expect.objectContaining({ _id: zulu._id, isDefault: true }),
+			],
+			hasMoreAccounts: false,
+			totals: [
+				{ currency: "EUR", total: 30 },
+				{ currency: "USD", total: 150 },
 			],
 		});
 	});
@@ -81,12 +83,12 @@ describe("web account queries and ledger", () => {
 		const legacyId = await test.run(
 			async (ctx) =>
 				await ctx.db.insert("accounts", {
-					userId,
 					accountTypeId: accountType._id,
-					name: "Legacy",
-					currentBalance: 12,
-					startingBalance: 12,
 					createdAt: 0,
+					currentBalance: 12,
+					name: "Legacy",
+					startingBalance: 12,
+					userId,
 				})
 		);
 		expect(await owner.query(api.accounts.getSummary, {})).toMatchObject({
@@ -106,30 +108,30 @@ describe("web account queries and ledger", () => {
 	it("preserves balances and ledger entries through adjustments, transfers, and pagination", async () => {
 		const { owner, accountType } = await setup();
 		const from = await owner.mutation(api.accounts.create, {
-			name: "From",
 			accountTypeId: accountType._id,
+			name: "From",
 			startingBalance: 100,
 		});
 		const to = await owner.mutation(api.accounts.create, {
-			name: "To",
 			accountTypeId: accountType._id,
+			name: "To",
 			startingBalance: 20,
 		});
 		expect(
 			await owner.mutation(api.accounts.updateBalance, {
 				accountId: from._id,
-				newBalance: 90,
 				date: "2026-01-02",
+				newBalance: 90,
 				note: "Correction",
 			})
 		).toMatchObject({ currentBalance: 90 });
 		expect(
 			await owner.mutation(api.accounts.transfer, {
-				fromAccountId: from._id,
-				toAccountId: to._id,
 				amount: 15,
 				date: "2026-01-03",
+				fromAccountId: from._id,
 				note: "Move",
+				toAccountId: to._id,
 			})
 		).toMatchObject({
 			fromAccount: { currentBalance: 75 },
@@ -144,22 +146,22 @@ describe("web account queries and ledger", () => {
 		expect(transactions).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					type: "opening_balance",
 					amount: 100,
 					balanceAfter: 100,
+					type: "opening_balance",
 				}),
 				expect.objectContaining({
-					type: "manual_adjustment",
 					amount: -10,
 					balanceAfter: 90,
 					note: "Correction",
 					source: "web",
+					type: "manual_adjustment",
 				}),
 				expect.objectContaining({
-					type: "transfer_out",
 					amount: -15,
 					balanceAfter: 75,
 					source: "web",
+					type: "transfer_out",
 				}),
 			])
 		);
@@ -189,22 +191,22 @@ describe("web account queries and ledger", () => {
 	it("rejects invalid limits, foreign ledger reads, and cross-currency transfers without changing balances", async () => {
 		const { owner, stranger, accountType } = await setup();
 		const usd = await owner.mutation(api.accounts.create, {
-			name: "USD",
 			accountTypeId: accountType._id,
-			startingBalance: 10,
 			currency: "USD",
+			name: "USD",
+			startingBalance: 10,
 		});
 		const eur = await owner.mutation(api.accounts.create, {
-			name: "EUR",
 			accountTypeId: accountType._id,
-			startingBalance: 20,
 			currency: "EUR",
+			name: "EUR",
+			startingBalance: 20,
 		});
-		for (const limit of [0, -1, 0.5]) {
+		await forEachSequential([0, -1, 0.5], async (limit) => {
 			await expect(
 				owner.query(api.accounts.listTransactions, { limit })
 			).rejects.toThrow("INVALID_LIMIT");
-		}
+		});
 		await expect(
 			stranger.query(api.accounts.listTransactions, { accountId: usd._id })
 		).rejects.toThrow("UNAUTHORIZED");
@@ -216,9 +218,9 @@ describe("web account queries and ledger", () => {
 		).rejects.toThrow("UNAUTHORIZED");
 		await expect(
 			owner.mutation(api.accounts.transfer, {
+				amount: 5,
 				fromAccountId: usd._id,
 				toAccountId: eur._id,
-				amount: 5,
 			})
 		).rejects.toThrow("TRANSFER_CURRENCY_MISMATCH");
 		expect(

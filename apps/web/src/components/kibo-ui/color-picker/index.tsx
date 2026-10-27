@@ -25,16 +25,16 @@ import {
 import { cn } from "@/lib/utils";
 
 interface ColorPickerContextValue {
-	hue: number;
-	saturation: number;
-	lightness: number;
 	alpha: number;
+	hue: number;
+	lightness: number;
 	mode: string;
-	setHue: (hue: number) => void;
-	setSaturation: (saturation: number) => void;
-	setLightness: (lightness: number) => void;
+	saturation: number;
 	setAlpha: (alpha: number) => void;
+	setHue: (hue: number) => void;
+	setLightness: (lightness: number) => void;
 	setMode: (mode: string) => void;
+	setSaturation: (saturation: number) => void;
 }
 
 const ColorPickerContext = createContext<ColorPickerContextValue | undefined>(
@@ -79,7 +79,7 @@ export const ColorPicker = ({
 	const [mode, setMode] = useState("hex");
 
 	// Do not echo external updates through onChange.
-	const skipNextSyncRef = useRef(false);
+	const skipNextSyncRef = useRef<boolean>(false);
 
 	useEffect(() => {
 		if (value) {
@@ -131,16 +131,16 @@ export const ColorPicker = ({
 
 	const contextValue = useMemo(
 		() => ({
-			hue,
-			saturation,
-			lightness,
 			alpha,
+			hue,
+			lightness,
 			mode,
-			setHue,
-			setSaturation,
-			setLightness,
+			saturation,
 			setAlpha,
+			setHue,
+			setLightness,
 			setMode,
+			setSaturation,
 		}),
 		[hue, saturation, lightness, alpha, mode]
 	);
@@ -165,11 +165,12 @@ export const ColorPickerSelection = memo(
 		const [positionY, setPositionY] = useState(0);
 		const { hue, setSaturation, setLightness } = useColorPicker();
 
-		const backgroundGradient = useMemo(() => {
-			return `linear-gradient(0deg, rgba(0,0,0,1), rgba(0,0,0,0)),
+		const backgroundGradient = useMemo(
+			() => `linear-gradient(0deg, rgba(0,0,0,1), rgba(0,0,0,0)),
             linear-gradient(90deg, rgba(255,255,255,1), rgba(255,255,255,0)),
-            hsl(${hue}, 100%, 50%)`;
-		}, [hue]);
+            hsl(${hue}, 100%, 50%)`,
+			[hue]
+		);
 
 		const handlePointerMove = useCallback(
 			(event: PointerEvent) => {
@@ -210,14 +211,19 @@ export const ColorPickerSelection = memo(
 			};
 		}, [isDragging, handlePointerMove]);
 
+		const handlePointerDown = useCallback(
+			(event: React.PointerEvent<HTMLDivElement>) => {
+				event.preventDefault();
+				setIsDragging(true);
+				handlePointerMove(event.nativeEvent);
+			},
+			[handlePointerMove]
+		);
+
 		return (
 			<div
 				className={cn("relative size-full cursor-crosshair rounded", className)}
-				onPointerDown={(e) => {
-					e.preventDefault();
-					setIsDragging(true);
-					handlePointerMove(e.nativeEvent);
-				}}
+				onPointerDown={handlePointerDown}
 				ref={containerRef}
 				style={{
 					background: backgroundGradient,
@@ -227,9 +233,9 @@ export const ColorPickerSelection = memo(
 				<div
 					className="pointer-events-none absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white"
 					style={{
+						boxShadow: "0 0 0 1px rgba(0,0,0,0.5)",
 						left: `${positionX * 100}%`,
 						top: `${positionY * 100}%`,
-						boxShadow: "0 0 0 1px rgba(0,0,0,0.5)",
 					}}
 				/>
 			</div>
@@ -246,12 +252,16 @@ export const ColorPickerHue = ({
 	...props
 }: ColorPickerHueProps) => {
 	const { hue, setHue } = useColorPicker();
+	const changeHue = useCallback(
+		([nextHue]: number[]) => setHue(nextHue),
+		[setHue]
+	);
 
 	return (
 		<Slider.Root
 			className={cn("relative flex h-4 w-full touch-none", className)}
 			max={360}
-			onValueChange={([hue]) => setHue(hue)}
+			onValueChange={changeHue}
 			step={1}
 			value={[hue]}
 			{...props}
@@ -292,25 +302,23 @@ export const ColorPickerOutput = ({
 
 type PercentageInputProps = ComponentProps<typeof Input>;
 
-const PercentageInput = ({ className, ...props }: PercentageInputProps) => {
-	return (
-		<div className="relative">
-			<Input
-				readOnly
-				type="text"
-				{...props}
-				className={cn(
-					"h-8 w-[3.25rem] rounded-l-none bg-secondary px-2 text-xs shadow-none",
-					className
-				)}
-				value={props.value ?? ""}
-			/>
-			<span className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground text-xs">
-				%
-			</span>
-		</div>
-	);
-};
+const PercentageInput = ({ className, ...props }: PercentageInputProps) => (
+	<div className="relative">
+		<Input
+			readOnly
+			type="text"
+			{...props}
+			className={cn(
+				"h-8 w-[3.25rem] rounded-l-none bg-secondary px-2 text-xs shadow-none",
+				className
+			)}
+			value={props.value ?? ""}
+		/>
+		<span className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground text-xs">
+			%
+		</span>
+	</div>
+);
 
 export type ColorPickerFormatProps = HTMLAttributes<HTMLDivElement>;
 
@@ -336,7 +344,7 @@ export const ColorPickerFormat = ({
 					className="h-8 rounded-r-none bg-secondary px-2 text-xs shadow-none"
 					readOnly
 					type="text"
-					value={hex ?? ""}
+					value={hex}
 				/>
 				<PercentageInput value={Math.round(alpha)} />
 			</div>
