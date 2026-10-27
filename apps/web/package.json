@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "test": "vitest run",
+    "test:browser": "playwright test",
+    "test:browser:install": "playwright install --with-deps chromium",
     "test:coverage": "vitest run --coverage",
     "check-types": "next typegen && tsc --noEmit",
     "dev": "next dev --port 3001",
@@ -55,6 +57,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@playwright/test": "1.58.2",
     "@tailwindcss/postcss": "^4.1.10",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.3",
