@@ -15,8 +15,8 @@ export const presentCycleDetail = (cycle: Doc<"expense_cycles">) => ({
 	endDateExclusive: cycle.endDate,
 	id: cycle._id,
 	name: cycle.name,
-	startDate: cycle.startDate,
 	revision: getRevision(cycle.revision),
+	startDate: cycle.startDate,
 });
 
 export const presentAccount = async (

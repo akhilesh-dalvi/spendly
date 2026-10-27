@@ -9,24 +9,24 @@ import { CategoryTypeChart } from "./category-type-chart";
 
 const service = vi.hoisted(() => ({
 	data: {} as Record<string, unknown>,
+	error: vi.fn(),
+	success: vi.fn(),
 	updateCategory: vi.fn(),
 	updateView: vi.fn(),
-	success: vi.fn(),
-	error: vi.fn(),
 }));
 vi.mock("@clerk/nextjs", () => ({
 	useAuth: () => ({ isLoaded: true, isSignedIn: true }),
 }));
 vi.mock("convex/react", () => ({
-	useQuery: (ref: Parameters<typeof getFunctionName>[0]) =>
-		service.data[getFunctionName(ref)],
 	useMutation: (ref: Parameters<typeof getFunctionName>[0]) =>
 		getFunctionName(ref) === "users:updateDashboardViewMode"
 			? service.updateView
 			: service.updateCategory,
+	useQuery: (ref: Parameters<typeof getFunctionName>[0]) =>
+		service.data[getFunctionName(ref)],
 }));
 vi.mock("sonner", () => ({
-	toast: { success: service.success, error: service.error },
+	toast: { error: service.error, success: service.success },
 }));
 // Fix chart dimensions for jsdom; keep slices and legend real.
 vi.mock("recharts", async (importOriginal) => ({
@@ -35,89 +35,89 @@ vi.mock("recharts", async (importOriginal) => ({
 		children,
 	}: {
 		children: ReactElement<{ width?: number; height?: number }>;
-	}) => <div>{cloneElement(children, { width: 250, height: 250 })}</div>,
+	}) => <div>{cloneElement(children, { height: 250, width: 250 })}</div>,
 }));
 
 type TypeStats = ComponentProps<typeof CategorySpendingChart>["typeStats"];
 const typeStats: TypeStats = [
 	{
-		typeId: "needs",
-		typeName: "Needs",
-		typeColor: "#123456",
-		totalPlanned: 180,
-		totalSpent: 120,
 		categories: [
 			{
 				categoryId: "food",
 				categoryTypeId: "needs",
-				name: "Food",
 				icon: "🍎",
+				isHidden: false,
+				name: "Food",
 				planned: 100,
 				spent: 20,
-				isHidden: false,
 			},
 			{
 				categoryId: "rent",
 				categoryTypeId: "needs",
-				name: "Rent",
 				icon: null,
+				isHidden: false,
+				name: "Rent",
 				planned: 50,
 				spent: 80,
-				isHidden: false,
 			},
 			{
 				categoryId: "hidden",
 				categoryTypeId: null,
-				name: "Secret",
 				icon: null,
+				isHidden: true,
+				name: "Secret",
 				planned: 30,
 				spent: 20,
-				isHidden: true,
 			},
 		],
+		totalPlanned: 180,
+		totalSpent: 120,
+		typeColor: "#123456",
+		typeId: "needs",
+		typeName: "Needs",
 	},
 	{
-		typeId: null,
-		typeName: "Other",
-		typeColor: null,
-		totalPlanned: 0,
-		totalSpent: 40,
 		categories: [
 			{
 				categoryId: "uncategorized",
-				name: "Uncategorized",
 				icon: null,
+				isHidden: false,
+				name: "Uncategorized",
 				planned: null,
 				spent: 40,
-				isHidden: false,
 			},
 		],
+		totalPlanned: 0,
+		totalSpent: 40,
+		typeColor: null,
+		typeId: null,
+		typeName: "Other",
 	},
 	{
-		typeId: "hidden-type",
-		typeName: "Hidden Type",
-		typeColor: null,
-		totalPlanned: 0,
-		totalSpent: 0,
 		categories: [
 			{
 				categoryId: "hidden2",
-				name: "Hidden Two",
 				icon: null,
+				isHidden: true,
+				name: "Hidden Two",
 				planned: null,
 				spent: 0,
-				isHidden: true,
 			},
 		],
+		totalPlanned: 0,
+		totalSpent: 0,
+		typeColor: null,
+		typeId: "hidden-type",
+		typeName: "Hidden Type",
 	},
 ];
 
 beforeEach(() => {
 	vi.clearAllMocks();
 	service.data = {
-		"users:get": { currency: "USD", dashboardViewMode: "grouped" },
-		"categories:listTypes": [],
 		"categories:listPreviousCycleUnused": [],
+		"categories:listTypes": [],
+		"users:get": { currency: "USD", dashboardViewMode: "grouped" },
 	};
 	service.updateCategory.mockResolvedValue(undefined);
 	service.updateView.mockResolvedValue(undefined);
@@ -167,12 +167,12 @@ describe("category allocation chart", () => {
 			<CategoryTypeChart
 				typeStats={[
 					{
+						totalPlanned: 100,
+						totalSpent: 0,
 						typeId: "empty",
 						typeName: "Unused",
-						totalSpent: 0,
-						totalPlanned: 100,
 					},
-					{ typeId: null, typeName: "Refund", totalSpent: -5, totalPlanned: 0 },
+					{ totalPlanned: 0, totalSpent: -5, typeId: null, typeName: "Refund" },
 				]}
 			/>
 		);
@@ -189,29 +189,29 @@ describe("category allocation chart", () => {
 			<CategoryTypeChart
 				typeStats={[
 					{
+						totalPlanned: 100,
+						totalSpent: 60,
+						typeColor: "#123456",
 						typeId: "needs",
 						typeName: "Needs",
-						totalSpent: 60,
-						totalPlanned: 100,
-						typeColor: "#123456",
 					},
 					{
+						totalPlanned: 0,
+						totalSpent: 30,
 						typeId: null,
 						typeName: "Uncategorized",
-						totalSpent: 30,
-						totalPlanned: 0,
 					},
 					{
+						totalPlanned: 0,
+						totalSpent: 10,
 						typeId: "wants",
 						typeName: "Wants",
-						totalSpent: 10,
-						totalPlanned: 0,
 					},
 					{
+						totalPlanned: 200,
+						totalSpent: 0,
 						typeId: "unused",
 						typeName: "Unused",
-						totalSpent: 0,
-						totalPlanned: 200,
 					},
 				]}
 			/>
@@ -281,25 +281,28 @@ describe("category spending chart", () => {
 		},
 		{ option: "Name (A-Z)", order: ["food", "rent", "uncategorized"] },
 		{ option: "Name (Z-A)", order: ["uncategorized", "rent", "food"] },
-	])("orders the simple list by $option while omitting hidden categories", async ({
-		option,
-		order,
-	}) => {
-		const user = userEvent.setup();
-		service.data["users:get"] = { currency: "USD", dashboardViewMode: "list" };
-		const { container } = render(
-			<CategorySpendingChart typeStats={typeStats} />
-		);
-		await user.click(iconButton(container, "arrow-down-wide-narrow"));
-		await user.click(screen.getByRole("menuitem", { name: option }));
-		expect(categoryOrder()).toEqual(
-			order.map((id) =>
-				id === "uncategorized"
-					? "/expenses?category=uncategorized"
-					: `/categories/${id}`
-			)
-		);
-	});
+	])(
+		"orders the simple list by $option while omitting hidden categories",
+		async ({ option, order }) => {
+			const user = userEvent.setup();
+			service.data["users:get"] = {
+				currency: "USD",
+				dashboardViewMode: "list",
+			};
+			const { container } = render(
+				<CategorySpendingChart typeStats={typeStats} />
+			);
+			await user.click(iconButton(container, "arrow-down-wide-narrow"));
+			await user.click(screen.getByRole("menuitem", { name: option }));
+			expect(categoryOrder()).toEqual(
+				order.map((id) =>
+					id === "uncategorized"
+						? "/expenses?category=uncategorized"
+						: `/categories/${id}`
+				)
+			);
+		}
+	);
 
 	it("persists a view change and renders the saved simple list then grouped layout", async () => {
 		const user = userEvent.setup();
@@ -329,75 +332,77 @@ describe("category spending chart", () => {
 		expect(screen.getByRole("button", { name: needsGroup })).toBeVisible();
 	});
 
-	it.each([
-		false,
-		true,
-	])("hides a category with a user-facing result (failure=%s)", async (failure) => {
-		const user = userEvent.setup();
-		if (failure) {
-			service.updateCategory.mockRejectedValueOnce(new Error("offline"));
-		}
-		render(<CategorySpendingChart typeStats={typeStats} />);
-		await user.click(categoryMenu("Rent"));
-		expect(
-			screen.getByRole("menuitem", { name: "Add Expense" })
-		).toHaveAttribute("href", "/expenses/new?categoryId=rent");
-		expect(
-			screen.getByRole("menuitem", { name: "View Details" })
-		).toHaveAttribute("href", "/categories/rent");
-		await user.click(
-			screen.getByRole("menuitem", { name: "Hide from Dashboard" })
-		);
-		expect(service.updateCategory).toHaveBeenCalledWith({
-			id: "rent",
-			isHidden: true,
-		});
-		await waitFor(() =>
-			expect(failure ? service.error : service.success).toHaveBeenCalledWith(
-				failure ? "Failed to hide category" : "Rent hidden from dashboard"
-			)
-		);
-	});
-
-	it.each([
-		false,
-		true,
-	])("restores hidden categories with a user-facing result (failure=%s)", async (failure) => {
-		const user = userEvent.setup();
-		if (failure) {
-			service.updateCategory.mockRejectedValueOnce(new Error("offline"));
-		}
-		const { container, rerender } = render(
-			<CategorySpendingChart typeStats={typeStats} />
-		);
-		await user.click(iconButton(container, "eye-off"));
-		expect(screen.getByRole("menuitem", { name: "Hidden Two" })).toBeVisible();
-		await user.click(screen.getByRole("menuitem", { name: "Secret" }));
-		expect(service.updateCategory).toHaveBeenCalledWith({
-			id: "hidden",
-			isHidden: false,
-		});
-		await waitFor(() =>
-			expect(failure ? service.error : service.success).toHaveBeenCalledWith(
-				failure ? "Failed to update visibility" : "Secret is now visible"
-			)
-		);
-		if (!failure) {
-			rerender(
-				<CategorySpendingChart
-					typeStats={typeStats.map((type) => ({
-						...type,
-						categories: type.categories.map((category) =>
-							category.categoryId === "hidden"
-								? { ...category, isHidden: false }
-								: category
-						),
-					}))}
-				/>
+	it.each([false, true])(
+		"hides a category with a user-facing result (failure=%s)",
+		async (failure) => {
+			const user = userEvent.setup();
+			if (failure) {
+				service.updateCategory.mockRejectedValueOnce(new Error("offline"));
+			}
+			render(<CategorySpendingChart typeStats={typeStats} />);
+			await user.click(categoryMenu("Rent"));
+			expect(
+				screen.getByRole("menuitem", { name: "Add Expense" })
+			).toHaveAttribute("href", "/expenses/new?categoryId=rent");
+			expect(
+				screen.getByRole("menuitem", { name: "View Details" })
+			).toHaveAttribute("href", "/categories/rent");
+			await user.click(
+				screen.getByRole("menuitem", { name: "Hide from Dashboard" })
 			);
-			expect(screen.getByRole("link", { name: secretLink })).toBeVisible();
+			expect(service.updateCategory).toHaveBeenCalledWith({
+				id: "rent",
+				isHidden: true,
+			});
+			await waitFor(() =>
+				expect(failure ? service.error : service.success).toHaveBeenCalledWith(
+					failure ? "Failed to hide category" : "Rent hidden from dashboard"
+				)
+			);
 		}
-	});
+	);
+
+	it.each([false, true])(
+		"restores hidden categories with a user-facing result (failure=%s)",
+		async (failure) => {
+			const user = userEvent.setup();
+			if (failure) {
+				service.updateCategory.mockRejectedValueOnce(new Error("offline"));
+			}
+			const { container, rerender } = render(
+				<CategorySpendingChart typeStats={typeStats} />
+			);
+			await user.click(iconButton(container, "eye-off"));
+			expect(
+				screen.getByRole("menuitem", { name: "Hidden Two" })
+			).toBeVisible();
+			await user.click(screen.getByRole("menuitem", { name: "Secret" }));
+			expect(service.updateCategory).toHaveBeenCalledWith({
+				id: "hidden",
+				isHidden: false,
+			});
+			await waitFor(() =>
+				expect(failure ? service.error : service.success).toHaveBeenCalledWith(
+					failure ? "Failed to update visibility" : "Secret is now visible"
+				)
+			);
+			if (!failure) {
+				rerender(
+					<CategorySpendingChart
+						typeStats={typeStats.map((type) => ({
+							...type,
+							categories: type.categories.map((category) =>
+								category.categoryId === "hidden"
+									? { ...category, isHidden: false }
+									: category
+							),
+						}))}
+					/>
+				);
+				expect(screen.getByRole("link", { name: secretLink })).toBeVisible();
+			}
+		}
+	);
 
 	it("limits uncategorized actions to adding expenses and viewing details", async () => {
 		const user = userEvent.setup();
@@ -430,11 +435,11 @@ describe("category spending chart", () => {
 			expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
 		);
 		expect(service.updateCategory).toHaveBeenCalledWith({
+			categoryTypeId: "needs",
+			icon: "🍎",
 			id: "food",
 			name: "Food",
 			plannedAmount: 100,
-			categoryTypeId: "needs",
-			icon: "🍎",
 		});
 	});
 
@@ -442,21 +447,21 @@ describe("category spending chart", () => {
 		const user = userEvent.setup();
 		const unplanned = [
 			{
-				typeId: null,
-				typeName: "Other",
-				typeColor: null,
-				totalPlanned: 0,
-				totalSpent: 5,
 				categories: [
 					{
 						categoryId: "misc",
-						name: "Misc",
 						icon: null,
+						isHidden: false,
+						name: "Misc",
 						planned: null,
 						spent: 5,
-						isHidden: false,
 					},
 				],
+				totalPlanned: 0,
+				totalSpent: 5,
+				typeColor: null,
+				typeId: null,
+				typeName: "Other",
 			},
 		];
 		render(<CategorySpendingChart cycleId="cycle1" typeStats={unplanned} />);

@@ -6,6 +6,7 @@ import { useMutation, useQuery } from "convex/react";
 import { BadgeCheck, ChevronLeft, Globe, Moon, Sun } from "lucide-react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
+import { useCallback } from "react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,10 @@ export default function SettingsPage() {
 	const updateCurrency = useMutation(api.users.updateCurrency);
 	const { theme, setTheme } = useTheme();
 	const { openUserProfile } = useClerk();
+	const manageProfile = useCallback(() => openUserProfile(), [openUserProfile]);
+	const lightTheme = useCallback(() => setTheme("light"), [setTheme]);
+	const darkTheme = useCallback(() => setTheme("dark"), [setTheme]);
+	const systemTheme = useCallback(() => setTheme("system"), [setTheme]);
 
 	const handleCurrencyChange = async (value: string) => {
 		if (!isSupportedCurrency(value)) {
@@ -40,7 +45,7 @@ export default function SettingsPage() {
 		try {
 			await updateCurrency({ currency: value });
 			toast.success(`Currency updated to ${value}`);
-		} catch (_error) {
+		} catch {
 			toast.error("Failed to update currency");
 		}
 	};
@@ -86,7 +91,7 @@ export default function SettingsPage() {
 									</p>
 								</div>
 							</div>
-							<Button onClick={() => openUserProfile()} variant="outline">
+							<Button onClick={manageProfile} variant="outline">
 								Manage Profile
 							</Button>
 						</div>
@@ -146,7 +151,7 @@ export default function SettingsPage() {
 								<div className="flex gap-2">
 									<Button
 										className="flex-1"
-										onClick={() => setTheme("light")}
+										onClick={lightTheme}
 										size="sm"
 										variant={theme === "light" ? "secondary" : "ghost"}
 									>
@@ -155,7 +160,7 @@ export default function SettingsPage() {
 									</Button>
 									<Button
 										className="flex-1"
-										onClick={() => setTheme("dark")}
+										onClick={darkTheme}
 										size="sm"
 										variant={theme === "dark" ? "secondary" : "ghost"}
 									>
@@ -164,7 +169,7 @@ export default function SettingsPage() {
 									</Button>
 									<Button
 										className="flex-1"
-										onClick={() => setTheme("system")}
+										onClick={systemTheme}
 										size="sm"
 										variant={theme === "system" ? "secondary" : "ghost"}
 									>

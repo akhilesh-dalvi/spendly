@@ -18,9 +18,9 @@ export function packageManagerCommands(
 ): PackageManagerCommands | undefined {
 	let converted = false;
 	const lines: Record<PackageManager, string[]> = {
-		pnpm: [],
-		npm: [],
 		bun: [],
+		npm: [],
+		pnpm: [],
 		yarn: [],
 	};
 	for (const line of source.split("\n")) {
@@ -55,9 +55,9 @@ export function packageManagerCommands(
 		return undefined;
 	}
 	return {
-		pnpm: lines.pnpm.join("\n"),
-		npm: lines.npm.join("\n"),
 		bun: lines.bun.join("\n"),
+		npm: lines.npm.join("\n"),
+		pnpm: lines.pnpm.join("\n"),
 		yarn: lines.yarn.join("\n"),
 	};
 }

@@ -29,13 +29,13 @@ vi.mock("@clerk/nextjs", () => ({
 }));
 const userId = "user" as Id<"users">;
 const cycle: Doc<"expense_cycles"> = {
-	_id: "july" as Id<"expense_cycles">,
 	_creationTime: 0,
-	userId,
+	_id: "july" as Id<"expense_cycles">,
 	createdAt: 0,
+	endDate: "2026-08-01",
 	name: "July budget",
 	startDate: "2026-07-01",
-	endDate: "2026-08-01",
+	userId,
 };
 function fixture<T extends FunctionReference<"query">>(
 	ref: T,
@@ -45,15 +45,15 @@ function fixture<T extends FunctionReference<"query">>(
 }
 function summary(totalSpent: number, totalPlanned: number) {
 	fixture(api.aggregations.getCycleSummary, {
+		categoryStats: [],
 		cycleId: cycle._id,
 		cycleName: cycle.name,
-		startDate: cycle.startDate,
-		endDate: cycle.endDate,
-		totalSpent,
-		totalPlanned,
-		remaining: totalPlanned - totalSpent,
 		daysRemaining: 10,
-		categoryStats: [],
+		endDate: cycle.endDate,
+		remaining: totalPlanned - totalSpent,
+		startDate: cycle.startDate,
+		totalPlanned,
+		totalSpent,
 		typeStats: [],
 	});
 }
@@ -61,12 +61,12 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	mocks.queries.clear();
 	fixture(api.users.get, {
-		_id: userId,
 		_creationTime: 0,
+		_id: userId,
 		clerkId: "clerk",
-		email: "test@example.com",
 		createdAt: 0,
 		currency: "USD",
+		email: "test@example.com",
 	});
 	summary(25, 100);
 });

@@ -29,12 +29,6 @@ export const list = query({
 
 export const create = mutation({
 	args: {
-		name: v.string(),
-		startDate: v.string(),
-		endDate: v.string(),
-		copyFromCycleId: v.optional(v.id("expense_cycles")),
-		includePlannedAmounts: v.optional(v.boolean()),
-		copyCategoryIds: v.optional(v.array(v.id("categories"))),
 		categoryPlannedOverrides: v.optional(
 			v.array(
 				v.object({
@@ -43,6 +37,12 @@ export const create = mutation({
 				})
 			)
 		),
+		copyCategoryIds: v.optional(v.array(v.id("categories"))),
+		copyFromCycleId: v.optional(v.id("expense_cycles")),
+		endDate: v.string(),
+		includePlannedAmounts: v.optional(v.boolean()),
+		name: v.string(),
+		startDate: v.string(),
 	},
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
@@ -58,17 +58,16 @@ export const create = mutation({
 export const saveOnboardingCycle = mutation({
 	args: {
 		cycleId: v.optional(v.id("expense_cycles")),
+		endDate: v.string(),
 		name: v.string(),
 		startDate: v.string(),
-		endDate: v.string(),
 	},
-	returns: v.id("expense_cycles"),
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const input = {
+			endDateExclusive: args.endDate,
 			name: args.name,
 			startDate: args.startDate,
-			endDateExclusive: args.endDate,
 		};
 		const savedCycleId = args.cycleId ?? user.onboardingCycleId;
 		let cycleId: Id<"expense_cycles">;
@@ -90,21 +89,22 @@ export const saveOnboardingCycle = mutation({
 		});
 		return cycleId;
 	},
+	returns: v.id("expense_cycles"),
 });
 
 export const update = mutation({
 	args: {
+		endDate: v.optional(v.string()),
 		id: v.id("expense_cycles"),
 		name: v.optional(v.string()),
 		startDate: v.optional(v.string()),
-		endDate: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const prepared = await prepareCycleUpdate(ctx, user._id, args.id, {
+			endDateExclusive: args.endDate,
 			name: args.name,
 			startDate: args.startDate,
-			endDateExclusive: args.endDate,
 		});
 		return await commitCycleUpdate(ctx, prepared, "web");
 	},

@@ -1,8 +1,10 @@
 // biome-ignore-all lint/style/useFilenamingConvention: Convex module filenames use camelCase.
+
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { checkCycleOverlap, validateCycleOwnership } from "../helpers";
+import { forEachSequential } from "../lib/async";
 import type { ActionSource } from "./actionSource";
 import { validateLocalDate } from "./dates";
 import { fingerprintRequest } from "./idempotency";
@@ -11,13 +13,13 @@ import { assertRevision, INITIAL_REVISION, nextRevision } from "./revisions";
 type ReadContext = QueryCtx | MutationCtx;
 
 export interface CycleCreateInput {
+	categoryPlannedOverrides?: { id: Id<"categories">; plannedAmount?: number }[];
+	copyCategoryIds?: Id<"categories">[];
+	copyFromCycleId?: Id<"expense_cycles">;
+	endDateExclusive: string;
+	includePlannedAmounts?: boolean;
 	name: string;
 	startDate: string;
-	endDateExclusive: string;
-	copyFromCycleId?: Id<"expense_cycles">;
-	includePlannedAmounts?: boolean;
-	copyCategoryIds?: Id<"categories">[];
-	categoryPlannedOverrides?: { id: Id<"categories">; plannedAmount?: number }[];
 }
 
 const validatePlannedAmount = (amount: number | undefined): void => {
@@ -57,10 +59,10 @@ const prepareCopySelection = (
 		overrides.set(override.id, override.plannedAmount);
 	}
 	return {
+		overrides,
 		selected: categories.filter(
 			(category) => !selectedIds || selectedIds.has(category._id)
 		),
-		overrides,
 	};
 };
 
@@ -106,31 +108,34 @@ const prepareCopiedCategories = async (
 		input
 	);
 	const copied: Doc<"categories">[] = [];
-	for (const category of selected.sort(
-		(left, right) =>
-			left.order - right.order ||
-			String(left._id).localeCompare(String(right._id))
-	)) {
-		await validateCopyCategoryOwnership(ctx, category, userId);
-		let plannedAmount = input.includePlannedAmounts
-			? category.plannedAmount
-			: undefined;
-		if (overrides.has(category._id)) {
-			plannedAmount = overrides.get(category._id);
+	await forEachSequential(
+		selected.sort(
+			(left, right) =>
+				left.order - right.order ||
+				String(left._id).localeCompare(String(right._id))
+		),
+		async (category) => {
+			await validateCopyCategoryOwnership(ctx, category, userId);
+			let plannedAmount = input.includePlannedAmounts
+				? category.plannedAmount
+				: undefined;
+			if (overrides.has(category._id)) {
+				plannedAmount = overrides.get(category._id);
+			}
+			validatePlannedAmount(plannedAmount);
+			copied.push({ ...category, plannedAmount });
 		}
-		validatePlannedAmount(plannedAmount);
-		copied.push({ ...category, plannedAmount });
-	}
+	);
 	return copied;
 };
 
 export const presentCycleCreateProposal = (
 	prepared: Awaited<ReturnType<typeof prepareCycleCreate>>
 ) => ({
+	copiedCategories: prepared.copiedCategories,
+	endDateExclusive: prepared.endDateExclusive,
 	name: prepared.name,
 	startDate: prepared.startDate,
-	endDateExclusive: prepared.endDateExclusive,
-	copiedCategories: prepared.copiedCategories,
 	...(prepared.copySnapshot === undefined
 		? {}
 		: { copySnapshot: prepared.copySnapshot }),
@@ -155,41 +160,41 @@ export const prepareCycleCreate = async (
 	}
 	const categories = await prepareCopiedCategories(ctx, userId, input);
 	const copiedCategories = categories.map((category) => ({
-		sourceCategoryId: category._id,
 		name: category.name,
 		plannedAmount: category.plannedAmount ?? null,
+		sourceCategoryId: category._id,
 	}));
 	// Category edits do not advance the cycle revision; hash the copied fields.
 	const copySnapshot =
 		input.copyFromCycleId === undefined
 			? undefined
 			: await fingerprintRequest({
-					copyFromCycleId: input.copyFromCycleId,
 					categories: categories.map((category) => ({
-						sourceCategoryId: category._id,
-						name: category.name,
 						categoryTypeId: category.categoryTypeId,
-						plannedAmount: category.plannedAmount,
 						icon: category.icon,
 						isHidden: category.isHidden,
+						name: category.name,
 						order: category.order,
+						plannedAmount: category.plannedAmount,
+						sourceCategoryId: category._id,
 					})),
+					copyFromCycleId: input.copyFromCycleId,
 				});
 	return {
+		categories,
+		copiedCategories,
+		copySnapshot,
+		endDateExclusive,
 		name,
 		startDate,
-		endDateExclusive,
-		copiedCategories,
-		categories,
-		copySnapshot,
 	};
 };
 
 export interface CycleUpdateInput {
-	name?: string;
-	startDate?: string;
 	endDateExclusive?: string;
 	expectedRevision?: number;
+	name?: string;
+	startDate?: string;
 }
 
 export const validateCycleRevision = (expectedRevision: number): void => {
@@ -229,14 +234,14 @@ export const prepareCycleUpdate = async (
 		throw new ConvexError("CYCLE_OVERLAP");
 	}
 	return {
-		before,
 		after: {
 			...before,
-			name,
-			startDate,
 			endDate,
+			name,
 			revision: nextRevision(before.revision),
+			startDate,
 		},
+		before,
 	};
 };
 
@@ -247,11 +252,11 @@ export const commitCycleUpdate = async (
 ) => {
 	const { after } = prepared;
 	await ctx.db.patch(after._id, {
-		name: after.name,
-		startDate: after.startDate,
 		endDate: after.endDate,
-		revision: after.revision,
 		lastModifiedSource: source,
+		name: after.name,
+		revision: after.revision,
+		startDate: after.startDate,
 	});
 	return { ...after, lastModifiedSource: source };
 };
@@ -278,7 +283,7 @@ export const prepareCycleDelete = async (
 		.query("categories")
 		.withIndex("by_cycleId", (q) => q.eq("cycleId", cycleId))
 		.collect();
-	for (const category of categories) {
+	await forEachSequential(categories, async (category) => {
 		if (category.userId !== userId) {
 			throw new ConvexError("UNAUTHORIZED");
 		}
@@ -289,13 +294,13 @@ export const prepareCycleDelete = async (
 		if (linkedExpense) {
 			throw new ConvexError("CYCLE_HAS_EXPENSES");
 		}
-	}
+	});
 	const categorySnapshot = await fingerprintRequest(
 		categories.sort((left, right) =>
 			String(left._id).localeCompare(String(right._id))
 		)
 	);
-	return { cycle, categories, categorySnapshot };
+	return { categories, categorySnapshot, cycle };
 };
 
 export const commitCycleDelete = async (
@@ -303,9 +308,9 @@ export const commitCycleDelete = async (
 	user: Doc<"users">,
 	prepared: Awaited<ReturnType<typeof prepareCycleDelete>>
 ): Promise<void> => {
-	for (const category of prepared.categories) {
+	await forEachSequential(prepared.categories, async (category) => {
 		await ctx.db.delete(category._id);
-	}
+	});
 	if (user.onboardingCycleId === prepared.cycle._id) {
 		await ctx.db.patch(user._id, { onboardingCycleId: undefined });
 	}
@@ -319,28 +324,28 @@ export const commitCycleCreate = async (
 	source: ActionSource
 ): Promise<Doc<"expense_cycles">> => {
 	const id = await ctx.db.insert("expense_cycles", {
-		userId,
-		name: prepared.name,
-		startDate: prepared.startDate,
-		endDate: prepared.endDateExclusive,
 		createdAt: Date.now(),
 		createdSource: source,
+		endDate: prepared.endDateExclusive,
 		lastModifiedSource: source,
+		name: prepared.name,
 		revision: INITIAL_REVISION,
+		startDate: prepared.startDate,
+		userId,
 	});
-	for (const category of prepared.categories) {
+	await forEachSequential(prepared.categories, async (category) => {
 		await ctx.db.insert("categories", {
-			userId,
-			cycleId: id,
-			name: category.name,
 			categoryTypeId: category.categoryTypeId,
-			plannedAmount: category.plannedAmount,
+			createdAt: Date.now(),
+			cycleId: id,
 			icon: category.icon,
 			isHidden: category.isHidden,
+			name: category.name,
 			order: category.order,
-			createdAt: Date.now(),
+			plannedAmount: category.plannedAmount,
+			userId,
 		});
-	}
+	});
 	const cycle = await ctx.db.get(id);
 	if (!cycle) {
 		throw new Error("Created cycle was not found");

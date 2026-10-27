@@ -10,27 +10,27 @@ export const DEFAULT_DESCRIPTION =
 export const siteUrl = new URL(env.NEXT_PUBLIC_SITE_URL ?? LOCAL_SITE_URL);
 
 export const marketingRobots: NonNullable<Metadata["robots"]> = {
-	index: true,
 	follow: true,
 	googleBot: {
-		index: true,
 		follow: true,
+		index: true,
 		"max-image-preview": "large",
 		"max-snippet": -1,
 		"max-video-preview": -1,
 	},
+	index: true,
 };
 
 export const noIndexRobots: NonNullable<Metadata["robots"]> = {
-	index: false,
 	follow: false,
 	googleBot: {
-		index: false,
 		follow: false,
+		index: false,
 		"max-image-preview": "none",
 		"max-snippet": 0,
 		"max-video-preview": 0,
 	},
+	index: false,
 };
 
 export const absoluteUrl = (path: string): string =>
@@ -57,10 +57,10 @@ export const createMarketingTitle = (title: string): string => {
 const createAppTitle = (title: string): string => `${title} | ${SITE_NAME}`;
 
 export const createAppMetadata = ({ title }: AppMetadataInput): Metadata => ({
-	title: createAppTitle(title),
 	openGraph: {
 		title: createAppTitle(title),
 	},
+	title: createAppTitle(title),
 	twitter: {
 		title: createAppTitle(title),
 	},
@@ -71,24 +71,24 @@ export const createMarketingMetadata = ({
 	path,
 	title,
 }: MarketingMetadataInput): Metadata => ({
-	title: createMarketingTitle(title),
-	description,
 	alternates: {
 		canonical: absoluteUrl(path),
 	},
+	description,
 	openGraph: {
-		title: createMarketingTitle(title),
 		description,
+		siteName: SITE_NAME,
+		title: createMarketingTitle(title),
 		type: "website",
 		url: absoluteUrl(path),
-		siteName: SITE_NAME,
-	},
-	twitter: {
-		card: "summary_large_image",
-		title: createMarketingTitle(title),
-		description,
 	},
 	robots: marketingRobots,
+	title: createMarketingTitle(title),
+	twitter: {
+		card: "summary_large_image",
+		description,
+		title: createMarketingTitle(title),
+	},
 });
 
 interface StructuredDataInput {
@@ -104,10 +104,10 @@ export const createSoftwareApplicationJsonLd = ({
 }: StructuredDataInput) => ({
 	"@context": "https://schema.org",
 	"@type": "WebApplication",
-	name: SITE_NAME,
-	url: absoluteUrl(path),
-	description,
 	applicationCategory: "FinanceApplication",
-	operatingSystem: "Web",
+	description,
 	featureList,
+	name: SITE_NAME,
+	operatingSystem: "Web",
+	url: absoluteUrl(path),
 });

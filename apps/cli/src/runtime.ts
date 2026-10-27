@@ -6,7 +6,7 @@ import type { InteractivePrompter } from "./input/types.js";
 export interface OutputWriter {
 	columns?: number;
 	isTTY?: boolean;
-	write(value: string): unknown;
+	write: (value: string) => unknown;
 }
 
 export type BackendQuery = BackendOperation;
@@ -21,9 +21,9 @@ export interface CliRuntime {
 	environment: NodeJS.ProcessEnv;
 	getConfig: () => RuntimeConfig;
 	now?: () => Date;
+	prompter?: InteractivePrompter;
 	promptInput?: Readable & { isTTY?: boolean };
 	promptOutput?: Writable & { columns?: number; isTTY?: boolean };
-	prompter?: InteractivePrompter;
 	randomIdempotencyKey?: () => string;
 	sleep?: (milliseconds: number) => Promise<void>;
 	stderr: OutputWriter;

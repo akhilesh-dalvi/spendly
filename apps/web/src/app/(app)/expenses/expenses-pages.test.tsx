@@ -18,27 +18,23 @@ import ExpensesPage from "./page";
 const NOTE_LABEL = /Note/;
 
 const mocks = vi.hoisted(() => ({
+	create: vi.fn(),
+	createTag: vi.fn(),
+	error: vi.fn(),
+	push: vi.fn(),
 	queries: new Map<string, unknown>(),
 	query: vi.fn(),
-	create: vi.fn(),
-	update: vi.fn(),
 	remove: vi.fn(),
-	createTag: vi.fn(),
-	push: vi.fn(),
 	replace: vi.fn(),
+	report: vi.fn(),
 	search: new URLSearchParams(),
 	success: vi.fn(),
-	error: vi.fn(),
+	update: vi.fn(),
 	warning: vi.fn(),
-	report: vi.fn(),
 }));
 vi.mock("convex/react", async () => {
 	const { getFunctionName: name } = await import("convex/server");
 	return {
-		useQuery: (ref: FunctionReference<"query">, args?: unknown) => {
-			mocks.query(name(ref), args);
-			return args === "skip" ? undefined : mocks.queries.get(name(ref));
-		},
 		useMutation: (ref: FunctionReference<"mutation">) =>
 			new Map([
 				[name(api.expenses.create), mocks.create],
@@ -46,6 +42,10 @@ vi.mock("convex/react", async () => {
 				[name(api.expenses.remove), mocks.remove],
 				[name(api.tags.create), mocks.createTag],
 			]).get(name(ref)),
+		useQuery: (ref: FunctionReference<"query">, args?: unknown) => {
+			mocks.query(name(ref), args);
+			return args === "skip" ? undefined : mocks.queries.get(name(ref));
+		},
 	};
 });
 vi.mock("@clerk/nextjs", () => ({
@@ -56,7 +56,7 @@ vi.mock("next/navigation", () => ({
 	useSearchParams: () => mocks.search,
 }));
 vi.mock("sonner", () => ({
-	toast: { success: mocks.success, error: mocks.error, warning: mocks.warning },
+	toast: { error: mocks.error, success: mocks.success, warning: mocks.warning },
 }));
 vi.mock("@/lib/report-error", () => ({ reportError: mocks.report }));
 function fixture<T extends FunctionReference<"query">>(
@@ -72,88 +72,88 @@ const cycleId = "july" as Id<"expense_cycles">;
 const categoryId = "food" as Id<"categories">;
 const tagId = "work" as Id<"tags">;
 const current: NonNullable<FunctionReturnType<typeof api.cycles.getCurrent>> = {
-	_id: cycleId,
 	_creationTime: 0,
-	userId,
+	_id: cycleId,
 	createdAt: 0,
+	endDate: "2026-08-01",
 	name: "July budget",
 	startDate: "2026-07-01",
-	endDate: "2026-08-01",
+	userId,
 };
 const accounts: FunctionReturnType<typeof api.accounts.list> = [
 	{
-		_id: accountId,
 		_creationTime: 0,
-		userId,
-		accountTypeId: "bank" as Id<"account_types">,
-		createdAt: 0,
-		name: "Cash",
-		startingBalance: 200,
-		currentBalance: 150,
-		accountTypeName: "Bank",
+		_id: accountId,
 		accountTypeBalanceNature: "asset",
 		accountTypeColor: "#123456",
 		accountTypeIcon: "wallet",
+		accountTypeId: "bank" as Id<"account_types">,
+		accountTypeName: "Bank",
+		createdAt: 0,
+		currentBalance: 150,
+		name: "Cash",
+		startingBalance: 200,
+		userId,
 	},
 	{
-		_id: archivedId,
 		_creationTime: 0,
-		userId,
-		accountTypeId: "bank" as Id<"account_types">,
-		createdAt: 0,
-		name: "Old account",
-		startingBalance: 0,
-		currentBalance: 0,
-		accountTypeName: "Bank",
+		_id: archivedId,
 		accountTypeBalanceNature: "asset",
 		accountTypeColor: null,
 		accountTypeIcon: null,
+		accountTypeId: "bank" as Id<"account_types">,
+		accountTypeName: "Bank",
+		createdAt: 0,
+		currentBalance: 0,
 		isArchived: true,
+		name: "Old account",
+		startingBalance: 0,
+		userId,
 	},
 ];
 type Expense = FunctionReturnType<typeof api.expenses.list>[number];
 function expense(id: string, values: Partial<Expense> = {}): Expense {
 	return {
-		_id: id as Id<"expenses">,
 		_creationTime: 0,
-		userId,
-		createdAt: 0,
-		amount: 25,
-		date: "2026-07-10",
-		cycleId,
-		categoryId,
+		_id: id as Id<"expenses">,
 		accountId,
-		spentOn: `Lunch ${id}`,
-		tagIds: [tagId],
 		accountName: "Cash",
+		accountTypeBalanceNature: "asset",
+		accountTypeColor: "#123456",
+		accountTypeIcon: "wallet",
 		accountTypeId: accounts[0].accountTypeId,
 		accountTypeName: "Bank",
-		accountTypeBalanceNature: "asset",
-		accountTypeIcon: "wallet",
-		accountTypeColor: "#123456",
-		categoryName: "Food",
+		amount: 25,
 		categoryIcon: "🍲",
+		categoryId,
+		categoryName: "Food",
 		categoryTypeColor: "#123456",
+		createdAt: 0,
+		cycleId,
 		cycleName: "July budget",
+		date: "2026-07-10",
+		spentOn: `Lunch ${id}`,
+		tagIds: [tagId],
 		tagNames: ["Work"],
+		userId,
 		...values,
 	};
 }
 const lunch = expense("lunch");
 const uncategorized = expense("taxi", {
-	amount: 15,
-	spentOn: "Taxi",
-	categoryId: undefined,
-	categoryName: null,
-	categoryIcon: null,
-	categoryTypeColor: null,
 	accountId: undefined,
 	accountName: null,
+	accountTypeBalanceNature: null,
+	accountTypeColor: null,
+	accountTypeIcon: null,
 	accountTypeId: null,
 	accountTypeName: null,
-	accountTypeIcon: null,
-	accountTypeColor: null,
-	accountTypeBalanceNature: null,
+	amount: 15,
+	categoryIcon: null,
+	categoryId: undefined,
+	categoryName: null,
+	categoryTypeColor: null,
+	spentOn: "Taxi",
 	tagIds: [],
 	tagNames: [],
 });
@@ -168,49 +168,49 @@ beforeEach(() => {
 	mocks.remove.mockReset().mockResolvedValue({ success: true });
 	mocks.createTag.mockReset().mockResolvedValue("created-tag");
 	fixture(api.users.get, {
-		_id: userId,
 		_creationTime: 0,
+		_id: userId,
 		clerkId: "clerk",
-		email: "test@example.com",
 		createdAt: 0,
 		currency: "USD",
+		email: "test@example.com",
 	});
 	fixture(api.cycles.list, [
 		current,
 		{
 			...current,
 			_id: "aug" as Id<"expense_cycles">,
+			endDate: "2026-09-01",
 			name: "August budget",
 			startDate: "2026-08-01",
-			endDate: "2026-09-01",
 		},
 		{
 			...current,
 			_id: "june" as Id<"expense_cycles">,
+			endDate: "2026-07-01",
 			name: "June budget",
 			startDate: "2026-06-01",
-			endDate: "2026-07-01",
 		},
 	]);
 	fixture(api.cycles.getCurrent, current);
 	fixture(api.accounts.list, accounts);
 	fixture(api.categories.list, [
 		{
-			_id: categoryId,
 			_creationTime: 0,
-			userId,
-			cycleId,
+			_id: categoryId,
 			createdAt: 0,
+			cycleId,
 			name: "Food",
-			plannedAmount: 100,
 			order: 0,
-			typeName: undefined,
+			plannedAmount: 100,
 			typeColor: undefined,
+			typeName: undefined,
+			userId,
 		},
 	]);
 	fixture(api.categories.listTypes, []);
 	fixture(api.tags.list, [
-		{ _id: tagId, _creationTime: 0, userId, createdAt: 0, name: "Work" },
+		{ _creationTime: 0, _id: tagId, createdAt: 0, name: "Work", userId },
 	]);
 	fixture(api.expenses.list, [lunch, uncategorized]);
 	fixture(api.expenses.listRecent, []);
@@ -264,7 +264,7 @@ describe("expenses index route", () => {
 
 	it("renders actual row details, totals and source attribution and navigates on row click", async () => {
 		fixture(api.expenses.list, [
-			expense("lunch", { revision: 2, lastModifiedSource: "cli_agent" }),
+			expense("lunch", { lastModifiedSource: "cli_agent", revision: 2 }),
 			uncategorized,
 		]);
 		render(<ExpensesPage />);
@@ -346,7 +346,7 @@ describe("expenses index route", () => {
 		await interaction.click(screen.getByRole("option", { name: "Food" }));
 		expect(mocks.query).toHaveBeenCalledWith(
 			getFunctionName(api.expenses.list),
-			{ cycleId, categoryId }
+			{ categoryId, cycleId }
 		);
 		await interaction.click(combobox("Food"));
 		await interaction.click(
@@ -459,28 +459,28 @@ describe("expenses index route", () => {
 		expect(mocks.push).not.toHaveBeenCalled();
 	});
 
-	it.each([
-		new Error("Cannot delete"),
-		"offline",
-	])("reports row deletion failure (%s)", async (error) => {
-		mocks.remove.mockRejectedValue(error);
-		render(<ExpensesPage />);
-		const interaction = await deleteRow();
-		await interaction.click(
-			within(screen.getByRole("alertdialog")).getByRole("button", {
-				name: "Delete",
-			})
-		);
-		await waitFor(() =>
-			expect(mocks.error).toHaveBeenCalledWith(
-				error instanceof Error ? "Cannot delete" : "Failed to delete expense"
-			)
-		);
-		expect(mocks.report).toHaveBeenCalledWith(error, {
-			feature: "expenses",
-			operation: "delete",
-		});
-	});
+	it.each([new Error("Cannot delete"), "offline"])(
+		"reports row deletion failure (%s)",
+		async (error) => {
+			mocks.remove.mockRejectedValue(error);
+			render(<ExpensesPage />);
+			const interaction = await deleteRow();
+			await interaction.click(
+				within(screen.getByRole("alertdialog")).getByRole("button", {
+					name: "Delete",
+				})
+			);
+			await waitFor(() =>
+				expect(mocks.error).toHaveBeenCalledWith(
+					error instanceof Error ? "Cannot delete" : "Failed to delete expense"
+				)
+			);
+			expect(mocks.report).toHaveBeenCalledWith(error, {
+				feature: "expenses",
+				operation: "delete",
+			});
+		}
+	);
 });
 
 describe("new and detail expense routes", () => {
@@ -524,8 +524,8 @@ describe("new and detail expense routes", () => {
 	it("edits the loaded expense through the real form and navigates on success", async () => {
 		fixture(api.expenses.get, {
 			...lunch,
-			revision: 2,
 			lastModifiedSource: "cli_agent",
+			revision: 2,
 		});
 		await renderDetail();
 		expect(screen.getByLabelText("Amount")).toHaveValue("25");
@@ -543,11 +543,11 @@ describe("new and detail expense routes", () => {
 		);
 		await waitFor(() =>
 			expect(mocks.update).toHaveBeenCalledWith({
-				id: "lunch",
-				amount: 25,
 				accountId,
+				amount: 25,
 				categoryId,
 				date: "2026-07-10",
+				id: "lunch",
 				spentOn: "Updated lunch",
 				tagIds: [tagId],
 			})
@@ -591,29 +591,29 @@ describe("new and detail expense routes", () => {
 		expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
 	});
 
-	it.each([
-		new Error("Permission denied"),
-		"offline",
-	])("retains the detail page on delete failure (%s)", async (error) => {
-		mocks.remove.mockRejectedValue(error);
-		await renderDetail();
-		const interaction = userEvent.setup();
-		await interaction.click(screen.getByRole("button", { name: "Delete" }));
-		await interaction.click(
-			within(screen.getByRole("alertdialog")).getByRole("button", {
-				name: "Delete",
-			})
-		);
-		await waitFor(() =>
-			expect(mocks.error).toHaveBeenCalledWith(
-				error instanceof Error
-					? "Permission denied"
-					: "Failed to delete expense"
-			)
-		);
-		expect(mocks.push).not.toHaveBeenCalled();
-		expect(
-			screen.getByRole("heading", { name: "Edit Expense" })
-		).toBeInTheDocument();
-	});
+	it.each([new Error("Permission denied"), "offline"])(
+		"retains the detail page on delete failure (%s)",
+		async (error) => {
+			mocks.remove.mockRejectedValue(error);
+			await renderDetail();
+			const interaction = userEvent.setup();
+			await interaction.click(screen.getByRole("button", { name: "Delete" }));
+			await interaction.click(
+				within(screen.getByRole("alertdialog")).getByRole("button", {
+					name: "Delete",
+				})
+			);
+			await waitFor(() =>
+				expect(mocks.error).toHaveBeenCalledWith(
+					error instanceof Error
+						? "Permission denied"
+						: "Failed to delete expense"
+				)
+			);
+			expect(mocks.push).not.toHaveBeenCalled();
+			expect(
+				screen.getByRole("heading", { name: "Edit Expense" })
+			).toBeInTheDocument();
+		}
+	);
 });

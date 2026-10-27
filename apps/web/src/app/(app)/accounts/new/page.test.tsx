@@ -7,25 +7,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import NewAccountPage from "./page";
 
 const mocks = vi.hoisted(() => ({
-	query: vi.fn(),
 	create: vi.fn(),
-	push: vi.fn(),
-	success: vi.fn(),
 	error: vi.fn(),
+	push: vi.fn(),
+	query: vi.fn(),
 	report: vi.fn(),
+	success: vi.fn(),
 }));
 vi.mock("convex/react", () => ({
-	useQuery: (...args: unknown[]) => mocks.query(...args),
 	useMutation: () => mocks.create,
+	useQuery: (...args: unknown[]) => mocks.query(...args),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push }) }));
 vi.mock("sonner", () => ({
-	toast: { success: mocks.success, error: mocks.error },
+	toast: { error: mocks.error, success: mocks.success },
 }));
 vi.mock("@/lib/report-error", () => ({ reportError: mocks.report }));
 
 const types = [
-	{ _id: "type-cash", name: "Cash", balanceNature: "asset", isArchived: false },
+	{ _id: "type-cash", balanceNature: "asset", isArchived: false, name: "Cash" },
 ];
 beforeEach(() => {
 	vi.clearAllMocks();

@@ -11,15 +11,13 @@ export function useCurrency() {
 
 	const locale = currency === "INR" ? "en-IN" : "en-US";
 
-	const format = (amount: number) => {
-		return formatCurrency(amount, currency, locale);
-	};
+	const format = (amount: number) => formatCurrency(amount, currency, locale);
 
 	return {
 		currency,
-		hasUserCurrency,
-		locale,
 		format,
+		hasUserCurrency,
 		isLoading: !isLoaded || (isSignedIn && user === undefined),
+		locale,
 	};
 }

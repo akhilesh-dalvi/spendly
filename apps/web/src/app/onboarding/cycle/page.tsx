@@ -10,7 +10,7 @@ import {
 	WalletCards,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { DateRange } from "react-day-picker";
 import { OnboardingStepControls } from "@/components/onboarding-shell";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,32 @@ const getPresetName = (preset: CyclePreset, range: DateRange): string => {
 	}
 	return "My tracking period";
 };
+
+function PresetButton({
+	option,
+	selected,
+	onChoose,
+}: {
+	option: CyclePreset;
+	selected: boolean;
+	onChoose: (preset: CyclePreset) => void;
+}) {
+	const choose = useCallback(() => onChoose(option), [onChoose, option]);
+	return (
+		<Button
+			aria-pressed={selected}
+			className={cn(
+				"h-auto justify-start px-4 py-3",
+				selected && "border-primary"
+			)}
+			onClick={choose}
+			type="button"
+			variant={selected ? "secondary" : "outline"}
+		>
+			{PRESET_LABELS[option]}
+		</Button>
+	);
+}
 
 export default function OnboardingCyclePage() {
 	const router = useRouter();
@@ -94,7 +120,7 @@ export default function OnboardingCyclePage() {
 		hasInitialized.current = true;
 	}, [onboardingState, requestedCycleId, router]);
 
-	const choosePreset = (nextPreset: CyclePreset) => {
+	const choosePreset = useCallback((nextPreset: CyclePreset) => {
 		setPreset(nextPreset);
 		if (nextPreset === "custom") {
 			return;
@@ -103,7 +129,19 @@ export default function OnboardingCyclePage() {
 		setDateRange(range);
 		setName(getPresetName(nextPreset, range));
 		setDateError(undefined);
-	};
+	}, []);
+	const changeName = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) => {
+			setName(event.target.value);
+			setNameError(undefined);
+		},
+		[]
+	);
+	const changeRange = useCallback((nextRange: DateRange | undefined) => {
+		setDateRange(nextRange);
+		setPreset("custom");
+		setDateError(undefined);
+	}, []);
 
 	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
@@ -175,19 +213,12 @@ export default function OnboardingCyclePage() {
 							<div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
 								{(["monthly", "pay-period", "custom"] as const).map(
 									(option) => (
-										<Button
-											aria-pressed={preset === option}
-											className={cn(
-												"h-auto justify-start px-4 py-3",
-												preset === option && "border-primary"
-											)}
+										<PresetButton
 											key={option}
-											onClick={() => choosePreset(option)}
-											type="button"
-											variant={preset === option ? "secondary" : "outline"}
-										>
-											{PRESET_LABELS[option]}
-										</Button>
+											onChoose={choosePreset}
+											option={option}
+											selected={preset === option}
+										/>
 									)
 								)}
 							</div>
@@ -200,10 +231,7 @@ export default function OnboardingCyclePage() {
 							aria-describedby={nameError ? "cycle-name-error" : undefined}
 							aria-invalid={Boolean(nameError)}
 							id="cycle-name"
-							onChange={(event) => {
-								setName(event.target.value);
-								setNameError(undefined);
-							}}
+							onChange={changeName}
 							placeholder="August 2026"
 							ref={nameInputRef}
 							value={name}
@@ -220,11 +248,7 @@ export default function OnboardingCyclePage() {
 						<DatePickerWithRange
 							date={dateRange}
 							numberOfMonths={1}
-							onDateChange={(nextRange) => {
-								setDateRange(nextRange);
-								setPreset("custom");
-								setDateError(undefined);
-							}}
+							onDateChange={changeRange}
 							placeholder="Choose start and end dates"
 						/>
 						{dateError ? (

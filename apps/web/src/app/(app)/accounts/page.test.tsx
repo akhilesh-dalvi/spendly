@@ -9,57 +9,57 @@ import type { ResolvedAccount } from "@/lib/accounts";
 import AccountsPage from "./page";
 
 const mocks = vi.hoisted(() => ({
-	query: vi.fn(),
 	mutate: vi.fn(),
 	push: vi.fn(),
+	query: vi.fn(),
 }));
 vi.mock("convex/react", () => ({
-	useQuery: (...args: unknown[]) => mocks.query(...args),
 	useMutation: () => mocks.mutate,
+	useQuery: (...args: unknown[]) => mocks.query(...args),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push }) }));
 vi.mock("@/lib/report-error", () => ({ reportError: vi.fn() }));
 
 const checking: ResolvedAccount = {
-	_id: "checking" as Id<"accounts">,
 	_creationTime: 1,
-	userId: "user-1" as Id<"users">,
-	createdAt: 1,
-	name: "Checking",
-	accountTypeId: "type-bank" as Id<"account_types">,
-	accountTypeName: "Bank",
+	_id: "checking" as Id<"accounts">,
 	accountTypeBalanceNature: "asset",
 	accountTypeColor: "#14B8A6",
 	accountTypeIcon: "landmark",
-	startingBalance: 50,
+	accountTypeId: "type-bank" as Id<"account_types">,
+	accountTypeName: "Bank",
+	createdAt: 1,
 	currentBalance: 100,
 	isArchived: false,
+	name: "Checking",
+	startingBalance: 50,
+	userId: "user-1" as Id<"users">,
 };
 const credit: ResolvedAccount = {
 	...checking,
 	_id: "credit" as Id<"accounts">,
-	name: "Credit card",
 	accountTypeBalanceNature: "liability",
-	currentBalance: -20,
-	currency: "USD",
 	accountTypeColor: null,
 	accountTypeIcon: null,
-	revision: 2,
+	currency: "USD",
+	currentBalance: -20,
 	lastModifiedSource: "web",
+	name: "Credit card",
+	revision: 2,
 };
 const euro: ResolvedAccount = {
 	...checking,
 	_id: "euro" as Id<"accounts">,
-	name: "Euro wallet",
 	currency: "EUR",
 	currentBalance: 30,
+	name: "Euro wallet",
 };
 const archived: ResolvedAccount = {
 	...checking,
 	_id: "old" as Id<"accounts">,
-	name: "Old cash",
 	currentBalance: 500,
 	isArchived: true,
+	name: "Old cash",
 };
 
 beforeEach(() => {

@@ -2,6 +2,20 @@ import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
 import { Logo } from "@/components/logo";
 
 export const cliDocsLayoutOptions: BaseLayoutProps = {
+	githubUrl: "https://github.com/akhilesh-dalvi/spendly",
+	links: [
+		{
+			active: "none",
+			text: "Spendly",
+			url: "/",
+		},
+		{
+			active: "none",
+			text: "Open app",
+			type: "button",
+			url: "/dashboard",
+		},
+	],
 	nav: {
 		title: (
 			<span className="flex items-center gap-2">
@@ -13,18 +27,4 @@ export const cliDocsLayoutOptions: BaseLayoutProps = {
 		),
 		url: "/docs/cli",
 	},
-	links: [
-		{
-			text: "Spendly",
-			url: "/",
-			active: "none",
-		},
-		{
-			type: "button",
-			text: "Open app",
-			url: "/dashboard",
-			active: "none",
-		},
-	],
-	githubUrl: "https://github.com/akhilesh-dalvi/spendly",
 };

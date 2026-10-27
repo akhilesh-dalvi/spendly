@@ -10,6 +10,11 @@ const examples: Readonly<Record<string, CommandExamples>> = {
 		flags: "spendly account-types list --include-archived",
 		guided: "spendly account-types list --interactive",
 	},
+	"accounts add": {
+		flags:
+			'spendly accounts add --name "Travel Wallet" --account-type-id type_demo --starting-balance 500 --dry-run',
+		guided: "spendly accounts add --interactive --dry-run",
+	},
 	"accounts adjust-balance": {
 		flags:
 			"spendly accounts adjust-balance account_demo --balance 2500 --dry-run",
@@ -19,10 +24,9 @@ const examples: Readonly<Record<string, CommandExamples>> = {
 		flags: "spendly accounts archive account_demo --dry-run",
 		guided: "spendly accounts archive --interactive --dry-run",
 	},
-	"accounts add": {
-		flags:
-			'spendly accounts add --name "Travel Wallet" --account-type-id type_demo --starting-balance 500 --dry-run',
-		guided: "spendly accounts add --interactive --dry-run",
+	"accounts edit": {
+		flags: 'spendly accounts edit account_demo --name "Daily Wallet" --dry-run',
+		guided: "spendly accounts edit --interactive --dry-run",
 	},
 	"accounts get": {
 		flags: "spendly accounts get account_demo",
@@ -49,10 +53,6 @@ const examples: Readonly<Record<string, CommandExamples>> = {
 			"spendly accounts transfer --from-account-id account_one --to-account-id account_two --amount 250 --dry-run",
 		guided: "spendly accounts transfer --interactive --dry-run",
 	},
-	"accounts edit": {
-		flags: 'spendly accounts edit account_demo --name "Daily Wallet" --dry-run',
-		guided: "spendly accounts edit --interactive --dry-run",
-	},
 	"auth login": {
 		flags: "spendly auth login --no-browser",
 		guided: "spendly auth login",
@@ -68,21 +68,21 @@ const examples: Readonly<Record<string, CommandExamples>> = {
 			'spendly cycles add --name "September" --start-date 2026-09-01 --end-date-exclusive 2026-10-01 --dry-run',
 		guided: "spendly cycles add --interactive --dry-run",
 	},
-	"cycles get": {
-		flags: "spendly cycles get cycle_demo",
-		guided: "spendly cycles get --interactive",
-	},
-	"cycles edit": {
-		flags: 'spendly cycles edit cycle_demo --name "New name" --dry-run',
-		guided: "spendly cycles edit --interactive --dry-run",
+	"cycles current": {
+		flags: "spendly cycles current --date 2026-09-14",
+		guided: "spendly cycles current --interactive",
 	},
 	"cycles delete": {
 		flags: "spendly cycles delete cycle_demo --dry-run",
 		guided: "spendly cycles delete --interactive --dry-run",
 	},
-	"cycles current": {
-		flags: "spendly cycles current --date 2026-09-14",
-		guided: "spendly cycles current --interactive",
+	"cycles edit": {
+		flags: 'spendly cycles edit cycle_demo --name "New name" --dry-run',
+		guided: "spendly cycles edit --interactive --dry-run",
+	},
+	"cycles get": {
+		flags: "spendly cycles get cycle_demo",
+		guided: "spendly cycles get --interactive",
 	},
 	"cycles list": { flags: "spendly cycles list" },
 	"expenses add": {
@@ -93,6 +93,10 @@ const examples: Readonly<Record<string, CommandExamples>> = {
 		flags: "spendly expenses delete expense_demo --dry-run",
 		guided: "spendly expenses delete --interactive --dry-run",
 	},
+	"expenses edit": {
+		flags: "spendly expenses edit expense_demo --amount 20 --dry-run",
+		guided: "spendly expenses edit --interactive --dry-run",
+	},
 	"expenses get": {
 		flags: "spendly expenses get expense_demo",
 		guided: "spendly expenses get --interactive",
@@ -100,10 +104,6 @@ const examples: Readonly<Record<string, CommandExamples>> = {
 	"expenses list": {
 		flags: "spendly expenses list --from 2026-09-01 --limit 25",
 		guided: "spendly expenses list --interactive",
-	},
-	"expenses edit": {
-		flags: "spendly expenses edit expense_demo --amount 20 --dry-run",
-		guided: "spendly expenses edit --interactive --dry-run",
 	},
 	summary: {
 		flags: "spendly summary --date 2026-09-14",

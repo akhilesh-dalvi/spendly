@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { OnboardingStepControls } from "@/components/onboarding-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -83,7 +83,9 @@ export default function OnboardingAccountsPage() {
 	const createAccountType = useMutation(api.accountTypes.create);
 	const completeOnboarding = useMutation(api.users.completeOnboarding);
 	const [name, setName] = useState("");
-	const [accountTypeId, setAccountTypeId] = useState<Id<"account_types">>();
+	const [accountTypeId, setAccountTypeId] = useState<
+		Id<"account_types"> | undefined
+	>(undefined);
 	const [openingBalance, setOpeningBalance] = useState("0");
 	const [customTypeName, setCustomTypeName] = useState("");
 	const [customTypeNature, setCustomTypeNature] = useState<
@@ -199,6 +201,54 @@ export default function OnboardingAccountsPage() {
 		}
 	};
 
+	const changeName = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) => {
+			setName(event.target.value);
+			setNameError(undefined);
+		},
+		[]
+	);
+	const changeAccountType = useCallback(
+		(value: string) => {
+			if (value === ADD_ACCOUNT_TYPE_VALUE) {
+				setCustomTypeError(undefined);
+				setIsAccountTypeDialogOpen(true);
+				return;
+			}
+			const type = accountTypes?.find((item) => item._id === value);
+			if (type) {
+				setAccountTypeId(type._id);
+				setTypeError(undefined);
+			}
+		},
+		[accountTypes]
+	);
+	const changeBalance = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) => {
+			setOpeningBalance(event.target.value);
+			setBalanceError(undefined);
+		},
+		[]
+	);
+	const changeTypeDialog = useCallback((open: boolean) => {
+		setIsAccountTypeDialogOpen(open);
+		if (!open) {
+			setCustomTypeError(undefined);
+		}
+	}, []);
+	const changeCustomName = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) => {
+			setCustomTypeName(event.target.value);
+			setCustomTypeError(undefined);
+		},
+		[]
+	);
+	const changeNature = useCallback((value: string) => {
+		if (value === "asset" || value === "liability") {
+			setCustomTypeNature(value);
+		}
+	}, []);
+
 	if (showSuccess) {
 		return <OnboardingSuccess accountCreated={createdAccount} />;
 	}
@@ -227,10 +277,7 @@ export default function OnboardingAccountsPage() {
 							<Input
 								aria-invalid={Boolean(nameError)}
 								id="account-name"
-								onChange={(event) => {
-									setName(event.target.value);
-									setNameError(undefined);
-								}}
+								onChange={changeName}
 								placeholder="Everyday checking"
 								ref={nameInputRef}
 								value={name}
@@ -244,15 +291,7 @@ export default function OnboardingAccountsPage() {
 						<div className="flex flex-col gap-2">
 							<Label htmlFor="account-type">Account type</Label>
 							<Select
-								onValueChange={(value) => {
-									if (value === ADD_ACCOUNT_TYPE_VALUE) {
-										setCustomTypeError(undefined);
-										setIsAccountTypeDialogOpen(true);
-										return;
-									}
-									setAccountTypeId(value as Id<"account_types">);
-									setTypeError(undefined);
-								}}
+								onValueChange={changeAccountType}
 								value={accountTypeId ?? ""}
 							>
 								<SelectTrigger
@@ -300,10 +339,7 @@ export default function OnboardingAccountsPage() {
 								className="pl-8 tabular-nums"
 								id="opening-balance"
 								inputMode="decimal"
-								onChange={(event) => {
-									setOpeningBalance(event.target.value);
-									setBalanceError(undefined);
-								}}
+								onChange={changeBalance}
 								step="0.01"
 								type="number"
 								value={openingBalance}
@@ -330,12 +366,7 @@ export default function OnboardingAccountsPage() {
 					</div>
 
 					<Dialog
-						onOpenChange={(open) => {
-							setIsAccountTypeDialogOpen(open);
-							if (!open) {
-								setCustomTypeError(undefined);
-							}
-						}}
+						onOpenChange={changeTypeDialog}
 						open={isAccountTypeDialogOpen}
 					>
 						<DialogContent>
@@ -354,10 +385,7 @@ export default function OnboardingAccountsPage() {
 									<Input
 										aria-invalid={Boolean(customTypeError)}
 										id="custom-account-type-name"
-										onChange={(event) => {
-											setCustomTypeName(event.target.value);
-											setCustomTypeError(undefined);
-										}}
+										onChange={changeCustomName}
 										placeholder="Investment"
 										value={customTypeName}
 									/>
@@ -366,12 +394,7 @@ export default function OnboardingAccountsPage() {
 									<Label htmlFor="custom-account-type-nature">
 										Balance treatment
 									</Label>
-									<Select
-										onValueChange={(value) =>
-											setCustomTypeNature(value as "asset" | "liability")
-										}
-										value={customTypeNature}
-									>
+									<Select onValueChange={changeNature} value={customTypeNature}>
 										<SelectTrigger
 											className="w-full"
 											id="custom-account-type-nature"

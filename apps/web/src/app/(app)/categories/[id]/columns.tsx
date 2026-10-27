@@ -2,10 +2,11 @@
 
 import { api } from "@spendly/backend/convex/_generated/api";
 import type { Id } from "@spendly/backend/convex/_generated/dataModel";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { Column, ColumnDef } from "@tanstack/react-table";
 import { useMutation } from "convex/react";
 import { ArrowUpDown, MoreHorizontal, Pencil, Trash } from "lucide-react";
 import Link from "next/link";
+import { useCallback } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,9 +23,9 @@ import { reportError } from "@/lib/report-error";
 export interface Expense {
 	_id: string;
 	amount: number;
+	categoryName?: string | null;
 	date: string;
 	spentOn?: string | null;
-	categoryName?: string | null;
 }
 
 const AmountCell = ({ amount }: { amount: number }) => {
@@ -76,29 +77,40 @@ const ActionsCell = ({ expense }: { expense: Expense }) => {
 	);
 };
 
+function SortHeader({
+	column,
+	label,
+	className,
+}: {
+	column: Column<Expense>;
+	label: string;
+	className: string;
+}) {
+	const toggleSorting = useCallback(
+		() => column.toggleSorting(column.getIsSorted() === "asc"),
+		[column]
+	);
+	return (
+		<Button className={className} onClick={toggleSorting} variant="ghost">
+			{label}
+			<ArrowUpDown className="ml-2 h-4 w-4" />
+		</Button>
+	);
+}
+
 export const columns: ColumnDef<Expense>[] = [
 	{
 		accessorKey: "date",
-		header: ({ column }) => {
-			return (
-				<Button
-					className="-ml-4 h-8"
-					onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-					variant="ghost"
-				>
-					Date
-					<ArrowUpDown className="ml-2 h-4 w-4" />
-				</Button>
-			);
-		},
 		cell: ({ row }) => {
 			const date = row.getValue("date") as string;
 			return new Date(date).toLocaleDateString();
 		},
+		header: ({ column }) => (
+			<SortHeader className="-ml-4 h-8" column={column} label="Date" />
+		),
 	},
 	{
 		accessorKey: "spentOn",
-		header: "Description",
 		cell: ({ row }) => {
 			const value = row.getValue("spentOn") as string | null;
 			return (
@@ -107,30 +119,22 @@ export const columns: ColumnDef<Expense>[] = [
 				)
 			);
 		},
+		header: "Description",
 	},
 	{
 		accessorKey: "amount",
-		header: ({ column }) => {
-			return (
-				<div className="flex justify-end">
-					<Button
-						className="-mr-4 h-8"
-						onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-						variant="ghost"
-					>
-						Amount
-						<ArrowUpDown className="ml-2 h-4 w-4" />
-					</Button>
-				</div>
-			);
-		},
 		cell: ({ row }) => {
 			const amount = Number.parseFloat(row.getValue("amount"));
 			return <AmountCell amount={amount} />;
 		},
+		header: ({ column }) => (
+			<div className="flex justify-end">
+				<SortHeader className="-mr-4 h-8" column={column} label="Amount" />
+			</div>
+		),
 	},
 	{
-		id: "actions",
 		cell: ({ row }) => <ActionsCell expense={row.original} />,
+		id: "actions",
 	},
 ];

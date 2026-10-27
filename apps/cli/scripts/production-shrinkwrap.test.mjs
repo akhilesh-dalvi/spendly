@@ -54,7 +54,7 @@ const verifyFixture = ({ directory, shrinkwrap }) => {
 
 afterEach(() => {
 	for (const directory of temporaryDirectories.splice(0)) {
-		rmSync(directory, { recursive: true, force: true });
+		rmSync(directory, { force: true, recursive: true });
 	}
 });
 
@@ -69,18 +69,18 @@ describe("production-only release shrinkwrap", () => {
 		expect(result.status, result.stderr).toBe(0);
 	});
 
-	it.each([
-		{},
-		{ vitest: "4.1.11" },
-	])("rejects root development dependency metadata %j", (devDependencies) => {
-		const fixture = createFixture();
-		fixture.shrinkwrap.packages[""].devDependencies = devDependencies;
-		const result = verifyFixture(fixture);
-		expect(result.status).not.toBe(0);
-		expect(result.stderr).toContain(
-			"Shrinkwrap root must omit devDependencies"
-		);
-	});
+	it.each([{}, { vitest: "4.1.11" }])(
+		"rejects root development dependency metadata %j",
+		(devDependencies) => {
+			const fixture = createFixture();
+			fixture.shrinkwrap.packages[""].devDependencies = devDependencies;
+			const result = verifyFixture(fixture);
+			expect(result.status).not.toBe(0);
+			expect(result.stderr).toContain(
+				"Shrinkwrap root must omit devDependencies"
+			);
+		}
+	);
 
 	it.each([
 		"node_modules/vitest",
@@ -88,10 +88,10 @@ describe("production-only release shrinkwrap", () => {
 	])("rejects development-only lock entry %s", (path) => {
 		const fixture = createFixture();
 		fixture.shrinkwrap.packages[path] = {
-			version: "4.1.11",
-			resolved: "https://registry.npmjs.org/vitest/-/vitest-4.1.11.tgz",
-			integrity: "sha512-fixture",
 			dev: true,
+			integrity: "sha512-fixture",
+			resolved: "https://registry.npmjs.org/vitest/-/vitest-4.1.11.tgz",
+			version: "4.1.11",
 		};
 		const result = verifyFixture(fixture);
 		expect(result.status).not.toBe(0);

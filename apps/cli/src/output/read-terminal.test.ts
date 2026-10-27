@@ -39,8 +39,8 @@ describe("human read output widths", () => {
 		const context = contextSchema.parse({
 			...readFixture("context"),
 			currentCycle: null,
-			totals: [],
 			timezone: null,
+			totals: [],
 		});
 		const output = renderContext(context);
 		expect(output).toContain("Current cycle: none");
@@ -55,10 +55,10 @@ describe("human read output widths", () => {
 	it("renders unassigned, uncategorized expenses without descriptions or tags", () => {
 		const expense = {
 			...expensePageSchema.parse(readFixture("expense-page")).items[0],
-			spentOn: null,
 			account: null,
 			category: null,
 			cycle: null,
+			spentOn: null,
 			tags: [],
 		};
 		const output = renderExpense(expense);
@@ -73,16 +73,16 @@ describe("human read output widths", () => {
 	});
 
 	it("distinguishes hidden categories and unset plans", () => {
-		const category = categorySchema
+		const [category] = categorySchema
 			.array()
-			.parse(readFixture("resources").categories)[0];
+			.parse(readFixture("resources").categories);
 		const output = renderCategories(
 			[
 				{
 					...category,
 					categoryType: null,
-					plannedAmount: null,
 					isHidden: true,
+					plannedAmount: null,
 				},
 			],
 			"INR"
@@ -97,13 +97,13 @@ describe("human read output widths", () => {
 		const output = renderSummary(
 			{
 				...summary,
-				remaining: -25,
-				daysRemaining: null,
 				categories: summary.categories.map((category) => ({
 					...category,
-					planned: null,
 					difference: null,
+					planned: null,
 				})),
+				daysRemaining: null,
+				remaining: -25,
 			},
 			"INR"
 		);
@@ -114,9 +114,9 @@ describe("human read output widths", () => {
 	});
 
 	it("distinguishes archived liability accounts from active assets", () => {
-		const account = accountSchema
+		const [account] = accountSchema
 			.array()
-			.parse(readFixture("accounts").accounts)[0];
+			.parse(readFixture("accounts").accounts);
 		const liability = {
 			...account,
 			accountType: {
@@ -131,9 +131,9 @@ describe("human read output widths", () => {
 		expect(output).toContain("Status: Archived");
 		expect(output).toContain("Default: No");
 		expect(renderAccounts([liability])).toContain("Archived");
-		const type = accountTypeSchema
+		const [type] = accountTypeSchema
 			.array()
-			.parse(readFixture("accounts").accountTypes)[0];
+			.parse(readFixture("accounts").accountTypes);
 		const types = renderAccountTypes([
 			{ ...type, balanceNature: "liability", isArchived: true },
 		]);
@@ -142,9 +142,9 @@ describe("human read output widths", () => {
 	});
 
 	it("uses a dash for ledger entries without notes", () => {
-		const transaction = transactionPageSchema.parse(
+		const [transaction] = transactionPageSchema.parse(
 			readFixture("accounts").transactions
-		).items[0];
+		).items;
 		const output = renderTransactions([{ ...transaction, note: null }], "INR");
 		expect(output).toContain("-");
 		expect(output).not.toContain("null");
@@ -159,43 +159,44 @@ describe("human read output widths", () => {
 		expect(renderContext(context)).not.toContain("Asia/Calcutta");
 	});
 
-	it.each([
-		40, 80, 120,
-	])("keeps every read renderer within %i columns", (columns) => {
-		const accountFixture = readFixture("accounts");
-		const expensePage = expensePageSchema.parse(readFixture("expense-page"));
-		const resources = readFixture("resources");
-		const accounts = accountSchema.array().parse(accountFixture.accounts);
-		const accountTypes = accountTypeSchema
-			.array()
-			.parse(accountFixture.accountTypes);
-		const transactions = transactionPageSchema.parse(
-			accountFixture.transactions
-		).items;
-		const cycles = cycleSchema.array().parse(resources.cycles);
-		const categories = categorySchema.array().parse(resources.categories);
-		const tags = tagSchema.array().parse(resources.tags);
-		const summary = summarySchema.parse(resources.summary);
-		const options = { columns };
-		const outputs = [
-			renderContext(contextSchema.parse(readFixture("context")), options),
-			renderExpense(expensePage.items[0], options),
-			renderExpenses(expensePage.items, options),
-			renderCycle(cycles[0], options),
-			renderCycles(cycles, options),
-			renderCategories(categories, "INR", options),
-			renderTags(tags, options),
-			renderSummary(summary, "INR", options),
-			renderAccount(accounts[0], options),
-			renderAccounts(accounts, options),
-			renderTransactions(transactions, "INR", options),
-			renderAccountTypes(accountTypes, options),
-		];
+	it.each([40, 80, 120])(
+		"keeps every read renderer within %i columns",
+		(columns) => {
+			const accountFixture = readFixture("accounts");
+			const expensePage = expensePageSchema.parse(readFixture("expense-page"));
+			const resources = readFixture("resources");
+			const accounts = accountSchema.array().parse(accountFixture.accounts);
+			const accountTypes = accountTypeSchema
+				.array()
+				.parse(accountFixture.accountTypes);
+			const transactions = transactionPageSchema.parse(
+				accountFixture.transactions
+			).items;
+			const cycles = cycleSchema.array().parse(resources.cycles);
+			const categories = categorySchema.array().parse(resources.categories);
+			const tags = tagSchema.array().parse(resources.tags);
+			const summary = summarySchema.parse(resources.summary);
+			const options = { columns };
+			const outputs = [
+				renderContext(contextSchema.parse(readFixture("context")), options),
+				renderExpense(expensePage.items[0], options),
+				renderExpenses(expensePage.items, options),
+				renderCycle(cycles[0], options),
+				renderCycles(cycles, options),
+				renderCategories(categories, "INR", options),
+				renderTags(tags, options),
+				renderSummary(summary, "INR", options),
+				renderAccount(accounts[0], options),
+				renderAccounts(accounts, options),
+				renderTransactions(transactions, "INR", options),
+				renderAccountTypes(accountTypes, options),
+			];
 
-		for (const output of outputs) {
-			for (const line of output.split("\n")) {
-				expect(line.length, line).toBeLessThanOrEqual(columns);
+			for (const output of outputs) {
+				for (const line of output.split("\n")) {
+					expect(line.length, line).toBeLessThanOrEqual(columns);
+				}
 			}
 		}
-	});
+	);
 });

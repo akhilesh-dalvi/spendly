@@ -4,31 +4,32 @@ import { api } from "@spendly/backend/convex/_generated/api";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { getFunctionName } from "convex/server";
+import { useCallback } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import OnboardingCategoriesPage from "./page";
 
 const mocks = vi.hoisted(() => ({
-	query: vi.fn(),
-	save: vi.fn(),
 	advance: vi.fn(),
 	push: vi.fn(),
+	query: vi.fn(),
 	report: vi.fn(),
 	requestedCycle: "",
+	save: vi.fn(),
 }));
 vi.mock("convex/react", () => ({
-	useQuery: (...args: unknown[]) => mocks.query(...args),
 	useMutation: (reference: Parameters<typeof getFunctionName>[0]) =>
 		getFunctionName(reference) === "categories:saveOnboardingCategories"
 			? mocks.save
 			: mocks.advance,
+	useQuery: (...args: unknown[]) => mocks.query(...args),
 }));
 vi.mock("next/navigation", () => ({
+	usePathname: () => "/onboarding/categories",
 	useRouter: () => ({ push: mocks.push }),
 	useSearchParams: () =>
 		new URLSearchParams(
 			mocks.requestedCycle ? { cycleId: mocks.requestedCycle } : {}
 		),
-	usePathname: () => "/onboarding/categories",
 }));
 vi.mock("@/lib/report-error", () => ({ reportError: mocks.report }));
 // Test page callbacks; the modal form has separate coverage.
@@ -41,23 +42,23 @@ vi.mock("@/components/category-type-modal", () => ({
 		open: boolean;
 		onSuccess: (id: string) => void;
 		onOpenChange: (open: boolean) => void;
-	}) =>
-		open ? (
+	}) => {
+		const create = useCallback(() => {
+			onSuccess("type-custom");
+			onOpenChange(false);
+		}, [onSuccess, onOpenChange]);
+		const cancel = useCallback(() => onOpenChange(false), [onOpenChange]);
+		return open ? (
 			<div>
-				<button
-					onClick={() => {
-						onSuccess("type-custom");
-						onOpenChange(false);
-					}}
-					type="button"
-				>
+				<button onClick={create} type="button">
 					Create custom type
 				</button>
-				<button onClick={() => onOpenChange(false)} type="button">
+				<button onClick={cancel} type="button">
 					Cancel type
 				</button>
 			</div>
-		) : null,
+		) : null;
+	},
 }));
 
 const cycleId = "cycle-own";
@@ -76,18 +77,18 @@ const saveButton = () =>
 const existing = [
 	{
 		_id: "category-rent",
-		name: "Rent",
 		categoryTypeId: "type-needs",
-		plannedAmount: 100,
 		icon: "🏠",
+		name: "Rent",
+		plannedAmount: 100,
 	},
 	{ _id: "category-food", name: "Food", plannedAmount: 0 },
 	{ _id: "category-books", name: "Books" },
 	{
 		_id: "category-hidden",
+		isHidden: true,
 		name: "Secret",
 		plannedAmount: 999,
-		isHidden: true,
 	},
 ];
 
@@ -96,8 +97,8 @@ beforeEach(() => {
 	mocks.requestedCycle = "";
 	fixtures.clear();
 	fixtures.set(getFunctionName(api.users.getOnboardingState), {
-		cycle: { _id: cycleId },
 		currency: "USD",
+		cycle: { _id: cycleId },
 		path: "plan",
 	});
 	fixtures.set(getFunctionName(api.categories.listTypes), types);
@@ -111,46 +112,47 @@ beforeEach(() => {
 });
 
 describe("onboarding category planning", () => {
-	it.each([
-		"state",
-		"types",
-		"categories",
-	] as const)("waits for %s before initializing suggestions", (missing) => {
-		const reference = {
-			state: api.users.getOnboardingState,
-			types: api.categories.listTypes,
-			categories: api.categories.list,
-		}[missing];
-		const key = getFunctionName(reference);
-		const value = fixtures.get(key);
-		fixtures.set(key, undefined);
-		const { rerender } = render(<OnboardingCategoriesPage />);
-		expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-		if (missing === "state") {
-			expect(mocks.query).toHaveBeenCalledWith(api.categories.list, "skip");
+	it.each(["state", "types", "categories"] as const)(
+		"waits for %s before initializing suggestions",
+		(missing) => {
+			const reference = {
+				categories: api.categories.list,
+				state: api.users.getOnboardingState,
+				types: api.categories.listTypes,
+			}[missing];
+			const key = getFunctionName(reference);
+			const value = fixtures.get(key);
+			fixtures.set(key, undefined);
+			const { rerender } = render(<OnboardingCategoriesPage />);
+			expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+			if (missing === "state") {
+				expect(mocks.query).toHaveBeenCalledWith(api.categories.list, "skip");
+			}
+			fixtures.set(key, value);
+			rerender(<OnboardingCategoriesPage />);
+			expect(names().map((input) => (input as HTMLInputElement).value)).toEqual(
+				[
+					"Rent",
+					"Groceries",
+					"Transport",
+					"Utilities",
+					"Shopping",
+					"Entertainment",
+					"Savings",
+				]
+			);
+			expect(
+				screen.getByRole("combobox", { name: "Category type for Rent" })
+			).toHaveTextContent("Needs");
+			expect(
+				screen.getByRole("combobox", { name: "Category type for Shopping" })
+			).toHaveTextContent("Wants");
+			expect(
+				screen.getByRole("combobox", { name: "Category type for Savings" })
+			).toHaveTextContent("Savings");
+			expect(screen.getByRole("heading", { name: "$0.00" })).toBeVisible();
 		}
-		fixtures.set(key, value);
-		rerender(<OnboardingCategoriesPage />);
-		expect(names().map((input) => (input as HTMLInputElement).value)).toEqual([
-			"Rent",
-			"Groceries",
-			"Transport",
-			"Utilities",
-			"Shopping",
-			"Entertainment",
-			"Savings",
-		]);
-		expect(
-			screen.getByRole("combobox", { name: "Category type for Rent" })
-		).toHaveTextContent("Needs");
-		expect(
-			screen.getByRole("combobox", { name: "Category type for Shopping" })
-		).toHaveTextContent("Wants");
-		expect(
-			screen.getByRole("combobox", { name: "Category type for Savings" })
-		).toHaveTextContent("Savings");
-		expect(screen.getByRole("heading", { name: "$0.00" })).toBeVisible();
-	});
+	);
 
 	it("initializes only visible existing categories, preserves zero and blank plans, and does not overwrite local edits on query refresh", async () => {
 		const user = userEvent.setup();
@@ -178,7 +180,6 @@ describe("onboarding category planning", () => {
 			)
 		);
 		expect(mocks.save).toHaveBeenCalledWith({
-			cycleId,
 			categories: [
 				{
 					categoryId: "category-rent",
@@ -202,6 +203,7 @@ describe("onboarding category planning", () => {
 					plannedAmount: undefined,
 				},
 			],
+			cycleId,
 		});
 	});
 
@@ -239,7 +241,6 @@ describe("onboarding category planning", () => {
 		await user.click(screen.getByRole("button", { name: "🏡" }));
 		await user.click(saveButton());
 		expect(mocks.save.mock.calls[0][0]).toMatchObject({
-			cycleId,
 			categories: expect.arrayContaining([
 				{
 					categoryId: undefined,
@@ -249,6 +250,7 @@ describe("onboarding category planning", () => {
 					plannedAmount: 75.25,
 				},
 			]),
+			cycleId,
 		});
 	});
 

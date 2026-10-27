@@ -39,10 +39,10 @@ function expense(
 ): Expense {
 	return {
 		_id: id,
-		date,
 		amount: 25,
 		categoryId: "food",
 		categoryName: "Food",
+		date,
 		spentOn: `Lunch ${id}`,
 		...values,
 	};
@@ -52,12 +52,12 @@ beforeEach(() => {
 	// Friday: Sunday is this week but is neither today nor yesterday.
 	vi.setSystemTime(new Date(2026, 6, 10, 12));
 	fixture(api.users.get, {
-		_id: "user" as Id<"users">,
 		_creationTime: 0,
+		_id: "user" as Id<"users">,
 		clerkId: "clerk",
-		email: "test@example.com",
 		createdAt: 0,
 		currency: "USD",
+		email: "test@example.com",
 	});
 });
 afterEach(() => vi.useRealTimers());
@@ -116,20 +116,20 @@ describe("RecentActivity", () => {
 			<RecentActivity
 				expenses={[
 					expense("agent", "2026-07-10", {
+						accountName: "Credit card",
+						accountTypeColor: "#123456",
+						accountTypeIcon: "wallet",
+						accountTypeName: "Credit",
 						amount: 12.5,
 						categoryIcon: "🍲",
 						categoryTypeColor: "#123456",
-						accountName: "Credit card",
-						accountTypeName: "Credit",
-						accountTypeIcon: "wallet",
-						accountTypeColor: "#123456",
-						revision: 2,
 						createdSource: "web",
 						lastModifiedSource: "cli_agent",
+						revision: 2,
 					}),
 					expense("cli", "2026-07-09", {
-						createdSource: "cli",
 						accountName: "Cash",
+						createdSource: "cli",
 					}),
 				]}
 			/>
@@ -163,8 +163,8 @@ describe("RecentActivity", () => {
 					expense("uncategorized", "2026-07-10", {
 						categoryId: null,
 						categoryName: null,
-						spentOn: null,
 						createdSource: "web",
+						spentOn: null,
 					}),
 					expense("fallback-icon", "2026-07-09", {
 						categoryIcon: null,

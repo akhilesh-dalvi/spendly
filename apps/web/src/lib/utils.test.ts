@@ -4,7 +4,7 @@ import { cn, formatCurrency } from "./utils";
 describe("display utilities", () => {
 	it("merges conditional classes and lets the last conflicting utility win", () => {
 		expect(
-			cn("px-2", { hidden: false, block: true }, ["px-4", "font-bold"])
+			cn("px-2", { block: true, hidden: false }, ["px-4", "font-bold"])
 		).toBe("block px-4 font-bold");
 		expect(cn(null, undefined, false)).toBe("");
 	});

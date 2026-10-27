@@ -2,6 +2,7 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../../_generated/api";
+import { forEachSequential } from "../../lib/async";
 import schema from "../../schema";
 import { modules } from "../../test.setup";
 
@@ -12,11 +13,11 @@ const setup = async () => {
 		email: "owner@example.com",
 	});
 	const cycle = await owner.mutation(api.cycles.create, {
+		endDate: "2026-02-01",
 		name: "January",
 		startDate: "2026-01-01",
-		endDate: "2026-02-01",
 	});
-	return { test, owner, userId, cycle };
+	return { cycle, owner, test, userId };
 };
 
 describe("CLI identity and resource queries", () => {
@@ -45,10 +46,10 @@ describe("CLI identity and resource queries", () => {
 	it("lists account types in order, hides archived types by default, and presents legacy metadata", async () => {
 		const { test, owner, userId } = await setup();
 		const accountType = await owner.mutation(api.accountTypes.create, {
-			name: "Travel",
 			balanceNature: "asset",
 			color: "#123456",
 			icon: "wallet",
+			name: "Travel",
 		});
 		expect(
 			await owner.query(api.accountTypes.getUsage, {
@@ -62,12 +63,12 @@ describe("CLI identity and resource queries", () => {
 		const legacyId = await test.run(
 			async (ctx) =>
 				await ctx.db.insert("account_types", {
-					userId,
 					balanceNature: "asset",
+					createdAt: 0,
 					name: "Legacy",
 					normalizedName: "legacy",
 					order: 10,
-					createdAt: 0,
+					userId,
 				})
 		);
 		expect(
@@ -81,21 +82,21 @@ describe("CLI identity and resource queries", () => {
 		expect(all).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					id: accountType._id,
-					isArchived: true,
 					color: "#123456",
 					icon: "wallet",
+					id: accountType._id,
+					isArchived: true,
 				}),
 				{
-					id: legacyId,
 					balanceNature: "asset",
+					color: null,
+					createdAt: "1970-01-01T00:00:00.000Z",
+					icon: null,
+					id: legacyId,
+					isArchived: false,
 					name: "Legacy",
 					order: 10,
-					createdAt: "1970-01-01T00:00:00.000Z",
 					updatedAt: "1970-01-01T00:00:00.000Z",
-					color: null,
-					icon: null,
-					isArchived: false,
 				},
 			])
 		);
@@ -113,22 +114,22 @@ describe("CLI identity and resource queries", () => {
 			throw new Error("Expected type");
 		}
 		const typed = await owner.mutation(api.categories.create, {
-			cycleId: cycle._id,
-			name: "Typed",
 			categoryTypeId: type._id,
-			plannedAmount: 0,
+			cycleId: cycle._id,
 			icon: "apple",
-			order: 1,
 			isHidden: true,
+			name: "Typed",
+			order: 1,
+			plannedAmount: 0,
 		});
 		const legacyId = await test.run(
 			async (ctx) =>
 				await ctx.db.insert("categories", {
-					userId,
+					createdAt: 0,
 					cycleId: cycle._id,
 					name: "Legacy",
 					order: 0,
-					createdAt: 0,
+					userId,
 				})
 		);
 		expect(
@@ -137,22 +138,22 @@ describe("CLI identity and resource queries", () => {
 			})
 		).toEqual([
 			{
-				id: legacyId,
+				categoryType: null,
+				createdAt: "1970-01-01T00:00:00.000Z",
 				cycleId: cycle._id,
+				icon: null,
+				id: legacyId,
+				isHidden: false,
 				name: "Legacy",
 				order: 0,
-				createdAt: "1970-01-01T00:00:00.000Z",
-				categoryType: null,
-				icon: null,
-				isHidden: false,
 				plannedAmount: null,
 			},
 			expect.objectContaining({
-				id: typed?._id,
-				categoryType: { id: type._id, name: "Plain", color: null },
-				plannedAmount: 0,
-				isHidden: true,
+				categoryType: { color: null, id: type._id, name: "Plain" },
 				icon: "apple",
+				id: typed?._id,
+				isHidden: true,
+				plannedAmount: 0,
 			}),
 		]);
 		await owner.mutation(api.tags.create, { name: "Zulu" });
@@ -166,7 +167,7 @@ describe("CLI identity and resource queries", () => {
 			await owner.query(api.cli.v1.resources.getCurrentCycle, {
 				date: "2026-01-01",
 			})
-		).toMatchObject({ id: cycle._id, endDateExclusive: "2026-02-01" });
+		).toMatchObject({ endDateExclusive: "2026-02-01", id: cycle._id });
 		expect(
 			await owner.query(api.cli.v1.resources.getCurrentCycle, {
 				date: "2026-02-01",
@@ -181,16 +182,16 @@ describe("CLI identity and resource queries", () => {
 			throw new Error("Expected type");
 		}
 		const budgeted = await owner.mutation(api.categories.create, {
+			categoryTypeId: type._id,
 			cycleId: cycle._id,
 			name: "Food",
 			plannedAmount: 100,
-			categoryTypeId: type._id,
 		});
 		const zero = await owner.mutation(api.categories.create, {
+			categoryTypeId: type._id,
 			cycleId: cycle._id,
 			name: "Zero",
 			plannedAmount: 0,
-			categoryTypeId: type._id,
 		});
 		await owner.mutation(api.categories.create, {
 			cycleId: cycle._id,
@@ -200,53 +201,53 @@ describe("CLI identity and resource queries", () => {
 			throw new Error("Expected categories");
 		}
 		await owner.mutation(api.expenses.create, {
+			accountId: null,
 			amount: 25,
+			categoryId: budgeted._id,
 			date: "2026-01-03",
-			accountId: null,
-			categoryId: budgeted._id,
 		});
 		await owner.mutation(api.expenses.create, {
+			accountId: null,
 			amount: 5,
-			date: "2026-01-04",
-			accountId: null,
 			categoryId: budgeted._id,
+			date: "2026-01-04",
 		});
 		await owner.mutation(api.expenses.create, {
+			accountId: null,
 			amount: 7,
 			date: "2026-01-05",
-			accountId: null,
 		});
 		const summary = await owner.query(api.cli.v1.resources.getSummary, {
 			cycleId: cycle._id,
 			today: "2026-02-01",
 		});
 		expect(summary).toMatchObject({
-			totalSpent: 37,
-			totalPlanned: 100,
-			remaining: 63,
 			daysRemaining: null,
+			remaining: 63,
+			totalPlanned: 100,
+			totalSpent: 37,
 		});
 		expect(summary.categories).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					name: "Food",
-					spent: 30,
 					difference: 70,
+					name: "Food",
 					progressPercent: 30,
+					spent: 30,
 				}),
 				expect.objectContaining({
-					name: "Zero",
-					spent: 0,
-					planned: 0,
 					difference: 0,
+					name: "Zero",
+					planned: 0,
 					progressPercent: null,
+					spent: 0,
 				}),
 				expect.objectContaining({
-					name: "Unplanned",
-					spent: 0,
-					planned: null,
 					difference: null,
+					name: "Unplanned",
+					planned: null,
 					progressPercent: null,
+					spent: 0,
 				}),
 				expect.objectContaining({
 					categoryId: null,
@@ -258,14 +259,14 @@ describe("CLI identity and resource queries", () => {
 		expect(summary.types).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					typeId: type._id,
 					totalPlanned: 100,
 					totalSpent: 30,
+					typeId: type._id,
 				}),
 				expect.objectContaining({
-					typeId: null,
 					totalPlanned: 0,
 					totalSpent: 7,
+					typeId: null,
 				}),
 			])
 		);
@@ -317,13 +318,16 @@ describe("CLI identity and resource queries", () => {
 	it("fails safely instead of returning truncated tags beyond the resource limit", async () => {
 		const { test, owner, userId } = await setup();
 		await test.run(async (ctx) => {
-			for (let index = 0; index < 1001; index += 1) {
-				await ctx.db.insert("tags", {
-					userId,
-					name: `Tag ${index}`,
-					createdAt: 0,
-				});
-			}
+			await forEachSequential(
+				Array.from({ length: 1001 }, (_, index) => index),
+				async (index) => {
+					await ctx.db.insert("tags", {
+						createdAt: 0,
+						name: `Tag ${index}`,
+						userId,
+					});
+				}
+			);
 		});
 		await expect(
 			owner.query(api.cli.v1.resources.listTags, {})

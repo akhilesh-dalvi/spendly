@@ -1,5 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import type { Readable, Writable } from "node:stream";
+import { repeatAsync } from "../async-iteration.js";
 import type {
 	InteractivePrompter,
 	MultiSelectPromptOptions,
@@ -84,12 +85,13 @@ const chooseOne = async <Value extends string>(options: {
 }): Promise<Value> => {
 	options.output.write(`\n${options.prompt.message}\n`);
 	renderOptions(options.output, options.prompt.options);
-	while (true) {
-		const answer = await ask({
+	for await (const answer of repeatAsync(() =>
+		ask({
 			input: options.input,
 			message: `Choose 1-${options.prompt.options.length}: `,
 			output: options.output,
-		});
+		})
+	)) {
 		const index = Number(answer) - 1;
 		const choice = options.prompt.options[index];
 		if (choice && !choice.disabled) {
@@ -98,6 +100,7 @@ const chooseOne = async <Value extends string>(options: {
 		}
 		options.output.write("Enter the number of an available option.\n");
 	}
+	throw new Error("Prompt iteration ended unexpectedly");
 };
 
 const chooseMany = async <Value extends string>(options: {
@@ -112,13 +115,14 @@ const chooseMany = async <Value extends string>(options: {
 		options.prompt.initialValues,
 		true
 	);
-	while (true) {
-		const answer = await ask({
+	for await (const answer of repeatAsync(() =>
+		ask({
 			input: options.input,
 			message:
 				"Enter option numbers separated by commas; press Enter for none: ",
 			output: options.output,
-		});
+		})
+	)) {
 		if (!answer) {
 			const initial = options.prompt.initialValues ?? [];
 			if (!(options.prompt.required && initial.length === 0)) {
@@ -143,6 +147,7 @@ const chooseMany = async <Value extends string>(options: {
 		}
 		options.output.write("Enter only numbers for available options.\n");
 	}
+	throw new Error("Prompt iteration ended unexpectedly");
 };
 
 const askText = async (options: {
@@ -150,15 +155,16 @@ const askText = async (options: {
 	output: Writable;
 	prompt: TextPromptOptions;
 }): Promise<string> => {
-	while (true) {
+	for await (const answer of repeatAsync(() => {
 		const suffix = options.prompt.initialValue
 			? ` [${options.prompt.initialValue}]`
 			: "";
-		const answer = await ask({
+		return ask({
 			input: options.input,
 			message: `${options.prompt.message}${suffix}${TERMINAL_PUNCTUATION_PATTERN.test(options.prompt.message) ? " " : ": "}`,
 			output: options.output,
 		});
+	})) {
 		const value = answer || options.prompt.initialValue || "";
 		const error = options.prompt.validate?.(value);
 		if (!error) {
@@ -166,6 +172,7 @@ const askText = async (options: {
 		}
 		options.output.write(`${error}\n`);
 	}
+	throw new Error("Prompt iteration ended unexpectedly");
 };
 
 export const createAccessiblePrompter = (options: {
@@ -173,14 +180,14 @@ export const createAccessiblePrompter = (options: {
 	output: Writable;
 }): InteractivePrompter => ({
 	confirm: async ({ initialValue = false, message }) => {
-		while (true) {
-			const answer = (
-				await ask({
-					input: options.input,
-					message: `${message} ${initialValue ? "[Y/n]" : "[y/N]"}: `,
-					output: options.output,
-				})
-			).toLocaleLowerCase();
+		for await (const response of repeatAsync(() =>
+			ask({
+				input: options.input,
+				message: `${message} ${initialValue ? "[Y/n]" : "[y/N]"}: `,
+				output: options.output,
+			})
+		)) {
+			const answer = response.toLocaleLowerCase();
 			if (!answer) {
 				return initialValue;
 			}
@@ -192,6 +199,7 @@ export const createAccessiblePrompter = (options: {
 			}
 			options.output.write("Enter yes or no.\n");
 		}
+		throw new Error("Prompt iteration ended unexpectedly");
 	},
 	date: async ({ initialValue, message }) =>
 		await askText({

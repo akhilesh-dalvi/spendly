@@ -6,7 +6,6 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery } from "convex/react";
 import { format, parseISO } from "date-fns";
 import {
-	ArrowUpDown,
 	Calendar,
 	ChevronLeft,
 	Filter,
@@ -18,7 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AccountTypeIcon } from "@/components/account-type-icon";
 import {
@@ -43,27 +42,28 @@ import {
 } from "@/components/ui/select";
 import { useCurrency } from "@/hooks/use-currency";
 import { reportError } from "@/lib/report-error";
+import { SortHeader } from "../data/sort-header";
 
 interface Filters {
 	accountId: string;
-	cycleId: string;
 	categoryId: string;
+	cycleId: string;
 	includeUncategorized: boolean;
 	tagIds: string[];
 }
 
 interface ExpenseRow {
 	_id: string;
-	amount: number;
-	createdSource?: ActionSource;
 	accountName?: string | null;
 	accountTypeColor?: string | null;
 	accountTypeIcon?: string | null;
 	accountTypeName?: string | null;
+	amount: number;
 	categoryIcon?: string | null;
 	categoryId?: string | null;
 	categoryName?: string | null;
 	categoryTypeColor?: string | null;
+	createdSource?: ActionSource;
 	date: string;
 	lastModifiedSource?: ActionSource;
 	revision?: number;
@@ -94,14 +94,15 @@ function ExpenseAccountFilter({
 	onValueChange,
 	selectedAccountId,
 }: ExpenseAccountFilterProps) {
+	const changeAccount = useCallback(
+		(value: string) => onValueChange(value === "all" ? "" : value),
+		[onValueChange]
+	);
 	const activeAccounts = accounts.filter((account) => !account.isArchived);
 	const archivedAccounts = accounts.filter((account) => account.isArchived);
 
 	return (
-		<Select
-			onValueChange={(value) => onValueChange(value === "all" ? "" : value)}
-			value={selectedAccountId ?? "all"}
-		>
+		<Select onValueChange={changeAccount} value={selectedAccountId ?? "all"}>
 			<SelectTrigger className="h-10 w-[180px] bg-card/50">
 				<Wallet />
 				<SelectValue placeholder="Account" />
@@ -223,6 +224,51 @@ function ExpenseResults({
 	);
 }
 
+function ActiveTagBadge({
+	tag,
+	onToggle,
+}: {
+	tag: { _id: string; name: string };
+	onToggle: (id: string) => void;
+}) {
+	const toggle = useCallback(() => onToggle(tag._id), [onToggle, tag._id]);
+	return (
+		<Badge
+			className="h-7 gap-1 border-amber-500/20 bg-amber-500/10 pr-1 pl-1 text-amber-600 dark:text-amber-400"
+			variant="secondary"
+		>
+			<Tag className="ml-1 h-3 w-3 opacity-60" />
+			<span className="font-semibold text-xs">{tag.name}</span>
+			<button
+				className="rounded-full p-0.5 hover:bg-amber-500/20"
+				onClick={toggle}
+				type="button"
+			>
+				<X className="h-3 w-3" />
+			</button>
+		</Badge>
+	);
+}
+
+function QuickTagButton({
+	tag,
+	onToggle,
+}: {
+	tag: { _id: string; name: string };
+	onToggle: (id: string) => void;
+}) {
+	const toggle = useCallback(() => onToggle(tag._id), [onToggle, tag._id]);
+	return (
+		<button
+			className="rounded-full border border-border border-dashed px-2 py-0.5 font-medium text-[10px] transition-colors hover:border-solid hover:bg-accent"
+			onClick={toggle}
+			type="button"
+		>
+			{tag.name}
+		</button>
+	);
+}
+
 function ExpensesPageContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
@@ -233,8 +279,8 @@ function ExpensesPageContent() {
 			searchParams.get("category") === "uncategorized" ? "uncategorized" : "";
 		return {
 			accountId: searchParams.get("account") ?? "",
-			cycleId: "",
 			categoryId,
+			cycleId: "",
 			includeUncategorized: categoryId === "uncategorized",
 			tagIds: [],
 		};
@@ -246,14 +292,14 @@ function ExpensesPageContent() {
 
 	const groupedCycles = useMemo(() => {
 		if (!cycles) {
-			return { current: null, upcoming: [], past: [] };
+			return { current: null, past: [], upcoming: [] };
 		}
 		const today = format(new Date(), "yyyy-MM-dd");
 		return {
 			current:
 				cycles.find((c) => today >= c.startDate && today <= c.endDate) || null,
-			upcoming: cycles.filter((c) => c.startDate > today),
 			past: cycles.filter((c) => c.endDate < today),
+			upcoming: cycles.filter((c) => c.startDate > today),
 		};
 	}, [cycles]);
 
@@ -353,49 +399,29 @@ function ExpensesPageContent() {
 		});
 	}, [searchParams]);
 
-	const columns = useMemo<ExpenseColumnDef[]>(() => {
-		return [
+	const columns = useMemo<ExpenseColumnDef[]>(
+		() => [
 			{
 				accessorKey: "date",
-				headerClassName: "w-[140px] px-4",
-				className: "w-[140px] px-4",
-				header: ({ column }) => (
-					<Button
-						className="-ml-4 h-8"
-						onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-						variant="ghost"
-					>
-						Date
-						<ArrowUpDown className="ml-2 h-4 w-4" />
-					</Button>
-				),
 				cell: ({ row }) =>
 					format(parseISO(row.getValue("date") as string), "MMM d, yyyy"),
+				className: "w-[140px] px-4",
 				footer: "Total",
+				header: ({ column }) => (
+					<SortHeader className="-ml-4 h-8" column={column}>
+						Date
+					</SortHeader>
+				),
+				headerClassName: "w-[140px] px-4",
 			},
 			{
 				accessorKey: "amount",
-				headerClassName: "w-[140px] px-4 text-right",
-				className: "w-[140px] px-4 text-right",
-				header: ({ column }) => (
-					<div className="flex justify-end">
-						<Button
-							className="-mr-4 h-8"
-							onClick={() =>
-								column.toggleSorting(column.getIsSorted() === "asc")
-							}
-							variant="ghost"
-						>
-							Amount
-							<ArrowUpDown className="ml-2 h-4 w-4" />
-						</Button>
-					</div>
-				),
 				cell: ({ row }) => (
 					<span className="font-medium">
 						{formatCurrency(row.getValue("amount") as number)}
 					</span>
 				),
+				className: "w-[140px] px-4 text-right",
 				footer: ({ table }) => {
 					const total = table
 						.getFilteredRowModel()
@@ -405,17 +431,24 @@ function ExpensesPageContent() {
 						);
 					return <div className="text-right">{formatCurrency(total)}</div>;
 				},
+				header: ({ column }) => (
+					<div className="flex justify-end">
+						<SortHeader className="-mr-4 h-8" column={column}>
+							Amount
+						</SortHeader>
+					</div>
+				),
+				headerClassName: "w-[140px] px-4 text-right",
 			},
 			{
 				accessorKey: "categoryName",
-				headerClassName: "px-4",
-				className: "px-4",
-				header: "Category",
 				cell: ({ row }) => {
 					const name = row.getValue("categoryName") as string;
-					const icon = row.original.categoryIcon;
-					const color = row.original.categoryTypeColor;
-					const categoryId = row.original.categoryId;
+					const {
+						categoryIcon: icon,
+						categoryTypeColor: color,
+						categoryId,
+					} = row.original;
 					return (
 						<div className="flex items-center gap-2">
 							<div
@@ -431,14 +464,14 @@ function ExpensesPageContent() {
 						</div>
 					);
 				},
+				className: "px-4",
+				header: "Category",
+				headerClassName: "px-4",
 			},
 			{
 				accessorKey: "accountName",
-				headerClassName: "px-4",
-				className: "px-4",
-				header: "Account",
 				cell: ({ row }) => {
-					const accountName = row.original.accountName;
+					const { accountName } = row.original;
 					if (!accountName) {
 						return <span className="text-muted-foreground text-sm">—</span>;
 					}
@@ -466,12 +499,12 @@ function ExpensesPageContent() {
 						</div>
 					);
 				},
+				className: "px-4",
+				header: "Account",
+				headerClassName: "px-4",
 			},
 			{
 				accessorKey: "spentOn",
-				headerClassName: "px-4",
-				className: "px-4 w-full min-w-[200px]",
-				header: "Note",
 				cell: ({ row }) => (
 					<div className="flex items-center gap-1.5">
 						<ActionSourceIndicator
@@ -485,20 +518,19 @@ function ExpensesPageContent() {
 						</span>
 					</div>
 				),
+				className: "px-4 w-full min-w-[200px]",
+				header: "Note",
+				headerClassName: "px-4",
 			},
 			{
-				id: "tags",
-				headerClassName: "px-4",
-				className: "px-4",
-				header: "Tags",
 				cell: ({ row }) => {
-					const tags = row.original.tagNames;
-					if (!tags || tags.length === 0) {
+					const { tagNames } = row.original;
+					if (!tagNames || tagNames.length === 0) {
 						return <span className="text-muted-foreground text-sm">—</span>;
 					}
 					return (
 						<div className="flex flex-wrap gap-1">
-							{tags.map((tag) => (
+							{tagNames.map((tag) => (
 								<Badge key={tag} variant="secondary">
 									{tag}
 								</Badge>
@@ -506,9 +538,14 @@ function ExpensesPageContent() {
 						</div>
 					);
 				},
+				className: "px-4",
+				header: "Tags",
+				headerClassName: "px-4",
+				id: "tags",
 			},
-		];
-	}, [formatCurrency]);
+		],
+		[formatCurrency]
+	);
 
 	const isLoading =
 		expenses === undefined ||
@@ -517,15 +554,7 @@ function ExpensesPageContent() {
 		tags === undefined ||
 		(filters.cycleId && categories === undefined);
 
-	if (isLoading) {
-		return (
-			<div className="flex h-full w-full items-center justify-center">
-				<Loader />
-			</div>
-		);
-	}
-
-	const toggleTag = (tagId: string) => {
+	const toggleTag = useCallback((tagId: string) => {
 		setFilters((current) => {
 			const exists = current.tagIds.includes(tagId);
 			return {
@@ -535,13 +564,13 @@ function ExpensesPageContent() {
 					: [...current.tagIds, tagId],
 			};
 		});
-	};
+	}, []);
 
-	const resetFilters = () => {
+	const resetFilters = useCallback(() => {
 		setFilters({
 			accountId: "",
-			cycleId: "",
 			categoryId: "",
+			cycleId: "",
 			includeUncategorized: false,
 			tagIds: [],
 		});
@@ -553,9 +582,9 @@ function ExpensesPageContent() {
 		router.replace(query ? `/expenses?${query}` : "/expenses", {
 			scroll: false,
 		});
-	};
+	}, [router, searchParams]);
 
-	const clearCategoryFilter = () => {
+	const clearCategoryFilter = useCallback(() => {
 		setFilters((current) => ({
 			...current,
 			categoryId: "",
@@ -567,33 +596,88 @@ function ExpensesPageContent() {
 		router.replace(query ? `/expenses?${query}` : "/expenses", {
 			scroll: false,
 		});
-	};
+	}, [router, searchParams]);
 
-	const updateAccountFilter = (accountId: string) => {
-		setFilters((current) => ({ ...current, accountId }));
-		const nextSearchParams = new URLSearchParams(searchParams.toString());
-		if (accountId) {
-			nextSearchParams.set("account", accountId);
-		} else {
-			nextSearchParams.delete("account");
-		}
-		const query = nextSearchParams.toString();
-		router.replace(query ? `/expenses?${query}` : "/expenses", {
-			scroll: false,
-		});
-	};
+	const updateAccountFilter = useCallback(
+		(accountId: string) => {
+			setFilters((current) => ({ ...current, accountId }));
+			const nextSearchParams = new URLSearchParams(searchParams.toString());
+			if (accountId) {
+				nextSearchParams.set("account", accountId);
+			} else {
+				nextSearchParams.delete("account");
+			}
+			const query = nextSearchParams.toString();
+			router.replace(query ? `/expenses?${query}` : "/expenses", {
+				scroll: false,
+			});
+		},
+		[router, searchParams]
+	);
 
-	const handleDelete = async (expenseId: string) => {
-		try {
-			await removeExpense({ id: expenseId as Id<"expenses"> });
-			toast.success("Expense deleted");
-		} catch (error) {
-			reportError(error, { feature: "expenses", operation: "delete" });
-			toast.error(
-				error instanceof Error ? error.message : "Failed to delete expense"
-			);
-		}
-	};
+	const handleDelete = useCallback(
+		async (expenseId: string) => {
+			try {
+				await removeExpense({ id: expenseId as Id<"expenses"> });
+				toast.success("Expense deleted");
+			} catch (error) {
+				reportError(error, { feature: "expenses", operation: "delete" });
+				toast.error(
+					error instanceof Error ? error.message : "Failed to delete expense"
+				);
+			}
+		},
+		[removeExpense]
+	);
+
+	const changeSearch = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) =>
+			setGlobalSearch(event.target.value),
+		[]
+	);
+	const clearAccount = useCallback(
+		() => updateAccountFilter(""),
+		[updateAccountFilter]
+	);
+	const clearCycle = useCallback(
+		() =>
+			setFilters((current) => ({ ...current, categoryId: "", cycleId: "" })),
+		[]
+	);
+	const openRow = useCallback(
+		(expense: ExpenseRow) => router.push(`/expenses/${expense._id}`),
+		[router]
+	);
+	const deleteRow = useCallback(
+		(expense: ExpenseRow) => handleDelete(expense._id),
+		[handleDelete]
+	);
+
+	const changeCycle = useCallback(
+		(value: string) =>
+			setFilters((current) => ({
+				...current,
+				categoryId: value === "all" ? "" : current.categoryId,
+				cycleId: value === "all" ? "" : value,
+			})),
+		[]
+	);
+	const changeCategory = useCallback(
+		(value: string) =>
+			setFilters((current) => ({
+				...current,
+				categoryId: value === "all" ? "" : value,
+				includeUncategorized: value === "uncategorized",
+			})),
+		[]
+	);
+	if (isLoading) {
+		return (
+			<div className="flex h-full w-full items-center justify-center">
+				<Loader />
+			</div>
+		);
+	}
 
 	return (
 		<div className="space-y-8 py-3">
@@ -626,20 +710,14 @@ function ExpensesPageContent() {
 							<Search className="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
 							<Input
 								className="h-10 bg-card/50 pl-9"
-								onChange={(e) => setGlobalSearch(e.target.value)}
+								onChange={changeSearch}
 								placeholder="Search description..."
 								value={globalSearch}
 							/>
 						</div>
 
 						<Select
-							onValueChange={(value) =>
-								setFilters((current) => ({
-									...current,
-									cycleId: value === "all" ? "" : value,
-									categoryId: value === "all" ? "" : current.categoryId,
-								}))
-							}
+							onValueChange={changeCycle}
 							value={filters.cycleId || "all"}
 						>
 							<SelectTrigger className="h-10 w-[160px] bg-card/50">
@@ -650,7 +728,7 @@ function ExpensesPageContent() {
 								<SelectItem value="all">All cycles</SelectItem>
 								<SelectSeparator />
 
-								{groupedCycles.current && (
+								{groupedCycles.current !== null && (
 									<SelectGroup>
 										<SelectLabel className="font-bold text-[10px] text-muted-foreground/60 uppercase tracking-widest">
 											Current
@@ -691,13 +769,7 @@ function ExpensesPageContent() {
 
 						<Select
 							disabled={!filters.cycleId}
-							onValueChange={(value) =>
-								setFilters((current) => ({
-									...current,
-									categoryId: value === "all" ? "" : value,
-									includeUncategorized: value === "uncategorized",
-								}))
-							}
+							onValueChange={changeCategory}
 							value={filters.categoryId || "all"}
 						>
 							<SelectTrigger className="h-10 w-[160px] bg-card/50">
@@ -747,9 +819,9 @@ function ExpensesPageContent() {
 					</div>
 				</div>
 
-				{(hasActiveFilters || (tags && tags.length > 0)) && (
+				{(hasActiveFilters || (tags !== undefined && tags.length > 0)) && (
 					<div className="flex flex-wrap items-center gap-2 px-1">
-						{filters.cycleId && (
+						{filters.cycleId !== "" && (
 							<Badge
 								className="h-7 gap-1 border-primary/20 bg-primary/10 pr-1 pl-1 text-primary"
 								variant="secondary"
@@ -760,16 +832,14 @@ function ExpensesPageContent() {
 								<span className="font-semibold text-xs">{activeCycleName}</span>
 								<button
 									className="rounded-full p-0.5 hover:bg-primary/20"
-									onClick={() =>
-										setFilters((f) => ({ ...f, cycleId: "", categoryId: "" }))
-									}
+									onClick={clearCycle}
 									type="button"
 								>
 									<X className="h-3 w-3" />
 								</button>
 							</Badge>
 						)}
-						{filters.categoryId && (
+						{filters.categoryId !== "" && (
 							<Badge
 								className="h-7 gap-1 border-primary/20 bg-primary/10 pr-1 pl-1 text-primary"
 								variant="secondary"
@@ -791,24 +861,10 @@ function ExpensesPageContent() {
 						)}
 						<ActiveAccountFilterBadge
 							account={activeAccount}
-							onClear={() => updateAccountFilter("")}
+							onClear={clearAccount}
 						/>
 						{activeTags.map((tag) => (
-							<Badge
-								className="h-7 gap-1 border-amber-500/20 bg-amber-500/10 pr-1 pl-1 text-amber-600 dark:text-amber-400"
-								key={tag._id}
-								variant="secondary"
-							>
-								<Tag className="ml-1 h-3 w-3 opacity-60" />
-								<span className="font-semibold text-xs">{tag.name}</span>
-								<button
-									className="rounded-full p-0.5 hover:bg-amber-500/20"
-									onClick={() => toggleTag(tag._id)}
-									type="button"
-								>
-									<X className="h-3 w-3" />
-								</button>
-							</Badge>
+							<ActiveTagBadge key={tag._id} onToggle={toggleTag} tag={tag} />
 						))}
 
 						{hasActiveFilters && (
@@ -822,7 +878,7 @@ function ExpensesPageContent() {
 							</Button>
 						)}
 
-						{tags && tags.length > 0 && (
+						{tags !== undefined && tags.length > 0 && (
 							<div className="ml-auto flex items-center gap-2">
 								<span className="font-bold text-[10px] text-muted-foreground/40 uppercase tracking-widest">
 									Quick Tags
@@ -832,14 +888,11 @@ function ExpensesPageContent() {
 										.filter((tag) => !filters.tagIds.includes(tag._id))
 										.slice(0, 5)
 										.map((tag) => (
-											<button
-												className="rounded-full border border-border border-dashed px-2 py-0.5 font-medium text-[10px] transition-colors hover:border-solid hover:bg-accent"
+											<QuickTagButton
 												key={tag._id}
-												onClick={() => toggleTag(tag._id)}
-												type="button"
-											>
-												{tag.name}
-											</button>
+												onToggle={toggleTag}
+												tag={tag}
+											/>
 										))}
 								</div>
 							</div>
@@ -852,8 +905,8 @@ function ExpensesPageContent() {
 				columns={columns}
 				expenses={visibleExpenses}
 				globalSearch={globalSearch}
-				onDelete={(expense) => handleDelete(expense._id)}
-				onRowClick={(expense) => router.push(`/expenses/${expense._id}`)}
+				onDelete={deleteRow}
+				onRowClick={openRow}
 				onSearchChange={setGlobalSearch}
 			/>
 		</div>

@@ -13,22 +13,22 @@ vi.mock("recharts", async (importOriginal) => ({
 	),
 }));
 const config = {
-	food: { label: "Food", color: "#123456" },
-	rent: { label: "Rent", theme: { light: "#abcdef", dark: "#654321" } },
+	food: { color: "#123456", label: "Food" },
+	rent: { label: "Rent", theme: { dark: "#654321", light: "#abcdef" } },
 };
 const food = {
+	color: "#123456",
 	dataKey: "food",
 	name: "food",
-	value: 1250,
-	color: "#123456",
 	payload: { fill: "#abcdef" },
+	value: 1250,
 };
 const rent = {
+	color: "#654321",
 	dataKey: "rent",
 	name: "rent",
-	value: 2000,
-	color: "#654321",
 	payload: {},
+	value: 2000,
 };
 function Tooltip(props: ComponentProps<typeof ChartTooltipContent>) {
 	return (
@@ -46,6 +46,12 @@ function SeriesIcon() {
 }
 
 describe("chart container and tooltip", () => {
+	it("formats zero inside the value label instead of leaking it as bare text", () => {
+		render(<Tooltip active payload={[{ ...food, value: 0 }]} />);
+		const value = screen.getByText("0");
+		expect(value.tagName).toBe("SPAN");
+		expect(value).toHaveClass("tabular-nums");
+	});
 	it("scopes theme CSS variables to its chart id and forwards container attributes", () => {
 		const { container } = render(
 			<ChartContainer
@@ -117,8 +123,8 @@ describe("chart container and tooltip", () => {
 					{
 						...food,
 						dataKey: "hidden",
-						type: "none",
 						name: "Hidden",
+						type: "none",
 						value: 9000,
 					},
 				]}
@@ -225,7 +231,7 @@ describe("chart container and tooltip", () => {
 			<ChartContainer config={{}}>
 				<ChartTooltipContent
 					active
-					payload={[{ name: "Other", value: 7, payload: {} }]}
+					payload={[{ name: "Other", payload: {}, value: 7 }]}
 				/>
 			</ChartContainer>
 		);

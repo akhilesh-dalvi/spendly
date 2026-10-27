@@ -25,14 +25,14 @@ describe("interactive prompt rendering", () => {
 		const streams = createStreams();
 		const prompter = await createClackPrompter({ ...streams, color: true });
 		const answer = prompter.select({
-			message: "Account",
-			searchable: true,
 			initialValue: "wallet",
+			message: "Account",
 			options: [
-				{ label: "Wallet", value: "wallet", hint: "INR 20" },
+				{ hint: "INR 20", label: "Wallet", value: "wallet" },
 				{ label: "Savings", value: "savings" },
-				{ label: "Archived", value: "old", disabled: true },
+				{ disabled: true, label: "Archived", value: "old" },
 			],
+			searchable: true,
 		});
 		expect(streams.rendered()).toContain("Search: _");
 		expect(streams.rendered()).toContain("(unavailable)");
@@ -48,12 +48,12 @@ describe("interactive prompt rendering", () => {
 		const prompter = await createClackPrompter({ ...streams, color: false });
 		const answer = prompter.multiselect({
 			message: "Fields",
-			searchable: true,
-			required: true,
 			options: [
-				{ label: "Amount", value: "amount", hint: "Decimal" },
+				{ hint: "Decimal", label: "Amount", value: "amount" },
 				{ label: "Date", value: "date" },
 			],
+			required: true,
+			searchable: true,
 		});
 		streams.input.write("\r");
 		expect(streams.rendered()).toContain("Select at least one option");
@@ -65,55 +65,53 @@ describe("interactive prompt rendering", () => {
 		await expect(answer).resolves.toEqual(["date"]);
 	});
 
-	it.each([
-		false,
-		true,
-	])("allows an optional empty multiselect searchable=%s", async (searchable) => {
-		const streams = createStreams();
-		const prompter = await createClackPrompter({ ...streams, color: false });
-		const answer = prompter.multiselect({
-			message: "Tags",
-			searchable,
-			required: false,
-			options: [{ label: "Work", value: "work" }],
-		});
-		streams.input.write("\r");
-		await expect(answer).resolves.toEqual([]);
-		expect(streams.rendered()).toContain("│  None");
-	});
+	it.each([false, true])(
+		"allows an optional empty multiselect searchable=%s",
+		async (searchable) => {
+			const streams = createStreams();
+			const prompter = await createClackPrompter({ ...streams, color: false });
+			const answer = prompter.multiselect({
+				message: "Tags",
+				options: [{ label: "Work", value: "work" }],
+				required: false,
+				searchable,
+			});
+			streams.input.write("\r");
+			await expect(answer).resolves.toEqual([]);
+			expect(streams.rendered()).toContain("│  None");
+		}
+	);
 
-	it.each([
-		"select",
-		"multiselect",
-		"date",
-	] as const)("converts %s cancellation into a prompt cancellation error", async (kind) => {
-		const streams = createStreams();
-		const prompter = await createClackPrompter({ ...streams, color: false });
-		const answer =
-			kind === "date"
-				? prompter.date({ message: "Date" })
-				: prompter[kind]({
-						message: "Choose",
-						options: [{ label: "One", value: "one" }],
-					});
-		const rejected =
-			expect(answer).rejects.toBeInstanceOf(PromptCancelledError);
-		streams.input.write("\u0003");
-		await rejected;
-		expect(streams.rendered()).toContain("■");
-	});
+	it.each(["select", "multiselect", "date"] as const)(
+		"converts %s cancellation into a prompt cancellation error",
+		async (kind) => {
+			const streams = createStreams();
+			const prompter = await createClackPrompter({ ...streams, color: false });
+			const answer =
+				kind === "date"
+					? prompter.date({ message: "Date" })
+					: prompter[kind]({
+							message: "Choose",
+							options: [{ label: "One", value: "one" }],
+						});
+			const rejected =
+				expect(answer).rejects.toBeInstanceOf(PromptCancelledError);
+			streams.input.write("\u0003");
+			await rejected;
+			expect(streams.rendered()).toContain("■");
+		}
+	);
 
-	it.each([
-		"wrong",
-		"2026-02-29",
-		"2026-13-01",
-	])("rejects submission without a valid initial date %s", async (initialValue) => {
-		const streams = createStreams();
-		const prompter = await createClackPrompter({ ...streams, color: false });
-		const answer = prompter.date({ message: "Date", initialValue });
-		streams.input.write("\r");
-		await expect(answer).rejects.toBeInstanceOf(PromptCancelledError);
-	});
+	it.each(["wrong", "2026-02-29", "2026-13-01"])(
+		"rejects submission without a valid initial date %s",
+		async (initialValue) => {
+			const streams = createStreams();
+			const prompter = await createClackPrompter({ ...streams, color: false });
+			const answer = prompter.date({ initialValue, message: "Date" });
+			streams.input.write("\r");
+			await expect(answer).rejects.toBeInstanceOf(PromptCancelledError);
+		}
+	);
 
 	it("delegates confirm and text validation to clack", async () => {
 		const streams = createStreams();
@@ -128,7 +126,7 @@ describe("interactive prompt rendering", () => {
 		streams.input.write("yz");
 		streams.input.write("\r");
 		await expect(text).resolves.toBe("xyz");
-		const confirm = prompter.confirm({ message: "Apply?", initialValue: true });
+		const confirm = prompter.confirm({ initialValue: true, message: "Apply?" });
 		streams.input.write("\r");
 		await expect(confirm).resolves.toBe(true);
 	});

@@ -1,4 +1,5 @@
 import { Command, CommanderError, Option } from "commander";
+import { repeatAsync } from "./async-iteration.js";
 import { registerAuthCommands } from "./commands/auth.js";
 import { registerCompletionCommand } from "./commands/completion.js";
 import { addCommandExamples } from "./commands/help.js";
@@ -209,8 +210,8 @@ const launcherActions: Readonly<
 const chooseLauncherCommand = async (
 	prompter: NonNullable<Awaited<ReturnType<typeof getPrompter>>>
 ): Promise<string | undefined> => {
-	for (;;) {
-		const area = await prompter.select({
+	for await (const area of repeatAsync(() =>
+		prompter.select({
 			message: "What would you like to work with?",
 			options: [
 				{ hint: "Common tasks", label: "Quick actions", value: "quick" },
@@ -236,7 +237,8 @@ const chooseLauncherCommand = async (
 				},
 				{ hint: "Return to the shell", label: "Exit", value: "exit" },
 			],
-		});
+		})
+	)) {
 		if (area === "exit") {
 			return undefined;
 		}

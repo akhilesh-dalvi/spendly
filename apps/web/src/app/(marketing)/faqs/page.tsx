@@ -24,9 +24,9 @@ const faqsDescription =
 	"Read Spendly FAQs about flexible cycles, optional planning, editable expense history, comparison mode, and how the app works.";
 
 export const metadata: Metadata = createMarketingMetadata({
-	title: "FAQs",
 	description: faqsDescription,
 	path: "/faqs",
+	title: "FAQs",
 });
 
 const faqStructuredData = {
@@ -34,23 +34,23 @@ const faqStructuredData = {
 	"@type": "FAQPage",
 	mainEntity: faqItems.map((item) => ({
 		"@type": "Question",
-		name: item.question,
 		acceptedAnswer: {
 			"@type": "Answer",
 			text: item.answer,
 		},
+		name: item.question,
 	})),
 };
 
 const productStructuredData = createSoftwareApplicationJsonLd({
 	description: faqsDescription,
-	path: "/faqs",
 	featureList: [
 		"Flexible cycles instead of forced calendar months",
 		"Optional planned amounts with no hard enforcement",
 		"Editable history across past and future cycles",
 		"Comparison mode for observational review",
 	],
+	path: "/faqs",
 });
 
 export default function FaqsPage() {

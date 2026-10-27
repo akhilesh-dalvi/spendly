@@ -57,12 +57,12 @@ describe("interactive expense selection", () => {
 	it("loads another page with the cursor and shows fallback expense labels", async () => {
 		const nextExpense = {
 			...page.items[0],
+			account: null,
 			id: "expense-next",
 			spentOn: null,
-			account: null,
 		};
 		const selector = await createSelector(
-			[page, { hasMore: false, nextCursor: null, items: [nextExpense] }],
+			[page, { hasMore: false, items: [nextExpense], nextCursor: null }],
 			["__spendly_load_more__", "expense-next"]
 		);
 		await expect(
@@ -77,15 +77,15 @@ describe("interactive expense selection", () => {
 			value: "__spendly_load_more__",
 		});
 		expect(selector.select.mock.calls[1]?.[0].options[0]).toEqual({
-			label: "2026-09-02 · No description",
 			hint: "INR 250.00 · Unassigned",
+			label: "2026-09-02 · No description",
 			value: "expense-next",
 		});
 	});
 
 	it("allows manual IDs after an empty continuation page and validates nonempty input", async () => {
 		const selector = await createSelector(
-			[page, { hasMore: false, nextCursor: null, items: [] }],
+			[page, { hasMore: false, items: [], nextCursor: null }],
 			["__spendly_load_more__", "__spendly_enter_id__"]
 		);
 		await expect(
@@ -101,7 +101,7 @@ describe("interactive expense selection", () => {
 
 	it("reports no expenses instead of displaying an empty initial selector", async () => {
 		const selector = await createSelector(
-			[{ hasMore: false, nextCursor: null, items: [] }],
+			[{ hasMore: false, items: [], nextCursor: null }],
 			[]
 		);
 		await expect(

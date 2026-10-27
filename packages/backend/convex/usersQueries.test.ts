@@ -20,9 +20,9 @@ describe("web user queries and preferences", () => {
 		).toBe(userId);
 		expect(await owner.query(api.users.get, {})).toMatchObject({
 			_id: userId,
+			currency: "USD",
 			email: "owner@example.com",
 			name: "Owner",
-			currency: "USD",
 		});
 		expect(
 			await owner.mutation(api.users.updateCurrency, { currency: "EUR" })
@@ -31,16 +31,16 @@ describe("web user queries and preferences", () => {
 			await owner.mutation(api.users.updateDashboardViewMode, {
 				viewMode: "accounts",
 			})
-		).toMatchObject({ dashboardViewMode: "accounts", currency: "EUR" });
+		).toMatchObject({ currency: "EUR", dashboardViewMode: "accounts" });
 		expect(await owner.mutation(api.users.dismissAccountsOnboarding, {})).toBe(
 			"skipped"
 		);
 		expect(await owner.query(api.users.getOnboardingState, {})).toMatchObject({
 			accountStatus: "skipped",
 			currency: "EUR",
-			step: "start",
-			path: null,
 			cycle: null,
+			path: null,
+			step: "start",
 		});
 	});
 
@@ -85,14 +85,14 @@ describe("web user queries and preferences", () => {
 			path: "free",
 		});
 		const cycleId = await owner.mutation(api.cycles.saveOnboardingCycle, {
+			endDate: "2026-02-01",
 			name: "January",
 			startDate: "2026-01-01",
-			endDate: "2026-02-01",
 		});
 		expect(await owner.query(api.users.getOnboardingState, {})).toMatchObject({
-			step: "account",
-			path: "free",
 			cycle: { _id: cycleId },
+			path: "free",
+			step: "account",
 		});
 		await owner.mutation(api.users.advanceOnboarding, { step: "account" });
 		await owner.mutation(api.users.completeOnboarding, {
@@ -111,8 +111,8 @@ describe("web user queries and preferences", () => {
 			async (ctx) =>
 				await ctx.db.insert("users", {
 					clerkId: "legacy-state",
-					email: "legacy@example.com",
 					createdAt: 0,
+					email: "legacy@example.com",
 				})
 		);
 		expect(await owner.query(api.users.getOnboardingState, {})).toEqual({
@@ -123,9 +123,9 @@ describe("web user queries and preferences", () => {
 			step: "start",
 		});
 		const cycle = await owner.mutation(api.cycles.create, {
+			endDate: "2026-02-01",
 			name: "January",
 			startDate: "2026-01-01",
-			endDate: "2026-02-01",
 		});
 		expect(await owner.query(api.users.getOnboardingState, {})).toEqual({
 			accountStatus: "completed",
@@ -165,16 +165,16 @@ describe("web user queries and preferences", () => {
 			async (ctx) =>
 				await ctx.db.insert("users", {
 					clerkId: "legacy-path",
-					email: "legacy@example.com",
 					createdAt: 0,
+					email: "legacy@example.com",
 					onboardingPath: "plan",
 				})
 		);
 		await other.mutation(api.users.create, { email: "other@example.com" });
 		const cycle = await other.mutation(api.cycles.create, {
+			endDate: "2026-02-01",
 			name: "Private",
 			startDate: "2026-01-01",
-			endDate: "2026-02-01",
 		});
 		await test.run(
 			async (ctx) =>

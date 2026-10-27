@@ -262,7 +262,7 @@ describe("Phase 6 account mutation commands", () => {
 	});
 
 	it("routes archive, reactivate, and set-default dry runs", async () => {
-		for (const [command, backendName] of [
+		for await (const [command, backendName] of [
 			["archive", "previewArchive"],
 			["reactivate", "previewReactivate"],
 			["set-default", "previewSetDefault"],

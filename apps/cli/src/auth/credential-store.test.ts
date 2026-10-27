@@ -10,6 +10,8 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { CliError } from "../errors.js";
+import { writeDebugError } from "../output/debug.js";
 import {
 	type CredentialStore,
 	createCredentialNamespace,
@@ -62,7 +64,7 @@ const createMemoryStore = (): {
 };
 
 afterEach(async () => {
-	for (const directory of temporaryDirectories.splice(0)) {
+	for await (const directory of temporaryDirectories.splice(0)) {
 		await rm(directory, { force: true, recursive: true });
 	}
 });
@@ -99,19 +101,19 @@ describe("credential storage", () => {
 		await expect(fileStore.delete()).resolves.toBeUndefined();
 	});
 
-	it.each([
-		"{broken",
-		"[]",
-	])("rejects invalid JSON credential document %s", async (content) => {
-		const fileStore = await createFileStore();
-		await fileStore.write(createSession());
-		await writeFile(fileStore.path, content);
-		await expect(fileStore.read()).rejects.toMatchObject({
-			code: "CREDENTIALS_INVALID",
-		});
-		await fileStore.delete();
-		await expect(fileStore.read()).resolves.toBeNull();
-	});
+	it.each(["{broken", "[]"])(
+		"rejects invalid JSON credential document %s",
+		async (content) => {
+			const fileStore = await createFileStore();
+			await fileStore.write(createSession());
+			await writeFile(fileStore.path, content);
+			await expect(fileStore.read()).rejects.toMatchObject({
+				code: "CREDENTIALS_INVALID",
+			});
+			await fileStore.delete();
+			await expect(fileStore.read()).resolves.toBeNull();
+		}
+	);
 
 	it("rejects insecure parent directories and symbolic-link credential files", async () => {
 		const fileStore = await createFileStore();
@@ -132,22 +134,22 @@ describe("credential storage", () => {
 		});
 	});
 
-	it.each([
-		true,
-		false,
-	])("prefers keychain credentials with fallback allowed=%s", async (allowFileStorage) => {
-		const fileStore = await createFileStore();
-		const read = vi.spyOn(fileStore, "read");
-		const memory = createMemoryStore();
-		await memory.store.write(createSession());
-		const store = new ExplicitFallbackCredentialStore({
-			allowFileStorage,
-			fileStore,
-			keychainStore: memory.store,
-		});
-		await expect(store.read()).resolves.toEqual(createSession());
-		expect(read).not.toHaveBeenCalled();
-	});
+	it.each([true, false])(
+		"prefers keychain credentials with fallback allowed=%s",
+		async (allowFileStorage) => {
+			const fileStore = await createFileStore();
+			const read = vi.spyOn(fileStore, "read");
+			const memory = createMemoryStore();
+			await memory.store.write(createSession());
+			const store = new ExplicitFallbackCredentialStore({
+				allowFileStorage,
+				fileStore,
+				keychainStore: memory.store,
+			});
+			await expect(store.read()).resolves.toEqual(createSession());
+			expect(read).not.toHaveBeenCalled();
+		}
+	);
 
 	it("does not read plaintext without explicit opt-in", async () => {
 		const fileStore = await createFileStore();
@@ -178,33 +180,32 @@ describe("credential storage", () => {
 		expect(warn).not.toHaveBeenCalled();
 	});
 
-	it.each([
-		"keychain",
-		"file",
-		"both",
-	])("attempts both deletions and propagates %s failure", async (failure) => {
-		const fileStore = await createFileStore();
-		const fileError = new Error("file failure");
-		const keychainError = new Error("keychain failure");
-		const removeFile = vi
-			.spyOn(fileStore, "delete")
-			.mockImplementation(() =>
-				failure !== "keychain" ? Promise.reject(fileError) : Promise.resolve()
+	it.each(["keychain", "file", "both"])(
+		"attempts both deletions and propagates %s failure",
+		async (failure) => {
+			const fileStore = await createFileStore();
+			const fileError = new Error("file failure");
+			const keychainError = new Error("keychain failure");
+			const removeFile = vi
+				.spyOn(fileStore, "delete")
+				.mockImplementation(() =>
+					failure === "keychain" ? Promise.resolve() : Promise.reject(fileError)
+				);
+			const removeKeychain = vi.fn(() =>
+				failure === "file" ? Promise.resolve() : Promise.reject(keychainError)
 			);
-		const removeKeychain = vi.fn(() =>
-			failure !== "file" ? Promise.reject(keychainError) : Promise.resolve()
-		);
-		const store = new ExplicitFallbackCredentialStore({
-			allowFileStorage: false,
-			fileStore,
-			keychainStore: { ...createMemoryStore().store, delete: removeKeychain },
-		});
-		await expect(store.delete()).rejects.toBe(
-			failure === "file" ? fileError : keychainError
-		);
-		expect(removeFile).toHaveBeenCalledOnce();
-		expect(removeKeychain).toHaveBeenCalledOnce();
-	});
+			const store = new ExplicitFallbackCredentialStore({
+				allowFileStorage: false,
+				fileStore,
+				keychainStore: { ...createMemoryStore().store, delete: removeKeychain },
+			});
+			await expect(store.delete()).rejects.toBe(
+				failure === "file" ? fileError : keychainError
+			);
+			expect(removeFile).toHaveBeenCalledOnce();
+			expect(removeKeychain).toHaveBeenCalledOnce();
+		}
+	);
 
 	it("rolls back a keychain write if stale plaintext cannot be removed", async () => {
 		const fileStore = await createFileStore();
@@ -247,6 +248,24 @@ describe("credential storage", () => {
 		await expect(fileStore.read()).rejects.toMatchObject({
 			code: "CREDENTIALS_INVALID",
 		});
+	});
+
+	it("keeps malformed credential snippets out of debug diagnostics", async () => {
+		const store = await createFileStore();
+		await store.write(createSession());
+		await writeFile(store.path, "private-credential-value", { mode: 0o600 });
+		const failure: unknown = await store
+			.read()
+			.catch((error: unknown) => error);
+		expect(failure).toBeInstanceOf(CliError);
+		if (!(failure instanceof CliError)) {
+			throw new Error("Expected a CLI error");
+		}
+		expect(failure.cause).toMatchObject({ cause: expect.any(SyntaxError) });
+		const write = vi.fn();
+		writeDebugError(failure, { write });
+		expect(write).toHaveBeenCalledOnce();
+		expect(write.mock.calls[0]?.[0]).not.toContain("private-credential-value");
 	});
 
 	it("rejects and securely deletes malformed fallback credentials", async () => {

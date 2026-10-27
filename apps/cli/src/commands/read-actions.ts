@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import type { z } from "zod";
+import { repeatAsync } from "../async-iteration.js";
 import {
 	type BackendCommandContext,
 	createBackendCommandContext,
@@ -80,6 +81,18 @@ interface ExpenseListOptions {
 }
 
 type ExpensePage = z.infer<typeof expensePageSchema>;
+
+// Read continuation state only after the consumer finishes the current page.
+function* continuationCursors(
+	readPage: () => { hasMore: boolean; nextCursor?: string | null },
+	enabled = true
+): Generator<string> {
+	let page = readPage();
+	while (enabled && page.hasMore && page.nextCursor) {
+		yield page.nextCursor;
+		page = readPage();
+	}
+}
 
 interface CycleSelectorOptions {
 	cycle?: string;
@@ -216,7 +229,7 @@ const getHumanContext = async (
 	date = resolveCommandDate({ now: runtime.now, timeZone: runtime.timeZone })
 ) => {
 	if (context.globalOptions.json) {
-		return undefined;
+		return;
 	}
 	return await queryParsed(
 		context,
@@ -356,7 +369,7 @@ const resolveExpenseListArgs = async (
 	const cycleId = options.cycle
 		? await resolveCycleId(context, options)
 		: options.cycleId;
-	let categoryId = options.categoryId;
+	let { categoryId } = options;
 	if (options.category) {
 		const categories = await queryParsed(
 			context,
@@ -371,7 +384,7 @@ const resolveExpenseListArgs = async (
 			resources: categories,
 		}).id;
 	}
-	let accountId = options.accountId;
+	let { accountId } = options;
 	if (options.account) {
 		accountId = resolveExactName({
 			kind: "Account",
@@ -637,7 +650,6 @@ const promptExpensePageSize = async (
 		validate: (value) => {
 			try {
 				parseLimit(value);
-				return undefined;
 			} catch (error) {
 				return error instanceof Error ? error.message : "Invalid page size";
 			}
@@ -689,21 +701,23 @@ const skipEmptyGuidedExpensePages = async (options: {
 	args: Readonly<Record<string, unknown>>;
 	result: ExpensePage;
 }> => {
-	let args = options.args;
-	let result = options.result;
+	let { args, result } = options;
 	if (options.enabled === false) {
 		return { args, result };
 	}
 	const visitedCursors = new Set<string>();
-	while (result.items.length === 0 && result.hasMore && result.nextCursor) {
-		if (visitedCursors.has(result.nextCursor)) {
+	for await (const cursor of continuationCursors(() => result)) {
+		if (result.items.length !== 0) {
+			break;
+		}
+		if (visitedCursors.has(cursor)) {
 			throw new CliError(
 				"INTERNAL_ERROR",
 				"Expense pagination did not advance"
 			);
 		}
-		visitedCursors.add(result.nextCursor);
-		args = { ...args, cursor: result.nextCursor };
+		visitedCursors.add(cursor);
+		args = { ...args, cursor };
 		result = await queryParsed(
 			options.context,
 			"expenses.list",
@@ -762,8 +776,12 @@ export const runExpenseList = async (
 		}));
 		let items = [...result.items];
 		let stoppedEarly = false;
-		while (prompter && result.hasMore && result.nextCursor) {
-			const nextAction = await prompter.select({
+		for await (const cursor of continuationCursors(
+			() => result,
+			Boolean(prompter)
+		)) {
+			const guidedPrompter = requirePrompter(prompter);
+			const nextAction = await guidedPrompter.select({
 				message: `More expenses are available (${items.length} loaded)`,
 				options: [
 					{ label: "Load next page", value: "load" },
@@ -780,7 +798,7 @@ export const runExpenseList = async (
 					...(await promptExpenseListOptions({
 						context,
 						input: resolvedOptions,
-						prompter,
+						prompter: guidedPrompter,
 						runtime,
 					})),
 					cursor: undefined,
@@ -797,7 +815,7 @@ export const runExpenseList = async (
 				);
 				items = [];
 			} else {
-				args = { ...args, cursor: result.nextCursor };
+				args = { ...args, cursor };
 			}
 			result = await queryParsed(
 				context,
@@ -993,9 +1011,9 @@ const resolveGuidedSummaryCycle = async (options: {
 	prompter: NonNullable<Awaited<ReturnType<typeof getPrompter>>>;
 	runtime: CliRuntime;
 }): Promise<{ cycleId: string; date: CommandDate }> => {
-	let date = options.date;
-	for (;;) {
-		const mode = await options.prompter.select({
+	let { date } = options;
+	for await (const mode of repeatAsync(() =>
+		options.prompter.select({
 			message: "Which cycle should be summarized?",
 			options: [
 				{
@@ -1004,7 +1022,8 @@ const resolveGuidedSummaryCycle = async (options: {
 				},
 				{ label: "Choose another cycle", value: "select" },
 			],
-		});
+		})
+	)) {
 		if (mode === "select") {
 			const cycle = await selectCycle({
 				context: options.context,
@@ -1052,6 +1071,7 @@ const resolveGuidedSummaryCycle = async (options: {
 			timeZone: options.runtime.timeZone,
 		});
 	}
+	throw new CliError("INTERNAL_ERROR", "Cycle selection ended unexpectedly");
 };
 
 export const runSummary = async (
@@ -1092,8 +1112,7 @@ export const runSummary = async (
 				prompter,
 				runtime,
 			});
-			cycleId = guided.cycleId;
-			date = guided.date;
+			({ cycleId, date } = guided);
 		} else {
 			const current = await queryParsed(
 				context,
@@ -1235,8 +1254,12 @@ export const runAccountTransactions = async (
 		);
 		const transactions = [...result.items];
 		let stoppedEarly = false;
-		while (prompter && result.hasMore && result.nextCursor) {
-			const nextAction = await prompter.select({
+		for await (const cursor of continuationCursors(
+			() => result,
+			Boolean(prompter)
+		)) {
+			const guidedPrompter = requirePrompter(prompter);
+			const nextAction = await guidedPrompter.select({
 				message: `More transactions are available (${transactions.length} loaded)`,
 				options: [
 					{ label: "Load next page", value: "load" },
@@ -1247,7 +1270,7 @@ export const runAccountTransactions = async (
 				stoppedEarly = true;
 				break;
 			}
-			args.cursor = result.nextCursor;
+			args.cursor = cursor;
 			result = await queryParsed(
 				context,
 				"accounts.listTransactions",

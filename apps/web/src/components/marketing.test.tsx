@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ComponentProps, ReactNode } from "react";
+import { type ComponentProps, type ReactNode, useCallback } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AboutPage from "../app/(marketing)/about/page";
 import FaqsPage from "../app/(marketing)/faqs/page";
@@ -17,10 +17,9 @@ import { ModeToggle } from "./mode-toggle";
 
 const TERMS_HEADING = /terms/i;
 const PRODUCT_TERMS = /expense|spendly/i;
-const SCREENSHOT_TRIGGER = /screenshot fullscreen/;
 const SUPPORT_PROMPT = /Still have questions/;
 
-const auth = vi.hoisted(() => ({ signedIn: false, setTheme: vi.fn() }));
+const auth = vi.hoisted(() => ({ setTheme: vi.fn(), signedIn: false }));
 vi.mock("@clerk/nextjs", () => ({
 	SignedIn: ({ children }: { children: ReactNode }) =>
 		auth.signedIn ? children : null,
@@ -33,16 +32,16 @@ vi.mock("next-themes", () => ({
 	useTheme: () => ({ setTheme: auth.setTheme }),
 }));
 vi.mock("next/link", () => ({
-	default: ({ href, onClick, ...props }: ComponentProps<"a">) => (
-		<a
-			{...props}
-			href={href ?? "#"}
-			onClick={(event) => {
+	default: ({ href, onClick, ...props }: ComponentProps<"a">) => {
+		const handleClick = useCallback(
+			(event: React.MouseEvent<HTMLAnchorElement>) => {
 				event.preventDefault();
 				onClick?.(event);
-			}}
-		/>
-	),
+			},
+			[onClick]
+		);
+		return <a {...props} href={href ?? "#"} onClick={handleClick} />;
+	},
 }));
 
 beforeEach(() => {
@@ -53,71 +52,68 @@ beforeEach(() => {
 describe("public marketing routes", () => {
 	it.each([
 		{
+			heading: "Spendly gives you a calmer way to track spending.",
 			name: "home",
 			Page: LandingPage,
-			heading: "Spendly gives you a calmer way to track spending.",
 		},
 		{
+			heading: "Expense tracking designed for observation, not enforcement.",
 			name: "features",
 			Page: FeaturesPage,
-			heading: "Expense tracking designed for observation, not enforcement.",
 		},
-		{ name: "pricing", Page: PricingPage, heading: "Spendly is free to use." },
+		{ heading: "Spendly is free to use.", name: "pricing", Page: PricingPage },
 		{
+			heading: "Spendly is built for people who want calmer expense tracking.",
 			name: "about",
 			Page: AboutPage,
-			heading: "Spendly is built for people who want calmer expense tracking.",
 		},
 		{
+			heading: "Answers about how Spendly works in real life.",
 			name: "faqs",
 			Page: FaqsPage,
-			heading: "Answers about how Spendly works in real life.",
 		},
-	])("offers public signup and readable primary content on $name", ({
-		Page,
-		heading,
-	}) => {
-		const { container } = render(<Page />);
-		expect(
-			screen.getByRole("heading", { level: 1, name: heading })
-		).toBeVisible();
-		for (const link of screen.getAllByRole("link", {
-			name: "Get Started Free",
-		})) {
-			expect(link).toHaveAttribute("href", "/sign-up");
+	])(
+		"offers public signup and readable primary content on $name",
+		({ Page, heading }) => {
+			const { container } = render(<Page />);
+			expect(
+				screen.getByRole("heading", { level: 1, name: heading })
+			).toBeVisible();
+			for (const link of screen.getAllByRole("link", {
+				name: "Get Started Free",
+			})) {
+				expect(link).toHaveAttribute("href", "/sign-up");
+			}
+			expect(
+				screen.queryByRole("link", { name: "Go to Dashboard" })
+			).not.toBeInTheDocument();
+			const scripts = container.querySelectorAll(
+				'script[type="application/ld+json"]'
+			);
+			expect(scripts.length).toBeGreaterThan(0);
+			for (const script of scripts) {
+				expect(JSON.parse(script.textContent ?? "{}")).toMatchObject({
+					"@context": "https://schema.org",
+				});
+			}
 		}
-		expect(
-			screen.queryByRole("link", { name: "Go to Dashboard" })
-		).not.toBeInTheDocument();
-		const scripts = container.querySelectorAll(
-			'script[type="application/ld+json"]'
-		);
-		expect(scripts.length).toBeGreaterThan(0);
-		for (const script of scripts) {
-			expect(JSON.parse(script.textContent ?? "{}")).toMatchObject({
-				"@context": "https://schema.org",
-			});
-		}
-	});
+	);
 
-	it.each([
-		LandingPage,
-		FeaturesPage,
-		PricingPage,
-		AboutPage,
-		FaqsPage,
-	])("offers the dashboard instead of signup for a signed-in visitor %#", (Page) => {
-		auth.signedIn = true;
-		render(<Page />);
-		for (const link of screen.getAllByRole("link", {
-			name: "Go to Dashboard",
-		})) {
-			expect(link).toHaveAttribute("href", "/dashboard");
+	it.each([LandingPage, FeaturesPage, PricingPage, AboutPage, FaqsPage])(
+		"offers the dashboard instead of signup for a signed-in visitor %#",
+		(Page) => {
+			auth.signedIn = true;
+			render(<Page />);
+			for (const link of screen.getAllByRole("link", {
+				name: "Go to Dashboard",
+			})) {
+				expect(link).toHaveAttribute("href", "/dashboard");
+			}
+			expect(
+				screen.queryByRole("link", { name: "Get Started Free" })
+			).not.toBeInTheDocument();
 		}
-		expect(
-			screen.queryByRole("link", { name: "Get Started Free" })
-		).not.toBeInTheDocument();
-	});
+	);
 
 	it("keeps the public canonical URL and a real skip-to-content destination", () => {
 		render(
@@ -146,20 +142,28 @@ describe("public marketing routes", () => {
 		);
 	});
 
-	it("opens each product screenshot with an accessible title and closes it", async () => {
-		const user = userEvent.setup();
-		render(<LandingPage />);
-		for (const trigger of screen.getAllByRole("button", {
-			name: SCREENSHOT_TRIGGER,
-		})) {
-			await user.click(trigger);
+	it.each([
+		"Quick capture, calm history",
+		"Every expense stays easy to scan",
+		"Your schedule, not a forced month",
+		"A dashboard that keeps the picture clear",
+	])(
+		"opens the %s screenshot with an accessible title and closes it",
+		async (title) => {
+			const user = userEvent.setup();
+			render(<LandingPage />);
+			await user.click(
+				screen.getByRole("button", {
+					name: `Open ${title} screenshot fullscreen`,
+				})
+			);
 			const dialog = screen.getByRole("dialog");
 			expect(dialog).toHaveAccessibleName();
 			expect(within(dialog).getAllByRole("img")).toHaveLength(2);
 			await user.click(within(dialog).getByRole("button", { name: "Close" }));
 			expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 		}
-	});
+	);
 });
 
 describe("marketing navigation and help", () => {
@@ -207,29 +211,26 @@ describe("marketing navigation and help", () => {
 		expect(screen.getByRole("button", { name: "Toggle theme" })).toBeVisible();
 	});
 
-	it.each([
-		"Light",
-		"Dark",
-		"System",
-	])("changes the theme to %s", async (theme) => {
-		const user = userEvent.setup();
-		render(<ModeToggle />);
-		await user.click(screen.getByRole("button", { name: "Toggle theme" }));
-		await user.click(screen.getByRole("menuitem", { name: theme }));
-		expect(auth.setTheme).toHaveBeenCalledWith(theme.toLowerCase());
-	});
+	it.each(["Light", "Dark", "System"])(
+		"changes the theme to %s",
+		async (theme) => {
+			const user = userEvent.setup();
+			render(<ModeToggle />);
+			await user.click(screen.getByRole("button", { name: "Toggle theme" }));
+			await user.click(screen.getByRole("menuitem", { name: theme }));
+			expect(auth.setTheme).toHaveBeenCalledWith(theme.toLowerCase());
+		}
+	);
 
-	it("expands FAQ answers and collapses the previous question", async () => {
+	it.each(faqItems)("expands and collapses $question", async (item) => {
 		const user = userEvent.setup();
 		render(<FaqSection />);
-		for (const item of faqItems) {
-			const trigger = screen.getByRole("button", { name: item.question });
-			await user.click(trigger);
-			expect(trigger).toHaveAttribute("aria-expanded", "true");
-			expect(screen.getByText(item.answer)).toBeVisible();
-			await user.click(trigger);
-			expect(trigger).toHaveAttribute("aria-expanded", "false");
-		}
+		const trigger = screen.getByRole("button", { name: item.question });
+		await user.click(trigger);
+		expect(trigger).toHaveAttribute("aria-expanded", "true");
+		expect(screen.getByText(item.answer)).toBeVisible();
+		await user.click(trigger);
+		expect(trigger).toHaveAttribute("aria-expanded", "false");
 	});
 
 	it("supports custom FAQ headings and hides support calls to action", () => {

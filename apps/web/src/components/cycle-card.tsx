@@ -12,13 +12,13 @@ import { useCurrency } from "@/hooks/use-currency";
 import { cn } from "@/lib/utils";
 
 interface CycleCardProps {
-	cycle: Doc<"expense_cycles">;
-	variant?: "default" | "current";
-	status?: "current" | "upcoming" | "past";
-	showProgress?: boolean;
-	requireBudget?: boolean;
-	compact?: boolean;
 	className?: string;
+	compact?: boolean;
+	cycle: Doc<"expense_cycles">;
+	requireBudget?: boolean;
+	showProgress?: boolean;
+	status?: "current" | "upcoming" | "past";
+	variant?: "default" | "current";
 }
 
 export function CycleCard({
@@ -38,7 +38,7 @@ export function CycleCard({
 	const startDate = parseISO(cycle.startDate);
 	const endDate = parseISO(cycle.endDate);
 	let statusLabel = "History";
-	if (status === "current") {
+	if (status === "current" || variant === "current") {
 		statusLabel = "Active";
 	} else if (status === "upcoming") {
 		statusLabel = "Upcoming";
@@ -81,7 +81,7 @@ export function CycleCard({
 									)}
 									variant="outline"
 								>
-									{variant === "current" ? "Active" : statusLabel}
+									{statusLabel}
 								</Badge>
 							</div>
 							<div className="flex items-center gap-1.5 text-muted-foreground text-xs">
@@ -114,23 +114,25 @@ export function CycleCard({
 						</div>
 					</div>
 
-					{showProgress && summary && summary.totalPlanned > 0 && (
-						<div className="mt-3">
-							<div className="h-1 w-full overflow-hidden rounded-full bg-muted/40">
-								<div
-									className={cn(
-										"h-full transition-all",
-										summary.totalSpent > summary.totalPlanned
-											? "bg-destructive"
-											: "bg-primary"
-									)}
-									style={{
-										width: `${Math.min(100, (summary.totalSpent / summary.totalPlanned) * 100)}%`,
-									}}
-								/>
+					{Boolean(showProgress) &&
+						summary !== undefined &&
+						summary.totalPlanned > 0 && (
+							<div className="mt-3">
+								<div className="h-1 w-full overflow-hidden rounded-full bg-muted/40">
+									<div
+										className={cn(
+											"h-full transition-all",
+											summary.totalSpent > summary.totalPlanned
+												? "bg-destructive"
+												: "bg-primary"
+										)}
+										style={{
+											width: `${Math.min(100, (summary.totalSpent / summary.totalPlanned) * 100)}%`,
+										}}
+									/>
+								</div>
 							</div>
-						</div>
-					)}
+						)}
 				</CardContent>
 			</Card>
 		</Link>

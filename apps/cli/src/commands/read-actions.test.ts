@@ -68,10 +68,10 @@ const createFixtureQuery =
 	): Promise<Result> => {
 		calls.push({ args, name: functionName });
 		const responses: Record<string, unknown> = {
-			"cli/v1/accountTypes:list": accountsFixture.accountTypes,
 			"cli/v1/accounts:get": (accountsFixture.accounts as unknown[])[0],
 			"cli/v1/accounts:list": accountsFixture.accounts,
 			"cli/v1/accounts:listTransactions": accountsFixture.transactions,
+			"cli/v1/accountTypes:list": accountsFixture.accountTypes,
 			"cli/v1/context:get": contextFixture,
 			"cli/v1/expenses:get": (expensePageFixture as { items: unknown[] })
 				.items[0],
@@ -307,7 +307,7 @@ describe("Phase 4 read commands", () => {
 			["account-types", "list", "--include-archived"],
 		] as const;
 
-		for (const args of commands) {
+		for await (const args of commands) {
 			const testRuntime = createTestRuntime(createFixtureQuery());
 			const exitCode = await runCli(args, testRuntime.runtime);
 			expect(exitCode).toBe(CLI_EXIT_CODE.success);

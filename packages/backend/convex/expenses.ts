@@ -16,10 +16,11 @@ import {
 	validateAccountOwnership,
 	validateCategoryOwnership,
 } from "./helpers";
+import { forEachSequential } from "./lib/async";
 
 const expenseDocumentFields = {
-	_id: v.id("expenses"),
 	_creationTime: v.number(),
+	_id: v.id("expenses"),
 	accountId: v.optional(v.id("accounts")),
 	amount: v.number(),
 	categoryId: v.optional(v.id("categories")),
@@ -27,8 +28,8 @@ const expenseDocumentFields = {
 	createdSource: v.optional(actionSourceValidator),
 	cycleId: v.optional(v.id("expense_cycles")),
 	date: v.string(),
-	revision: v.optional(v.number()),
 	lastModifiedSource: v.optional(actionSourceValidator),
+	revision: v.optional(v.number()),
 	spentOn: v.optional(v.string()),
 	tagIds: v.optional(v.array(v.id("tags"))),
 	userId: v.id("users"),
@@ -112,12 +113,12 @@ const validateExpenseListOwnershipFilters = async (
 	if ((args.tagIds?.length ?? 0) > MAX_TAG_FILTERS) {
 		throw new ConvexError("TOO_MANY_TAG_FILTERS");
 	}
-	for (const tagId of args.tagIds ?? []) {
+	await forEachSequential(args.tagIds ?? [], async (tagId) => {
 		const tag = await ctx.db.get(tagId);
 		if (!tag || tag.userId !== userId) {
 			throw new ConvexError("NOT_FOUND");
 		}
-	}
+	});
 };
 
 const getCandidateExpenses = async (
@@ -215,16 +216,15 @@ const enrichExpense = async (
 
 export const list = query({
 	args: {
-		cycleId: v.optional(v.id("expense_cycles")),
-		categoryId: v.optional(v.id("categories")),
 		accountId: v.optional(v.id("accounts")),
-		startDate: v.optional(v.string()),
+		categoryId: v.optional(v.id("categories")),
+		cycleId: v.optional(v.id("expense_cycles")),
 		endDate: v.optional(v.string()),
-		tagIds: v.optional(v.array(v.id("tags"))),
 		limit: v.optional(v.number()),
 		offset: v.optional(v.number()),
+		startDate: v.optional(v.string()),
+		tagIds: v.optional(v.array(v.id("tags"))),
 	},
-	returns: v.array(resolvedExpenseValidator),
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		validateListPagination(args);
@@ -269,13 +269,13 @@ export const list = query({
 			pagedExpenses.map((expense) => enrichExpense(ctx, expense, user._id))
 		);
 	},
+	returns: v.array(resolvedExpenseValidator),
 });
 
 export const listRecent = query({
 	args: {
 		limit: v.optional(v.number()),
 	},
-	returns: v.array(resolvedExpenseValidator),
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const limit = normalizeRecentLimit(args.limit);
@@ -290,11 +290,11 @@ export const listRecent = query({
 			expenses.map((expense) => enrichExpense(ctx, expense, user._id))
 		);
 	},
+	returns: v.array(resolvedExpenseValidator),
 });
 
 export const get = query({
 	args: { expenseId: v.id("expenses") },
-	returns: resolvedExpenseValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const expense = await ctx.db.get(args.expenseId);
@@ -305,18 +305,18 @@ export const get = query({
 
 		return await enrichExpense(ctx, expense, user._id);
 	},
+	returns: resolvedExpenseValidator,
 });
 
 export const create = mutation({
 	args: {
+		accountId: v.optional(v.union(v.id("accounts"), v.null())),
 		amount: v.number(),
 		categoryId: v.optional(v.id("categories")),
-		accountId: v.optional(v.union(v.id("accounts"), v.null())),
 		date: v.optional(v.string()),
 		spentOn: v.optional(v.string()),
 		tagIds: v.optional(v.array(v.id("tags"))),
 	},
-	returns: expenseValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const prepared = await prepareExpenseCreate(ctx, { input: args, user });
@@ -327,19 +327,19 @@ export const create = mutation({
 		});
 		return presentExpenseDocument(expense);
 	},
+	returns: expenseValidator,
 });
 
 export const update = mutation({
 	args: {
-		id: v.id("expenses"),
+		accountId: v.optional(v.union(v.id("accounts"), v.null())),
 		amount: v.optional(v.number()),
 		categoryId: v.optional(v.id("categories")),
-		accountId: v.optional(v.union(v.id("accounts"), v.null())),
 		date: v.optional(v.string()),
+		id: v.id("expenses"),
 		spentOn: v.optional(v.string()),
 		tagIds: v.optional(v.array(v.id("tags"))),
 	},
-	returns: expenseValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const prepared = await prepareExpenseUpdate(ctx, {
@@ -351,11 +351,11 @@ export const update = mutation({
 			await commitExpenseUpdate(ctx, prepared, "web")
 		);
 	},
+	returns: expenseValidator,
 });
 
 export const remove = mutation({
 	args: { id: v.id("expenses") },
-	returns: v.object({ success: v.literal(true) }),
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		await commitExpenseDelete(ctx, {
@@ -365,4 +365,5 @@ export const remove = mutation({
 		});
 		return { success: true as const };
 	},
+	returns: v.object({ success: v.literal(true) }),
 });

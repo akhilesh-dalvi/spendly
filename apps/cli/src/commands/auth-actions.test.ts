@@ -127,29 +127,31 @@ describe("authentication commands", () => {
 	it.each([
 		{ currency: "INR", displayedCurrency: "INR" },
 		{ currency: null, displayedCurrency: "not configured" },
-	])("renders status with currency $displayedCurrency", async ({
-		currency,
-		displayedCurrency,
-	}) => {
-		const testRuntime = createTestRuntime();
-		vi.mocked(proveConvexIdentity).mockResolvedValue(createProof({ currency }));
+	])(
+		"renders status with currency $displayedCurrency",
+		async ({ currency, displayedCurrency }) => {
+			const testRuntime = createTestRuntime();
+			vi.mocked(proveConvexIdentity).mockResolvedValue(
+				createProof({ currency })
+			);
 
-		await runAuthStatus(createCommand(), testRuntime.runtime);
+			await runAuthStatus(createCommand(), testRuntime.runtime);
 
-		expect(testRuntime.getStdout()).toBe(
-			`Signed in to Spendly.\nCurrency: ${displayedCurrency}\n`
-		);
-		expect(testRuntime.getStderr()).toBe("");
-		expect(getActiveSession).toHaveBeenCalledWith({
-			config,
-			forceRefresh: undefined,
-			store,
-		});
-		expect(proveConvexIdentity).toHaveBeenCalledWith({
-			convexUrl: config.convexUrl,
-			idToken: session.tokens.idToken,
-		});
-	});
+			expect(testRuntime.getStdout()).toBe(
+				`Signed in to Spendly.\nCurrency: ${displayedCurrency}\n`
+			);
+			expect(testRuntime.getStderr()).toBe("");
+			expect(getActiveSession).toHaveBeenCalledWith({
+				config,
+				forceRefresh: undefined,
+				store,
+			});
+			expect(proveConvexIdentity).toHaveBeenCalledWith({
+				convexUrl: config.convexUrl,
+				idToken: session.tokens.idToken,
+			});
+		}
+	);
 
 	it("includes credential warnings in JSON status without writing to stderr", async () => {
 		const testRuntime = createTestRuntime();
@@ -198,43 +200,41 @@ describe("authentication commands", () => {
 			remoteRevocation: "not-confirmed",
 			revocationConfirmed: false,
 		},
-	])("reports $remoteRevocation logout in human and JSON output", async ({
-		hadSession,
-		message,
-		remoteRevocation,
-		revocationConfirmed,
-	}) => {
-		vi.mocked(logoutSession).mockResolvedValue({
-			hadSession,
-			revocationConfirmed,
-		});
-		const humanRuntime = createTestRuntime();
-		const jsonRuntime = createTestRuntime();
-		const warnings =
-			hadSession && !revocationConfirmed
-				? ["Remote refresh-token revocation could not be confirmed"]
-				: [];
+	])(
+		"reports $remoteRevocation logout in human and JSON output",
+		async ({ hadSession, message, remoteRevocation, revocationConfirmed }) => {
+			vi.mocked(logoutSession).mockResolvedValue({
+				hadSession,
+				revocationConfirmed,
+			});
+			const humanRuntime = createTestRuntime();
+			const jsonRuntime = createTestRuntime();
+			const warnings =
+				hadSession && !revocationConfirmed
+					? ["Remote refresh-token revocation could not be confirmed"]
+					: [];
 
-		await runAuthLogout(createCommand(), humanRuntime.runtime);
-		await runAuthLogout(createCommand({ json: true }), jsonRuntime.runtime);
+			await runAuthLogout(createCommand(), humanRuntime.runtime);
+			await runAuthLogout(createCommand({ json: true }), jsonRuntime.runtime);
 
-		expect(humanRuntime.getStdout()).toBe(`${message}\n`);
-		expect(humanRuntime.getStderr()).toBe(
-			warnings.length ? `${warnings[0]}\n` : ""
-		);
-		expect(JSON.parse(jsonRuntime.getStdout())).toEqual({
-			data: {
-				authenticated: false,
-				localCredentialsRemoved: true,
-				remoteRevocation,
-			},
-			meta: warnings.length ? { warnings } : {},
-			schemaVersion: 1,
-		});
-		expect(jsonRuntime.getStderr()).toBe("");
-		expect(logoutSession).toHaveBeenCalledWith({ config, store });
-		expect(getActiveSession).not.toHaveBeenCalled();
-	});
+			expect(humanRuntime.getStdout()).toBe(`${message}\n`);
+			expect(humanRuntime.getStderr()).toBe(
+				warnings.length ? `${warnings[0]}\n` : ""
+			);
+			expect(JSON.parse(jsonRuntime.getStdout())).toEqual({
+				data: {
+					authenticated: false,
+					localCredentialsRemoved: true,
+					remoteRevocation,
+				},
+				meta: warnings.length ? { warnings } : {},
+				schemaVersion: 1,
+			});
+			expect(jsonRuntime.getStderr()).toBe("");
+			expect(logoutSession).toHaveBeenCalledWith({ config, store });
+			expect(getActiveSession).not.toHaveBeenCalled();
+		}
+	);
 
 	it("prints the same-machine login URL in no-browser mode and verifies the saved session", async () => {
 		const testRuntime = createTestRuntime();
@@ -301,27 +301,25 @@ describe("authentication commands", () => {
 			json: true,
 			nonInteractive: false,
 		},
-	])("rejects incompatible login options with $code before starting OAuth", async ({
-		browser,
-		code,
-		json,
-		nonInteractive,
-	}) => {
-		const testRuntime = createTestRuntime();
+	])(
+		"rejects incompatible login options with $code before starting OAuth",
+		async ({ browser, code, json, nonInteractive }) => {
+			const testRuntime = createTestRuntime();
 
-		await expect(
-			runAuthLogin(
-				{ browser },
-				createCommand({ json, nonInteractive }),
-				testRuntime.runtime
-			)
-		).rejects.toMatchObject({ code });
+			await expect(
+				runAuthLogin(
+					{ browser },
+					createCommand({ json, nonInteractive }),
+					testRuntime.runtime
+				)
+			).rejects.toMatchObject({ code });
 
-		expect(login).not.toHaveBeenCalled();
-		expect(getActiveSession).not.toHaveBeenCalled();
-		expect(testRuntime.getStdout()).toBe("");
-		expect(testRuntime.getStderr()).toBe("");
-	});
+			expect(login).not.toHaveBeenCalled();
+			expect(getActiveSession).not.toHaveBeenCalled();
+			expect(testRuntime.getStdout()).toBe("");
+			expect(testRuntime.getStderr()).toBe("");
+		}
+	);
 
 	it("rejects JSON login when the browser cannot open without leaking the URL", async () => {
 		const testRuntime = createTestRuntime();

@@ -3,6 +3,7 @@ import type { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { nextRevision } from "./domain/revisions";
 import { getCurrentUser } from "./helpers";
+import { forEachSequential } from "./lib/async";
 
 export const list = query({
 	args: {},
@@ -63,17 +64,17 @@ export const create = mutation({
 		}
 
 		return await ctx.db.insert("tags", {
-			userId: user._id,
-			name: args.name,
 			createdAt: Date.now(),
+			name: args.name,
+			userId: user._id,
 		});
 	},
 });
 
 export const update = mutation({
 	args: {
-		tagId: v.id("tags"),
 		name: v.string(),
+		tagId: v.id("tags"),
 	},
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
@@ -103,7 +104,7 @@ export const remove = mutation({
 			.withIndex("by_userId_date", (q) => q.eq("userId", user._id))
 			.collect();
 
-		for (const exp of expenses) {
+		await forEachSequential(expenses, async (exp) => {
 			if (exp.tagIds?.includes(args.tagId)) {
 				await ctx.db.patch(exp._id, {
 					lastModifiedSource: "web",
@@ -111,7 +112,7 @@ export const remove = mutation({
 					tagIds: exp.tagIds.filter((id) => id !== args.tagId),
 				});
 			}
-		}
+		});
 
 		await ctx.db.delete(args.tagId);
 		return { success: true };

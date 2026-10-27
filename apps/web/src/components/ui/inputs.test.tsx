@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { createRef, useCallback, useState } from "react";
 import type { DateRange } from "react-day-picker";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CurrencyInput } from "./currency-input";
@@ -20,14 +20,18 @@ function RangePicker({
 		from: new Date(2026, 8, 10),
 		to: new Date(2026, 8, 12),
 	});
+	const changeDate = useCallback(
+		(nextDate: DateRange | undefined) => {
+			setDate(nextDate);
+			onChange(nextDate);
+		},
+		[onChange]
+	);
 	return (
 		<DatePickerWithRange
 			date={date}
 			numberOfMonths={1}
-			onDateChange={(nextDate) => {
-				setDate(nextDate);
-				onChange(nextDate);
-			}}
+			onDateChange={changeDate}
 		/>
 	);
 }
@@ -41,6 +45,13 @@ afterEach(() => {
 });
 
 describe("currency entry", () => {
+	it("exposes the native input through its React 19 ref prop", () => {
+		const ref = createRef<HTMLInputElement>();
+		render(<CurrencyInput aria-label="Amount" ref={ref} />);
+		expect(ref.current).toBe(screen.getByRole("textbox", { name: "Amount" }));
+		ref.current?.focus();
+		expect(screen.getByRole("textbox", { name: "Amount" })).toHaveFocus();
+	});
 	it("accepts partial decimals, rejects non-numeric text, and clears without inventing zero", () => {
 		const onChange = vi.fn();
 		render(<CurrencyInput aria-label="Amount" onChange={onChange} />);
@@ -145,19 +156,20 @@ describe("calendar inputs", () => {
 });
 
 describe("accessible progress", () => {
-	it.each([
-		0, 25, 100,
-	])("exposes the actual %s%% value to assistive technology", (value) => {
-		const { container } = render(
-			<Progress aria-label="Budget used" value={value} />
-		);
-		expect(
-			screen.getByRole("progressbar", { name: "Budget used" })
-		).toHaveAttribute("aria-valuenow", String(value));
-		expect(
-			container.querySelector('[data-slot="progress-indicator"]')
-		).toHaveStyle({ transform: `translateX(-${100 - value}%)` });
-	});
+	it.each([0, 25, 100])(
+		"exposes the actual %s%% value to assistive technology",
+		(value) => {
+			const { container } = render(
+				<Progress aria-label="Budget used" value={value} />
+			);
+			expect(
+				screen.getByRole("progressbar", { name: "Budget used" })
+			).toHaveAttribute("aria-valuenow", String(value));
+			expect(
+				container.querySelector('[data-slot="progress-indicator"]')
+			).toHaveStyle({ transform: `translateX(-${100 - value}%)` });
+		}
+	);
 
 	it("does not report a fabricated value while progress is indeterminate", () => {
 		render(<Progress aria-label="Loading" />);

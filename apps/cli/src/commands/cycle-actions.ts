@@ -53,15 +53,15 @@ const commitCycleParsed = async <Output>(
 			throw error;
 		}
 		const recovery = {
-			operation: options.name,
-			input: options.args,
 			agent: options.context.globalOptions.agent,
+			input: options.args,
+			operation: options.name,
 		};
-		throw new CliError(
+		throw CliError.fromCause(
+			error,
 			error.code,
 			`${error.message}\nAfter checking current state and explicitly choosing recovery, repeat the original resolved inputs with --non-interactive (same agent mode):\n${JSON.stringify(recovery)}`,
 			{
-				cause: error,
 				details: { ...error.details, recovery },
 				retryable: error.retryable,
 			}
@@ -89,18 +89,18 @@ const resolveCycleId = async (
 };
 
 interface CycleAddOptions {
-	name?: string;
-	startDate?: string;
-	endDateExclusive?: string;
-	dryRun?: boolean;
-	idempotencyKey?: string;
-	withoutCategories?: boolean;
-	copyFromCycleId?: string;
-	ifCopySnapshot?: string;
-	copyCategoryId?: string[];
-	includePlannedAmounts?: boolean;
-	plannedAmount?: string[];
 	clearPlannedAmount?: string[];
+	copyCategoryId?: string[];
+	copyFromCycleId?: string;
+	dryRun?: boolean;
+	endDateExclusive?: string;
+	idempotencyKey?: string;
+	ifCopySnapshot?: string;
+	includePlannedAmounts?: boolean;
+	name?: string;
+	plannedAmount?: string[];
+	startDate?: string;
+	withoutCategories?: boolean;
 }
 
 const requiredName = (name: string): string => {
@@ -196,8 +196,8 @@ const promptCategoryPlan = async (
 		? (category.plannedAmount ?? undefined)
 		: undefined;
 	const mode = await prompter.select({
-		message: `Planned amount for ${category.name}`,
 		initialValue: "keep",
+		message: `Planned amount for ${category.name}`,
 		options: [
 			{ label: `Keep ${plannedAmount ?? "no planned amount"}`, value: "keep" },
 			{ label: "Set a planned amount", value: "set" },
@@ -244,8 +244,8 @@ const promptCopyCategoryIds = async (
 		return [];
 	}
 	const mode = await prompter.select({
-		message: "Categories to copy",
 		initialValue: "all",
+		message: "Categories to copy",
 		options: [
 			{ label: "Copy all categories", value: "all" },
 			{ label: "Choose a subset", value: "subset" },
@@ -259,11 +259,11 @@ const promptCopyCategoryIds = async (
 		return [];
 	}
 	return await prompter.multiselect({
-		message: "Categories to copy (none is allowed)",
 		initialValues: [],
+		message: "Categories to copy (none is allowed)",
 		options: categories.map((category) => ({
-			label: category.name,
 			hint: category.isHidden ? "Hidden" : undefined,
+			label: category.name,
 			value: category.id,
 		})),
 		required: false,
@@ -284,13 +284,13 @@ const promptCopyInput = async (
 			cycleSchema.array()
 		);
 		const source = await prompter.select({
-			message: "Copy categories from a cycle?",
 			initialValue: "none",
+			message: "Copy categories from a cycle?",
 			options: [
 				{ label: "Do not copy categories", value: "none" },
 				...cycles.map((cycle) => ({
-					label: cycle.name,
 					hint: `${cycle.startDate} to ${cycle.endDateExclusive} (exclusive)`,
+					label: cycle.name,
 					value: cycle.id,
 				})),
 			],
@@ -316,12 +316,12 @@ const promptCopyInput = async (
 		return copyInput;
 	}
 	copyInput.includePlannedAmounts ??= await prompter.confirm({
-		message: "Prefill source planned amounts?",
 		initialValue: false,
+		message: "Prefill source planned amounts?",
 	});
 	const overrides = [...(copyInput.categoryPlannedOverrides ?? [])];
 	const existingOverrideIds = new Set(overrides.map((override) => override.id));
-	for (const category of categories) {
+	for await (const category of categories) {
 		if (
 			!copyInput.copyCategoryIds.includes(category.id) ||
 			existingOverrideIds.has(category.id)
@@ -479,9 +479,9 @@ export const runCycleAdd = async (
 				? await promptCopyInput(context, copyInput, prompter)
 				: copyInput;
 		const input = {
+			endDateExclusive,
 			name,
 			startDate,
-			endDateExclusive,
 			...normalizeCopyInput(resolvedCopy),
 		};
 		let expectedCopySnapshot = options.ifCopySnapshot;
@@ -522,12 +522,12 @@ export const runCycleAdd = async (
 			}
 		}
 		const result = await commitCycleParsed({
-			context,
 			args: {
 				...input,
 				...(expectedCopySnapshot === undefined ? {} : { expectedCopySnapshot }),
 				idempotencyKey,
 			},
+			context,
 			name: "cycles.create",
 			schema: cycleCreateResultSchema,
 		});
@@ -542,12 +542,12 @@ export const runCycleAdd = async (
 };
 
 interface CycleEditOptions {
+	dryRun?: boolean;
+	endDateExclusive?: string;
+	idempotencyKey?: string;
+	ifRevision?: string;
 	name?: string;
 	startDate?: string;
-	endDateExclusive?: string;
-	ifRevision?: string;
-	idempotencyKey?: string;
-	dryRun?: boolean;
 }
 
 export const runCycleEdit = async (
@@ -604,20 +604,20 @@ export const runCycleEdit = async (
 			if (!hasFields && prompter) {
 				fields.name = requiredName(
 					await prompter.text({
-						message: "Cycle name",
 						initialValue: before.name,
+						message: "Cycle name",
 					})
 				);
 				fields.startDate = parseDate(
 					await prompter.date({
-						message: "Start date (inclusive)",
 						initialValue: before.startDate,
+						message: "Start date (inclusive)",
 					})
 				);
 				fields.endDateExclusive = parseDate(
 					await prompter.date({
-						message: "End date (exclusive)",
 						initialValue: before.endDateExclusive,
+						message: "End date (exclusive)",
 					})
 				);
 			}
@@ -649,8 +649,8 @@ export const runCycleEdit = async (
 			});
 		}
 		const result = await commitCycleParsed({
-			context,
 			args: { ...input, idempotencyKey },
+			context,
 			name: "cycles.update",
 			schema: cycleDetailSchema,
 		});
@@ -666,9 +666,9 @@ export const runCycleEdit = async (
 
 interface CycleDeleteOptions {
 	confirmationToken?: string;
-	ifRevision?: string;
-	idempotencyKey?: string;
 	dryRun?: boolean;
+	idempotencyKey?: string;
+	ifRevision?: string;
 }
 
 const renderDeletionPreview = (
@@ -698,7 +698,7 @@ export const runCycleDelete = async (
 		options.ifRevision === undefined
 			? undefined
 			: parseRevision(options.ifRevision);
-	let confirmationToken = options.confirmationToken;
+	let { confirmationToken } = options;
 	if ((confirmationToken !== undefined) !== (expectedRevision !== undefined)) {
 		throw new CliError(
 			"INVALID_INPUT",
@@ -729,9 +729,9 @@ export const runCycleDelete = async (
 		const id = await resolveCycleId(cycleId, command, runtime, context);
 		if (dryRun || !(confirmationToken || expectedRevision)) {
 			const preview = await mutationParsed({
+				args: { cycleId: id },
 				context,
 				name: "cycles.previewDelete",
-				args: { cycleId: id },
 				schema: cycleDeletePreviewSchema,
 			});
 			if (dryRun) {
@@ -744,7 +744,7 @@ export const runCycleDelete = async (
 				});
 				return;
 			}
-			confirmationToken = preview.confirmationToken;
+			({ confirmationToken } = preview);
 			expectedRevision = preview.cycle.revision;
 			await confirmMutation({
 				message: "Permanently delete this cycle and its categories?",
@@ -767,14 +767,14 @@ export const runCycleDelete = async (
 			});
 		}
 		const result = await commitCycleParsed({
-			context,
-			name: "cycles.remove",
 			args: {
+				confirmationToken,
 				cycleId: id,
 				expectedRevision,
-				confirmationToken,
 				idempotencyKey,
 			},
+			context,
+			name: "cycles.remove",
 			schema: cycleDeleteResultSchema,
 		});
 		writeMutationSuccess({

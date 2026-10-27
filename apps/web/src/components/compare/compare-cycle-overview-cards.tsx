@@ -3,8 +3,8 @@ import type { CompareCycleRow } from "@/components/compare/types";
 import { Progress } from "@/components/ui/progress";
 
 interface CompareCycleOverviewCardsProps {
-	rows: CompareCycleRow[];
 	formatCurrency: (amount: number) => string;
+	rows: CompareCycleRow[];
 }
 
 export function CompareCycleOverviewCards({

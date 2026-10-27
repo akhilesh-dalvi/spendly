@@ -2,18 +2,18 @@
 
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CategoryTypeModal } from "./category-type-modal";
 
 const mocks = vi.hoisted(() => ({
 	create: vi.fn(),
-	success: vi.fn(),
 	error: vi.fn(),
+	success: vi.fn(),
 }));
 vi.mock("convex/react", () => ({ useMutation: () => mocks.create }));
 vi.mock("sonner", () => ({
-	toast: { success: mocks.success, error: mocks.error },
+	toast: { error: mocks.error, success: mocks.success },
 }));
 
 function ControlledModal({
@@ -24,13 +24,17 @@ function ControlledModal({
 	onOpenChange: (open: boolean) => void;
 }) {
 	const [open, setOpen] = useState(false);
+	const changeOpen = useCallback(
+		(nextOpen: boolean) => {
+			onOpenChange(nextOpen);
+			setOpen(nextOpen);
+		},
+		[onOpenChange]
+	);
 	return (
 		<CategoryTypeModal
 			existingTypeNames={["Needs"]}
-			onOpenChange={(nextOpen) => {
-				onOpenChange(nextOpen);
-				setOpen(nextOpen);
-			}}
+			onOpenChange={changeOpen}
 			onSuccess={onSuccess}
 			open={open}
 			trigger={<button type="button">New type</button>}
@@ -64,8 +68,8 @@ describe("CategoryTypeModal", () => {
 			expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
 		);
 		expect(mocks.create).toHaveBeenCalledWith({
-			name: "Business",
 			color: "#14b8a6",
+			name: "Business",
 		});
 		expect(onSuccess).toHaveBeenCalledWith("type-business");
 	});

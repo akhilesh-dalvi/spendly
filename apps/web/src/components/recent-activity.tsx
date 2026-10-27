@@ -22,20 +22,20 @@ import { EmptyState } from "./ui/empty-state";
 
 interface ExpenseWithDetails {
 	_id: string;
-	categoryId?: string | null;
+	accountName?: string | null;
+	accountTypeColor?: string | null;
+	accountTypeIcon?: string | null;
+	accountTypeName?: string | null;
 	amount: number;
+	categoryIcon?: string | null;
+	categoryId?: string | null;
+	categoryName: string | null;
+	categoryTypeColor?: string | null;
 	createdSource?: ActionSource;
 	date: string;
 	lastModifiedSource?: ActionSource;
 	revision?: number;
 	spentOn?: string | null;
-	categoryName: string | null;
-	categoryIcon?: string | null;
-	categoryTypeColor?: string | null;
-	accountName?: string | null;
-	accountTypeColor?: string | null;
-	accountTypeIcon?: string | null;
-	accountTypeName?: string | null;
 }
 
 interface RecentActivityProps {
@@ -158,14 +158,14 @@ export function RecentActivity({ expenses }: RecentActivityProps) {
 			}
 
 			if (currentGroup.length > 0) {
-				groups.push({ title: currentTitle, items: currentGroup });
+				groups.push({ items: currentGroup, title: currentTitle });
 			}
 			currentTitle = title;
 			currentGroup = [expense];
 		}
 
 		if (currentGroup.length > 0) {
-			groups.push({ title: currentTitle, items: currentGroup });
+			groups.push({ items: currentGroup, title: currentTitle });
 		}
 
 		return groups;

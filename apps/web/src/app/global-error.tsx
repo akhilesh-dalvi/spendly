@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { reportError } from "@/lib/report-error";
 
@@ -11,6 +11,10 @@ export default function GlobalError({
 	error: Error & { digest?: string };
 	reset: () => void;
 }) {
+	const goToDashboard = useCallback(
+		() => window.location.assign("/dashboard"),
+		[]
+	);
 	useEffect(() => {
 		reportError(error, { feature: "app", operation: "render" });
 	}, [error]);
@@ -27,13 +31,8 @@ export default function GlobalError({
 						the dashboard.
 					</p>
 					<div className="mt-6 flex space-x-4">
-						<Button onClick={() => reset()}>Try again</Button>
-						<Button
-							onClick={() => {
-								window.location.assign("/dashboard");
-							}}
-							variant="outline"
-						>
+						<Button onClick={reset}>Try again</Button>
+						<Button onClick={goToDashboard} variant="outline">
 							Go to Dashboard
 						</Button>
 					</div>

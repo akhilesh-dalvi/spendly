@@ -11,6 +11,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DocsCodeBlock } from "@/components/docs/code-block";
 import { CodeBlockCopyButton } from "@/components/ui/code-block";
 
+function preventCopy(event: React.MouseEvent<HTMLButtonElement>) {
+	event.preventDefault();
+}
+
 afterEach(() => {
 	cleanup();
 	vi.restoreAllMocks();
@@ -21,7 +25,6 @@ describe("documentation code blocks", () => {
 	it("preserves highlighted tokens in the shared terminal frame", async () => {
 		const { container } = render(
 			await DocsCodeBlock({
-				title: "Terminal",
 				children: (
 					<code>
 						<span className="line">
@@ -31,6 +34,7 @@ describe("documentation code blocks", () => {
 						<span className="line">spendly accounts list</span>
 					</code>
 				),
+				title: "Terminal",
 			})
 		);
 
@@ -94,10 +98,7 @@ describe("documentation code blocks", () => {
 		const writeText = vi.fn();
 		vi.stubGlobal("navigator", { clipboard: { writeText } });
 		render(
-			<CodeBlockCopyButton
-				onClick={(event) => event.preventDefault()}
-				value="spendly --help"
-			/>
+			<CodeBlockCopyButton onClick={preventCopy} value="spendly --help" />
 		);
 
 		fireEvent.click(screen.getByRole("button", { name: "Copy" }));

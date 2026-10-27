@@ -3,36 +3,36 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface ComparisonColumn {
-	key: "spendly" | "ynab" | "mint" | "sheet";
-	title: string;
 	description: string;
 	highlighted?: boolean;
+	key: "spendly" | "ynab" | "mint" | "sheet";
+	title: string;
 }
 
 const comparisonColumns = [
 	{
-		key: "spendly",
-		title: "Spendly",
 		description: "Flexible expense tracking without enforcement.",
 		highlighted: true,
+		key: "spendly",
+		title: "Spendly",
 	},
 	{
-		key: "ynab",
-		title: "YNAB-style",
 		description: "Strict planning and active budgeting.",
 		highlighted: false,
+		key: "ynab",
+		title: "YNAB-style",
 	},
 	{
-		key: "mint",
-		title: "Mint-style",
 		description: "Passive account visibility and broad aggregation.",
 		highlighted: false,
+		key: "mint",
+		title: "Mint-style",
 	},
 	{
-		key: "sheet",
-		title: "Spreadsheet",
 		description: "Total control with manual upkeep.",
 		highlighted: false,
+		key: "sheet",
+		title: "Spreadsheet",
 	},
 ] as const satisfies readonly ComparisonColumn[];
 
@@ -40,55 +40,55 @@ const comparisonRows = [
 	{
 		label: "Flexible custom cycles",
 		values: {
-			spendly: true,
-			ynab: false,
 			mint: false,
 			sheet: false,
+			spendly: true,
+			ynab: false,
 		},
 	},
 	{
 		label: "Optional planning",
 		values: {
-			spendly: true,
-			ynab: false,
 			mint: "partial" as const,
 			sheet: false,
+			spendly: true,
+			ynab: false,
 		},
 	},
 	{
 		label: "Compare multiple cycles",
 		values: {
-			spendly: true,
-			ynab: "partial" as const,
 			mint: false,
 			sheet: "partial" as const,
+			spendly: true,
+			ynab: "partial" as const,
 		},
 	},
 	{
 		label: "Editable history",
 		values: {
-			spendly: true,
-			ynab: "partial" as const,
 			mint: false,
 			sheet: "partial" as const,
+			spendly: true,
+			ynab: "partial" as const,
 		},
 	},
 	{
 		label: "Low setup friction",
 		values: {
-			spendly: true,
-			ynab: false,
 			mint: "partial" as const,
 			sheet: "partial" as const,
+			spendly: true,
+			ynab: false,
 		},
 	},
 	{
 		label: "Calm, non-judgmental workflow",
 		values: {
-			spendly: true,
-			ynab: false,
 			mint: false,
 			sheet: "partial" as const,
+			spendly: true,
+			ynab: false,
 		},
 	},
 ] as const;
@@ -170,13 +170,13 @@ export default function LandingDifferentiation() {
 							key={row.label}
 						>
 							<div
-								className={`border-r p-5 font-medium text-sm ${index !== comparisonRows.length - 1 ? "border-b" : ""}`}
+								className={`border-r p-5 font-medium text-sm ${index === comparisonRows.length - 1 ? "" : "border-b"}`}
 							>
 								{row.label}
 							</div>
 							{comparisonColumns.map((column) => (
 								<div
-									className={`flex items-center p-5 ${index !== comparisonRows.length - 1 ? "border-b" : ""} ${column.highlighted ? "bg-primary/[0.02]" : ""}`}
+									className={`flex items-center p-5 ${index === comparisonRows.length - 1 ? "" : "border-b"} ${column.highlighted ? "bg-primary/[0.02]" : ""}`}
 									key={`${row.label}-${column.key}`}
 								>
 									<ValueCell value={row.values[column.key]} />

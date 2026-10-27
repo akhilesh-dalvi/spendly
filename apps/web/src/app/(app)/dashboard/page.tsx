@@ -6,7 +6,7 @@ import { format, parseISO } from "date-fns";
 import { Calendar, Check, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import Link from "next/link";
 import type { ComponentProps } from "react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { AccountOnboardingNudge } from "@/components/account-onboarding-nudge";
 import { CategorySpendingChart } from "@/components/category-spending-chart";
 import { CategoryTypeChart } from "@/components/category-type-chart";
@@ -63,6 +63,27 @@ function DashboardOverview({
 	);
 }
 
+function CycleMenuItem({
+	cycle,
+	selected,
+	onSelect,
+}: {
+	cycle: { _id: string; name: string };
+	selected: boolean;
+	onSelect: (id: string) => void;
+}) {
+	const select = useCallback(() => onSelect(cycle._id), [onSelect, cycle._id]);
+	return (
+		<DropdownMenuItem
+			className="flex items-center justify-between"
+			onClick={select}
+		>
+			{cycle.name}
+			{selected === true && <Check className="h-4 w-4" />}
+		</DropdownMenuItem>
+	);
+}
+
 export default function DashboardPage() {
 	const allCycles = useQuery(api.cycles.list);
 	const currentCycleFromApi = useQuery(api.cycles.getCurrent, {});
@@ -101,17 +122,32 @@ export default function DashboardPage() {
 
 	const groupedCycles = useMemo(() => {
 		if (!allCycles) {
-			return { current: null, upcoming: [], past: [] };
+			return { current: null, past: [], upcoming: [] };
 		}
 		const today = format(new Date(), "yyyy-MM-dd");
 		return {
 			current:
 				allCycles.find((c) => today >= c.startDate && today <= c.endDate) ||
 				null,
-			upcoming: allCycles.filter((c) => c.startDate > today),
 			past: allCycles.filter((c) => c.endDate < today),
+			upcoming: allCycles.filter((c) => c.startDate > today),
 		};
 	}, [allCycles]);
+
+	const handleCycleCreated = useCallback((id: string) => {
+		setSelectedCycleId(id);
+		setIsNewCycleDialogOpen(false);
+	}, []);
+	const selectPrevious = useCallback(() => {
+		if (previousCycle) {
+			setSelectedCycleId(previousCycle._id);
+		}
+	}, [previousCycle]);
+	const selectNext = useCallback(() => {
+		if (nextCycle) {
+			setSelectedCycleId(nextCycle._id);
+		}
+	}, [nextCycle]);
 
 	if (
 		allCycles === undefined ||
@@ -148,12 +184,7 @@ export default function DashboardPage() {
 								<DialogHeader>
 									<DialogTitle>Create First Cycle</DialogTitle>
 								</DialogHeader>
-								<CycleForm
-									onSuccess={(id) => {
-										setSelectedCycleId(id);
-										setIsNewCycleDialogOpen(false);
-									}}
-								/>
+								<CycleForm onSuccess={handleCycleCreated} />
 							</DialogContent>
 						</Dialog>
 					}
@@ -172,9 +203,7 @@ export default function DashboardPage() {
 					<div className="flex items-center gap-1">
 						<Button
 							disabled={!previousCycle}
-							onClick={() =>
-								previousCycle && setSelectedCycleId(previousCycle._id)
-							}
+							onClick={selectPrevious}
 							size="icon"
 							variant="ghost"
 						>
@@ -208,25 +237,19 @@ export default function DashboardPage() {
 										</DialogTrigger>
 									</div>
 									<div className="max-h-[400px] overflow-y-auto">
-										{groupedCycles.current && (
+										{groupedCycles.current !== null && (
 											<>
 												<DropdownMenuLabel className="font-bold text-[10px] text-muted-foreground/60 uppercase tracking-widest">
 													Current
 												</DropdownMenuLabel>
-												<DropdownMenuItem
-													className="flex items-center justify-between"
+												<CycleMenuItem
+													cycle={groupedCycles.current}
 													key={groupedCycles.current._id}
-													onClick={() => {
-														if (groupedCycles.current) {
-															setSelectedCycleId(groupedCycles.current._id);
-														}
-													}}
-												>
-													{groupedCycles.current.name}
-													{groupedCycles.current._id === activeCycle?._id && (
-														<Check className="h-4 w-4" />
-													)}
-												</DropdownMenuItem>
+													onSelect={setSelectedCycleId}
+													selected={
+														groupedCycles.current._id === activeCycle._id
+													}
+												/>
 												{(groupedCycles.upcoming.length > 0 ||
 													groupedCycles.past.length > 0) && (
 													<DropdownMenuSeparator />
@@ -240,16 +263,12 @@ export default function DashboardPage() {
 													Upcoming
 												</DropdownMenuLabel>
 												{groupedCycles.upcoming.map((cycle) => (
-													<DropdownMenuItem
-														className="flex items-center justify-between"
+													<CycleMenuItem
+														cycle={cycle}
 														key={cycle._id}
-														onClick={() => setSelectedCycleId(cycle._id)}
-													>
-														{cycle.name}
-														{cycle._id === activeCycle?._id && (
-															<Check className="h-4 w-4" />
-														)}
-													</DropdownMenuItem>
+														onSelect={setSelectedCycleId}
+														selected={cycle._id === activeCycle._id}
+													/>
 												))}
 												{groupedCycles.past.length > 0 && (
 													<DropdownMenuSeparator />
@@ -263,16 +282,12 @@ export default function DashboardPage() {
 													History
 												</DropdownMenuLabel>
 												{groupedCycles.past.map((cycle) => (
-													<DropdownMenuItem
-														className="flex items-center justify-between"
+													<CycleMenuItem
+														cycle={cycle}
 														key={cycle._id}
-														onClick={() => setSelectedCycleId(cycle._id)}
-													>
-														{cycle.name}
-														{cycle._id === activeCycle?._id && (
-															<Check className="h-4 w-4" />
-														)}
-													</DropdownMenuItem>
+														onSelect={setSelectedCycleId}
+														selected={cycle._id === activeCycle._id}
+													/>
 												))}
 											</>
 										)}
@@ -283,18 +298,13 @@ export default function DashboardPage() {
 								<DialogHeader>
 									<DialogTitle>Create Expense Cycle</DialogTitle>
 								</DialogHeader>
-								<CycleForm
-									onSuccess={(id) => {
-										setSelectedCycleId(id);
-										setIsNewCycleDialogOpen(false);
-									}}
-								/>
+								<CycleForm onSuccess={handleCycleCreated} />
 							</DialogContent>
 						</Dialog>
 
 						<Button
 							disabled={!nextCycle}
-							onClick={() => nextCycle && setSelectedCycleId(nextCycle._id)}
+							onClick={selectNext}
 							size="icon"
 							variant="ghost"
 						>

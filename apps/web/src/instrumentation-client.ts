@@ -13,9 +13,9 @@ const options = getSentryOptions({
 if (options.enabled) {
 	const client = init({
 		...options,
-		replaysSessionSampleRate: 0,
-		replaysOnErrorSampleRate: 0,
 		profileSessionSampleRate: 0,
+		replaysOnErrorSampleRate: 0,
+		replaysSessionSampleRate: 0,
 	});
 	registerEnvelopePrivacy(client);
 }

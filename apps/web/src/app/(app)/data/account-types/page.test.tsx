@@ -14,51 +14,51 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import AccountTypesPage from "./page";
 
 const mocks = vi.hoisted(() => ({
-	query: vi.fn(),
-	create: vi.fn(),
-	update: vi.fn(),
 	archive: vi.fn(),
+	create: vi.fn(),
+	error: vi.fn(),
+	query: vi.fn(),
 	remove: vi.fn(),
 	seed: vi.fn(),
 	success: vi.fn(),
-	error: vi.fn(),
+	update: vi.fn(),
 }));
 vi.mock("convex/react", () => ({
-	useQuery: (...args: unknown[]) => mocks.query(...args),
 	useMutation: (reference: Parameters<typeof getFunctionName>[0]) =>
 		({
-			"accountTypes:create": mocks.create,
-			"accountTypes:update": mocks.update,
 			"accountTypes:archive": mocks.archive,
+			"accountTypes:create": mocks.create,
 			"accountTypes:remove": mocks.remove,
 			"accountTypes:seedDefaults": mocks.seed,
+			"accountTypes:update": mocks.update,
 		})[getFunctionName(reference)],
+	useQuery: (...args: unknown[]) => mocks.query(...args),
 }));
 vi.mock("sonner", () => ({
-	toast: { success: mocks.success, error: mocks.error },
+	toast: { error: mocks.error, success: mocks.success },
 }));
 
 const bank: Doc<"account_types"> = {
-	_id: "type-bank" as Id<"account_types">,
 	_creationTime: 1,
-	userId: "user-1" as Id<"users">,
-	createdAt: 1,
-	order: 0,
-	normalizedName: "bank",
-	name: "Bank",
+	_id: "type-bank" as Id<"account_types">,
 	balanceNature: "asset",
 	color: "#14B8A6",
+	createdAt: 1,
 	icon: "landmark",
 	isArchived: false,
+	name: "Bank",
+	normalizedName: "bank",
+	order: 0,
+	userId: "user-1" as Id<"users">,
 };
 const debt: Doc<"account_types"> = {
 	...bank,
 	_id: "type-debt" as Id<"account_types">,
-	name: "Debt",
 	balanceNature: "liability",
-	isArchived: true,
-	icon: undefined,
 	color: undefined,
+	icon: undefined,
+	isArchived: true,
+	name: "Debt",
 };
 const unused: Doc<"account_types"> = {
 	...bank,
@@ -158,14 +158,19 @@ describe("AccountTypesPage", () => {
 		[0, "All default account types already exist"],
 		[1, "1 default type restored"],
 		[4, "4 default types restored"],
-	])("restores defaults with an accurate count: %s", async (createdCount, message) => {
-		const user = userEvent.setup();
-		mocks.seed.mockResolvedValueOnce({ createdCount });
-		render(<AccountTypesPage />);
-		await user.click(screen.getByRole("button", { name: "Restore defaults" }));
-		await waitFor(() => expect(mocks.success).toHaveBeenCalledWith(message));
-		expect(mocks.seed).toHaveBeenCalledWith({});
-	});
+	])(
+		"restores defaults with an accurate count: %s",
+		async (createdCount, message) => {
+			const user = userEvent.setup();
+			mocks.seed.mockResolvedValueOnce({ createdCount });
+			render(<AccountTypesPage />);
+			await user.click(
+				screen.getByRole("button", { name: "Restore defaults" })
+			);
+			await waitFor(() => expect(mocks.success).toHaveBeenCalledWith(message));
+			expect(mocks.seed).toHaveBeenCalledWith({});
+		}
+	);
 
 	it("disables restoring while pending and recovers after a failure", async () => {
 		const user = userEvent.setup();
@@ -229,10 +234,10 @@ describe("AccountTypesPage", () => {
 			expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
 		);
 		expect(mocks.create).toHaveBeenCalledWith({
-			name: "Mortgage",
 			balanceNature: "liability",
 			color: "#f59e0b",
 			icon: "credit-card",
+			name: "Mortgage",
 		});
 		expect(mocks.success).toHaveBeenCalledWith("Account type created");
 	});
@@ -253,10 +258,10 @@ describe("AccountTypesPage", () => {
 		await user.click(screen.getByRole("option", { name: "No icon" }));
 		await user.click(screen.getByRole("button", { name: "Create type" }));
 		expect(mocks.create).toHaveBeenCalledWith({
-			name: "Cash",
 			balanceNature: "asset",
 			color: undefined,
 			icon: undefined,
+			name: "Cash",
 		});
 		expect(screen.getByRole("button", { name: "Create type" })).toBeDisabled();
 		expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
@@ -284,68 +289,68 @@ describe("AccountTypesPage", () => {
 		);
 		expect(mocks.update).toHaveBeenCalledWith({
 			accountTypeId: bank._id,
-			name: "Reserve",
 			balanceNature: "asset",
 			color: null,
 			icon: null,
+			name: "Reserve",
 		});
 		expect(mocks.success).toHaveBeenCalledWith("Account type updated");
 	});
 
-	it.each([
-		undefined,
-		{ accountCount: 2, canDelete: false },
-	])("locks balance nature when editing in-use or loading types: %j", async (usage) => {
-		const user = userEvent.setup();
-		mocks.query.mockImplementation(
-			(reference: Parameters<typeof getFunctionName>[0]) =>
-				getFunctionName(reference) === "accountTypes:list" ? [debt] : usage
-		);
-		render(<AccountTypesPage />);
-		await openMenu(user, "Debt");
-		await user.click(screen.getByRole("menuitem", { name: "Edit" }));
-		expect(screen.getByLabelText("Balance nature")).toBeDisabled();
-		expect(screen.getByText("Balance nature is locked")).toBeVisible();
-		expect(screen.getByText(USAGE_DESCRIPTION)).toHaveTextContent(
-			usage ? "2 accounts" : "one or more accounts"
-		);
-		await user.click(screen.getByRole("button", { name: "Cancel" }));
-		expect(mocks.update).not.toHaveBeenCalled();
-	});
-
-	it.each([
-		false,
-		true,
-	])("keeps failed editor saves open with an actionable error (editing=%s)", async (editing) => {
-		const user = userEvent.setup();
-		(editing ? mocks.update : mocks.create).mockRejectedValueOnce(
-			new Error("ACCOUNT_TYPE_NAME_TAKEN")
-		);
-		render(<AccountTypesPage />);
-		if (editing) {
-			await openMenu(user, "Bank");
+	it.each([undefined, { accountCount: 2, canDelete: false }])(
+		"locks balance nature when editing in-use or loading types: %j",
+		async (usage) => {
+			const user = userEvent.setup();
+			mocks.query.mockImplementation(
+				(reference: Parameters<typeof getFunctionName>[0]) =>
+					getFunctionName(reference) === "accountTypes:list" ? [debt] : usage
+			);
+			render(<AccountTypesPage />);
+			await openMenu(user, "Debt");
 			await user.click(screen.getByRole("menuitem", { name: "Edit" }));
-		} else {
-			await user.click(screen.getByRole("button", { name: "New type" }));
-			await user.type(screen.getByLabelText("Name"), "Bank");
+			expect(screen.getByLabelText("Balance nature")).toBeDisabled();
+			expect(screen.getByText("Balance nature is locked")).toBeVisible();
+			expect(screen.getByText(USAGE_DESCRIPTION)).toHaveTextContent(
+				usage ? "2 accounts" : "one or more accounts"
+			);
+			await user.click(screen.getByRole("button", { name: "Cancel" }));
+			expect(mocks.update).not.toHaveBeenCalled();
 		}
-		await user.click(
-			screen.getByRole("button", {
-				name: editing ? "Save changes" : "Create type",
-			})
-		);
-		await waitFor(() =>
-			expect(mocks.error).toHaveBeenCalledWith(
-				"An account type with this name already exists."
-			)
-		);
-		expect(screen.getByRole("dialog")).toBeVisible();
-		expect(
-			screen.getByRole("button", {
-				name: editing ? "Save changes" : "Create type",
-			})
-		).toBeEnabled();
-	});
+	);
+
+	it.each([false, true])(
+		"keeps failed editor saves open with an actionable error (editing=%s)",
+		async (editing) => {
+			const user = userEvent.setup();
+			(editing ? mocks.update : mocks.create).mockRejectedValueOnce(
+				new Error("ACCOUNT_TYPE_NAME_TAKEN")
+			);
+			render(<AccountTypesPage />);
+			if (editing) {
+				await openMenu(user, "Bank");
+				await user.click(screen.getByRole("menuitem", { name: "Edit" }));
+			} else {
+				await user.click(screen.getByRole("button", { name: "New type" }));
+				await user.type(screen.getByLabelText("Name"), "Bank");
+			}
+			await user.click(
+				screen.getByRole("button", {
+					name: editing ? "Save changes" : "Create type",
+				})
+			);
+			await waitFor(() =>
+				expect(mocks.error).toHaveBeenCalledWith(
+					"An account type with this name already exists."
+				)
+			);
+			expect(screen.getByRole("dialog")).toBeVisible();
+			expect(
+				screen.getByRole("button", {
+					name: editing ? "Save changes" : "Create type",
+				})
+			).toBeEnabled();
+		}
+	);
 
 	it("confirms archive and deletion boundaries and supports cancelling both", async () => {
 		const user = userEvent.setup();
@@ -404,49 +409,49 @@ describe("AccountTypesPage", () => {
 		});
 	});
 
-	it.each([
-		"archive",
-		"reactivate",
-		"delete",
-	])("reports %s mutation failures and releases the pending guard", async (operation) => {
-		const user = userEvent.setup();
-		const mutation = operation === "delete" ? mocks.remove : mocks.archive;
-		let reject: (error: Error) => void = () => undefined;
-		mutation.mockReturnValueOnce(
-			new Promise((_, rejectPromise) => {
-				reject = rejectPromise;
-			})
-		);
-		render(<AccountTypesPage />);
-		const name = operation === "reactivate" ? "Debt" : "Bank";
-		await openMenu(user, name);
-		await user.click(
-			screen.getByRole("menuitem", {
-				name: {
-					delete: "Delete permanently",
-					archive: "Archive",
-					reactivate: "Reactivate",
-				}[operation],
-			})
-		);
-		if (operation !== "reactivate") {
-			await user.click(
-				screen.getByRole("button", {
-					name: operation === "delete" ? "Delete permanently" : "Archive type",
+	it.each(["archive", "reactivate", "delete"])(
+		"reports %s mutation failures and releases the pending guard",
+		async (operation) => {
+			const user = userEvent.setup();
+			const mutation = operation === "delete" ? mocks.remove : mocks.archive;
+			let reject: (error: Error) => void = () => undefined;
+			mutation.mockReturnValueOnce(
+				new Promise((_, rejectPromise) => {
+					reject = rejectPromise;
 				})
 			);
+			render(<AccountTypesPage />);
+			const name = operation === "reactivate" ? "Debt" : "Bank";
+			await openMenu(user, name);
+			await user.click(
+				screen.getByRole("menuitem", {
+					name: {
+						archive: "Archive",
+						delete: "Delete permanently",
+						reactivate: "Reactivate",
+					}[operation],
+				})
+			);
+			if (operation !== "reactivate") {
+				await user.click(
+					screen.getByRole("button", {
+						name:
+							operation === "delete" ? "Delete permanently" : "Archive type",
+					})
+				);
+			}
+			const pendingControl = screen.getByRole("button", {
+				hidden: true,
+				name: `Manage ${name}`,
+			});
+			expect(pendingControl).toBeDisabled();
+			reject(new Error("offline"));
+			await waitFor(() =>
+				expect(mocks.error).toHaveBeenCalledWith(
+					`Failed to ${operation} the account type`
+				)
+			);
+			expect(pendingControl).toBeEnabled();
 		}
-		const pendingControl = screen.getByRole("button", {
-			name: `Manage ${name}`,
-			hidden: true,
-		});
-		expect(pendingControl).toBeDisabled();
-		reject(new Error("offline"));
-		await waitFor(() =>
-			expect(mocks.error).toHaveBeenCalledWith(
-				`Failed to ${operation} the account type`
-			)
-		);
-		expect(pendingControl).toBeEnabled();
-	});
+	);
 });

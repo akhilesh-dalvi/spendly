@@ -7,24 +7,34 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DashboardPage from "./page";
 
 const service = vi.hoisted(() => ({
-	data: {} as Record<string, unknown>,
-	summaries: {} as Record<string, unknown>,
-	query: vi.fn(),
 	create: vi.fn(),
 	createType: vi.fn(),
+	data: {} as Record<string, unknown>,
 	dismiss: vi.fn(),
 	error: vi.fn(),
+	query: vi.fn(),
 	success: vi.fn(),
+	summaries: {} as Record<string, unknown>,
 }));
 vi.mock("@clerk/nextjs", () => ({
 	useAuth: () => ({ isLoaded: true, isSignedIn: true }),
 }));
 vi.mock("convex/react", () => ({
+	useMutation: (ref: Parameters<typeof getFunctionName>[0]) => {
+		const name = getFunctionName(ref);
+		if (name === "cycles:create") {
+			return service.create;
+		}
+		if (name === "categories:createType") {
+			return service.createType;
+		}
+		return service.dismiss;
+	},
 	useQuery: (ref: Parameters<typeof getFunctionName>[0], args: unknown) => {
 		const name = getFunctionName(ref);
 		service.query(name, args);
 		if (args === "skip") {
-			return undefined;
+			return;
 		}
 		if (
 			name === "aggregations:getCycleSummary" &&
@@ -37,19 +47,9 @@ vi.mock("convex/react", () => ({
 		}
 		return service.data[name];
 	},
-	useMutation: (ref: Parameters<typeof getFunctionName>[0]) => {
-		const name = getFunctionName(ref);
-		if (name === "cycles:create") {
-			return service.create;
-		}
-		if (name === "categories:createType") {
-			return service.createType;
-		}
-		return service.dismiss;
-	},
 }));
 vi.mock("sonner", () => ({
-	toast: { success: service.success, error: service.error },
+	toast: { error: service.error, success: service.success },
 }));
 vi.mock("recharts", async (importOriginal) => ({
 	...(await importOriginal<typeof import("recharts")>()),
@@ -57,47 +57,47 @@ vi.mock("recharts", async (importOriginal) => ({
 		children,
 	}: {
 		children: ReactElement<{ width?: number; height?: number }>;
-	}) => <div>{cloneElement(children, { width: 250, height: 250 })}</div>,
+	}) => <div>{cloneElement(children, { height: 250, width: 250 })}</div>,
 }));
 
 const cycles = [
 	{
 		_id: "future",
+		endDate: "2026-07-31",
 		name: "July",
 		startDate: "2026-07-01",
-		endDate: "2026-07-31",
 	},
 	{
 		_id: "current",
+		endDate: "2026-06-30",
 		name: "June",
 		startDate: "2026-06-01",
-		endDate: "2026-06-30",
 	},
-	{ _id: "past", name: "May", startDate: "2026-05-01", endDate: "2026-05-31" },
+	{ _id: "past", endDate: "2026-05-31", name: "May", startDate: "2026-05-01" },
 ];
 const accountSummary = {
-	accounts: [{ name: "Checking", accountTypeName: "Bank", isDefault: true }],
-	totals: [{ currency: "USD", total: 800 }],
+	accounts: [{ accountTypeName: "Bank", isDefault: true, name: "Checking" }],
 	accountsOnboardingStatus: "completed",
+	totals: [{ currency: "USD", total: 800 }],
 };
 const typeStats = [
 	{
-		typeId: "needs",
-		typeName: "Needs",
-		typeColor: "#123456",
-		totalSpent: 20,
-		totalPlanned: 100,
 		categories: [
 			{
 				categoryId: "food",
 				categoryTypeId: "needs",
-				name: "Food",
 				icon: "🍎",
-				spent: 20,
-				planned: 100,
 				isHidden: false,
+				name: "Food",
+				planned: 100,
+				spent: 20,
 			},
 		],
+		totalPlanned: 100,
+		totalSpent: 20,
+		typeColor: "#123456",
+		typeId: "needs",
+		typeName: "Needs",
 	},
 ];
 
@@ -105,35 +105,35 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	vi.setSystemTime(new Date("2026-06-15T12:00:00"));
 	service.data = {
-		"cycles:list": cycles,
-		"cycles:getCurrent": cycles[1],
 		"accounts:getSummary": accountSummary,
+		"categories:listPreviousCycleUnused": [],
+		"categories:listTypes": [],
+		"cycles:getCurrent": cycles[1],
+		"cycles:list": cycles,
 		"expenses:listRecent": [
 			{
 				_id: "expense1",
-				amount: 20,
-				date: "2026-06-15T09:00:00",
-				spentOn: "Lunch",
-				categoryId: "food",
-				categoryName: "Food",
-				categoryIcon: "🍎",
 				accountName: "Archived wallet",
 				accountTypeName: "Cash",
+				amount: 20,
+				categoryIcon: "🍎",
+				categoryId: "food",
+				categoryName: "Food",
+				date: "2026-06-15T09:00:00",
+				spentOn: "Lunch",
 			},
 		],
 		"users:get": { currency: "USD", dashboardViewMode: "grouped" },
 		"users:getOnboardingState": null,
-		"categories:listTypes": [],
-		"categories:listPreviousCycleUnused": [],
 	};
 	service.summaries = Object.fromEntries(
 		cycles.map((cycle) => [
 			cycle._id,
 			{
 				...cycle,
-				totalSpent: cycle._id === "past" ? 150 : 20,
-				totalPlanned: 100,
 				daysRemaining: 15,
+				totalPlanned: 100,
+				totalSpent: cycle._id === "past" ? 150 : 20,
 				typeStats,
 			},
 		])
@@ -302,29 +302,26 @@ describe("dashboard page", () => {
 		expect(screen.queryByRole("menuitem")).not.toBeInTheDocument();
 	});
 
-	it.each([
-		"pending",
-		"skipped",
-		"completed",
-		undefined,
-	])("shows account onboarding only when no accounts exist and status=%s", (status) => {
-		service.data["accounts:getSummary"] = {
-			accounts: [],
-			totals: [],
-			accountsOnboardingStatus: status,
-		};
-		render(<DashboardPage />);
-		if (status === "pending" || status === undefined) {
-			expect(screen.getByRole("link", { name: "Add account" })).toHaveAttribute(
-				"href",
-				"/accounts/new"
-			);
-		} else {
-			expect(
-				screen.queryByRole("link", { name: "Add account" })
-			).not.toBeInTheDocument();
+	it.each(["pending", "skipped", "completed", undefined])(
+		"shows account onboarding only when no accounts exist and status=%s",
+		(status) => {
+			service.data["accounts:getSummary"] = {
+				accounts: [],
+				accountsOnboardingStatus: status,
+				totals: [],
+			};
+			render(<DashboardPage />);
+			if (status === "pending" || status === undefined) {
+				expect(
+					screen.getByRole("link", { name: "Add account" })
+				).toHaveAttribute("href", "/accounts/new");
+			} else {
+				expect(
+					screen.queryByRole("link", { name: "Add account" })
+				).not.toBeInTheDocument();
+			}
 		}
-	});
+	);
 
 	it("shows account balances without a cycle, creates the first cycle, and closes the real form", async () => {
 		const user = userEvent.setup();
@@ -353,9 +350,9 @@ describe("dashboard page", () => {
 		expect(screen.getByRole("button", { name: "June" })).toBeVisible();
 		expect(service.create).toHaveBeenCalledWith(
 			expect.objectContaining({
+				endDate: "2026-06-30",
 				name: "June 2026",
 				startDate: "2026-06-01",
-				endDate: "2026-06-30",
 			})
 		);
 	});
@@ -390,9 +387,9 @@ describe("dashboard page", () => {
 		const user = userEvent.setup();
 		service.summaries.current = {
 			...cycles[1],
-			totalSpent: 0,
-			totalPlanned: 0,
 			daysRemaining: 15,
+			totalPlanned: 0,
+			totalSpent: 0,
 			typeStats: [],
 		};
 		service.data["expenses:listRecent"] = [];
@@ -416,8 +413,8 @@ describe("dashboard page", () => {
 			expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
 		);
 		expect(service.createType).toHaveBeenCalledWith({
-			name: "Travel",
 			color: "#3b82f6",
+			name: "Travel",
 		});
 		expect(container).toHaveTextContent("Allocation");
 	});
@@ -425,9 +422,9 @@ describe("dashboard page", () => {
 	it("passes existing allocation names to the type form and exposes optional setup resumption", async () => {
 		const user = userEvent.setup();
 		service.data["users:getOnboardingState"] = {
-			step: "categories",
-			path: "manual",
 			cycle: cycles[1],
+			path: "manual",
+			step: "categories",
 		};
 		render(<DashboardPage />);
 		expect(screen.getByRole("link", { name: "Resume setup" })).toHaveAttribute(

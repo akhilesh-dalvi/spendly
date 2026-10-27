@@ -7,16 +7,14 @@ import {
 } from "./human.js";
 
 describe("human terminal formatting", () => {
-	it.each([
-		undefined,
-		0,
-		Number.NaN,
-		Number.POSITIVE_INFINITY,
-	])("uses safe default terminal width for %s", (columns) => {
-		expect(renderHumanLines(["Short message", ""], { columns })).toBe(
-			"Short message\n"
-		);
-	});
+	it.each([undefined, 0, Number.NaN, Number.POSITIVE_INFINITY])(
+		"uses safe default terminal width for %s",
+		(columns) => {
+			expect(renderHumanLines(["Short message", ""], { columns })).toBe(
+				"Short message\n"
+			);
+		}
+	);
 
 	it("wraps words and splits long Unicode tokens at the minimum width", () => {
 		const output = renderHumanLines(
@@ -52,19 +50,18 @@ describe("human terminal formatting", () => {
 	});
 
 	it.each([
-		{ start: "2026-09-28", end: "2026-10-03", expected: "Sep 28-Oct 2, 2026" },
+		{ end: "2026-10-03", expected: "Sep 28-Oct 2, 2026", start: "2026-09-28" },
 		{
-			start: "2025-12-30",
 			end: "2026-01-03",
 			expected: "Dec 30, 2025-Jan 2, 2026",
+			start: "2025-12-30",
 		},
-	])("formats exclusive ranges across month and year boundaries", ({
-		start,
-		end,
-		expected,
-	}) => {
-		expect(formatInclusiveDateRange(start, end)).toBe(expected);
-	});
+	])(
+		"formats exclusive ranges across month and year boundaries",
+		({ start, end, expected }) => {
+			expect(formatInclusiveDateRange(start, end)).toBe(expected);
+		}
+	);
 	it("formats grouped money and inclusive cycle ranges", () => {
 		expect(formatMoney(1250, "INR")).toBe("INR 1,250.00");
 		expect(formatMoney(-0, "INR")).toBe("INR 0.00");

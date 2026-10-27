@@ -2,7 +2,7 @@
 
 import { format, parseISO } from "date-fns";
 import { CalendarDays, Check, ChevronDown, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,17 +21,79 @@ import {
 import { cn } from "@/lib/utils";
 
 interface CycleOption {
+	endDate: string;
 	id: string;
 	name: string;
 	startDate: string;
-	endDate: string;
 }
 
 interface CompareCycleSelectorProps {
 	cycles: CycleOption[];
-	selectedIds: string[];
-	onChange: (ids: string[]) => void;
 	max: number;
+	onChange: (ids: string[]) => void;
+	selectedIds: string[];
+}
+
+function CycleSelectionOption({
+	cycle,
+	isSelected,
+	isDisabled,
+	onToggle,
+}: {
+	cycle: CycleOption;
+	isSelected: boolean;
+	isDisabled: boolean;
+	onToggle: (id: string) => void;
+}) {
+	const toggle = useCallback(() => onToggle(cycle.id), [onToggle, cycle.id]);
+	return (
+		<CommandItem
+			className={cn(isDisabled && "cursor-not-allowed opacity-50")}
+			disabled={isDisabled}
+			onSelect={toggle}
+			value={`${cycle.name} ${cycle.startDate} ${cycle.endDate}`}
+		>
+			<div className="flex min-w-0 flex-1 items-center gap-3">
+				<div className="flex h-4 w-4 items-center justify-center">
+					{isSelected ? (
+						<Check className="h-4 w-4 text-primary" />
+					) : (
+						<span className="h-3.5 w-3.5 rounded-sm border border-border" />
+					)}
+				</div>
+				<div className="min-w-0">
+					<p className="truncate font-medium text-sm">{cycle.name}</p>
+					<p className="text-muted-foreground text-xs">
+						{format(parseISO(cycle.startDate), "MMM d, yyyy")} -{" "}
+						{format(parseISO(cycle.endDate), "MMM d, yyyy")}
+					</p>
+				</div>
+			</div>
+		</CommandItem>
+	);
+}
+
+function SelectedCycleBadge({
+	cycle,
+	onRemove,
+}: {
+	cycle: CycleOption;
+	onRemove: (id: string) => void;
+}) {
+	const remove = useCallback(() => onRemove(cycle.id), [onRemove, cycle.id]);
+	return (
+		<Badge className="gap-1 pr-1" variant="outline">
+			<span className="max-w-[200px] truncate">{cycle.name}</span>
+			<button
+				aria-label={`Remove ${cycle.name}`}
+				className="rounded-sm p-0.5 transition-colors hover:bg-muted"
+				onClick={remove}
+				type="button"
+			>
+				<X className="h-3 w-3" />
+			</button>
+		</Badge>
+	);
 }
 
 export function CompareCycleSelector({
@@ -47,22 +109,28 @@ export function CompareCycleSelector({
 		return cycles.filter((cycle) => idSet.has(cycle.id));
 	}, [cycles, selectedIds]);
 
-	const toggleSelection = (id: string) => {
-		const isSelected = selectedIds.includes(id);
-		if (isSelected) {
+	const toggleSelection = useCallback(
+		(id: string) => {
+			const isSelected = selectedIds.includes(id);
+			if (isSelected) {
+				onChange(selectedIds.filter((existingId) => existingId !== id));
+				return;
+			}
+
+			if (selectedIds.length >= max) {
+				return;
+			}
+			onChange([...selectedIds, id]);
+		},
+		[selectedIds, max, onChange]
+	);
+
+	const removeSelection = useCallback(
+		(id: string) => {
 			onChange(selectedIds.filter((existingId) => existingId !== id));
-			return;
-		}
-
-		if (selectedIds.length >= max) {
-			return;
-		}
-		onChange([...selectedIds, id]);
-	};
-
-	const removeSelection = (id: string) => {
-		onChange(selectedIds.filter((existingId) => existingId !== id));
-	};
+		},
+		[onChange, selectedIds]
+	);
 
 	return (
 		<div className="space-y-3">
@@ -98,34 +166,13 @@ export function CompareCycleSelector({
 									const isSelected = selectedIds.includes(cycle.id);
 									const isDisabled = !isSelected && selectedIds.length >= max;
 									return (
-										<CommandItem
-											className={cn(
-												isDisabled && "cursor-not-allowed opacity-50"
-											)}
-											disabled={isDisabled}
+										<CycleSelectionOption
+											cycle={cycle}
+											isDisabled={isDisabled}
+											isSelected={isSelected}
 											key={cycle.id}
-											onSelect={() => toggleSelection(cycle.id)}
-											value={`${cycle.name} ${cycle.startDate} ${cycle.endDate}`}
-										>
-											<div className="flex min-w-0 flex-1 items-center gap-3">
-												<div className="flex h-4 w-4 items-center justify-center">
-													{isSelected ? (
-														<Check className="h-4 w-4 text-primary" />
-													) : (
-														<span className="h-3.5 w-3.5 rounded-sm border border-border" />
-													)}
-												</div>
-												<div className="min-w-0">
-													<p className="truncate font-medium text-sm">
-														{cycle.name}
-													</p>
-													<p className="text-muted-foreground text-xs">
-														{format(parseISO(cycle.startDate), "MMM d, yyyy")} -{" "}
-														{format(parseISO(cycle.endDate), "MMM d, yyyy")}
-													</p>
-												</div>
-											</div>
-										</CommandItem>
+											onToggle={toggleSelection}
+										/>
 									);
 								})}
 							</CommandGroup>
@@ -141,17 +188,11 @@ export function CompareCycleSelector({
 					</p>
 				) : (
 					selectedCycles.map((cycle) => (
-						<Badge className="gap-1 pr-1" key={cycle.id} variant="outline">
-							<span className="max-w-[200px] truncate">{cycle.name}</span>
-							<button
-								aria-label={`Remove ${cycle.name}`}
-								className="rounded-sm p-0.5 transition-colors hover:bg-muted"
-								onClick={() => removeSelection(cycle.id)}
-								type="button"
-							>
-								<X className="h-3 w-3" />
-							</button>
-						</Badge>
+						<SelectedCycleBadge
+							cycle={cycle}
+							key={cycle.id}
+							onRemove={removeSelection}
+						/>
 					))
 				)}
 			</div>

@@ -49,16 +49,16 @@ describe("human mutation hierarchy", () => {
 		);
 		const expense = {
 			...preview.before,
-			spentOn: null,
-			category: null,
 			account: null,
+			category: null,
+			spentOn: null,
 			tags: [],
 		};
 		const output = renderExpenseEditPreview({
 			...preview,
-			before: expense,
-			after: expense,
 			accountEffects: [],
+			after: expense,
+			before: expense,
 		});
 		expect(output).toContain("No description");
 		expect(output).toContain("- No visible field changes");
@@ -70,12 +70,12 @@ describe("human mutation hierarchy", () => {
 		const result = expenseCreateResultSchema.parse(fixture.createResult);
 		const proposal = expenseProposalSchema.parse({
 			...result,
+			accountEffects: [],
 			accountId: null,
 			categoryId: null,
 			cycleId: null,
-			tagIds: [],
 			spentOn: null,
-			accountEffects: [],
+			tagIds: [],
 		});
 		const output = renderExpenseProposal(proposal);
 		expect(output).toContain("Spent on: none");
@@ -98,19 +98,19 @@ describe("human mutation hierarchy", () => {
 		);
 		const account = {
 			...preview.before,
-			isArchived: true,
-			isDefault: true,
 			accountType: {
 				...preview.before.accountType,
 				balanceNature: "liability" as const,
 			},
+			isArchived: true,
+			isDefault: true,
 		};
 		const output = renderAccountSuccess(account, "Account updated");
 		expect(output).toContain("(Liability)");
 		expect(output).toContain("Default: Yes");
 		expect(output).toContain("Status: Archived");
 		expect(
-			renderAccountEditPreview({ ...preview, before: account, after: account })
+			renderAccountEditPreview({ ...preview, after: account, before: account })
 		).toContain("No visible field changes");
 		expect(renderSetDefaultPreview(account)).toContain(
 			"Previous default: none"
@@ -120,34 +120,34 @@ describe("human mutation hierarchy", () => {
 		);
 	});
 
-	it.each([
-		"archive",
-		"reactivate",
-	] as const)("shows both states in %s batch previews and results", (action) => {
-		const preview = accountUpdatePreviewSchema.parse(
-			readFixture("account-mutations").accountUpdatePreview
-		);
-		const active = { ...preview.before, isArchived: false };
-		const archived = { ...preview.after, isArchived: true };
-		const output = renderAccountLifecycleBatchPreview(
-			[
-				{ ...preview, before: active, after: archived },
-				{ ...preview, before: archived, after: active },
-			],
-			action
-		);
-		expect(output).toContain("Status: Active -> Archived");
-		expect(output).toContain("Status: Archived -> Active");
-		const success = renderAccountLifecycleBatchSuccess(
-			[active, archived],
-			action
-		);
-		expect(success).toContain(
-			action === "archive" ? "accounts archived" : "accounts reactivated"
-		);
-		expect(success).toContain(`${active.name}: Active`);
-		expect(success).toContain(`${archived.name}: Archived`);
-	});
+	it.each(["archive", "reactivate"] as const)(
+		"shows both states in %s batch previews and results",
+		(action) => {
+			const preview = accountUpdatePreviewSchema.parse(
+				readFixture("account-mutations").accountUpdatePreview
+			);
+			const active = { ...preview.before, isArchived: false };
+			const archived = { ...preview.after, isArchived: true };
+			const output = renderAccountLifecycleBatchPreview(
+				[
+					{ ...preview, after: archived, before: active },
+					{ ...preview, after: active, before: archived },
+				],
+				action
+			);
+			expect(output).toContain("Status: Active -> Archived");
+			expect(output).toContain("Status: Archived -> Active");
+			const success = renderAccountLifecycleBatchSuccess(
+				[active, archived],
+				action
+			);
+			expect(success).toContain(
+				action === "archive" ? "accounts archived" : "accounts reactivated"
+			);
+			expect(success).toContain(`${active.name}: Active`);
+			expect(success).toContain(`${archived.name}: Archived`);
+		}
+	);
 
 	it("renders no-op ledger adjustments and transfers without notes or warnings", () => {
 		const result = balanceAdjustmentResultSchema.parse(
@@ -155,8 +155,8 @@ describe("human mutation hierarchy", () => {
 		);
 		const output = renderBalanceAdjustmentResult({
 			...result,
-			transaction: null,
 			adjustment: 0,
+			transaction: null,
 			warnings: [],
 		});
 		expect(output).toContain("Warnings: none");

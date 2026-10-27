@@ -1,11 +1,11 @@
 "use client";
 
 import { api } from "@spendly/backend/convex/_generated/api";
-import type { Id } from "@spendly/backend/convex/_generated/dataModel";
+import type { Doc, Id } from "@spendly/backend/convex/_generated/dataModel";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "convex/react";
 import { AlertCircle, Loader2, Plus, Save, X } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { CategoryTypeModal } from "@/components/category-type-modal";
@@ -24,29 +24,29 @@ import {
 import { useCurrency } from "@/hooks/use-currency";
 
 const categorySchema = z.object({
-	name: z.string().min(1, "Name is required"),
 	categoryTypeId: z.string().optional(),
-	plannedAmount: z.number().min(0).optional(),
 	icon: z.string().optional(),
+	name: z.string().min(1, "Name is required"),
+	plannedAmount: z.number().min(0).optional(),
 });
 
 const AMOUNT_REGEX = /^\d*\.?\d{0,2}$/;
 
 interface CategoryFormProps {
-	cycleId: Id<"expense_cycles">;
-	onSuccess?: () => void;
-	className?: string;
 	categoryId?: Id<"categories">;
-	historicalSpent?: {
-		amount: number;
-		cycleName: string;
-	};
+	className?: string;
+	cycleId: Id<"expense_cycles">;
 	defaultValues?: Partial<{
 		name: string;
 		categoryTypeId: string;
 		plannedAmount: number;
 		icon: string;
 	}>;
+	historicalSpent?: {
+		amount: number;
+		cycleName: string;
+	};
+	onSuccess?: () => void;
 }
 
 interface CategoryNameErrors {
@@ -63,11 +63,11 @@ const createCategoryRow = (
 		icon: string;
 	}>
 ) => ({
-	clientId: crypto.randomUUID(),
-	name: values?.name ?? "",
 	categoryTypeId: values?.categoryTypeId ?? "",
-	plannedAmount: values?.plannedAmount,
+	clientId: crypto.randomUUID(),
 	icon: values?.icon ?? "📦",
+	name: values?.name ?? "",
+	plannedAmount: values?.plannedAmount,
 });
 
 const getCategoryNameErrors = (
@@ -81,6 +81,224 @@ const getCategoryNameErrors = (
 	const { categories } = error as CategoryNameErrors;
 	return categories?.[index]?.name;
 };
+
+interface CategoryRowFieldsProps {
+	autoFocus: boolean;
+	canRemove: boolean;
+	category: ReturnType<typeof createCategoryRow>;
+	categoryNameErrors?: string[];
+	categoryTypes: Doc<"category_types">[] | undefined;
+	historicalSpent?: CategoryFormProps["historicalSpent"];
+	index: number;
+	onRemove: (id: string) => void;
+	onUpdate: (
+		id: string,
+		updates: Partial<ReturnType<typeof createCategoryRow>>
+	) => void;
+	setTypeDialogIndex: (index: number | null) => void;
+	typeDialogIndex: number | null;
+}
+
+function CategoryRowFields({
+	category,
+	categoryNameErrors,
+	categoryTypes,
+	canRemove,
+	autoFocus,
+	index,
+	historicalSpent,
+	typeDialogIndex,
+	setTypeDialogIndex,
+	onUpdate,
+	onRemove,
+}: CategoryRowFieldsProps) {
+	const { format: formatCurrency } = useCurrency();
+	const update = useCallback(
+		(updates: Partial<ReturnType<typeof createCategoryRow>>) =>
+			onUpdate(category.clientId, updates),
+		[onUpdate, category.clientId]
+	);
+	const remove = useCallback(
+		() => onRemove(category.clientId),
+		[onRemove, category.clientId]
+	);
+	const changeIcon = useCallback((icon: string) => update({ icon }), [update]);
+	const changeName = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) =>
+			update({ name: event.target.value }),
+		[update]
+	);
+	const changeType = useCallback(
+		(categoryTypeId: string) => update({ categoryTypeId }),
+		[update]
+	);
+	const selectType = useCallback(
+		(value: string) => changeType(value === "none" ? "" : value),
+		[changeType]
+	);
+	const changeTypeDialog = useCallback(
+		(open: boolean) => setTypeDialogIndex(open ? index : null),
+		[setTypeDialogIndex, index]
+	);
+	const openTypeDialog = useCallback(
+		() => setTypeDialogIndex(index),
+		[setTypeDialogIndex, index]
+	);
+	const useHistoricalAmount = useCallback(() => {
+		if (historicalSpent) {
+			update({ plannedAmount: historicalSpent.amount });
+		}
+	}, [update, historicalSpent]);
+	const changeAmount = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) => {
+			const { value } = event.target;
+			if (value === "" || AMOUNT_REGEX.test(value)) {
+				update({ plannedAmount: value === "" ? undefined : Number(value) });
+			}
+		},
+		[update]
+	);
+	return (
+		<div
+			className="relative space-y-6 rounded-xl border bg-card p-4 shadow-sm"
+			key={category.clientId}
+		>
+			{Boolean(canRemove) && (
+				<Button
+					className="absolute top-2 right-2 h-8 w-8 text-muted-foreground hover:text-destructive"
+					onClick={remove}
+					size="icon"
+					type="button"
+					variant="ghost"
+				>
+					<X className="h-4 w-4" />
+				</Button>
+			)}
+
+			<div className="flex gap-4">
+				<div className="space-y-2">
+					<Label>Icon</Label>
+					<EmojiPicker onChange={changeIcon} value={category.icon} />
+				</div>
+
+				<div className="flex-1 space-y-2">
+					<Label>Name</Label>
+					<Input
+						autoFocus={autoFocus}
+						onChange={changeName}
+						placeholder="Category name"
+						value={category.name}
+					/>
+					{categoryNameErrors !== undefined && (
+						<p className="flex items-center gap-1 text-destructive text-sm">
+							<AlertCircle className="h-3 w-3" />
+							{categoryNameErrors.join(", ")}
+						</p>
+					)}
+				</div>
+			</div>
+
+			<div className="space-y-2">
+				<Label>Type</Label>
+				<CategoryTypeModal
+					existingTypeNames={categoryTypes?.map((t) => t.name)}
+					onOpenChange={changeTypeDialog}
+					onSuccess={changeType}
+					open={typeDialogIndex === index}
+				/>
+				<Select
+					onValueChange={selectType}
+					value={category.categoryTypeId || "none"}
+				>
+					<SelectTrigger className="w-full">
+						<SelectValue placeholder="Select type" />
+					</SelectTrigger>
+					<SelectContent className="max-h-[200px] overflow-y-auto">
+						<div className="border-b p-1">
+							<Button
+								className="flex h-9 w-full items-center justify-start gap-2 rounded-sm px-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+								onClick={openTypeDialog}
+								type="button"
+								variant="ghost"
+							>
+								<Plus className="h-4 w-4" />
+								<span>New Type</span>
+							</Button>
+						</div>
+						<SelectItem value="none">
+							<span className="text-muted-foreground">No type</span>
+						</SelectItem>
+						{categoryTypes?.map((type) => (
+							<SelectItem key={type._id} value={type._id}>
+								<div className="flex items-center gap-2">
+									{Boolean(type.color) && (
+										<div
+											className="h-2 w-2 rounded-full"
+											style={{ backgroundColor: type.color }}
+										/>
+									)}
+									{type.name}
+								</div>
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</div>
+
+			<div className="space-y-2">
+				<div className="flex items-center justify-between">
+					<Label>Planned Amount</Label>
+					{historicalSpent && index === 0 && (
+						<button
+							className="font-bold text-[10px] text-primary uppercase tracking-widest transition-all hover:underline"
+							onClick={useHistoricalAmount}
+							type="button"
+						>
+							Use Last Cycle ({formatCurrency(historicalSpent.amount)})
+						</button>
+					)}
+				</div>
+				<Input
+					inputMode="decimal"
+					onChange={changeAmount}
+					placeholder="0.00"
+					type="text"
+					value={
+						category.plannedAmount === undefined
+							? ""
+							: category.plannedAmount.toString()
+					}
+				/>
+				{historicalSpent && index === 0 && (
+					<p className="px-1 text-[10px] text-muted-foreground/60 italic">
+						You spent {formatCurrency(historicalSpent.amount)} in{" "}
+						{historicalSpent.cycleName}
+					</p>
+				)}
+			</div>
+		</div>
+	);
+}
+
+function CategorySuggestion({
+	category,
+	onAdd,
+}: {
+	category: Doc<"categories">;
+	onAdd: (category: Doc<"categories">) => void;
+}) {
+	const add = useCallback(() => onAdd(category), [onAdd, category]);
+	return (
+		<Button
+			className="h-8 gap-1.5 rounded-full border-dashed px-3 text-xs"
+			onClick={add}
+			type="button"
+			variant="outline"
+		>
+			{category.icon ?? "📦"} {category.name}
+		</Button>
+	);
+}
 
 export function CategoryForm({
 	cycleId,
@@ -97,7 +315,6 @@ export function CategoryForm({
 		api.categories.listPreviousCycleUnused,
 		{ currentCycleId: cycleId }
 	);
-	const { format: formatCurrency } = useCurrency();
 	const isEditing = Boolean(categoryId);
 	const [typeDialogIndex, setTypeDialogIndex] = useState<number | null>(null);
 
@@ -105,31 +322,20 @@ export function CategoryForm({
 		defaultValues: {
 			categories: [createCategoryRow(defaultValues)],
 		},
-		validators: {
-			onChange: ({ value }) => {
-				const result = z
-					.object({ categories: z.array(categorySchema.partial()) })
-					.safeParse(value);
-				if (!result.success) {
-					return result.error.flatten().fieldErrors;
-				}
-				return undefined;
-			},
-		},
 		onSubmit: async ({ value }) => {
 			try {
 				if (isEditing && categoryId) {
-					const val = value.categories[0];
+					const [val] = value.categories;
 					const resolvedTypeId = val.categoryTypeId
 						? (val.categoryTypeId as Id<"category_types">)
 						: undefined;
 
 					await updateCategory({
+						categoryTypeId: resolvedTypeId,
+						icon: val.icon,
 						id: categoryId,
 						name: val.name,
-						categoryTypeId: resolvedTypeId,
 						plannedAmount: val.plannedAmount,
-						icon: val.icon,
 					});
 					toast.success("Category updated");
 				} else {
@@ -139,11 +345,11 @@ export function CategoryForm({
 								? (val.categoryTypeId as Id<"category_types">)
 								: undefined;
 							return createCategory({
-								cycleId,
-								name: val.name,
 								categoryTypeId: resolvedTypeId,
-								plannedAmount: val.plannedAmount,
+								cycleId,
 								icon: val.icon,
+								name: val.name,
+								plannedAmount: val.plannedAmount,
 							});
 						})
 					);
@@ -163,18 +369,89 @@ export function CategoryForm({
 				);
 			}
 		},
+		validators: {
+			onChange: ({ value }) => {
+				const result = z
+					.object({ categories: z.array(categorySchema.partial()) })
+					.safeParse(value);
+				if (!result.success) {
+					return result.error.flatten().fieldErrors;
+				}
+			},
+		},
 	});
+
+	const handleSubmit = useCallback(
+		(event: React.FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			event.stopPropagation();
+			if (!form.state.isSubmitting) {
+				return form.handleSubmit();
+			}
+		},
+		[form]
+	);
+	const updateRow = useCallback(
+		(
+			clientId: string,
+			updates: Partial<ReturnType<typeof createCategoryRow>>
+		) => {
+			form.setFieldValue("categories", (rows) =>
+				rows.map((row) =>
+					row.clientId === clientId ? { ...row, ...updates } : row
+				)
+			);
+		},
+		[form]
+	);
+	const removeRow = useCallback(
+		(clientId: string) => {
+			form.setFieldValue("categories", (rows) =>
+				rows.filter((row) => row.clientId !== clientId)
+			);
+		},
+		[form]
+	);
+	const addRow = useCallback(
+		() =>
+			form.setFieldValue("categories", (rows) => [
+				...rows,
+				createCategoryRow(),
+			]),
+		[form]
+	);
+	const addSuggestion = useCallback(
+		(cat: Doc<"categories">) => {
+			const newCat = createCategoryRow({
+				categoryTypeId: cat.categoryTypeId ?? "",
+				icon: cat.icon ?? "📦",
+				name: cat.name,
+				plannedAmount: cat.plannedAmount,
+			});
+			form.setFieldValue("categories", (rows) => {
+				const emptyIndex = rows.findIndex(
+					(row) =>
+						!row.name &&
+						(row.plannedAmount === undefined || row.plannedAmount === 0)
+				);
+				return emptyIndex === -1
+					? [...rows, newCat]
+					: rows.map((row, index) => (index === emptyIndex ? newCat : row));
+			});
+		},
+		[form]
+	);
+	const selectSubmission = useCallback(
+		(state: {
+			isSubmitting: boolean;
+			values: { categories: ReturnType<typeof createCategoryRow>[] };
+		}) => ({ isSubmitting: state.isSubmitting, values: state.values }),
+		[]
+	);
 
 	return (
 		<div className={className}>
-			<form
-				className="space-y-6"
-				onSubmit={(e) => {
-					e.preventDefault();
-					e.stopPropagation();
-					form.handleSubmit();
-				}}
-			>
+			<form className="space-y-6" onSubmit={handleSubmit}>
 				<form.Field name="categories">
 					{(field) => (
 						<div className="max-h-[50vh] space-y-6 overflow-y-auto p-1">
@@ -185,194 +462,27 @@ export function CategoryForm({
 								);
 
 								return (
-									<div
-										className="relative space-y-6 rounded-xl border bg-card p-4 shadow-sm"
+									<CategoryRowFields
+										autoFocus={index === field.state.value.length - 1}
+										canRemove={!isEditing && field.state.value.length > 1}
+										category={category}
+										categoryNameErrors={categoryNameErrors}
+										categoryTypes={categoryTypes}
+										historicalSpent={historicalSpent}
+										index={index}
 										key={category.clientId}
-									>
-										{!isEditing && field.state.value.length > 1 && (
-											<Button
-												className="absolute top-2 right-2 h-8 w-8 text-muted-foreground hover:text-destructive"
-												onClick={() => {
-													const newCats = [...field.state.value];
-													newCats.splice(index, 1);
-													field.handleChange(newCats);
-												}}
-												size="icon"
-												type="button"
-												variant="ghost"
-											>
-												<X className="h-4 w-4" />
-											</Button>
-										)}
-
-										<div className="flex gap-4">
-											<div className="space-y-2">
-												<Label>Icon</Label>
-												<EmojiPicker
-													onChange={(emoji) => {
-														const newCats = [...field.state.value];
-														newCats[index] = {
-															...newCats[index],
-															icon: emoji,
-														};
-														field.handleChange(newCats);
-													}}
-													value={category.icon}
-												/>
-											</div>
-
-											<div className="flex-1 space-y-2">
-												<Label>Name</Label>
-												<Input
-													autoFocus={index === field.state.value.length - 1}
-													onChange={(e) => {
-														const newCats = [...field.state.value];
-														newCats[index] = {
-															...newCats[index],
-															name: e.target.value,
-														};
-														field.handleChange(newCats);
-													}}
-													placeholder="Category name"
-													value={category.name}
-												/>
-												{categoryNameErrors && (
-													<p className="flex items-center gap-1 text-destructive text-sm">
-														<AlertCircle className="h-3 w-3" />
-														{categoryNameErrors.join(", ")}
-													</p>
-												)}
-											</div>
-										</div>
-
-										<div className="space-y-2">
-											<Label>Type</Label>
-											<CategoryTypeModal
-												existingTypeNames={categoryTypes?.map((t) => t.name)}
-												onOpenChange={(open) =>
-													setTypeDialogIndex(open ? index : null)
-												}
-												onSuccess={(typeId) => {
-													const newCats = [...field.state.value];
-													newCats[index] = {
-														...newCats[index],
-														categoryTypeId: typeId,
-													};
-													field.handleChange(newCats);
-												}}
-												open={typeDialogIndex === index}
-											/>
-											<Select
-												onValueChange={(val) => {
-													const newCats = [...field.state.value];
-													newCats[index] = {
-														...newCats[index],
-														categoryTypeId: val === "none" ? "" : val,
-													};
-													field.handleChange(newCats);
-												}}
-												value={category.categoryTypeId || "none"}
-											>
-												<SelectTrigger className="w-full">
-													<SelectValue placeholder="Select type" />
-												</SelectTrigger>
-												<SelectContent className="max-h-[200px] overflow-y-auto">
-													<div className="border-b p-1">
-														<Button
-															className="flex h-9 w-full items-center justify-start gap-2 rounded-sm px-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-															onClick={() => setTypeDialogIndex(index)}
-															type="button"
-															variant="ghost"
-														>
-															<Plus className="h-4 w-4" />
-															<span>New Type</span>
-														</Button>
-													</div>
-													<SelectItem value="none">
-														<span className="text-muted-foreground">
-															No type
-														</span>
-													</SelectItem>
-													{categoryTypes?.map((type) => (
-														<SelectItem key={type._id} value={type._id}>
-															<div className="flex items-center gap-2">
-																{type.color && (
-																	<div
-																		className="h-2 w-2 rounded-full"
-																		style={{ backgroundColor: type.color }}
-																	/>
-																)}
-																{type.name}
-															</div>
-														</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
-										</div>
-
-										<div className="space-y-2">
-											<div className="flex items-center justify-between">
-												<Label>Planned Amount</Label>
-												{historicalSpent && index === 0 && (
-													<button
-														className="font-bold text-[10px] text-primary uppercase tracking-widest transition-all hover:underline"
-														onClick={() => {
-															const newCats = [...field.state.value];
-															newCats[index] = {
-																...newCats[index],
-																plannedAmount: historicalSpent.amount,
-															};
-															field.handleChange(newCats);
-														}}
-														type="button"
-													>
-														Use Last Cycle (
-														{formatCurrency(historicalSpent.amount)})
-													</button>
-												)}
-											</div>
-											<Input
-												inputMode="decimal"
-												onChange={(e) => {
-													const val = e.target.value;
-													if (val === "" || AMOUNT_REGEX.test(val)) {
-														const newCats = [...field.state.value];
-														newCats[index] = {
-															...newCats[index],
-															plannedAmount:
-																val === "" ? undefined : Number(val),
-														};
-														field.handleChange(newCats);
-													}
-												}}
-												placeholder="0.00"
-												type="text"
-												value={
-													category.plannedAmount !== undefined
-														? category.plannedAmount.toString()
-														: ""
-												}
-											/>
-											{historicalSpent && index === 0 && (
-												<p className="px-1 text-[10px] text-muted-foreground/60 italic">
-													You spent {formatCurrency(historicalSpent.amount)} in{" "}
-													{historicalSpent.cycleName}
-												</p>
-											)}
-										</div>
-									</div>
+										onRemove={removeRow}
+										onUpdate={updateRow}
+										setTypeDialogIndex={setTypeDialogIndex}
+										typeDialogIndex={typeDialogIndex}
+									/>
 								);
 							})}
 
 							{!isEditing && (
 								<Button
 									className="w-full border-dashed"
-									onClick={() => {
-										field.handleChange([
-											...field.state.value,
-											createCategoryRow(),
-										]);
-									}}
+									onClick={addRow}
 									type="button"
 									variant="outline"
 								>
@@ -384,14 +494,9 @@ export function CategoryForm({
 					)}
 				</form.Field>
 
-				<form.Subscribe
-					selector={(state) => ({
-						values: state.values,
-						isSubmitting: state.isSubmitting,
-					})}
-				>
+				<form.Subscribe selector={selectSubmission}>
 					{({ values, isSubmitting }) => {
-						const categories = values.categories;
+						const { categories } = values;
 						const categoriesWithNames = categories.filter(
 							(c) => c.name && c.name.trim().length > 0
 						);
@@ -426,40 +531,11 @@ export function CategoryForm({
 															)
 													)
 													.map((cat) => (
-														<Button
-															className="h-8 gap-1.5 rounded-full border-dashed px-3 text-xs"
+														<CategorySuggestion
+															category={cat}
 															key={cat._id}
-															onClick={() => {
-																const emptyIndex = categories.findIndex(
-																	(c) =>
-																		!c.name &&
-																		(c.plannedAmount === undefined ||
-																			c.plannedAmount === 0)
-																);
-
-																const newCat = createCategoryRow({
-																	name: cat.name,
-																	categoryTypeId: cat.categoryTypeId ?? "",
-																	plannedAmount: cat.plannedAmount,
-																	icon: cat.icon ?? "📦",
-																});
-
-																if (emptyIndex !== -1) {
-																	const newCats = [...categories];
-																	newCats[emptyIndex] = newCat;
-																	form.setFieldValue("categories", newCats);
-																} else {
-																	form.setFieldValue("categories", [
-																		...categories,
-																		newCat,
-																	]);
-																}
-															}}
-															type="button"
-															variant="outline"
-														>
-															{cat.icon ?? "📦"} {cat.name}
-														</Button>
+															onAdd={addSuggestion}
+														/>
 													))}
 											</div>
 										</div>

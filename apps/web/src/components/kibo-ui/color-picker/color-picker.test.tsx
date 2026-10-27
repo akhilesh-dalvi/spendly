@@ -103,15 +103,15 @@ describe("Kibo ColorPicker", () => {
 		render(<Picker defaultValue="#FF0000" onChange={onChange} />);
 		const selection = screen.getByTestId("selection");
 		vi.spyOn(selection, "getBoundingClientRect").mockReturnValue({
-			x: 10,
-			y: 20,
+			bottom: 120,
+			height: 100,
 			left: 10,
+			right: 110,
+			toJSON: () => ({}),
 			top: 20,
 			width: 100,
-			height: 100,
-			right: 110,
-			bottom: 120,
-			toJSON: () => ({}),
+			x: 10,
+			y: 20,
 		});
 		const pointer = (
 			target: Element | Window,

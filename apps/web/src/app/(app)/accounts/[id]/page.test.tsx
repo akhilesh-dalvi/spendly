@@ -9,56 +9,56 @@ import type { ResolvedAccount } from "@/lib/accounts";
 import AccountDetailPage from "./page";
 
 const mocks = vi.hoisted(() => ({
-	query: vi.fn(),
-	paginated: vi.fn(),
 	archive: vi.fn(),
-	setDefault: vi.fn(),
-	update: vi.fn(),
-	loadMore: vi.fn(),
-	push: vi.fn(),
-	success: vi.fn(),
 	error: vi.fn(),
+	loadMore: vi.fn(),
+	paginated: vi.fn(),
+	push: vi.fn(),
+	query: vi.fn(),
 	report: vi.fn(),
+	setDefault: vi.fn(),
+	success: vi.fn(),
+	update: vi.fn(),
 }));
 vi.mock("convex/react", () => ({
-	useQuery: (...args: unknown[]) => mocks.query(...args),
-	usePaginatedQuery: (...args: unknown[]) => mocks.paginated(...args),
 	useMutation: (reference: Parameters<typeof getFunctionName>[0]) =>
 		({
 			"accounts:archive": mocks.archive,
 			"users:updateDefaultAccount": mocks.setDefault,
 		})[getFunctionName(reference)] ?? mocks.update,
+	usePaginatedQuery: (...args: unknown[]) => mocks.paginated(...args),
+	useQuery: (...args: unknown[]) => mocks.query(...args),
 }));
 vi.mock("next/navigation", () => ({
-	useRouter: () => ({ push: mocks.push }),
 	useParams: () => ({ id: "account-1" }),
+	useRouter: () => ({ push: mocks.push }),
 }));
 vi.mock("sonner", () => ({
-	toast: { success: mocks.success, error: mocks.error },
+	toast: { error: mocks.error, success: mocks.success },
 }));
 vi.mock("@/lib/report-error", () => ({ reportError: mocks.report }));
 
 const account: ResolvedAccount = {
-	_id: "account-1" as Id<"accounts">,
 	_creationTime: 1,
-	userId: "user-1" as Id<"users">,
-	createdAt: 1,
-	name: "Checking",
-	accountTypeId: "type-bank" as Id<"account_types">,
-	accountTypeName: "Bank",
+	_id: "account-1" as Id<"accounts">,
 	accountTypeBalanceNature: "asset",
 	accountTypeColor: "#14B8A6",
 	accountTypeIcon: "landmark",
-	startingBalance: 80,
+	accountTypeId: "type-bank" as Id<"account_types">,
+	accountTypeName: "Bank",
+	createdAt: 1,
 	currentBalance: 100,
 	isArchived: false,
+	name: "Checking",
+	startingBalance: 80,
+	userId: "user-1" as Id<"users">,
 };
 const accountTypes = [
 	{
 		_id: account.accountTypeId,
-		name: "Bank",
 		balanceNature: "asset",
 		isArchived: false,
+		name: "Bank",
 	},
 ];
 const queryValues = (
@@ -70,9 +70,9 @@ const queryValues = (
 			({
 				"accounts:get": currentAccount,
 				"accounts:list": [currentAccount],
-				"users:get": user,
-				"accountTypes:list": accountTypes,
 				"accountTypes:getUsage": { accountCount: 1 },
+				"accountTypes:list": accountTypes,
+				"users:get": user,
 			})[getFunctionName(reference)]
 	);
 };
@@ -81,9 +81,9 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	queryValues();
 	mocks.paginated.mockReturnValue({
+		loadMore: mocks.loadMore,
 		results: [],
 		status: "Exhausted",
-		loadMore: mocks.loadMore,
 	});
 	mocks.archive.mockResolvedValue(undefined);
 	mocks.setDefault.mockResolvedValue(undefined);
@@ -99,16 +99,16 @@ describe("AccountDetailPage", () => {
 		).not.toBeInTheDocument();
 		queryValues();
 		mocks.paginated.mockReturnValue({
+			loadMore: mocks.loadMore,
 			results: [],
 			status: "LoadingFirstPage",
-			loadMore: mocks.loadMore,
 		});
 		rerender(<AccountDetailPage />);
 		expect(screen.queryByText("No activity yet")).not.toBeInTheDocument();
 		mocks.paginated.mockReturnValue({
+			loadMore: mocks.loadMore,
 			results: [],
 			status: "Exhausted",
-			loadMore: mocks.loadMore,
 		});
 		rerender(<AccountDetailPage />);
 		expect(screen.getByText("No activity yet")).toBeVisible();
@@ -225,52 +225,54 @@ describe("AccountDetailPage", () => {
 		expect(screen.getByRole("button", { name: "Archive" })).toBeEnabled();
 	});
 
-	it.each([
-		false,
-		true,
-	])("reactivates archived liability accounts and handles failure=%s", async (failure) => {
-		const user = userEvent.setup();
-		queryValues({
-			...account,
-			isArchived: true,
-			currency: "INR",
-			accountTypeBalanceNature: "liability",
-			accountTypeColor: null,
-			revision: 2,
-			lastModifiedSource: "web",
-		});
-		const error = new Error("offline");
-		if (failure) {
-			mocks.archive.mockRejectedValueOnce(error);
-		}
-		render(<AccountDetailPage />);
-		expect(screen.getByText("Bank · Money owed · INR")).toBeVisible();
-		expect(
-			screen.queryByRole("button", { name: "Make default" })
-		).not.toBeInTheDocument();
-		expect(
-			screen.queryByRole("button", { name: "Transfer" })
-		).not.toBeInTheDocument();
-		await user.click(screen.getByRole("button", { name: "Reactivate" }));
-		expect(mocks.archive).toHaveBeenCalledWith({
-			accountId: account._id,
-			isArchived: false,
-		});
-		if (failure) {
-			await waitFor(() =>
-				expect(mocks.error).toHaveBeenCalledWith("Failed to reactivate account")
-			);
-			expect(mocks.report).toHaveBeenCalledWith(error, {
-				feature: "accounts",
-				operation: "reactivate",
+	it.each([false, true])(
+		"reactivates archived liability accounts and handles failure=%s",
+		async (failure) => {
+			const user = userEvent.setup();
+			queryValues({
+				...account,
+				accountTypeBalanceNature: "liability",
+				accountTypeColor: null,
+				currency: "INR",
+				isArchived: true,
+				lastModifiedSource: "web",
+				revision: 2,
 			});
-		} else {
-			await waitFor(() =>
-				expect(mocks.success).toHaveBeenCalledWith("Account reactivated")
-			);
+			const error = new Error("offline");
+			if (failure) {
+				mocks.archive.mockRejectedValueOnce(error);
+			}
+			render(<AccountDetailPage />);
+			expect(screen.getByText("Bank · Money owed · INR")).toBeVisible();
+			expect(
+				screen.queryByRole("button", { name: "Make default" })
+			).not.toBeInTheDocument();
+			expect(
+				screen.queryByRole("button", { name: "Transfer" })
+			).not.toBeInTheDocument();
+			await user.click(screen.getByRole("button", { name: "Reactivate" }));
+			expect(mocks.archive).toHaveBeenCalledWith({
+				accountId: account._id,
+				isArchived: false,
+			});
+			if (failure) {
+				await waitFor(() =>
+					expect(mocks.error).toHaveBeenCalledWith(
+						"Failed to reactivate account"
+					)
+				);
+				expect(mocks.report).toHaveBeenCalledWith(error, {
+					feature: "accounts",
+					operation: "reactivate",
+				});
+			} else {
+				await waitFor(() =>
+					expect(mocks.success).toHaveBeenCalledWith("Account reactivated")
+				);
+			}
+			expect(screen.getByRole("button", { name: "Reactivate" })).toBeEnabled();
 		}
-		expect(screen.getByRole("button", { name: "Reactivate" })).toBeEnabled();
-	});
+	);
 
 	it("renders signed transaction amounts, note fallback, dates and requests another 50 ledger entries", async () => {
 		const user = userEvent.setup();
@@ -278,24 +280,24 @@ describe("AccountDetailPage", () => {
 		const results = [
 			{
 				_id: "opening",
-				type: "opening_balance",
 				amount: 80,
 				balanceAfter: 80,
 				date: "2026-01-01",
+				type: "opening_balance",
 			},
 			{
 				_id: "expense",
-				type: "expense",
 				amount: -10,
 				balanceAfter: 70,
 				date: "2026-01-02",
 				note: "Groceries",
+				type: "expense",
 			},
 		];
 		mocks.paginated.mockReturnValue({
+			loadMore: mocks.loadMore,
 			results,
 			status: "CanLoadMore",
-			loadMore: mocks.loadMore,
 		});
 		const { rerender } = render(<AccountDetailPage />);
 		expect(screen.getByText("Opening balance", { exact: true })).toBeVisible();
@@ -313,9 +315,9 @@ describe("AccountDetailPage", () => {
 			{ initialNumItems: 50 }
 		);
 		mocks.paginated.mockReturnValue({
+			loadMore: mocks.loadMore,
 			results,
 			status: "LoadingMore",
-			loadMore: mocks.loadMore,
 		});
 		rerender(<AccountDetailPage />);
 		expect(screen.getByRole("button", { name: "Load 50 more" })).toBeDisabled();

@@ -2,7 +2,7 @@
 import { fireEvent, render, renderHook, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Home } from "lucide-react";
-import type { ComponentProps } from "react";
+import { type ComponentProps, useCallback } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppSidebar } from "./app-sidebar";
 import { MobileNav } from "./mobile-nav";
@@ -32,40 +32,41 @@ const MORE_DESTINATION_NAMES = new Map([
 ]);
 
 const state = vi.hoisted(() => ({
-	pathname: "/expenses/one",
-	convexUser: undefined as unknown,
 	clerkUser: undefined as unknown,
-	signOut: vi.fn(),
+	convexUser: undefined as unknown,
 	openUserProfile: vi.fn(),
+	pathname: "/expenses/one",
+	signOut: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ usePathname: () => state.pathname }));
 vi.mock("next/link", () => ({
-	default: ({ href, onClick, ...props }: ComponentProps<"a">) => (
-		<a
-			{...props}
-			href={href ?? "#"}
-			onClick={(event) => {
+	default: ({ href, onClick, ...props }: ComponentProps<"a">) => {
+		const handleClick = useCallback(
+			(event: React.MouseEvent<HTMLAnchorElement>) => {
 				event.preventDefault();
 				onClick?.(event);
-			}}
-		/>
-	),
+			},
+			[onClick]
+		);
+		return <a {...props} href={href ?? "#"} onClick={handleClick} />;
+	},
 }));
 vi.mock("convex/react", () => ({ useQuery: () => state.convexUser }));
 vi.mock("@clerk/nextjs", () => ({
-	useUser: () => ({ user: state.clerkUser }),
 	useClerk: () => ({
-		signOut: state.signOut,
 		openUserProfile: state.openUserProfile,
+		signOut: state.signOut,
 	}),
+	useUser: () => ({ user: state.clerkUser }),
 }));
 
 function StateControls() {
 	const { state: sidebarState, setOpen } = useSidebar();
+	const expand = useCallback(() => setOpen(true), [setOpen]);
 	return (
 		<>
 			<output aria-label="Sidebar state">{sidebarState}</output>
-			<button onClick={() => setOpen(true)} type="button">
+			<button onClick={expand} type="button">
 				Expand sidebar
 			</button>
 		</>
@@ -86,50 +87,49 @@ afterEach(() => {
 describe("desktop and mobile navigation", () => {
 	it.each([
 		{
-			user: { name: "Backend name", email: "backend@example.com" },
 			clerk: {
 				fullName: "Clerk name",
-				primaryEmailAddress: { emailAddress: "clerk@example.com" },
 				imageUrl: "",
+				primaryEmailAddress: { emailAddress: "clerk@example.com" },
 			},
 			expected: "Backend name",
+			user: { email: "backend@example.com", name: "Backend name" },
 		},
 		{
-			user: undefined,
 			clerk: {
 				fullName: "Clerk name",
-				primaryEmailAddress: { emailAddress: "clerk@example.com" },
 				imageUrl: "",
+				primaryEmailAddress: { emailAddress: "clerk@example.com" },
 			},
 			expected: "Clerk name",
+			user: undefined,
 		},
-		{ user: undefined, clerk: undefined, expected: "User" },
-	])("resolves the sidebar identity to $expected and highlights nested expense routes", ({
-		user,
-		clerk,
-		expected,
-	}) => {
-		state.convexUser = user;
-		state.clerkUser = clerk;
-		render(
-			<SidebarProvider>
-				<AppSidebar />
-			</SidebarProvider>
-		);
-		expect(screen.getByText(expected)).toBeVisible();
-		expect(screen.getByRole("link", { name: "Expenses" })).toHaveAttribute(
-			"aria-current",
-			"page"
-		);
-		expect(screen.getByRole("link", { name: "Dashboard" })).not.toHaveAttribute(
-			"aria-current"
-		);
-		expect(screen.getByRole("link", { name: "CLI Docs" })).toHaveAttribute(
-			"href",
-			"/docs/cli"
-		);
-		expect(screen.getByText("Manage")).toBeVisible();
-	});
+		{ clerk: undefined, expected: "User", user: undefined },
+	])(
+		"resolves the sidebar identity to $expected and highlights nested expense routes",
+		({ user, clerk, expected }) => {
+			state.convexUser = user;
+			state.clerkUser = clerk;
+			render(
+				<SidebarProvider>
+					<AppSidebar />
+				</SidebarProvider>
+			);
+			expect(screen.getByText(expected)).toBeVisible();
+			expect(screen.getByRole("link", { name: "Expenses" })).toHaveAttribute(
+				"aria-current",
+				"page"
+			);
+			expect(
+				screen.getByRole("link", { name: "Dashboard" })
+			).not.toHaveAttribute("aria-current");
+			expect(screen.getByRole("link", { name: "CLI Docs" })).toHaveAttribute(
+				"href",
+				"/docs/cli"
+			);
+			expect(screen.getByText("Manage")).toBeVisible();
+		}
+	);
 
 	it("expands nested navigation and retains active state on the selected child", async () => {
 		const user = userEvent.setup();
@@ -138,14 +138,14 @@ describe("desktop and mobile navigation", () => {
 				<NavMain
 					items={[
 						{
-							title: "Tools",
-							url: "/tools",
 							icon: Home,
 							isActive: false,
 							items: [
-								{ title: "First", url: "/first", isActive: true },
-								{ title: "Second", url: "/second", isActive: false },
+								{ isActive: true, title: "First", url: "/first" },
+								{ isActive: false, title: "Second", url: "/second" },
 							],
+							title: "Tools",
+							url: "/tools",
 						},
 					]}
 					label="Tools"
@@ -175,56 +175,63 @@ describe("desktop and mobile navigation", () => {
 		"/settings",
 		"/data/tags",
 		"/docs/cli/install",
-	])("highlights the appropriate mobile destination for %s", async (pathname) => {
-		state.pathname = pathname;
-		const user = userEvent.setup();
-		render(<MobileNav />);
-		if (pathname === "/dashboard" || pathname.startsWith("/accounts")) {
-			expect(
-				screen.getByRole("link", {
-					name: pathname === "/dashboard" ? "Dashboard" : "Accounts",
-				})
-			).toHaveAttribute("aria-current", "page");
-			expect(screen.getByRole("button", { name: "More" })).not.toHaveAttribute(
-				"aria-current"
-			);
-		} else {
-			expect(screen.getByRole("button", { name: "More" })).toHaveAttribute(
-				"aria-current",
-				"page"
-			);
-			await user.click(screen.getByRole("button", { name: "More" }));
-			expect(
-				screen.getByRole("menuitem", {
-					name: MORE_DESTINATION_NAMES.get(pathname) ?? "CLI Docs",
-				})
-			).toHaveAttribute("aria-current", "page");
+	])(
+		"highlights the appropriate mobile destination for %s",
+		async (pathname) => {
+			state.pathname = pathname;
+			const user = userEvent.setup();
+			render(<MobileNav />);
+			if (pathname === "/dashboard" || pathname.startsWith("/accounts")) {
+				expect(
+					screen.getByRole("link", {
+						name: pathname === "/dashboard" ? "Dashboard" : "Accounts",
+					})
+				).toHaveAttribute("aria-current", "page");
+				expect(
+					screen.getByRole("button", { name: "More" })
+				).not.toHaveAttribute("aria-current");
+			} else {
+				expect(screen.getByRole("button", { name: "More" })).toHaveAttribute(
+					"aria-current",
+					"page"
+				);
+				await user.click(screen.getByRole("button", { name: "More" }));
+				expect(
+					screen.getByRole("menuitem", {
+						name: MORE_DESTINATION_NAMES.get(pathname) ?? "CLI Docs",
+					})
+				).toHaveAttribute("aria-current", "page");
+			}
 		}
-	});
+	);
 
-	it.each([
-		1024, 400,
-	])("opens account actions in a %spx viewport", async (width) => {
-		vi.stubGlobal("innerWidth", width);
-		const user = userEvent.setup();
-		render(
-			<SidebarProvider>
-				<NavUser
-					user={{ name: "Primary User", email: "user@example.com", avatar: "" }}
-				/>
-			</SidebarProvider>
-		);
-		await user.click(screen.getByRole("button", { name: USER_MENU }));
-		expect(screen.getByRole("menuitem", { name: "Settings" })).toHaveAttribute(
-			"href",
-			"/settings"
-		);
-		await user.click(screen.getByRole("menuitem", { name: "Account" }));
-		expect(state.openUserProfile).toHaveBeenCalledOnce();
-		await user.click(screen.getByRole("button", { name: USER_MENU }));
-		await user.click(screen.getByRole("menuitem", { name: "Log out" }));
-		expect(state.signOut).toHaveBeenCalledOnce();
-	});
+	it.each([1024, 400])(
+		"opens account actions in a %spx viewport",
+		async (width) => {
+			vi.stubGlobal("innerWidth", width);
+			const user = userEvent.setup();
+			render(
+				<SidebarProvider>
+					<NavUser
+						user={{
+							avatar: "",
+							email: "user@example.com",
+							name: "Primary User",
+						}}
+					/>
+				</SidebarProvider>
+			);
+			await user.click(screen.getByRole("button", { name: USER_MENU }));
+			expect(
+				screen.getByRole("menuitem", { name: "Settings" })
+			).toHaveAttribute("href", "/settings");
+			await user.click(screen.getByRole("menuitem", { name: "Account" }));
+			expect(state.openUserProfile).toHaveBeenCalledOnce();
+			await user.click(screen.getByRole("button", { name: USER_MENU }));
+			await user.click(screen.getByRole("menuitem", { name: "Log out" }));
+			expect(state.signOut).toHaveBeenCalledOnce();
+		}
+	);
 });
 
 describe("sidebar state and composition", () => {
@@ -254,11 +261,11 @@ describe("sidebar state and composition", () => {
 			screen.getByRole("status", { name: "Sidebar state" })
 		).toHaveTextContent("expanded");
 		fireEvent.keyDown(window, { key: "b" });
-		fireEvent.keyDown(window, { key: "a", ctrlKey: true });
+		fireEvent.keyDown(window, { ctrlKey: true, key: "a" });
 		expect(
 			screen.getByRole("status", { name: "Sidebar state" })
 		).toHaveTextContent("expanded");
-		fireEvent.keyDown(window, { key: "b", ctrlKey: true });
+		fireEvent.keyDown(window, { ctrlKey: true, key: "b" });
 		expect(
 			screen.getByRole("status", { name: "Sidebar state" })
 		).toHaveTextContent("collapsed");
@@ -308,66 +315,65 @@ describe("sidebar state and composition", () => {
 		).toHaveTextContent("expanded");
 	});
 
-	it.each([
-		"floating",
-		"inset",
-		"sidebar",
-	] as const)("supports a right-aligned %s sidebar with composed menu links", (variant) => {
-		const { container } = render(
-			<SidebarProvider defaultOpen={false}>
-				<Sidebar collapsible="icon" side="right" variant={variant}>
-					<SidebarGroupLabel asChild>
-						<h2>Utilities</h2>
-					</SidebarGroupLabel>
-					<SidebarMenu>
-						<SidebarMenuItem>
-							<SidebarMenuButton
-								asChild
-								size="sm"
-								tooltip={{ children: "Item help" }}
-								variant="outline"
-							>
-								<a href="/item">Item</a>
-							</SidebarMenuButton>
-							<SidebarMenuAction asChild showOnHover>
-								<button type="button">Edit item</button>
-							</SidebarMenuAction>
-							<SidebarMenuSub>
-								<SidebarMenuSubItem>
-									<SidebarMenuSubButton href="/small" size="sm">
-										Small child
-									</SidebarMenuSubButton>
-								</SidebarMenuSubItem>
-								<SidebarMenuSubItem>
-									<SidebarMenuSubButton href="/normal">
-										Normal child
-									</SidebarMenuSubButton>
-								</SidebarMenuSubItem>
-							</SidebarMenuSub>
-						</SidebarMenuItem>
-					</SidebarMenu>
-				</Sidebar>
-				<SidebarInset>Workspace</SidebarInset>
-			</SidebarProvider>
-		);
-		expect(container.querySelector('[data-slot="sidebar"]')).toHaveAttribute(
-			"data-side",
-			"right"
-		);
-		expect(container.querySelector('[data-slot="sidebar"]')).toHaveAttribute(
-			"data-variant",
-			variant
-		);
-		expect(screen.getByRole("link", { name: "Item" })).toHaveAttribute(
-			"href",
-			"/item"
-		);
-		expect(screen.getByRole("link", { name: "Small child" })).toHaveAttribute(
-			"data-size",
-			"sm"
-		);
-		expect(screen.getByRole("main")).toHaveTextContent("Workspace");
-	});
+	it.each(["floating", "inset", "sidebar"] as const)(
+		"supports a right-aligned %s sidebar with composed menu links",
+		(variant) => {
+			const { container } = render(
+				<SidebarProvider defaultOpen={false}>
+					<Sidebar collapsible="icon" side="right" variant={variant}>
+						<SidebarGroupLabel asChild>
+							<h2>Utilities</h2>
+						</SidebarGroupLabel>
+						<SidebarMenu>
+							<SidebarMenuItem>
+								<SidebarMenuButton
+									asChild
+									size="sm"
+									tooltip={{ children: "Item help" }}
+									variant="outline"
+								>
+									<a href="/item">Item</a>
+								</SidebarMenuButton>
+								<SidebarMenuAction asChild showOnHover>
+									<button type="button">Edit item</button>
+								</SidebarMenuAction>
+								<SidebarMenuSub>
+									<SidebarMenuSubItem>
+										<SidebarMenuSubButton href="/small" size="sm">
+											Small child
+										</SidebarMenuSubButton>
+									</SidebarMenuSubItem>
+									<SidebarMenuSubItem>
+										<SidebarMenuSubButton href="/normal">
+											Normal child
+										</SidebarMenuSubButton>
+									</SidebarMenuSubItem>
+								</SidebarMenuSub>
+							</SidebarMenuItem>
+						</SidebarMenu>
+					</Sidebar>
+					<SidebarInset>Workspace</SidebarInset>
+				</SidebarProvider>
+			);
+			expect(container.querySelector('[data-slot="sidebar"]')).toHaveAttribute(
+				"data-side",
+				"right"
+			);
+			expect(container.querySelector('[data-slot="sidebar"]')).toHaveAttribute(
+				"data-variant",
+				variant
+			);
+			expect(screen.getByRole("link", { name: "Item" })).toHaveAttribute(
+				"href",
+				"/item"
+			);
+			expect(screen.getByRole("link", { name: "Small child" })).toHaveAttribute(
+				"data-size",
+				"sm"
+			);
+			expect(screen.getByRole("main")).toHaveTextContent("Workspace");
+		}
+	);
 
 	it("renders a fixed sidebar without a mobile dialog", () => {
 		vi.stubGlobal("innerWidth", 400);

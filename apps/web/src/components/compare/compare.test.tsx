@@ -15,8 +15,8 @@ import type { CompareCycleRow } from "./types";
 const service = vi.hoisted(() => ({
 	data: {} as Record<string, unknown>,
 	params: new URLSearchParams(),
-	router: { push: vi.fn(), replace: vi.fn(), refresh: vi.fn() },
 	query: vi.fn(),
+	router: { push: vi.fn(), refresh: vi.fn(), replace: vi.fn() },
 }));
 vi.mock("@clerk/nextjs", () => ({
 	useAuth: () => ({ isLoaded: true, isSignedIn: true }),
@@ -35,35 +35,35 @@ vi.mock("convex/react", () => ({
 
 const options = ["January", "February", "March", "April", "May", "June"].map(
 	(name, index) => ({
+		endDate: "2026-01-31",
 		id: `cycle${index + 1}`,
 		name,
 		startDate: "2026-01-01",
-		endDate: "2026-01-31",
 	})
 );
 const rows: CompareCycleRow[] = [
 	{
+		categoryBreakdown: [
+			{ categoryName: "Food", planned: 50, spent: 60 },
+			{ categoryName: "Food", planned: 50, spent: 90 },
+			{ categoryName: "Unplanned", planned: null, spent: 10 },
+			{ categoryName: "Unplanned", planned: 0, spent: 5 },
+		],
 		cycleId: "cycle1" as Id<"expense_cycles">,
 		cycleName: "January",
-		startDate: "2026-01-01",
 		endDate: "2026-01-31",
-		totalSpent: 150,
+		startDate: "2026-01-01",
 		totalPlanned: 100,
-		categoryBreakdown: [
-			{ categoryName: "Food", spent: 60, planned: 50 },
-			{ categoryName: "Food", spent: 90, planned: 50 },
-			{ categoryName: "Unplanned", spent: 10, planned: null },
-			{ categoryName: "Unplanned", spent: 5, planned: 0 },
-		],
+		totalSpent: 150,
 	},
 	{
+		categoryBreakdown: [{ categoryName: "Transport", planned: 0, spent: 20 }],
 		cycleId: "cycle2" as Id<"expense_cycles">,
 		cycleName: "February",
-		startDate: "2026-02-01",
 		endDate: "2026-02-28",
-		totalSpent: 20,
+		startDate: "2026-02-01",
 		totalPlanned: 0,
-		categoryBreakdown: [{ categoryName: "Transport", spent: 20, planned: 0 }],
+		totalSpent: 20,
 	},
 ];
 const money = (amount: number) =>
@@ -73,9 +73,9 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	service.params = new URLSearchParams();
 	service.data = {
-		"users:get": { currency: "USD" },
-		"cycles:list": options.map(({ id, ...cycle }) => ({ _id: id, ...cycle })),
 		"aggregations:compareMultiple": rows,
+		"cycles:list": options.map(({ id, ...cycle }) => ({ _id: id, ...cycle })),
+		"users:get": { currency: "USD" },
 	};
 });
 
@@ -194,50 +194,52 @@ describe("comparison breakdown", () => {
 
 	it.each([
 		{
-			totalPlanned: 100,
 			netRemaining: -70,
 			planned: "$100.00",
 			remaining: "-$70.00",
 			status: "Planned minus spent",
+			totalPlanned: 100,
 		},
 		{
-			totalPlanned: 200,
 			netRemaining: 30,
 			planned: "$200.00",
 			remaining: "$30.00",
 			status: "Planned minus spent",
+			totalPlanned: 200,
 		},
 		{
-			totalPlanned: 0,
 			netRemaining: -170,
 			planned: "—",
 			remaining: "—",
 			status: "No planned values to compare",
+			totalPlanned: 0,
 		},
-	])("explains planned=$totalPlanned across the selection", ({
-		totalPlanned,
-		netRemaining,
-		planned,
-		remaining,
-		status,
-	}) => {
-		render(
-			<CompareKpiStrip
-				formatCurrency={money}
-				totals={{ cycleCount: 2, totalSpent: 170, totalPlanned, netRemaining }}
-			/>
-		);
-		expect(screen.getByText("Total Spent").parentElement).toHaveTextContent(
-			"$170.00"
-		);
-		expect(screen.getByText("Total Planned").parentElement).toHaveTextContent(
-			planned
-		);
-		expect(screen.getByText("Net Remaining").parentElement).toHaveTextContent(
-			remaining
-		);
-		expect(screen.getByText(status)).toBeVisible();
-	});
+	])(
+		"explains planned=$totalPlanned across the selection",
+		({ totalPlanned, netRemaining, planned, remaining, status }) => {
+			render(
+				<CompareKpiStrip
+					formatCurrency={money}
+					totals={{
+						cycleCount: 2,
+						netRemaining,
+						totalPlanned,
+						totalSpent: 170,
+					}}
+				/>
+			);
+			expect(screen.getByText("Total Spent").parentElement).toHaveTextContent(
+				"$170.00"
+			);
+			expect(screen.getByText("Total Planned").parentElement).toHaveTextContent(
+				planned
+			);
+			expect(screen.getByText("Net Remaining").parentElement).toHaveTextContent(
+				remaining
+			);
+			expect(screen.getByText(status)).toBeVisible();
+		}
+	);
 });
 
 describe("comparison page", () => {

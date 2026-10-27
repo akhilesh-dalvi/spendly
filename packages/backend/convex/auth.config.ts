@@ -26,9 +26,9 @@ if (!clerkDomain) {
 const cliOAuthClientId = readCliOAuthClientId();
 
 const webProvider = {
+	applicationID: "convex",
 	// See https://docs.convex.dev/auth/clerk#configuring-dev-and-prod-instances
 	domain: clerkDomain,
-	applicationID: "convex",
 };
 
 export default {

@@ -15,10 +15,10 @@ export async function highlightCommands(commands: PackageManagerCommands) {
 	const [pnpm, npm, bun, yarn] = await Promise.all(
 		PACKAGE_MANAGERS.map((manager) =>
 			highlight(commands[manager], {
+				components: { code: Contents, pre: Contents },
 				lang: "bash",
-				components: { pre: Contents, code: Contents },
 			})
 		)
 	);
-	return { pnpm, npm, bun, yarn };
+	return { bun, npm, pnpm, yarn };
 }

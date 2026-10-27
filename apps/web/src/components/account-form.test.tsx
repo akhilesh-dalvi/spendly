@@ -9,16 +9,15 @@ import { AccountForm } from "./account-form";
 
 const mocks = vi.hoisted(() => ({
 	create: vi.fn(),
-	update: vi.fn(),
 	createType: vi.fn(),
-	updateType: vi.fn(),
-	query: vi.fn(),
-	success: vi.fn(),
 	error: vi.fn(),
+	query: vi.fn(),
 	report: vi.fn(),
+	success: vi.fn(),
+	update: vi.fn(),
+	updateType: vi.fn(),
 }));
 vi.mock("convex/react", () => ({
-	useQuery: (...args: unknown[]) => mocks.query(...args),
 	useMutation: (reference: Parameters<typeof getFunctionName>[0]) =>
 		({
 			"accounts:create": mocks.create,
@@ -26,38 +25,39 @@ vi.mock("convex/react", () => ({
 			"accountTypes:create": mocks.createType,
 			"accountTypes:update": mocks.updateType,
 		})[getFunctionName(reference)],
+	useQuery: (...args: unknown[]) => mocks.query(...args),
 }));
 vi.mock("sonner", () => ({
-	toast: { success: mocks.success, error: mocks.error },
+	toast: { error: mocks.error, success: mocks.success },
 }));
 vi.mock("@/lib/report-error", () => ({ reportError: mocks.report }));
 
 const checking: Doc<"account_types"> = {
-	_id: "type-checking" as Id<"account_types">,
 	_creationTime: 1,
-	userId: "user-1" as Id<"users">,
-	createdAt: 1,
-	order: 0,
-	normalizedName: "checking",
-	name: "Checking",
+	_id: "type-checking" as Id<"account_types">,
 	balanceNature: "asset",
-	isArchived: false,
 	color: "#14B8A6",
+	createdAt: 1,
 	icon: "landmark",
+	isArchived: false,
+	name: "Checking",
+	normalizedName: "checking",
+	order: 0,
+	userId: "user-1" as Id<"users">,
 };
 const credit: Doc<"account_types"> = {
 	...checking,
 	_id: "type-credit" as Id<"account_types">,
-	name: "Credit",
 	balanceNature: "liability",
 	color: undefined,
 	icon: undefined,
+	name: "Credit",
 };
 const archived: Doc<"account_types"> = {
 	...credit,
 	_id: "type-old" as Id<"account_types">,
-	name: "Old credit",
 	isArchived: true,
+	name: "Old credit",
 };
 const accountId = "account-1" as Id<"accounts">;
 const OLD_CREDIT = /Old credit/;
@@ -105,8 +105,8 @@ describe("AccountForm", () => {
 		await user.click(screen.getByRole("button", { name: "Create account" }));
 		await waitFor(() => expect(onSuccess).toHaveBeenCalledWith(accountId));
 		expect(mocks.create).toHaveBeenCalledWith({
-			name: "Everyday",
 			accountTypeId: credit._id,
+			name: "Everyday",
 			startingBalance: -120.5,
 		});
 		expect(mocks.success).toHaveBeenCalledWith("Account created");
@@ -145,7 +145,7 @@ describe("AccountForm", () => {
 			<AccountForm
 				accountId={accountId}
 				defaultCurrency="USD"
-				defaultValues={{ name: "Old card", accountTypeId: archived._id }}
+				defaultValues={{ accountTypeId: archived._id, name: "Old card" }}
 				onSuccess={onSuccess}
 			/>
 		);
@@ -173,7 +173,7 @@ describe("AccountForm", () => {
 			<AccountForm
 				accountId={accountId}
 				defaultCurrency="USD"
-				defaultValues={{ name: "Old card", accountTypeId: archived._id }}
+				defaultValues={{ accountTypeId: archived._id, name: "Old card" }}
 				onSuccess={vi.fn()}
 			/>
 		);
@@ -198,8 +198,8 @@ describe("AccountForm", () => {
 			screen.getByRole("button", { name: "Create account" })
 		).toBeDisabled();
 		expect(mocks.create).toHaveBeenCalledWith({
-			name: "Cash",
 			accountTypeId: checking._id,
+			name: "Cash",
 			startingBalance: 0,
 		});
 		finish({ _id: accountId });
@@ -210,52 +210,51 @@ describe("AccountForm", () => {
 		);
 	});
 
-	it.each([
-		"create",
-		"update",
-		"missing-result",
-	])("reports %s failures without invoking success and allows retry", async (mode) => {
-		const user = userEvent.setup();
-		const failure = new Error("ACCOUNT_TYPE_ARCHIVED");
-		if (mode === "missing-result") {
-			mocks.create.mockResolvedValueOnce(null);
-		} else {
-			(mode === "update" ? mocks.update : mocks.create).mockRejectedValueOnce(
-				failure
+	it.each(["create", "update", "missing-result"])(
+		"reports %s failures without invoking success and allows retry",
+		async (mode) => {
+			const user = userEvent.setup();
+			const failure = new Error("ACCOUNT_TYPE_ARCHIVED");
+			if (mode === "missing-result") {
+				mocks.create.mockResolvedValueOnce(null);
+			} else {
+				(mode === "update" ? mocks.update : mocks.create).mockRejectedValueOnce(
+					failure
+				);
+			}
+			const onSuccess = vi.fn();
+			render(
+				<AccountForm
+					accountId={mode === "update" ? accountId : undefined}
+					defaultCurrency="USD"
+					defaultValues={{ accountTypeId: checking._id, name: "Cash" }}
+					onSuccess={onSuccess}
+				/>
 			);
+			await user.click(
+				screen.getByRole("button", {
+					name: mode === "update" ? "Save changes" : "Create account",
+				})
+			);
+			await waitFor(() =>
+				expect(mocks.error).toHaveBeenCalledWith(
+					mode === "missing-result"
+						? "Failed to create account"
+						: "This account type is archived. Reactivate it before assigning it."
+				)
+			);
+			expect(mocks.report).toHaveBeenCalledWith(expect.any(Error), {
+				feature: "accounts",
+				operation: mode === "update" ? "update" : "create",
+			});
+			expect(onSuccess).not.toHaveBeenCalled();
+			expect(
+				screen.getByRole("button", {
+					name: mode === "update" ? "Save changes" : "Create account",
+				})
+			).toBeEnabled();
 		}
-		const onSuccess = vi.fn();
-		render(
-			<AccountForm
-				accountId={mode === "update" ? accountId : undefined}
-				defaultCurrency="USD"
-				defaultValues={{ name: "Cash", accountTypeId: checking._id }}
-				onSuccess={onSuccess}
-			/>
-		);
-		await user.click(
-			screen.getByRole("button", {
-				name: mode === "update" ? "Save changes" : "Create account",
-			})
-		);
-		await waitFor(() =>
-			expect(mocks.error).toHaveBeenCalledWith(
-				mode === "missing-result"
-					? "Failed to create account"
-					: "This account type is archived. Reactivate it before assigning it."
-			)
-		);
-		expect(mocks.report).toHaveBeenCalledWith(expect.any(Error), {
-			feature: "accounts",
-			operation: mode === "update" ? "update" : "create",
-		});
-		expect(onSuccess).not.toHaveBeenCalled();
-		expect(
-			screen.getByRole("button", {
-				name: mode === "update" ? "Save changes" : "Create account",
-			})
-		).toBeEnabled();
-	});
+	);
 
 	it("creates a type from the empty state and assigns it through the updated selector", async () => {
 		const user = userEvent.setup();

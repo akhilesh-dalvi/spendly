@@ -15,85 +15,85 @@ import {
 type NavMatchMode = "exact" | "prefix";
 
 export interface NavSubItem {
+	match: NavMatchMode;
 	title: string;
 	url: string;
-	match: NavMatchMode;
 }
 
 export interface NavItem {
+	icon: LucideIcon;
+	items?: readonly NavSubItem[];
+	match: NavMatchMode;
 	title: string;
 	url: string;
-	icon: LucideIcon;
-	match: NavMatchMode;
-	items?: readonly NavSubItem[];
 }
 
 export const CORE_NAV_ITEMS = [
 	{
-		title: "Dashboard",
-		url: "/dashboard",
 		icon: LayoutDashboard,
 		match: "exact",
+		title: "Dashboard",
+		url: "/dashboard",
 	},
 	{
-		title: "Expenses",
-		url: "/expenses",
 		icon: CreditCard,
 		match: "prefix",
+		title: "Expenses",
+		url: "/expenses",
 	},
 	{
-		title: "Cycles",
-		url: "/cycles",
 		icon: Calendar,
 		match: "prefix",
+		title: "Cycles",
+		url: "/cycles",
 	},
 	{
-		title: "Accounts",
-		url: "/accounts",
 		icon: WalletCards,
 		match: "prefix",
+		title: "Accounts",
+		url: "/accounts",
 	},
 	{
-		title: "Compare",
-		url: "/compare",
 		icon: ArrowLeftRight,
 		match: "exact",
+		title: "Compare",
+		url: "/compare",
 	},
 ] as const satisfies readonly NavItem[];
 
 export const MANAGEMENT_NAV_ITEMS = [
 	{
-		title: "Tags",
-		url: "/data/tags",
 		icon: Tag,
 		match: "prefix",
+		title: "Tags",
+		url: "/data/tags",
 	},
 	{
-		title: "Category Types",
-		url: "/data/types",
 		icon: Layers,
 		match: "prefix",
+		title: "Category Types",
+		url: "/data/types",
 	},
 	{
-		title: "Account Types",
-		url: "/data/account-types",
 		icon: CircleDollarSign,
 		match: "prefix",
+		title: "Account Types",
+		url: "/data/account-types",
 	},
 ] as const satisfies readonly NavItem[];
 
 const SETTINGS_NAV_ITEM = {
-	title: "Settings",
-	url: "/settings",
 	icon: Settings,
 	match: "exact",
+	title: "Settings",
+	url: "/settings",
 } as const satisfies NavItem;
 
 export const CLI_DOCS_NAV_ITEM = {
-	title: "CLI Docs",
-	url: "/docs/cli",
 	icon: BookOpen,
 	match: "prefix",
+	title: "CLI Docs",
+	url: "/docs/cli",
 } as const satisfies NavItem;
 
 export const MOBILE_PRIMARY_NAV_ITEMS = [
@@ -139,9 +139,7 @@ const matchesPath = (
 export const isSubNavItemActive = (
 	pathname: string,
 	subItem: NavSubItem
-): boolean => {
-	return matchesPath(pathname, subItem.url, subItem.match);
-};
+): boolean => matchesPath(pathname, subItem.url, subItem.match);
 
 export const isNavItemActive = (pathname: string, item: NavItem): boolean => {
 	if (matchesPath(pathname, item.url, item.match)) {

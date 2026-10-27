@@ -14,11 +14,11 @@ import { Button } from "./ui/button";
 import { EmptyState } from "./ui/empty-state";
 
 interface TypeStat {
-	typeId: string | null;
-	typeName: string;
 	totalPlanned: number;
 	totalSpent: number;
 	typeColor?: string | null;
+	typeId: string | null;
+	typeName: string;
 }
 
 interface CategoryTypeChartProps {
@@ -28,36 +28,39 @@ interface CategoryTypeChartProps {
 export function CategoryTypeChart({ typeStats }: CategoryTypeChartProps) {
 	const { format } = useCurrency();
 
-	const chartData = useMemo(() => {
-		return typeStats
-			.filter((stat) => stat.totalSpent > 0)
-			.map((stat) => ({
-				name: stat.typeName,
-				value: stat.totalSpent,
-				planned: stat.totalPlanned,
-				fill:
-					stat.typeColor ||
-					(stat.typeId === null
-						? "hsl(var(--muted-foreground))"
-						: "hsl(var(--primary))"),
-				color:
-					stat.typeColor ||
-					(stat.typeId === null
-						? "hsl(var(--muted-foreground))"
-						: "hsl(var(--primary))"),
-			}));
-	}, [typeStats]);
+	const chartData = useMemo(
+		() =>
+			typeStats
+				.filter((stat) => stat.totalSpent > 0)
+				.map((stat) => ({
+					color:
+						stat.typeColor ||
+						(stat.typeId === null
+							? "hsl(var(--muted-foreground))"
+							: "hsl(var(--primary))"),
+					fill:
+						stat.typeColor ||
+						(stat.typeId === null
+							? "hsl(var(--muted-foreground))"
+							: "hsl(var(--primary))"),
+					name: stat.typeName,
+					planned: stat.totalPlanned,
+					value: stat.totalSpent,
+				})),
+		[typeStats]
+	);
 
-	const totalSpent = useMemo(() => {
-		return chartData.reduce((acc, curr) => acc + curr.value, 0);
-	}, [chartData]);
+	const totalSpent = useMemo(
+		() => chartData.reduce((acc, curr) => acc + curr.value, 0),
+		[chartData]
+	);
 
 	const chartConfig = useMemo(() => {
 		const config: Record<string, { color: string; label: string }> = {};
 		for (const stat of typeStats) {
 			config[stat.typeName] = {
-				label: stat.typeName,
 				color: stat.typeColor || "hsl(var(--primary))",
+				label: stat.typeName,
 			};
 		}
 		return config;

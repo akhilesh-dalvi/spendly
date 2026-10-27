@@ -48,12 +48,12 @@ const EXIT_CODES = {
 	ACCOUNT_SETUP_REQUIRED: CLI_EXIT_CODE.authentication,
 	AUTHENTICATION_REQUIRED: CLI_EXIT_CODE.authentication,
 	AUTHORIZATION_EXPIRED: CLI_EXIT_CODE.authentication,
+	CATEGORY_CYCLE_MISMATCH: CLI_EXIT_CODE.conflict,
 	CONFIGURATION_ERROR: CLI_EXIT_CODE.invalidInput,
 	CREDENTIALS_INVALID: CLI_EXIT_CODE.authentication,
-	CATEGORY_CYCLE_MISMATCH: CLI_EXIT_CODE.conflict,
 	CYCLE_COPY_CONFLICT: CLI_EXIT_CODE.conflict,
-	CYCLE_OVERLAP: CLI_EXIT_CODE.conflict,
 	CYCLE_HAS_EXPENSES: CLI_EXIT_CODE.conflict,
+	CYCLE_OVERLAP: CLI_EXIT_CODE.conflict,
 	CYCLE_REVISION_CONFLICT: CLI_EXIT_CODE.conflict,
 	DELETION_CONFIRMATION_EXPIRED: CLI_EXIT_CODE.confirmation,
 	DELETION_CONFIRMATION_INVALID: CLI_EXIT_CODE.confirmation,
@@ -67,8 +67,8 @@ const EXIT_CODES = {
 	KEYCHAIN_UNAVAILABLE: CLI_EXIT_CODE.authentication,
 	NETWORK_ERROR: CLI_EXIT_CODE.temporary,
 	NON_INTERACTIVE_INPUT_REQUIRED: CLI_EXIT_CODE.invalidInput,
-	RESOURCE_NOT_FOUND: CLI_EXIT_CODE.notFound,
 	RESOURCE_LIMIT_EXCEEDED: CLI_EXIT_CODE.internal,
+	RESOURCE_NOT_FOUND: CLI_EXIT_CODE.notFound,
 	REVISION_CONFLICT: CLI_EXIT_CODE.conflict,
 	TRANSFER_CURRENCY_MISMATCH: CLI_EXIT_CODE.conflict,
 	TRANSFER_SAME_ACCOUNT: CLI_EXIT_CODE.conflict,
@@ -81,6 +81,15 @@ export interface CliErrorOptions {
 }
 
 export class CliError extends Error {
+	static fromCause(
+		cause: unknown,
+		code: CliErrorCode,
+		message: string,
+		options?: Omit<CliErrorOptions, "cause">
+	): CliError {
+		return new CliError(code, message, { ...options, cause });
+	}
+
 	readonly code: CliErrorCode;
 	readonly details: Readonly<Record<string, unknown>>;
 	readonly exitCode: CliExitCode;

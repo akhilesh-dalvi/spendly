@@ -132,7 +132,7 @@ export const queryWithRetry = async <Result>(options: {
 }): Promise<Result> => {
 	const sleep = options.sleep ?? defaultSleep;
 	const attempts = options.retry ? MAXIMUM_READ_ATTEMPTS : 1;
-	for (let attempt = 0; attempt < attempts; attempt += 1) {
+	const queryAttempt = async (attempt: number): Promise<Result> => {
 		try {
 			return await options.query<Result>(options.functionName, options.args);
 		} catch (error) {
@@ -147,10 +147,11 @@ export const queryWithRetry = async <Result>(options: {
 			) {
 				throw cliError;
 			}
-			await sleep(RETRY_DELAYS_MS[attempt] ?? RETRY_DELAYS_MS.at(-1) ?? 250);
+			await sleep(RETRY_DELAYS_MS.at(attempt) ?? 250);
+			return await queryAttempt(attempt + 1);
 		}
-	}
-	throw new CliError("INTERNAL_ERROR", "The backend request failed");
+	};
+	return await queryAttempt(0);
 };
 
 const createConvexQuery = (
@@ -197,11 +198,11 @@ export interface BackendCommandContext {
 		functionName: string,
 		args: Readonly<Record<string, unknown>>
 	) => Promise<Result>;
+	operations: SpendlyOperations;
 	query: <Result>(
 		functionName: string,
 		args: Readonly<Record<string, unknown>>
 	) => Promise<Result>;
-	operations: SpendlyOperations;
 	warnings: string[];
 }
 

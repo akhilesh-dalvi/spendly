@@ -3,7 +3,7 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import type * as React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -13,15 +13,15 @@ const TRAILING_NEWLINE = /\n$/;
 const codeBlockVariants = cva(
 	"group/code-block relative flex w-full min-w-0 flex-col overflow-hidden rounded-lg text-sm has-[[data-slot=code-block-content]:focus-visible]:ring-3 has-[[data-slot=code-block-content]:focus-visible]:ring-ring/50 data-[size=sm]:text-xs",
 	{
+		defaultVariants: {
+			variant: "default",
+		},
 		variants: {
 			variant: {
 				default:
 					"border border-border bg-muted/40 text-foreground has-[[data-slot=code-block-content]:focus-visible]:border-ring",
 				destructive: "border border-destructive/30 text-destructive",
 			},
-		},
-		defaultVariants: {
-			variant: "default",
 		},
 	}
 );
@@ -95,6 +95,21 @@ function CodeBlockCopyButton({
 	...props
 }: React.ComponentProps<typeof Button> & { value: string }) {
 	const [copied, setCopied] = useState(false);
+	const handleClick = useCallback(
+		(event: React.MouseEvent<HTMLButtonElement>) => {
+			onClick?.(event);
+			if (event.defaultPrevented || !navigator.clipboard) {
+				return;
+			}
+			navigator.clipboard
+				.writeText(value)
+				.then(() => setCopied(true))
+				.catch(() => {
+					// A denied clipboard must not announce a successful copy.
+				});
+		},
+		[onClick, value]
+	);
 
 	useEffect(() => {
 		if (!copied) {
@@ -112,18 +127,7 @@ function CodeBlockCopyButton({
 				className={cn(className)}
 				data-copied={copied || undefined}
 				data-slot="code-block-copy-button"
-				onClick={(event) => {
-					onClick?.(event);
-					if (event.defaultPrevented || !navigator.clipboard) {
-						return;
-					}
-					navigator.clipboard
-						.writeText(value)
-						.then(() => setCopied(true))
-						.catch(() => {
-							// A denied clipboard must not announce a successful copy.
-						});
-				}}
+				onClick={handleClick}
 				size={size}
 				type="button"
 				variant={variant}
@@ -151,6 +155,16 @@ function CodeBlockContent({
 	lineNumbers?: boolean;
 	startLine?: number;
 }) {
+	const content =
+		lineNumbers && typeof children === "string"
+			? children
+					.replace(TRAILING_NEWLINE, "")
+					.split("\n")
+					.map((line, index) => (
+						// biome-ignore lint/suspicious/noArrayIndexKey: Lines are stateless and identified by their position in the snippet.
+						<CodeBlockLine key={index}>{line}</CodeBlockLine>
+					))
+			: children;
 	return (
 		<pre
 			className={cn(
@@ -170,15 +184,7 @@ function CodeBlockContent({
 				className="grid min-h-lh in-data-wrap:min-w-0 min-w-max in-data-numbered:grid-cols-[auto_1fr] content-start"
 				data-slot="code-block-code"
 			>
-				{lineNumbers && typeof children === "string"
-					? children
-							.replace(TRAILING_NEWLINE, "")
-							.split("\n")
-							.map((line, index) => (
-								// biome-ignore lint/suspicious/noArrayIndexKey: Lines are stateless and identified by their position in the snippet.
-								<CodeBlockLine key={index}>{line}</CodeBlockLine>
-							))
-					: children}
+				{content}
 			</code>
 		</pre>
 	);
@@ -187,16 +193,16 @@ function CodeBlockContent({
 const codeBlockLineVariants = cva(
 	"relative in-data-numbered:col-span-2 -mx-3 block in-data-numbered:grid min-h-lh in-data-numbered:grid-cols-subgrid in-data-numbered:gap-x-3 px-3 in-data-numbered:[counter-increment:line] before:min-w-6 in-data-numbered:before:select-none before:text-end before:text-muted-foreground in-data-numbered:before:content-[counter(line)] after:absolute after:start-1 after:top-0 after:select-none after:text-muted-foreground group-data-[size=sm]/code-block:-mx-2.5 group-data-[size=sm]/code-block:px-2.5 in-data-numbered:supports-[content:counter(line)_/_'']:before:content-[counter(line)_/_'']",
 	{
-		variants: {
-			variant: {
-				default: "",
-				added: "bg-muted after:content-['+']",
-				removed: "bg-destructive/10 after:text-destructive after:content-['−']",
-				highlighted: "bg-muted",
-			},
-		},
 		defaultVariants: {
 			variant: "default",
+		},
+		variants: {
+			variant: {
+				added: "bg-muted after:content-['+']",
+				default: "",
+				highlighted: "bg-muted",
+				removed: "bg-destructive/10 after:text-destructive after:content-['−']",
+			},
 		},
 	}
 );
@@ -214,6 +220,7 @@ function CodeBlockLine({
 		children === "" ||
 		(Array.isArray(children) && children.length === 0);
 
+	const content = empty ? "\n" : children;
 	return (
 		<span
 			className={cn(codeBlockLineVariants({ variant }), className)}
@@ -222,7 +229,7 @@ function CodeBlockLine({
 			{...props}
 		>
 			<span className="min-w-0" data-slot="code-block-line-content">
-				{empty ? "\n" : children}
+				{content}
 			</span>
 		</span>
 	);
@@ -230,9 +237,9 @@ function CodeBlockLine({
 
 export {
 	CodeBlock,
+	CodeBlockActions,
+	CodeBlockContent,
+	CodeBlockCopyButton,
 	CodeBlockHeader,
 	CodeBlockTitle,
-	CodeBlockActions,
-	CodeBlockCopyButton,
-	CodeBlockContent,
 };

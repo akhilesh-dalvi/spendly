@@ -10,9 +10,15 @@ import {
 	CyclesControls,
 } from "./cycles-controls";
 
-function ControlsHarness() {
-	const [filter, setFilter] = useState<CycleFilter>("all");
-	const [sort, setSort] = useState<CycleSort>("newest");
+function ControlsHarness({
+	initialFilter = "all",
+	initialSort = "newest",
+}: {
+	initialFilter?: CycleFilter;
+	initialSort?: CycleSort;
+}) {
+	const [filter, setFilter] = useState<CycleFilter>(initialFilter);
+	const [sort, setSort] = useState<CycleSort>(initialSort);
 	const [budget, setBudget] = useState(false);
 	return (
 		<CyclesControls
@@ -27,13 +33,16 @@ function ControlsHarness() {
 }
 
 describe("CyclesControls", () => {
-	it("switches every filter and exposes the selected state", async () => {
-		render(<ControlsHarness />);
-		const interaction = userEvent.setup();
-		expect(
-			screen.getByRole("tablist", { name: "Cycle filter" })
-		).toBeInTheDocument();
-		for (const name of ["Current", "Upcoming", "History", "All"]) {
+	it.each(["Current", "Upcoming", "History", "All"])(
+		"switches to %s and exposes the selected state",
+		async (name) => {
+			render(
+				<ControlsHarness initialFilter={name === "All" ? "current" : "all"} />
+			);
+			const interaction = userEvent.setup();
+			expect(
+				screen.getByRole("tablist", { name: "Cycle filter" })
+			).toBeInTheDocument();
 			await interaction.click(screen.getByRole("button", { name }));
 			expect(screen.getByRole("button", { name })).toHaveAttribute(
 				"aria-selected",
@@ -49,17 +58,17 @@ describe("CyclesControls", () => {
 				);
 			}
 		}
-	});
+	);
 
-	it("selects every sorting mode through the real Radix listbox", async () => {
-		render(<ControlsHarness />);
-		const interaction = userEvent.setup();
-		for (const label of [
-			"Oldest first",
-			"Highest planned",
-			"Highest spent",
-			"Newest first",
-		]) {
+	it.each(["Oldest first", "Highest planned", "Highest spent", "Newest first"])(
+		"selects %s through the real Radix listbox",
+		async (label) => {
+			render(
+				<ControlsHarness
+					initialSort={label === "Newest first" ? "oldest" : "newest"}
+				/>
+			);
+			const interaction = userEvent.setup();
 			await interaction.click(
 				screen.getByRole("combobox", { name: "Sort cycles" })
 			);
@@ -68,17 +77,17 @@ describe("CyclesControls", () => {
 				screen.getByRole("combobox", { name: "Sort cycles" })
 			).toHaveTextContent(label);
 		}
-	});
+	);
 
 	it("supports keyboard selection and toggles the budget filter on and off", async () => {
 		const onSortChange = vi.fn();
 		const onBudgetOnlyChange = vi.fn();
 		const props = {
-			selectedFilter: "all" as const,
-			selectedSort: "newest" as const,
+			onBudgetOnlyChange,
 			onFilterChange: vi.fn(),
 			onSortChange,
-			onBudgetOnlyChange,
+			selectedFilter: "all" as const,
+			selectedSort: "newest" as const,
 		};
 		const view = render(<CyclesControls {...props} budgetOnly={false} />);
 		const interaction = userEvent.setup();

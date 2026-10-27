@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import type { z } from "zod";
+import { repeatAsync } from "../async-iteration.js";
 import type { BackendCommandContext } from "../client/convex-client.js";
 import { parseDate, resolveCommandDate } from "../domain/dates.js";
 import {
@@ -810,18 +811,17 @@ export const runExpenseEdit = async (
 		let editOptions = options;
 		let expectedRevision = providedRevision ?? 0;
 		let input: Record<string, unknown> = {};
-		for (;;) {
-			const resolved = await resolveExpenseEditRequest({
+		for await (const resolved of repeatAsync(() =>
+			resolveExpenseEditRequest({
 				context,
 				expenseId: selectedExpenseId,
 				input: editOptions,
 				prompter,
 				providedRevision,
 				runtime,
-			});
-			expectedRevision = resolved.expectedRevision;
-			selectedExpenseId = resolved.expenseId;
-			input = resolved.input;
+			})
+		)) {
+			({ expectedRevision, expenseId: selectedExpenseId, input } = resolved);
 
 			if (!(dryRun || prompter)) {
 				break;
@@ -875,11 +875,11 @@ export const runExpenseEdit = async (
 				error instanceof CliError &&
 				error.code === "EXPENSE_REVISION_CONFLICT"
 			) {
-				throw new CliError(
+				throw CliError.fromCause(
+					error,
 					"EXPENSE_REVISION_CONFLICT",
 					"The expense changed after it was read; read it again and rerun the dry run",
 					{
-						cause: error,
 						details: { expectedRevision },
 					}
 				);
@@ -1000,7 +1000,7 @@ export const runExpenseDelete = async (
 			);
 		}
 
-		let confirmationToken = options.confirmationToken;
+		let { confirmationToken } = options;
 		let expectedRevision = providedRevision;
 		if (!globalOptions.nonInteractive) {
 			const confirmation = await resolveHumanDeleteConfirmation({
@@ -1009,8 +1009,7 @@ export const runExpenseDelete = async (
 				expectedRevision,
 				expenseId: resolvedExpenseId,
 			});
-			confirmationToken = confirmation.confirmationToken;
-			expectedRevision = confirmation.expectedRevision;
+			({ confirmationToken, expectedRevision } = confirmation);
 			const confirmed = runtime.confirm
 				? await runtime.confirm(confirmation.message)
 				: await (await getPrompter(globalOptions, runtime, true)).confirm({

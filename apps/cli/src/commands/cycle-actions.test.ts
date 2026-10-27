@@ -44,25 +44,25 @@ const createTestRuntime = (
 		args: Readonly<Record<string, unknown>>;
 	}> = [];
 	const responses: Record<string, unknown> = {
+		"cli/v1/cycles:create": { copiedCategories: [], cycle },
 		"cli/v1/cycles:get": cycle,
 		"cli/v1/cycles:previewCreate": proposal,
-		"cli/v1/cycles:create": { cycle, copiedCategories: [] },
-		"cli/v1/cycles:previewUpdate": {
-			before: cycle,
-			after: { ...cycle, name: "Renamed", revision: 2 },
-		},
-		"cli/v1/cycles:update": { ...cycle, name: "Renamed", revision: 2 },
 		"cli/v1/cycles:previewDelete": deletionPreview,
+		"cli/v1/cycles:previewUpdate": {
+			after: { ...cycle, name: "Renamed", revision: 2 },
+			before: cycle,
+		},
 		"cli/v1/cycles:remove": { cycle, deleted: true, deletedCategoryCount: 2 },
-		"cli/v1/resources:listCycles": [cycle],
+		"cli/v1/cycles:update": { ...cycle, name: "Renamed", revision: 2 },
 		"cli/v1/resources:listCategories": [],
+		"cli/v1/resources:listCycles": [cycle],
 		...options.responses,
 	};
 	const execute: BackendQuery & BackendMutation = async <Result>(
 		name: string,
 		args: Readonly<Record<string, unknown>>
 	): Promise<Result> => {
-		calls.push({ name, args });
+		calls.push({ args, name });
 		if (!(name in responses)) {
 			throw new Error(`Unexpected operation ${name}`);
 		}
@@ -119,11 +119,11 @@ const createTestRuntime = (
 	};
 	return {
 		calls,
-		queryNames,
 		mutationNames,
+		queryNames,
 		runtime,
-		stdout: () => stdout,
 		stderr: () => stderr,
+		stdout: () => stdout,
 	};
 };
 
@@ -136,11 +136,16 @@ const scriptedPrompter = (
 		confirm?: boolean[];
 	} = {}
 ): InteractivePrompter => ({
-	text: async (options) =>
-		await Promise.resolve(answers.text?.shift() ?? options.initialValue ?? ""),
+	confirm: async () => await Promise.resolve(answers.confirm?.shift() ?? true),
 	date: async (options) =>
 		await Promise.resolve(
 			answers.date?.shift() ?? options.initialValue ?? "2026-09-01"
+		),
+	multiselect: async <Value extends string>(
+		options: import("../input/types.js").MultiSelectPromptOptions<Value>
+	) =>
+		await Promise.resolve(
+			(answers.multiselect?.shift() ?? options.initialValues ?? []) as Value[]
 		),
 	select: async <Value extends string>(
 		options: import("../input/types.js").SelectPromptOptions<Value>
@@ -154,25 +159,20 @@ const scriptedPrompter = (
 		}
 		return await Promise.resolve(value as Value);
 	},
-	multiselect: async <Value extends string>(
-		options: import("../input/types.js").MultiSelectPromptOptions<Value>
-	) =>
-		await Promise.resolve(
-			(answers.multiselect?.shift() ?? options.initialValues ?? []) as Value[]
-		),
-	confirm: async () => await Promise.resolve(answers.confirm?.shift() ?? true),
+	text: async (options) =>
+		await Promise.resolve(answers.text?.shift() ?? options.initialValue ?? ""),
 });
 
 const sourceCategory = {
-	id: "food",
+	categoryType: null,
+	createdAt: cycle.createdAt,
 	cycleId: cycle.id,
+	icon: null,
+	id: "food",
+	isHidden: false,
 	name: "Food",
 	order: 0,
 	plannedAmount: 200,
-	icon: null,
-	isHidden: false,
-	categoryType: null,
-	createdAt: cycle.createdAt,
 };
 
 const accessibleCopyPrompter = (
@@ -397,16 +397,19 @@ describe("cycle CLI commands", () => {
 			copySnapshot,
 			"--dry-run",
 		],
-	])("rejects invalid copy snapshot usage before backend calls: %j", async (flags) => {
-		const test = createTestRuntime();
-		expect(
-			await runCli(
-				["cycles", "add", ...createFlags, ...flags, ...machine],
-				test.runtime
-			)
-		).toBe(CLI_EXIT_CODE.invalidInput);
-		expect(test.calls).toHaveLength(0);
-	});
+	])(
+		"rejects invalid copy snapshot usage before backend calls: %j",
+		async (flags) => {
+			const test = createTestRuntime();
+			expect(
+				await runCli(
+					["cycles", "add", ...createFlags, ...flags, ...machine],
+					test.runtime
+				)
+			).toBe(CLI_EXIT_CODE.invalidInput);
+			expect(test.calls).toHaveLength(0);
+		}
+	);
 	it("replays guided mixed clear/set plans even though flags group amount overrides before clears", async () => {
 		const travel = {
 			...sourceCategory,
@@ -416,8 +419,8 @@ describe("cycle CLI commands", () => {
 		};
 		const test = createTestRuntime({
 			prompter: scriptedPrompter({
-				select: ["all", "clear", "set"],
 				confirm: [false, true],
+				select: ["all", "clear", "set"],
 				text: ["0"],
 			}),
 			responses: {
@@ -433,7 +436,7 @@ describe("cycle CLI commands", () => {
 			if (requests.length === 1) {
 				throw new CliError("NETWORK_ERROR", "Saved, response lost");
 			}
-			return await Promise.resolve({ cycle, copiedCategories: [] } as Result);
+			return await Promise.resolve({ copiedCategories: [], cycle } as Result);
 		};
 		expect(
 			await runCli(
@@ -475,77 +478,77 @@ describe("cycle CLI commands", () => {
 		).toBe(CLI_EXIT_CODE.success);
 		expect(requests[1]).toEqual(requests[0]);
 	});
-	it.each([
-		"no-prefill",
-		"copy-none",
-	] as const)("can replay the exact guided creation payload: %s", async (mode) => {
-		const test = createTestRuntime({
-			prompter: scriptedPrompter({
-				select: mode === "copy-none" ? ["none"] : ["all", "keep"],
-				confirm: mode === "copy-none" ? [true] : [false, true],
-			}),
-			responses: { "cli/v1/resources:listCategories": [sourceCategory] },
-		});
-		const requests: Readonly<Record<string, unknown>>[] = [];
-		test.runtime.backendMutation = async <Result>(
-			name: string,
-			args: Readonly<Record<string, unknown>>
-		): Promise<Result> => {
-			if (name !== "cli/v1/cycles:create") {
-				throw new Error(`Unexpected mutation ${name}`);
-			}
-			requests.push(args);
-			if (requests.length === 1) {
-				throw new CliError("NETWORK_ERROR", "Saved, response lost");
-			}
-			return await Promise.resolve({ cycle, copiedCategories: [] } as Result);
-		};
-		const optionalFlags =
-			mode === "copy-none" ? ["--include-planned-amounts"] : [];
-		expect(
-			await runCli(
-				[
-					"cycles",
-					"add",
-					...createFlags,
-					"--copy-from-cycle-id",
-					cycle.id,
-					...optionalFlags,
-					"--interactive",
-				],
-				test.runtime
-			)
-		).toBe(CLI_EXIT_CODE.temporary);
-		const recoveryFlags =
-			mode === "copy-none"
-				? ["--without-categories"]
-				: [
-						"--copy-category-id",
-						sourceCategory.id,
-						"--clear-planned-amount",
-						sourceCategory.id,
-					];
-		expect(
-			await runCli(
-				[
-					"cycles",
-					"add",
-					...createFlags,
-					"--copy-from-cycle-id",
-					cycle.id,
-					...recoveryFlags,
-					"--if-copy-snapshot",
-					copySnapshot,
-					"--idempotency-key",
-					"generated-cycle-key",
-					"--non-interactive",
-				],
-				test.runtime
-			)
-		).toBe(CLI_EXIT_CODE.success);
-		expect(requests).toHaveLength(2);
-		expect(requests[1]).toEqual(requests[0]);
-	});
+	it.each(["no-prefill", "copy-none"] as const)(
+		"can replay the exact guided creation payload: %s",
+		async (mode) => {
+			const test = createTestRuntime({
+				prompter: scriptedPrompter({
+					confirm: mode === "copy-none" ? [true] : [false, true],
+					select: mode === "copy-none" ? ["none"] : ["all", "keep"],
+				}),
+				responses: { "cli/v1/resources:listCategories": [sourceCategory] },
+			});
+			const requests: Readonly<Record<string, unknown>>[] = [];
+			test.runtime.backendMutation = async <Result>(
+				name: string,
+				args: Readonly<Record<string, unknown>>
+			): Promise<Result> => {
+				if (name !== "cli/v1/cycles:create") {
+					throw new Error(`Unexpected mutation ${name}`);
+				}
+				requests.push(args);
+				if (requests.length === 1) {
+					throw new CliError("NETWORK_ERROR", "Saved, response lost");
+				}
+				return await Promise.resolve({ copiedCategories: [], cycle } as Result);
+			};
+			const optionalFlags =
+				mode === "copy-none" ? ["--include-planned-amounts"] : [];
+			expect(
+				await runCli(
+					[
+						"cycles",
+						"add",
+						...createFlags,
+						"--copy-from-cycle-id",
+						cycle.id,
+						...optionalFlags,
+						"--interactive",
+					],
+					test.runtime
+				)
+			).toBe(CLI_EXIT_CODE.temporary);
+			const recoveryFlags =
+				mode === "copy-none"
+					? ["--without-categories"]
+					: [
+							"--copy-category-id",
+							sourceCategory.id,
+							"--clear-planned-amount",
+							sourceCategory.id,
+						];
+			expect(
+				await runCli(
+					[
+						"cycles",
+						"add",
+						...createFlags,
+						"--copy-from-cycle-id",
+						cycle.id,
+						...recoveryFlags,
+						"--if-copy-snapshot",
+						copySnapshot,
+						"--idempotency-key",
+						"generated-cycle-key",
+						"--non-interactive",
+					],
+					test.runtime
+				)
+			).toBe(CLI_EXIT_CODE.success);
+			expect(requests).toHaveLength(2);
+			expect(requests[1]).toEqual(requests[0]);
+		}
+	);
 	it("routes reads and financial previews as queries but deletion confirmations as mutations", async () => {
 		const read = createTestRuntime();
 		const create = createTestRuntime();
@@ -591,51 +594,51 @@ describe("cycle CLI commands", () => {
 		expect(deletion.mutationNames).toEqual(["cli/v1/cycles:previewDelete"]);
 		expect(deletion.queryNames).toEqual([]);
 	});
-	it.each([
-		"edit",
-		"delete",
-	] as const)("allows explicit non-interactive %s recovery without pre-reading changed or deleted records", async (operation) => {
-		const test = createTestRuntime({
-			prompter: scriptedPrompter(),
-			responses: {
-				"cli/v1/cycles:get": new CliError(
-					"RESOURCE_NOT_FOUND",
-					"Record no longer exists"
-				),
-				"cli/v1/cycles:previewUpdate": new CliError(
-					"CYCLE_REVISION_CONFLICT",
-					"Revision changed"
-				),
-				"cli/v1/cycles:previewDelete": new CliError(
-					"RESOURCE_NOT_FOUND",
-					"Record no longer exists"
-				),
-			},
-		});
-		const fields =
-			operation === "edit"
-				? ["--name", "Renamed"]
-				: ["--confirmation-token", "confirmation-token"];
-		const exitCode = await runCli(
-			[
-				"cycles",
-				operation,
-				cycle.id,
-				...fields,
-				"--if-revision",
-				"1",
-				"--idempotency-key",
-				"original-cycle-key",
-				"--non-interactive",
-			],
-			test.runtime
-		);
-		expect(exitCode).toBe(CLI_EXIT_CODE.success);
-		expect(test.calls).toHaveLength(1);
-		expect(test.calls[0]?.name).toBe(
-			operation === "edit" ? "cli/v1/cycles:update" : "cli/v1/cycles:remove"
-		);
-	});
+	it.each(["edit", "delete"] as const)(
+		"allows explicit non-interactive %s recovery without pre-reading changed or deleted records",
+		async (operation) => {
+			const test = createTestRuntime({
+				prompter: scriptedPrompter(),
+				responses: {
+					"cli/v1/cycles:get": new CliError(
+						"RESOURCE_NOT_FOUND",
+						"Record no longer exists"
+					),
+					"cli/v1/cycles:previewDelete": new CliError(
+						"RESOURCE_NOT_FOUND",
+						"Record no longer exists"
+					),
+					"cli/v1/cycles:previewUpdate": new CliError(
+						"CYCLE_REVISION_CONFLICT",
+						"Revision changed"
+					),
+				},
+			});
+			const fields =
+				operation === "edit"
+					? ["--name", "Renamed"]
+					: ["--confirmation-token", "confirmation-token"];
+			const exitCode = await runCli(
+				[
+					"cycles",
+					operation,
+					cycle.id,
+					...fields,
+					"--if-revision",
+					"1",
+					"--idempotency-key",
+					"original-cycle-key",
+					"--non-interactive",
+				],
+				test.runtime
+			);
+			expect(exitCode).toBe(CLI_EXIT_CODE.success);
+			expect(test.calls).toHaveLength(1);
+			expect(test.calls[0]?.name).toBe(
+				operation === "edit" ? "cli/v1/cycles:update" : "cli/v1/cycles:remove"
+			);
+		}
+	);
 	it("preserves a human deletion token and key when the response is uncertain", async () => {
 		const test = createTestRuntime({
 			prompter: scriptedPrompter(),
@@ -652,38 +655,38 @@ describe("cycle CLI commands", () => {
 		expect(test.stderr()).toContain('"expectedRevision":1');
 		expect(test.stderr()).toContain('"idempotencyKey":"generated-cycle-key"');
 	});
-	it.each([
-		"none",
-		"clear-plan",
-	] as const)("supports accessible category copying: %s", async (mode) => {
-		const test = createTestRuntime({
-			prompter: accessibleCopyPrompter(mode),
-			responses: { "cli/v1/resources:listCategories": [sourceCategory] },
-		});
-		const exitCode = await runCli(
-			[
-				"cycles",
-				"add",
-				...createFlags,
-				"--copy-from-cycle-id",
-				cycle.id,
-				"--include-planned-amounts",
-				"--interactive",
-				"--accessible",
-				"--dry-run",
-			],
-			test.runtime
-		);
-		expect(exitCode).toBe(CLI_EXIT_CODE.success);
-		const args = test.calls.find(
-			(call) => call.name === "cli/v1/cycles:previewCreate"
-		)?.args;
-		if (mode === "none") {
-			expect(args?.copyCategoryIds).toEqual([]);
-		} else {
-			expect(args?.categoryPlannedOverrides).toEqual([{ id: "food" }]);
+	it.each(["none", "clear-plan"] as const)(
+		"supports accessible category copying: %s",
+		async (mode) => {
+			const test = createTestRuntime({
+				prompter: accessibleCopyPrompter(mode),
+				responses: { "cli/v1/resources:listCategories": [sourceCategory] },
+			});
+			const exitCode = await runCli(
+				[
+					"cycles",
+					"add",
+					...createFlags,
+					"--copy-from-cycle-id",
+					cycle.id,
+					"--include-planned-amounts",
+					"--interactive",
+					"--accessible",
+					"--dry-run",
+				],
+				test.runtime
+			);
+			expect(exitCode).toBe(CLI_EXIT_CODE.success);
+			const args = test.calls.find(
+				(call) => call.name === "cli/v1/cycles:previewCreate"
+			)?.args;
+			if (mode === "none") {
+				expect(args?.copyCategoryIds).toEqual([]);
+			} else {
+				expect(args?.categoryPlannedOverrides).toEqual([{ id: "food" }]);
+			}
 		}
-	});
+	);
 	it("retains resolved human recovery inputs when an edit response is lost", async () => {
 		const test = createTestRuntime({
 			prompter: scriptedPrompter(),
@@ -835,9 +838,9 @@ describe("cycle CLI commands", () => {
 	it("guides cycle editing using the fetched revision", async () => {
 		const test = createTestRuntime({
 			prompter: scriptedPrompter({
+				date: ["2026-09-01", "2026-10-01"],
 				select: [cycle.id],
 				text: ["Renamed"],
-				date: ["2026-09-01", "2026-10-01"],
 			}),
 		});
 		const exitCode = await runCli(
@@ -851,8 +854,8 @@ describe("cycle CLI commands", () => {
 		).toMatchObject({
 			cycleId: cycle.id,
 			expectedRevision: 1,
-			name: "Renamed",
 			idempotencyKey: "generated-cycle-key",
+			name: "Renamed",
 		});
 	});
 	it("does not commit a human deletion when confirmation is declined", async () => {
@@ -875,9 +878,9 @@ describe("cycle CLI commands", () => {
 		expect(
 			test.calls.find((call) => call.name === "cli/v1/cycles:remove")?.args
 		).toMatchObject({
+			confirmationToken: "confirmation-token",
 			cycleId: cycle.id,
 			expectedRevision: 1,
-			confirmationToken: "confirmation-token",
 			idempotencyKey: "generated-cycle-key",
 		});
 	});
@@ -905,54 +908,54 @@ describe("cycle CLI commands", () => {
 		expect(JSON.parse(test.stdout())).toMatchObject({
 			error: {
 				code: "NETWORK_ERROR",
-				details: { outcome: "unknown", idempotencyKey: "cycle-create-key" },
+				details: { idempotencyKey: "cycle-create-key", outcome: "unknown" },
 			},
 		});
 		expect(
 			test.calls.filter((call) => call.name === "cli/v1/cycles:create")
 		).toHaveLength(1);
 	});
-	it.each([
-		"DELETION_CONFIRMATION_EXPIRED",
-		"DELETION_CONFIRMATION_INVALID",
-	])("reports %s without obtaining a replacement confirmation", async (code) => {
-		const test = createTestRuntime({
-			responses: {
-				"cli/v1/cycles:remove": new ConvexError({
-					code,
-					details: {},
-					message: "Confirmation rejected",
-					retryable: false,
-				}),
-			},
-		});
-		const exitCode = await runCli(
-			[
-				"cycles",
-				"delete",
-				cycle.id,
-				"--confirmation-token",
-				"confirmation-token",
-				"--if-revision",
-				"1",
-				"--idempotency-key",
-				"cycle-delete-key",
-				...machine,
-			],
-			test.runtime
-		);
-		expect(exitCode).toBe(CLI_EXIT_CODE.confirmation);
-		expect(JSON.parse(test.stdout())).toMatchObject({ error: { code } });
-		expect(test.calls.map((call) => call.name)).not.toContain(
-			"cli/v1/cycles:previewDelete"
-		);
-	});
+	it.each(["DELETION_CONFIRMATION_EXPIRED", "DELETION_CONFIRMATION_INVALID"])(
+		"reports %s without obtaining a replacement confirmation",
+		async (code) => {
+			const test = createTestRuntime({
+				responses: {
+					"cli/v1/cycles:remove": new ConvexError({
+						code,
+						details: {},
+						message: "Confirmation rejected",
+						retryable: false,
+					}),
+				},
+			});
+			const exitCode = await runCli(
+				[
+					"cycles",
+					"delete",
+					cycle.id,
+					"--confirmation-token",
+					"confirmation-token",
+					"--if-revision",
+					"1",
+					"--idempotency-key",
+					"cycle-delete-key",
+					...machine,
+				],
+				test.runtime
+			);
+			expect(exitCode).toBe(CLI_EXIT_CODE.confirmation);
+			expect(JSON.parse(test.stdout())).toMatchObject({ error: { code } });
+			expect(test.calls.map((call) => call.name)).not.toContain(
+				"cli/v1/cycles:previewDelete"
+			);
+		}
+	);
 	it("launches guided cycle creation from Planning data and allows cancellation", async () => {
 		const test = createTestRuntime({
 			prompter: scriptedPrompter({
+				confirm: [false],
 				select: ["planning", "cycles add", "none"],
 				text: ["September", "2026-09-01", "2026-10-01"],
-				confirm: [false],
 			}),
 		});
 		const exitCode = await runCli(["--interactive"], test.runtime);
@@ -975,59 +978,58 @@ describe("cycle CLI commands", () => {
 		expect(test.stdout()).toContain("--end-date-exclusive");
 		expect(test.calls).toEqual([]);
 	});
-	it.each([
-		"CYCLE_OVERLAP",
-		"CYCLE_HAS_EXPENSES",
-		"CYCLE_REVISION_CONFLICT",
-	])("reports %s as a stable conflict rather than an internal error", async (code) => {
-		const test = createTestRuntime({
-			responses: {
-				"cli/v1/cycles:update": new ConvexError({
-					code,
-					details: {},
-					message: "Cycle conflict",
-					retryable: false,
-				}),
-			},
-		});
-		const exitCode = await runCli(
-			[
-				"cycles",
-				"edit",
-				cycle.id,
-				"--name",
-				"Renamed",
-				"--if-revision",
-				"1",
-				"--idempotency-key",
-				"cycle-update-key",
-				...machine,
-			],
-			test.runtime
-		);
-		expect(exitCode).toBe(CLI_EXIT_CODE.conflict);
-		expect(JSON.parse(test.stdout())).toMatchObject({
-			error: { code, retryable: false },
-		});
-	});
+	it.each(["CYCLE_OVERLAP", "CYCLE_HAS_EXPENSES", "CYCLE_REVISION_CONFLICT"])(
+		"reports %s as a stable conflict rather than an internal error",
+		async (code) => {
+			const test = createTestRuntime({
+				responses: {
+					"cli/v1/cycles:update": new ConvexError({
+						code,
+						details: {},
+						message: "Cycle conflict",
+						retryable: false,
+					}),
+				},
+			});
+			const exitCode = await runCli(
+				[
+					"cycles",
+					"edit",
+					cycle.id,
+					"--name",
+					"Renamed",
+					"--if-revision",
+					"1",
+					"--idempotency-key",
+					"cycle-update-key",
+					...machine,
+				],
+				test.runtime
+			);
+			expect(exitCode).toBe(CLI_EXIT_CODE.conflict);
+			expect(JSON.parse(test.stdout())).toMatchObject({
+				error: { code, retryable: false },
+			});
+		}
+	);
 	it("guides category copying and preserves an empty interactive selection", async () => {
-		const sourceCategory = {
-			id: "food",
+		const copiedCategory = {
+			categoryType: null,
+			createdAt: cycle.createdAt,
 			cycleId: cycle.id,
+			icon: null,
+			id: "food",
+			isHidden: false,
 			name: "Food",
 			order: 0,
 			plannedAmount: 200,
-			icon: null,
-			isHidden: false,
-			categoryType: null,
-			createdAt: cycle.createdAt,
 		};
 		const test = createTestRuntime({
 			prompter: scriptedPrompter({
-				select: [cycle.id, "subset"],
 				multiselect: [[]],
+				select: [cycle.id, "subset"],
 			}),
-			responses: { "cli/v1/resources:listCategories": [sourceCategory] },
+			responses: { "cli/v1/resources:listCategories": [copiedCategory] },
 		});
 		const exitCode = await runCli(
 			["cycles", "add", ...createFlags, "--interactive", "--dry-run"],
@@ -1038,7 +1040,7 @@ describe("cycle CLI commands", () => {
 		expect(
 			test.calls.find((call) => call.name === "cli/v1/cycles:previewCreate")
 				?.args
-		).toMatchObject({ copyFromCycleId: cycle.id, copyCategoryIds: [] });
+		).toMatchObject({ copyCategoryIds: [], copyFromCycleId: cycle.id });
 	});
 	it("commits deletion only with the exact reviewed token, revision, and key", async () => {
 		const test = createTestRuntime();
@@ -1064,14 +1066,14 @@ describe("cycle CLI commands", () => {
 		});
 		expect(test.calls).toEqual([
 			{
-				name: "cli/v1/cycles:remove",
 				args: {
 					agent: true,
-					cycleId: cycle.id,
 					confirmationToken: "confirmation-token",
+					cycleId: cycle.id,
 					expectedRevision: 1,
 					idempotencyKey: "cycle-delete-key",
 				},
+				name: "cli/v1/cycles:remove",
 			},
 		]);
 	});
@@ -1087,7 +1089,7 @@ describe("cycle CLI commands", () => {
 			meta: { dryRun: true },
 		});
 		expect(test.calls).toEqual([
-			{ name: "cli/v1/cycles:previewDelete", args: { cycleId: cycle.id } },
+			{ args: { cycleId: cycle.id }, name: "cli/v1/cycles:previewDelete" },
 		]);
 	});
 	it("commits an edit using the supplied revision and key without replacing the revision", async () => {
@@ -1114,14 +1116,14 @@ describe("cycle CLI commands", () => {
 		});
 		expect(test.calls).toEqual([
 			{
-				name: "cli/v1/cycles:update",
 				args: {
 					agent: true,
 					cycleId: cycle.id,
-					name: "Renamed",
 					expectedRevision: 1,
 					idempotencyKey: "cycle-update-key",
+					name: "Renamed",
 				},
+				name: "cli/v1/cycles:update",
 			},
 		]);
 	});
@@ -1141,7 +1143,7 @@ describe("cycle CLI commands", () => {
 		);
 		expect(exitCode).toBe(CLI_EXIT_CODE.success);
 		expect(JSON.parse(test.stdout())).toMatchObject({
-			data: { before: cycle, after: { name: "Renamed", revision: 2 } },
+			data: { after: { name: "Renamed", revision: 2 }, before: cycle },
 			meta: { dryRun: true },
 		});
 		expect(test.calls.map((call) => call.name)).not.toContain(
@@ -1165,14 +1167,14 @@ describe("cycle CLI commands", () => {
 		);
 		expect(exitCode).toBe(CLI_EXIT_CODE.success);
 		expect(test.calls[0]?.args).toMatchObject({
-			copyFromCycleId: "source",
 			copyCategoryIds: [],
+			copyFromCycleId: "source",
 		});
 	});
 	it("copies selected categories with planned overrides and explicit clearing", async () => {
 		const copiedCategories = [
-			{ sourceCategoryId: "food", name: "Food", plannedAmount: 200 },
-			{ sourceCategoryId: "travel", name: "Travel", plannedAmount: null },
+			{ name: "Food", plannedAmount: 200, sourceCategoryId: "food" },
+			{ name: "Travel", plannedAmount: null, sourceCategoryId: "travel" },
 		];
 		const test = createTestRuntime({
 			responses: {
@@ -1209,13 +1211,13 @@ describe("cycle CLI commands", () => {
 			data: { copiedCategories },
 		});
 		expect(test.calls[0]?.args).toMatchObject({
-			copyFromCycleId: "source",
-			copyCategoryIds: ["food", "travel"],
-			includePlannedAmounts: true,
 			categoryPlannedOverrides: [
 				{ id: "food", plannedAmount: 200 },
 				{ id: "travel" },
 			],
+			copyCategoryIds: ["food", "travel"],
+			copyFromCycleId: "source",
+			includePlannedAmounts: true,
 		});
 	});
 	it("commits agent creation with a stable idempotency key", async () => {
@@ -1238,14 +1240,14 @@ describe("cycle CLI commands", () => {
 		});
 		expect(test.calls).toEqual([
 			{
-				name: "cli/v1/cycles:create",
 				args: {
 					agent: true,
-					name: "September",
-					startDate: "2026-09-01",
 					endDateExclusive: "2026-10-01",
 					idempotencyKey: "cycle-create-key",
+					name: "September",
+					startDate: "2026-09-01",
 				},
+				name: "cli/v1/cycles:create",
 			},
 		]);
 	});
@@ -1262,12 +1264,12 @@ describe("cycle CLI commands", () => {
 		});
 		expect(test.calls).toEqual([
 			{
-				name: "cli/v1/cycles:previewCreate",
 				args: {
+					endDateExclusive: "2026-10-01",
 					name: "September",
 					startDate: "2026-09-01",
-					endDateExclusive: "2026-10-01",
 				},
+				name: "cli/v1/cycles:previewCreate",
 			},
 		]);
 	});

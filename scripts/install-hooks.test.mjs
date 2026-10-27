@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 const fixtureDirectories = [];
 afterEach(() => {
 	for (const directory of fixtureDirectories.splice(0)) {
-		rmSync(directory, { recursive: true, force: true });
+		rmSync(directory, { force: true, recursive: true });
 	}
 });
 
@@ -30,8 +30,8 @@ const run = (cwd, command, args, env = {}) =>
 		env: {
 			...process.env,
 			CI: "false",
-			NODE_ENV: "development",
 			LEFTHOOK: "1",
+			NODE_ENV: "development",
 			...env,
 		},
 	});
@@ -140,18 +140,18 @@ test("the commit hook formats staged files without staging unrelated edits", () 
 	);
 	writeFileSync(
 		join(root, "package.json"),
-		JSON.stringify({ private: true, "lint-staged": metadata["lint-staged"] })
+		JSON.stringify({ "lint-staged": metadata["lint-staged"], private: true })
 	);
 	copyFileSync(join(projectRoot, "biome.json"), join(root, "biome.json"));
 	copyFileSync(join(projectRoot, "lefthook.yml"), join(root, "lefthook.yml"));
 	const file = join(root, "partial file.json");
 	const initial = `${JSON.stringify(
 		{
-			staged: 0,
 			middle1: 0,
 			middle2: 0,
 			middle3: 0,
 			middle4: 0,
+			staged: 0,
 			unstaged: 0,
 		},
 		null,

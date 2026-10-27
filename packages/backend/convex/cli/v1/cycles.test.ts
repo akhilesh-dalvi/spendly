@@ -1,6 +1,7 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it, vi } from "vitest";
 import { api } from "../../_generated/api";
+import { forEachSequential } from "../../lib/async";
 import schema from "../../schema";
 import { modules } from "../../test.setup";
 
@@ -10,13 +11,13 @@ const setup = async () => {
 	const userId = await client.mutation(api.users.create, {
 		email: "cycle-owner@example.com",
 	});
-	return { test, client, userId };
+	return { client, test, userId };
 };
 
 const input = {
+	endDateExclusive: "2026-10-01",
 	name: "  September  ",
 	startDate: "2026-09-01",
-	endDateExclusive: "2026-10-01",
 };
 
 const expectCode = async (operation: Promise<unknown>, code: string) => {
@@ -46,31 +47,31 @@ const sourceFixture = async () => {
 	const setupResult = await setup();
 	const { client } = setupResult;
 	const source = await client.mutation(api.cycles.create, {
+		endDate: "2026-09-01",
 		name: "August",
 		startDate: "2026-08-01",
-		endDate: "2026-09-01",
 	});
 	if (!source) {
 		throw new Error("Expected source cycle");
 	}
 	const food = await client.mutation(api.categories.create, {
 		cycleId: source._id,
-		name: "Food",
-		plannedAmount: 100,
-		order: 0,
 		icon: "utensils",
 		isHidden: true,
+		name: "Food",
+		order: 0,
+		plannedAmount: 100,
 	});
 	const rent = await client.mutation(api.categories.create, {
 		cycleId: source._id,
 		name: "Rent",
-		plannedAmount: 500,
 		order: 1,
+		plannedAmount: 500,
 	});
 	if (!(food && rent)) {
 		throw new Error("Expected source categories");
 	}
-	return { ...setupResult, source, food, rent };
+	return { ...setupResult, food, rent, source };
 };
 
 describe("authenticated CLI cycle CRUD", () => {
@@ -108,62 +109,63 @@ describe("authenticated CLI cycle CRUD", () => {
 		{ name: "icon", patch: { icon: "car" } },
 		{ name: "visibility", patch: { isHidden: false } },
 		{ name: "order", patch: { order: 20 } },
-	])("rejects an intervening copied-category $name change", async ({
-		patch,
-	}) => {
-		const { client, source, food } = await sourceFixture();
-		const request = {
-			...input,
-			copyFromCycleId: source._id,
-			includePlannedAmounts: true,
-		};
-		const preview = await client.query(
-			api.cli.v1.cycles.previewCreate,
-			request
-		);
-		await client.mutation(api.categories.update, { id: food._id, ...patch });
-		await expectCode(
-			client.mutation(api.cli.v1.cycles.create, {
-				...request,
-				expectedCopySnapshot: preview.copySnapshot,
-				idempotencyKey: "changed-copy-field",
-			}),
-			"CYCLE_COPY_CONFLICT"
-		);
-		expect(
-			await client.query(api.cli.v1.resources.listCycles, {})
-		).toHaveLength(1);
-	});
-	it.each([
-		"add",
-		"delete",
-	] as const)("rejects an intervening category %s when copying all", async (change) => {
-		const { client, source, food } = await sourceFixture();
-		const request = { ...input, copyFromCycleId: source._id };
-		const preview = await client.query(
-			api.cli.v1.cycles.previewCreate,
-			request
-		);
-		if (change === "add") {
-			await client.mutation(api.categories.create, {
-				cycleId: source._id,
-				name: "New category",
-			});
-		} else {
-			await client.mutation(api.categories.remove, { categoryId: food._id });
+	])(
+		"rejects an intervening copied-category $name change",
+		async ({ patch }) => {
+			const { client, source, food } = await sourceFixture();
+			const request = {
+				...input,
+				copyFromCycleId: source._id,
+				includePlannedAmounts: true,
+			};
+			const preview = await client.query(
+				api.cli.v1.cycles.previewCreate,
+				request
+			);
+			await client.mutation(api.categories.update, { id: food._id, ...patch });
+			await expectCode(
+				client.mutation(api.cli.v1.cycles.create, {
+					...request,
+					expectedCopySnapshot: preview.copySnapshot,
+					idempotencyKey: "changed-copy-field",
+				}),
+				"CYCLE_COPY_CONFLICT"
+			);
+			expect(
+				await client.query(api.cli.v1.resources.listCycles, {})
+			).toHaveLength(1);
 		}
-		await expectCode(
-			client.mutation(api.cli.v1.cycles.create, {
-				...request,
-				expectedCopySnapshot: preview.copySnapshot,
-				idempotencyKey: "changed-copy-selection",
-			}),
-			"CYCLE_COPY_CONFLICT"
-		);
-		expect(
-			await client.query(api.cli.v1.resources.listCycles, {})
-		).toHaveLength(1);
-	});
+	);
+	it.each(["add", "delete"] as const)(
+		"rejects an intervening category %s when copying all",
+		async (change) => {
+			const { client, source, food } = await sourceFixture();
+			const request = { ...input, copyFromCycleId: source._id };
+			const preview = await client.query(
+				api.cli.v1.cycles.previewCreate,
+				request
+			);
+			if (change === "add") {
+				await client.mutation(api.categories.create, {
+					cycleId: source._id,
+					name: "New category",
+				});
+			} else {
+				await client.mutation(api.categories.remove, { categoryId: food._id });
+			}
+			await expectCode(
+				client.mutation(api.cli.v1.cycles.create, {
+					...request,
+					expectedCopySnapshot: preview.copySnapshot,
+					idempotencyKey: "changed-copy-selection",
+				}),
+				"CYCLE_COPY_CONFLICT"
+			);
+			expect(
+				await client.query(api.cli.v1.resources.listCycles, {})
+			).toHaveLength(1);
+		}
+	);
 	it("requires a preview snapshot for source copying and permits a freshly reviewed copy", async () => {
 		const { client, source, food } = await sourceFixture();
 		const request = { ...input, copyFromCycleId: source._id };
@@ -188,109 +190,110 @@ describe("authenticated CLI cycle CRUD", () => {
 		});
 		expect(result.copiedCategories).toEqual(after.copiedCategories);
 	});
-	it.each([
-		"subset",
-		"none",
-		"overridden-plan",
-	] as const)("ignores changes that do not change the effective %s copy", async (mode) => {
-		const { client, source, food, rent } = await sourceFixture();
-		const request = {
-			...input,
-			copyFromCycleId: source._id,
-			copyCategoryIds: mode === "none" ? [] : [food._id],
-			includePlannedAmounts: true,
-			...(mode === "overridden-plan"
-				? { categoryPlannedOverrides: [{ id: food._id, plannedAmount: 10 }] }
-				: {}),
-		};
-		const preview = await client.query(
-			api.cli.v1.cycles.previewCreate,
-			request
-		);
-		if (mode === "overridden-plan") {
-			await client.mutation(api.categories.update, {
-				id: food._id,
-				plannedAmount: 999,
-			});
-		} else {
-			await client.mutation(api.categories.update, {
-				id: rent._id,
-				name: "Unselected change",
-			});
-			await client.mutation(api.categories.create, {
-				cycleId: source._id,
-				name: "Unselected new category",
-			});
-		}
-		const result = await client.mutation(api.cli.v1.cycles.create, {
-			...request,
-			expectedCopySnapshot: preview.copySnapshot,
-			idempotencyKey: "unchanged-effective-copy",
-		});
-		expect(result.copiedCategories).toEqual(preview.copiedCategories);
-	});
-	it.each([
-		"source",
-		"selection",
-		"override",
-	] as const)("rejects using a reviewed snapshot with changed %s inputs", async (change) => {
-		const { client, source, food } = await sourceFixture();
-		const request = {
-			...input,
-			copyFromCycleId: source._id,
-			includePlannedAmounts: true,
-		};
-		const preview = await client.query(
-			api.cli.v1.cycles.previewCreate,
-			request
-		);
-		let changed = { ...request };
-		if (change === "source") {
-			const otherSource = await client.mutation(api.cycles.create, {
-				name: "July",
-				startDate: "2026-07-01",
-				endDate: "2026-08-01",
-			});
-			changed = { ...request, copyFromCycleId: otherSource._id };
-		}
-		await expectCode(
-			client.mutation(api.cli.v1.cycles.create, {
-				...changed,
-				...(change === "selection" ? { copyCategoryIds: [food._id] } : {}),
-				...(change === "override"
-					? { categoryPlannedOverrides: [{ id: food._id, plannedAmount: 777 }] }
-					: {}),
-				expectedCopySnapshot: preview.copySnapshot,
-				idempotencyKey: "changed-reviewed-copy-input",
-			}),
-			"CYCLE_COPY_CONFLICT"
-		);
-	});
-	it.each([
-		"empty-source",
-		"explicit-none",
-		"no-source-guard",
-	] as const)("rejects missing or irrelevant guards for %s", async (mode) => {
-		const { client, source, food, rent } = await sourceFixture();
-		if (mode === "empty-source") {
-			await client.mutation(api.categories.remove, { categoryId: food._id });
-			await client.mutation(api.categories.remove, { categoryId: rent._id });
-		}
-		await expectCode(
-			client.mutation(api.cli.v1.cycles.create, {
+	it.each(["subset", "none", "overridden-plan"] as const)(
+		"ignores changes that do not change the effective %s copy",
+		async (mode) => {
+			const { client, source, food, rent } = await sourceFixture();
+			const request = {
 				...input,
-				...(mode === "no-source-guard"
-					? { expectedCopySnapshot: "a".repeat(64) }
-					: { copyFromCycleId: source._id }),
-				...(mode === "explicit-none" ? { copyCategoryIds: [] } : {}),
-				idempotencyKey: "invalid-copy-guard",
-			}),
-			"INVALID_INPUT"
-		);
-		expect(
-			await client.query(api.cli.v1.resources.listCycles, {})
-		).toHaveLength(1);
-	});
+				copyCategoryIds: mode === "none" ? [] : [food._id],
+				copyFromCycleId: source._id,
+				includePlannedAmounts: true,
+				...(mode === "overridden-plan"
+					? { categoryPlannedOverrides: [{ id: food._id, plannedAmount: 10 }] }
+					: {}),
+			};
+			const preview = await client.query(
+				api.cli.v1.cycles.previewCreate,
+				request
+			);
+			if (mode === "overridden-plan") {
+				await client.mutation(api.categories.update, {
+					id: food._id,
+					plannedAmount: 999,
+				});
+			} else {
+				await client.mutation(api.categories.update, {
+					id: rent._id,
+					name: "Unselected change",
+				});
+				await client.mutation(api.categories.create, {
+					cycleId: source._id,
+					name: "Unselected new category",
+				});
+			}
+			const result = await client.mutation(api.cli.v1.cycles.create, {
+				...request,
+				expectedCopySnapshot: preview.copySnapshot,
+				idempotencyKey: "unchanged-effective-copy",
+			});
+			expect(result.copiedCategories).toEqual(preview.copiedCategories);
+		}
+	);
+	it.each(["source", "selection", "override"] as const)(
+		"rejects using a reviewed snapshot with changed %s inputs",
+		async (change) => {
+			const { client, source, food } = await sourceFixture();
+			const request = {
+				...input,
+				copyFromCycleId: source._id,
+				includePlannedAmounts: true,
+			};
+			const preview = await client.query(
+				api.cli.v1.cycles.previewCreate,
+				request
+			);
+			let changed = { ...request };
+			if (change === "source") {
+				const otherSource = await client.mutation(api.cycles.create, {
+					endDate: "2026-08-01",
+					name: "July",
+					startDate: "2026-07-01",
+				});
+				changed = { ...request, copyFromCycleId: otherSource._id };
+			}
+			await expectCode(
+				client.mutation(api.cli.v1.cycles.create, {
+					...changed,
+					...(change === "selection" ? { copyCategoryIds: [food._id] } : {}),
+					...(change === "override"
+						? {
+								categoryPlannedOverrides: [
+									{ id: food._id, plannedAmount: 777 },
+								],
+							}
+						: {}),
+					expectedCopySnapshot: preview.copySnapshot,
+					idempotencyKey: "changed-reviewed-copy-input",
+				}),
+				"CYCLE_COPY_CONFLICT"
+			);
+		}
+	);
+	it.each(["empty-source", "explicit-none", "no-source-guard"] as const)(
+		"rejects missing or irrelevant guards for %s",
+		async (mode) => {
+			const { client, source, food, rent } = await sourceFixture();
+			if (mode === "empty-source") {
+				await client.mutation(api.categories.remove, { categoryId: food._id });
+				await client.mutation(api.categories.remove, { categoryId: rent._id });
+			}
+			await expectCode(
+				client.mutation(api.cli.v1.cycles.create, {
+					...input,
+					...(mode === "no-source-guard"
+						? { expectedCopySnapshot: "a".repeat(64) }
+						: { copyFromCycleId: source._id }),
+					...(mode === "explicit-none" ? { copyCategoryIds: [] } : {}),
+					idempotencyKey: "invalid-copy-guard",
+				}),
+				"INVALID_INPUT"
+			);
+			expect(
+				await client.query(api.cli.v1.resources.listCycles, {})
+			).toHaveLength(1);
+		}
+	);
 	it("replays an already committed copy after its source is removed without refreshing the snapshot", async () => {
 		const { client, source } = await sourceFixture();
 		const inputWithSource = { ...input, copyFromCycleId: source._id };
@@ -337,8 +340,8 @@ describe("authenticated CLI cycle CRUD", () => {
 			throw new Error("Expected category type");
 		}
 		await client.mutation(api.categories.update, {
-			id: food._id,
 			categoryTypeId: type._id,
+			id: food._id,
 		});
 		await expectCode(
 			client.mutation(api.cli.v1.cycles.create, {
@@ -349,124 +352,124 @@ describe("authenticated CLI cycle CRUD", () => {
 			"CYCLE_COPY_CONFLICT"
 		);
 	});
-	it.each([
-		"foreign-category",
-		"cross-cycle-expense",
-	] as const)("blocks deletion of inconsistent legacy relationships: %s", async (scenario) => {
-		const { test, client, source, food } = await sourceFixture();
-		if (scenario === "foreign-category") {
-			const foreign = test.withIdentity({ subject: "foreign-cycle-owner" });
-			const foreignUserId = await foreign.mutation(api.users.create, {
-				email: "foreign-cycle-owner@example.com",
-			});
-			await test.run(async (ctx) => {
-				await ctx.db.patch(food._id, { userId: foreignUserId });
-			});
-		} else {
-			await client.mutation(api.cli.v1.cycles.create, {
+	it.each(["foreign-category", "cross-cycle-expense"] as const)(
+		"blocks deletion of inconsistent legacy relationships: %s",
+		async (scenario) => {
+			const { test, client, source, food } = await sourceFixture();
+			if (scenario === "foreign-category") {
+				const foreign = test.withIdentity({ subject: "foreign-cycle-owner" });
+				const foreignUserId = await foreign.mutation(api.users.create, {
+					email: "foreign-cycle-owner@example.com",
+				});
+				await test.run(async (ctx) => {
+					await ctx.db.patch(food._id, { userId: foreignUserId });
+				});
+			} else {
+				await client.mutation(api.cli.v1.cycles.create, {
+					...input,
+					idempotencyKey: "linked-cycle-create",
+				});
+				const expense = await client.mutation(api.cli.v1.expenses.create, {
+					amount: 10,
+					date: "2026-09-02",
+					idempotencyKey: "legacy-linked-expense",
+				});
+				await test.run(async (ctx) => {
+					await ctx.db.patch(expense.id, { categoryId: food._id });
+				});
+			}
+			await expectCode(
+				client.mutation(api.cli.v1.cycles.previewDelete, {
+					cycleId: source._id,
+				}),
+				scenario === "foreign-category"
+					? "RESOURCE_NOT_FOUND"
+					: "CYCLE_HAS_EXPENSES"
+			);
+			expect(
+				await client.query(api.cli.v1.cycles.get, { cycleId: source._id })
+			).toMatchObject({ id: source._id, name: "August" });
+		}
+	);
+	it.each(["all", "subset", "none", "amounts", "overrides"] as const)(
+		"previews and commits category copy: %s",
+		async (mode) => {
+			const { client, source, food, rent } = await sourceFixture();
+			const copyCategoryIds = mode === "subset" ? [food._id] : undefined;
+			const request = {
 				...input,
-				idempotencyKey: "linked-cycle-create",
-			});
-			const expense = await client.mutation(api.cli.v1.expenses.create, {
-				amount: 10,
-				date: "2026-09-02",
-				idempotencyKey: "legacy-linked-expense",
-			});
-			await test.run(async (ctx) => {
-				await ctx.db.patch(expense.id, { categoryId: food._id });
-			});
-		}
-		await expectCode(
-			client.mutation(api.cli.v1.cycles.previewDelete, {
-				cycleId: source._id,
-			}),
-			scenario === "foreign-category"
-				? "RESOURCE_NOT_FOUND"
-				: "CYCLE_HAS_EXPENSES"
-		);
-		expect(
-			await client.query(api.cli.v1.cycles.get, { cycleId: source._id })
-		).toMatchObject({ id: source._id, name: "August" });
-	});
-	it.each([
-		"all",
-		"subset",
-		"none",
-		"amounts",
-		"overrides",
-	] as const)("previews and commits category copy: %s", async (mode) => {
-		const { client, source, food, rent } = await sourceFixture();
-		const copyCategoryIds = mode === "subset" ? [food._id] : undefined;
-		const request = {
-			...input,
-			copyFromCycleId: source._id,
-			copyCategoryIds: mode === "none" ? [] : copyCategoryIds,
-			includePlannedAmounts: mode === "amounts" || mode === "overrides",
-			categoryPlannedOverrides:
-				mode === "overrides"
-					? [{ id: food._id }, { id: rent._id, plannedAmount: 0 }]
-					: undefined,
-		};
-		let expected = [
-			{
-				sourceCategoryId: food._id,
-				name: "Food",
-				plannedAmount: mode === "amounts" ? 100 : null,
-			},
-			{
-				sourceCategoryId: rent._id,
-				name: "Rent",
-				plannedAmount: mode === "amounts" ? 500 : null,
-			},
-		];
-		if (mode === "subset") {
-			expected = expected.slice(0, 1);
-		}
-		if (mode === "none") {
-			expected = [];
-		}
-		if (mode === "overrides") {
-			expected[1] = {
-				sourceCategoryId: rent._id,
-				name: "Rent",
-				plannedAmount: 0,
+				categoryPlannedOverrides:
+					mode === "overrides"
+						? [{ id: food._id }, { id: rent._id, plannedAmount: 0 }]
+						: undefined,
+				copyCategoryIds: mode === "none" ? [] : copyCategoryIds,
+				copyFromCycleId: source._id,
+				includePlannedAmounts: mode === "amounts" || mode === "overrides",
 			};
-		}
-		const preview = await client.query(
-			api.cli.v1.cycles.previewCreate,
-			request
-		);
-		expect(preview).toMatchObject({ copiedCategories: expected });
-		expect(
-			await client.query(api.cli.v1.resources.listCycles, {})
-		).toHaveLength(1);
-		const result = await client.mutation(api.cli.v1.cycles.create, {
-			...request,
-			expectedCopySnapshot: preview.copySnapshot,
-			idempotencyKey: `copy-${mode}-cycle`,
-		});
-		expect(result.copiedCategories).toEqual(expected);
-		const categories = await client.query(api.cli.v1.resources.listCategories, {
-			cycleId: result.cycle.id,
-		});
-		expect(
-			categories.map(({ name, plannedAmount }) => ({ name, plannedAmount }))
-		).toEqual(
-			expected.map(({ name, plannedAmount }) => ({ name, plannedAmount }))
-		);
-		if (categories.length) {
-			expect(categories[0]).toMatchObject({
-				icon: "utensils",
-				isHidden: true,
-				order: 0,
+			let expected = [
+				{
+					name: "Food",
+					plannedAmount: mode === "amounts" ? 100 : null,
+					sourceCategoryId: food._id,
+				},
+				{
+					name: "Rent",
+					plannedAmount: mode === "amounts" ? 500 : null,
+					sourceCategoryId: rent._id,
+				},
+			];
+			if (mode === "subset") {
+				expected = expected.slice(0, 1);
+			}
+			if (mode === "none") {
+				expected = [];
+			}
+			if (mode === "overrides") {
+				expected[1] = {
+					name: "Rent",
+					plannedAmount: 0,
+					sourceCategoryId: rent._id,
+				};
+			}
+			const preview = await client.query(
+				api.cli.v1.cycles.previewCreate,
+				request
+			);
+			expect(preview).toMatchObject({ copiedCategories: expected });
+			expect(
+				await client.query(api.cli.v1.resources.listCycles, {})
+			).toHaveLength(1);
+			const result = await client.mutation(api.cli.v1.cycles.create, {
+				...request,
+				expectedCopySnapshot: preview.copySnapshot,
+				idempotencyKey: `copy-${mode}-cycle`,
 			});
+			expect(result.copiedCategories).toEqual(expected);
+			const categories = await client.query(
+				api.cli.v1.resources.listCategories,
+				{
+					cycleId: result.cycle.id,
+				}
+			);
+			expect(
+				categories.map(({ name, plannedAmount }) => ({ name, plannedAmount }))
+			).toEqual(
+				expected.map(({ name, plannedAmount }) => ({ name, plannedAmount }))
+			);
+			if (categories.length) {
+				expect(categories[0]).toMatchObject({
+					icon: "utensils",
+					isHidden: true,
+					order: 0,
+				});
+			}
 		}
-	});
+	);
 	it("keeps empty copy options without a source compatible with web creation", async () => {
 		const { client } = await setup();
 		const options = {
-			copyCategoryIds: [],
 			categoryPlannedOverrides: [],
+			copyCategoryIds: [],
 			includePlannedAmounts: true,
 		};
 		expect(
@@ -476,9 +479,9 @@ describe("authenticated CLI cycle CRUD", () => {
 			})
 		).toMatchObject({ copiedCategories: [] });
 		const cycle = await client.mutation(api.cycles.create, {
+			endDate: input.endDateExclusive,
 			name: input.name,
 			startDate: input.startDate,
-			endDate: input.endDateExclusive,
 			...options,
 		});
 		expect(
@@ -520,11 +523,11 @@ describe("authenticated CLI cycle CRUD", () => {
 		});
 		await expectCode(
 			client.query(api.cli.v1.cycles.previewCreate, {
+				copyCategoryIds: ["malformed"],
+				copyFromCycleId: cycle.id,
+				endDateExclusive: "2026-11-01",
 				name: "October",
 				startDate: "2026-10-01",
-				endDateExclusive: "2026-11-01",
-				copyFromCycleId: cycle.id,
-				copyCategoryIds: ["malformed"],
 			}),
 			"INVALID_INPUT"
 		);
@@ -543,9 +546,9 @@ describe("authenticated CLI cycle CRUD", () => {
 			cycleId: source._id,
 		});
 		expect(preview).toMatchObject({
-			cycle: { id: source._id, revision: 1 },
 			categoryCount: 2,
 			confirmationToken: expect.any(String),
+			cycle: { id: source._id, revision: 1 },
 			expiresAt: expect.any(String),
 		});
 		expect(
@@ -557,9 +560,9 @@ describe("authenticated CLI cycle CRUD", () => {
 			})
 		).toHaveLength(2);
 		const request = {
+			confirmationToken: preview.confirmationToken,
 			cycleId: source._id,
 			expectedRevision: 1,
-			confirmationToken: preview.confirmationToken,
 			idempotencyKey: "delete-confirmed-cycle",
 		};
 		const result = await client.mutation(api.cli.v1.cycles.remove, request);
@@ -597,8 +600,8 @@ describe("authenticated CLI cycle CRUD", () => {
 			cycleId: source._id,
 		});
 		await client.mutation(api.cli.v1.expenses.create, {
-			date: "2026-08-02",
 			amount: 2,
+			date: "2026-08-02",
 			idempotencyKey: "expense-after-preview",
 		});
 		await client.mutation(api.cycles.update, {
@@ -611,9 +614,9 @@ describe("authenticated CLI cycle CRUD", () => {
 		);
 		await expectCode(
 			client.mutation(api.cli.v1.cycles.remove, {
+				confirmationToken: preview.confirmationToken,
 				cycleId: source._id,
 				expectedRevision: 1,
-				confirmationToken: preview.confirmationToken,
 				idempotencyKey: "stale-delete-cycle",
 			}),
 			"CYCLE_REVISION_CONFLICT"
@@ -629,15 +632,15 @@ describe("authenticated CLI cycle CRUD", () => {
 			cycleId: cycle.id,
 		});
 		await client.mutation(api.cli.v1.expenses.create, {
-			date: "2026-09-02",
 			amount: 3,
+			date: "2026-09-02",
 			idempotencyKey: "second-expense-after-preview",
 		});
 		await expectCode(
 			client.mutation(api.cli.v1.cycles.remove, {
+				confirmationToken: another.confirmationToken,
 				cycleId: cycle.id,
 				expectedRevision: 1,
-				confirmationToken: another.confirmationToken,
 				idempotencyKey: "guard-delete-cycle",
 			}),
 			"CYCLE_HAS_EXPENSES"
@@ -656,9 +659,9 @@ describe("authenticated CLI cycle CRUD", () => {
 			vi.setSystemTime(new Date("2026-09-01T00:05:00Z"));
 			await expectCode(
 				client.mutation(api.cli.v1.cycles.remove, {
+					confirmationToken: preview.confirmationToken,
 					cycleId: source._id,
 					expectedRevision: 1,
-					confirmationToken: preview.confirmationToken,
 					idempotencyKey: "expired-delete-cycle",
 				}),
 				"DELETION_CONFIRMATION_EXPIRED"
@@ -671,53 +674,52 @@ describe("authenticated CLI cycle CRUD", () => {
 		}
 	});
 
-	it.each([
-		"add",
-		"edit",
-		"remove",
-	] as const)("invalidates confirmation when category snapshot changes: %s", async (change) => {
-		const { client, source, food } = await sourceFixture();
-		const preview = await client.mutation(api.cli.v1.cycles.previewDelete, {
-			cycleId: source._id,
-		});
-		if (change === "add") {
-			await client.mutation(api.categories.create, {
+	it.each(["add", "edit", "remove"] as const)(
+		"invalidates confirmation when category snapshot changes: %s",
+		async (change) => {
+			const { client, source, food } = await sourceFixture();
+			const preview = await client.mutation(api.cli.v1.cycles.previewDelete, {
 				cycleId: source._id,
-				name: "New",
 			});
-		}
-		if (change === "edit") {
-			await client.mutation(api.categories.update, {
-				id: food._id,
-				name: "Changed",
-			});
-		}
-		if (change === "remove") {
-			await client.mutation(api.categories.remove, { categoryId: food._id });
-		}
-		await expectCode(
-			client.mutation(api.cli.v1.cycles.remove, {
-				cycleId: source._id,
-				expectedRevision: 1,
-				confirmationToken: preview.confirmationToken,
-				idempotencyKey: "snapshot-delete-cycle",
-			}),
-			"DELETION_CONFIRMATION_INVALID"
-		);
-		const fresh = await client.mutation(api.cli.v1.cycles.previewDelete, {
-			cycleId: source._id,
-		});
-		expect(
-			(
-				await client.mutation(api.cli.v1.cycles.remove, {
+			if (change === "add") {
+				await client.mutation(api.categories.create, {
+					cycleId: source._id,
+					name: "New",
+				});
+			}
+			if (change === "edit") {
+				await client.mutation(api.categories.update, {
+					id: food._id,
+					name: "Changed",
+				});
+			}
+			if (change === "remove") {
+				await client.mutation(api.categories.remove, { categoryId: food._id });
+			}
+			await expectCode(
+				client.mutation(api.cli.v1.cycles.remove, {
+					confirmationToken: preview.confirmationToken,
 					cycleId: source._id,
 					expectedRevision: 1,
-					confirmationToken: fresh.confirmationToken,
-					idempotencyKey: "fresh-snapshot-delete",
-				})
-			).deletedCategoryCount
-		).toBe(fresh.categoryCount);
-	});
+					idempotencyKey: "snapshot-delete-cycle",
+				}),
+				"DELETION_CONFIRMATION_INVALID"
+			);
+			const fresh = await client.mutation(api.cli.v1.cycles.previewDelete, {
+				cycleId: source._id,
+			});
+			expect(
+				(
+					await client.mutation(api.cli.v1.cycles.remove, {
+						confirmationToken: fresh.confirmationToken,
+						cycleId: source._id,
+						expectedRevision: 1,
+						idempotencyKey: "fresh-snapshot-delete",
+					})
+				).deletedCategoryCount
+			).toBe(fresh.categoryCount);
+		}
+	);
 
 	it("rejects foreign, mismatched and malformed deletion confirmations without exposing another user's cycle", async () => {
 		const { test, client, source } = await sourceFixture();
@@ -738,29 +740,32 @@ describe("authenticated CLI cycle CRUD", () => {
 		);
 		await expectCode(
 			other.mutation(api.cli.v1.cycles.remove, {
+				confirmationToken: preview.confirmationToken,
 				cycleId: source._id,
 				expectedRevision: 1,
-				confirmationToken: preview.confirmationToken,
 				idempotencyKey: "foreign-token-delete",
 			}),
 			"DELETION_CONFIRMATION_INVALID"
 		);
-		for (const invalid of [
-			{ cycleId: cycle.id },
-			{ expectedRevision: 2 },
-			{ confirmationToken: "not-a-token" },
-		]) {
-			await expectCode(
-				client.mutation(api.cli.v1.cycles.remove, {
-					cycleId: source._id,
-					expectedRevision: 1,
-					confirmationToken: preview.confirmationToken,
-					idempotencyKey: "invalid-token-delete",
-					...invalid,
-				}),
-				"DELETION_CONFIRMATION_INVALID"
-			);
-		}
+		await forEachSequential(
+			[
+				{ cycleId: cycle.id },
+				{ expectedRevision: 2 },
+				{ confirmationToken: "not-a-token" },
+			],
+			async (invalid) => {
+				await expectCode(
+					client.mutation(api.cli.v1.cycles.remove, {
+						confirmationToken: preview.confirmationToken,
+						cycleId: source._id,
+						expectedRevision: 1,
+						idempotencyKey: "invalid-token-delete",
+						...invalid,
+					}),
+					"DELETION_CONFIRMATION_INVALID"
+				);
+			}
+		);
 	});
 
 	it("previews partial updates, detects web edits, and commits without reassigning expenses", async () => {
@@ -781,20 +786,20 @@ describe("authenticated CLI cycle CRUD", () => {
 		});
 		const preview = await client.query(api.cli.v1.cycles.previewUpdate, {
 			cycleId: cycle.id,
-			name: "  Revised  ",
-			startDate: "2026-09-10",
 			endDateExclusive: "2026-10-10",
 			expectedRevision: 1,
+			name: "  Revised  ",
+			startDate: "2026-09-10",
 		});
 		expect(preview).toEqual({
-			before: cycle,
 			after: {
 				...cycle,
-				name: "Revised",
-				startDate: "2026-09-10",
 				endDateExclusive: "2026-10-10",
+				name: "Revised",
 				revision: 2,
+				startDate: "2026-09-10",
 			},
+			before: cycle,
 		});
 		expect(
 			await client.query(api.cli.v1.cycles.get, { cycleId: cycle.id })
@@ -805,11 +810,11 @@ describe("authenticated CLI cycle CRUD", () => {
 		});
 		const request = {
 			cycleId: cycle.id,
-			name: "Revised",
-			startDate: "2026-09-10",
 			endDateExclusive: "2026-10-10",
 			expectedRevision: 1,
 			idempotencyKey: "update-revised",
+			name: "Revised",
+			startDate: "2026-09-10",
 		};
 		await expectCode(
 			client.mutation(api.cli.v1.cycles.update, request),
@@ -857,11 +862,11 @@ describe("authenticated CLI cycle CRUD", () => {
 		const { test, client, userId } = await setup();
 		const cycleId = await test.run(async (ctx) => {
 			const id = await ctx.db.insert("expense_cycles", {
-				userId,
+				createdAt: 1,
+				endDate: "2026-10-01",
 				name: "Legacy",
 				startDate: "2026-09-01",
-				endDate: "2026-10-01",
-				createdAt: 1,
+				userId,
 			});
 			await ctx.db.patch(userId, {
 				onboardingCycleId: id,
@@ -874,9 +879,9 @@ describe("authenticated CLI cycle CRUD", () => {
 			(await client.query(api.cli.v1.cycles.get, { cycleId })).revision
 		).toBe(1);
 		await client.mutation(api.cycles.saveOnboardingCycle, {
+			endDate: "2026-10-01",
 			name: "Onboarding",
 			startDate: "2026-09-01",
-			endDate: "2026-10-01",
 		});
 		expect(
 			(await client.query(api.cli.v1.cycles.get, { cycleId })).revision
@@ -885,8 +890,8 @@ describe("authenticated CLI cycle CRUD", () => {
 			(await client.query(api.users.getOnboardingState, {}))?.cycle?._id
 		).toBe(cycleId);
 		await client.mutation(api.cycles.update, {
-			id: cycleId,
 			endDate: "2026-10-02",
+			id: cycleId,
 		});
 		expect(
 			(await client.query(api.cli.v1.cycles.get, { cycleId })).revision
@@ -899,21 +904,24 @@ describe("authenticated CLI cycle CRUD", () => {
 			...input,
 			idempotencyKey: "update-validation",
 		});
-		for (const invalid of [
-			{ name: " " },
-			{ startDate: "2026-09-31" },
-			{ endDateExclusive: "2026-09-01" },
-			{ expectedRevision: 0 },
-			{ expectedRevision: 1.5 },
-		]) {
-			await expectCode(
-				client.query(api.cli.v1.cycles.previewUpdate, {
-					cycleId: cycle.id,
-					...invalid,
-				}),
-				"INVALID_INPUT"
-			);
-		}
+		await forEachSequential(
+			[
+				{ name: " " },
+				{ startDate: "2026-09-31" },
+				{ endDateExclusive: "2026-09-01" },
+				{ expectedRevision: 0 },
+				{ expectedRevision: 1.5 },
+			],
+			async (invalid) => {
+				await expectCode(
+					client.query(api.cli.v1.cycles.previewUpdate, {
+						cycleId: cycle.id,
+						...invalid,
+					}),
+					"INVALID_INPUT"
+				);
+			}
+		);
 		await expectCode(
 			client.query(api.cli.v1.cycles.previewUpdate, {
 				cycleId: cycle.id,
@@ -962,16 +970,16 @@ describe("authenticated CLI cycle CRUD", () => {
 		);
 		await expect(
 			other.mutation(api.cycles.create, {
+				copyFromCycleId: source._id,
+				endDate: input.endDateExclusive,
 				name: "Foreign copy",
 				startDate: input.startDate,
-				endDate: input.endDateExclusive,
-				copyFromCycleId: source._id,
 			})
 		).rejects.toBeDefined();
 		const foreignCycle = await other.mutation(api.cycles.create, {
+			endDate: "2026-08-01",
 			name: "Other",
 			startDate: "2026-07-01",
-			endDate: "2026-08-01",
 		});
 		if (!foreignCycle) {
 			throw new Error("Expected foreign cycle");
@@ -983,23 +991,26 @@ describe("authenticated CLI cycle CRUD", () => {
 		if (!foreignCategory) {
 			throw new Error("Expected foreign category");
 		}
-		for (const copyInput of [
-			{ copyCategoryIds: [foreignCategory._id] },
-			{
-				categoryPlannedOverrides: [
-					{ id: foreignCategory._id, plannedAmount: 1 },
-				],
-			},
-		]) {
-			await expectCode(
-				client.query(api.cli.v1.cycles.previewCreate, {
-					...input,
-					copyFromCycleId: source._id,
-					...copyInput,
-				}),
-				"RESOURCE_NOT_FOUND"
-			);
-		}
+		await forEachSequential(
+			[
+				{ copyCategoryIds: [foreignCategory._id] },
+				{
+					categoryPlannedOverrides: [
+						{ id: foreignCategory._id, plannedAmount: 1 },
+					],
+				},
+			],
+			async (copyInput) => {
+				await expectCode(
+					client.query(api.cli.v1.cycles.previewCreate, {
+						...input,
+						copyFromCycleId: source._id,
+						...copyInput,
+					}),
+					"RESOURCE_NOT_FOUND"
+				);
+			}
+		);
 		const foreignTypeId = await test.run(async (ctx) => {
 			const foreignUser = await ctx.db
 				.query("users")
@@ -1009,9 +1020,9 @@ describe("authenticated CLI cycle CRUD", () => {
 				throw new Error("Expected foreign user");
 			}
 			return await ctx.db.insert("category_types", {
-				userId: foreignUser._id,
-				name: "Private type",
 				createdAt: 1,
+				name: "Private type",
+				userId: foreignUser._id,
 			});
 		});
 		await test.run(async (ctx) => {
@@ -1054,29 +1065,32 @@ describe("authenticated CLI cycle CRUD", () => {
 
 	it("rejects bad planned overrides, non-source selections, duplicate IDs and overlap while allowing adjacent cycles", async () => {
 		const { client, source, food, rent } = await sourceFixture();
-		for (const invalid of [
-			{ categoryPlannedOverrides: [{ id: food._id, plannedAmount: -1 }] },
-			{
-				categoryPlannedOverrides: [
-					{ id: food._id, plannedAmount: Number.POSITIVE_INFINITY },
-				],
-			},
-			{ copyCategoryIds: [food._id, food._id] },
-			{ categoryPlannedOverrides: [{ id: food._id }, { id: food._id }] },
-			{
-				copyCategoryIds: [food._id],
-				categoryPlannedOverrides: [{ id: rent._id }],
-			},
-		]) {
-			await expectCode(
-				client.query(api.cli.v1.cycles.previewCreate, {
-					...input,
-					copyFromCycleId: source._id,
-					...invalid,
-				}),
-				"INVALID_INPUT"
-			);
-		}
+		await forEachSequential(
+			[
+				{ categoryPlannedOverrides: [{ id: food._id, plannedAmount: -1 }] },
+				{
+					categoryPlannedOverrides: [
+						{ id: food._id, plannedAmount: Number.POSITIVE_INFINITY },
+					],
+				},
+				{ copyCategoryIds: [food._id, food._id] },
+				{ categoryPlannedOverrides: [{ id: food._id }, { id: food._id }] },
+				{
+					categoryPlannedOverrides: [{ id: rent._id }],
+					copyCategoryIds: [food._id],
+				},
+			],
+			async (invalid) => {
+				await expectCode(
+					client.query(api.cli.v1.cycles.previewCreate, {
+						...input,
+						copyFromCycleId: source._id,
+						...invalid,
+					}),
+					"INVALID_INPUT"
+				);
+			}
+		);
 		await expectCode(
 			client.query(api.cli.v1.cycles.previewCreate, {
 				...input,
@@ -1099,8 +1113,8 @@ describe("authenticated CLI cycle CRUD", () => {
 		await expectCode(
 			client.mutation(api.cli.v1.cycles.create, {
 				...input,
-				name: "Changed request",
 				idempotencyKey: "adjacent-create",
+				name: "Changed request",
 			}),
 			"IDEMPOTENCY_CONFLICT"
 		);
@@ -1110,15 +1124,15 @@ describe("authenticated CLI cycle CRUD", () => {
 		const { client } = await setup();
 		expect(await client.query(api.cli.v1.cycles.previewCreate, input)).toEqual({
 			...input,
-			name: "September",
 			copiedCategories: [],
+			name: "September",
 		});
 		expect(await client.query(api.cli.v1.resources.listCycles, {})).toEqual([]);
 		const request = { ...input, idempotencyKey: "create-september" };
 		const result = await client.mutation(api.cli.v1.cycles.create, request);
 		expect(result).toMatchObject({
-			cycle: { name: "September", revision: 1 },
 			copiedCategories: [],
+			cycle: { name: "September", revision: 1 },
 		});
 		expect(await client.mutation(api.cli.v1.cycles.create, request)).toEqual(
 			result

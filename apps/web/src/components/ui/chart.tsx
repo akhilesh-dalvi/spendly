@@ -14,7 +14,7 @@ import { Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 
 import { cn } from "@/lib/utils";
 
-const THEMES = { light: "", dark: ".dark" } as const;
+const THEMES = { dark: ".dark", light: "" } as const;
 
 type ChartConfig = {
 	[k in string]: {
@@ -75,7 +75,7 @@ function ChartContainer({
 
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
 	const colorConfig = Object.entries(config).filter(
-		([, config]) => config.theme || config.color
+		([, item]) => item.theme || item.color
 	);
 
 	if (!colorConfig.length) {
@@ -179,7 +179,7 @@ function ChartTooltipContent({
 				className
 			)}
 		>
-			{nestLabel ? null : tooltipLabel}
+			{!nestLabel && tooltipLabel}
 			<div className="grid gap-1.5">
 				{payload
 					.filter((item) => item.type !== "none")
@@ -209,10 +209,10 @@ function ChartTooltipContent({
 														"shrink-0 rounded-[2px] border-(--color-border) bg-(--color-bg)",
 														{
 															"h-2.5 w-2.5": indicator === "dot",
-															"w-1": indicator === "line",
+															"my-0.5": nestLabel && indicator === "dashed",
 															"w-0 border-[1.5px] border-dashed bg-transparent":
 																indicator === "dashed",
-															"my-0.5": nestLabel && indicator === "dashed",
+															"w-1": indicator === "line",
 														}
 													)}
 													style={
@@ -236,7 +236,7 @@ function ChartTooltipContent({
 													{itemConfig?.label || item.name}
 												</span>
 											</div>
-											{item.value && (
+											{item.value !== undefined && item.value !== null && (
 												<span className="font-medium text-foreground tabular-nums">
 													{item.value.toLocaleString()}
 												</span>
@@ -258,7 +258,7 @@ function getPayloadConfigFromPayload(
 	key: string
 ) {
 	if (typeof payload !== "object" || payload === null) {
-		return undefined;
+		return;
 	}
 
 	const payloadPayload =
