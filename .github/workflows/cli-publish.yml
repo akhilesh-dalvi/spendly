@@ -48,21 +48,22 @@ jobs:
     name: Verify and retrieve the recorded candidate
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
       - name: Verify source, release identity, CI, and candidate run
         run: node apps/cli/scripts/verify-release-source.mjs publish
         env:
           GH_TOKEN: ${{ github.token }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: spendly-${{ inputs.version }}-${{ inputs.source_commit }}
           path: release-artifacts
@@ -70,7 +71,7 @@ jobs:
           github-token: ${{ github.token }}
       - name: Verify candidate bytes and embedded metadata
         run: node apps/cli/scripts/verify-release-artifact.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: verified-publication-candidate
           path: release-artifacts/
@@ -82,21 +83,23 @@ jobs:
     needs: prepare
     environment: cli-release
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
       - name: Install the reviewed npm publishing toolchain
-        run: npm install --global npm@11.15.0 --ignore-scripts
+        # Exact reviewed publishing CLI; npm itself is not a project dependency.
+        run: npm install --global npm@11.15.0 --ignore-scripts # zizmor: ignore[adhoc-packages]
       # Same-run downloads use the artifact runtime token, not actions: read.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: verified-publication-candidate
           path: release-artifacts
