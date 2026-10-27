@@ -81,11 +81,11 @@ test("docs search hydrates and returns local results", async ({ page }) => {
 });
 
 const redirects = [
-	["installation", "/docs/cli#install"],
-	["authentication", "/docs/cli#sign-in"],
+	["installation", "/docs/cli#install-and-sign-in"],
+	["authentication", "/docs/cli#install-and-sign-in"],
 	["agent-skill", "/docs/cli/ai-agents"],
 	["cli-contract", "/docs/cli/ai-agents#machine-readable-cli-contract"],
-	["transfers", "/docs/cli/accounts#transfer-funds"],
+	["transfers", "/docs/cli/accounts#transfer-money-between-accounts"],
 	["privacy", "/docs/cli/ai-agents#trusted-computer-and-privacy-boundary"],
 ] as const;
 

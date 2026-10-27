@@ -3,11 +3,11 @@
   "pages": [
     "index",
     "ai-agents",
-    "expenses",
     "accounts",
     "cycles",
     "categories",
     "tags",
+    "expenses",
     "troubleshooting"
   ]
 }

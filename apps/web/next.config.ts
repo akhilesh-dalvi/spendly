@@ -49,12 +49,12 @@ const nextConfig: NextConfig = {
 		return [
 			{
 				source: "/docs/cli/installation",
-				destination: "/docs/cli#install",
+				destination: "/docs/cli#install-and-sign-in",
 				permanent: true,
 			},
 			{
 				source: "/docs/cli/authentication",
-				destination: "/docs/cli#sign-in",
+				destination: "/docs/cli#install-and-sign-in",
 				permanent: true,
 			},
 			{
@@ -69,7 +69,7 @@ const nextConfig: NextConfig = {
 			},
 			{
 				source: "/docs/cli/transfers",
-				destination: "/docs/cli/accounts#transfer-funds",
+				destination: "/docs/cli/accounts#transfer-money-between-accounts",
 				permanent: true,
 			},
 			{

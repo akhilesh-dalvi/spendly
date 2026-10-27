@@ -165,6 +165,29 @@
 	}
 }
 
+.docs-disclosure {
+	margin-block: 0.75rem;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	padding-inline: 1rem;
+}
+
+.docs-disclosure > summary {
+	cursor: pointer;
+	padding-block: 0.75rem;
+	font-weight: 500;
+}
+
+.docs-disclosure[open] {
+	padding-bottom: 0.75rem;
+}
+
+/* The shared code-block viewport owns padding; Shiki only colors tokens. */
+.shiki[data-slot="code-block"] {
+	--padding-left: 0px;
+	--padding-right: 0px;
+}
+
 @media (width >= 97rem) {
 	#nd-docs-layout {
 		--fd-layout-width: 100%;
