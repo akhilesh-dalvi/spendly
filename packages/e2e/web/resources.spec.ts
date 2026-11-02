@@ -308,17 +308,30 @@ publicTest(
 		await expect(
 			page.getByRole("heading", { exact: true, level: 1, name: "Quick start" })
 		).toBeVisible();
-		await page.getByRole("link", { exact: true, name: "expenses" }).click();
+		const docsHeader = page.getByRole("banner");
+		const openSidebar = docsHeader.getByRole("button", {
+			exact: true,
+			name: "Open Sidebar",
+		});
+		await openSidebar.focus();
+		await openSidebar.press("Enter");
+		await expect(
+			docsHeader.getByRole("button", { exact: true, name: "Close Sidebar" })
+		).toHaveAttribute("aria-expanded", "true");
+		await page
+			.getByRole("complementary")
+			.getByRole("link", { exact: true, name: "Expenses" })
+			.click();
 		await expect(page).toHaveURL(EXPENSE_DOCS_URL);
 		await expect(
 			page.getByRole("heading", { exact: true, level: 1, name: "Expenses" })
 		).toBeVisible();
 		// The heading also contains an accessible copy-anchor button. Locate its
 		// titled link, rather than assuming that button is absent from its name.
-		const findExpenses = page.getByRole("heading", { level: 2 }).filter({
-			has: page.getByRole("link", { exact: true, name: "Find expenses" }),
-		});
-		await expect(findExpenses).toBeVisible();
-		await expect(findExpenses).toHaveText("Find expenses");
+		const expenseActions = page
+			.getByRole("heading", { level: 2 })
+			.getByRole("link", { exact: true, name: "Other things you can do" });
+		await expect(expenseActions).toBeVisible();
+		await expect(expenseActions).toHaveText("Other things you can do");
 	}
 );
