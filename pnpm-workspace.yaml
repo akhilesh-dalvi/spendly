@@ -19,7 +19,7 @@ overrides:
   # GHSA-68fv-2mgg-jv7q: patch vulnerable transitive source-map consumers.
   "source-map-js@>=1.0.0 <1.2.2": 1.2.2
   # GHSA-587h-7wmj-h5pm: patch vulnerable transitive Vite consumers.
-  "vite@>=8.2.0 <=8.2.3": 8.3.4
+  "vite@>=8.2.0 <=8.2.3": 8.3.5
   ws: 8.22.0
 catalog:
   zod: ^4.6.6

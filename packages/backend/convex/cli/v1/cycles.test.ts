@@ -650,8 +650,10 @@ describe("authenticated CLI cycle CRUD", () => {
 	it("expires confirmations at the five-minute boundary", async () => {
 		vi.useFakeTimers();
 		try {
-			vi.setSystemTime(new Date("2026-09-01T00:00:00Z"));
+			vi.setSystemTime(new Date("2026-08-31T23:59:00Z"));
 			const { client, source } = await sourceFixture();
+			// Move beyond fixture commit timestamps before measuring the exact TTL.
+			vi.setSystemTime(new Date("2026-09-01T00:00:00Z"));
 			const preview = await client.mutation(api.cli.v1.cycles.previewDelete, {
 				cycleId: source._id,
 			});
