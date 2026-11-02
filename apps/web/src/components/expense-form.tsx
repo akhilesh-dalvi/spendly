@@ -246,9 +246,9 @@ export function ExpenseForm({
 			toast.warning(warning);
 		}
 
-		const resolvedCategoryId = value.categoryId
-			? (value.categoryId as Id<"categories">)
-			: undefined;
+		const resolvedCategoryId = categories?.find(
+			(category) => category._id === value.categoryId
+		)?._id;
 		const resolvedAccountId = value.accountId
 			? (value.accountId as Id<"accounts">)
 			: undefined;
@@ -257,7 +257,7 @@ export function ExpenseForm({
 			await updateExpense({
 				accountId: resolvedAccountId ?? null,
 				amount: Number(value.amount),
-				categoryId: resolvedCategoryId,
+				categoryId: resolvedCategoryId ?? null,
 				date: format(value.date, "yyyy-MM-dd"),
 				id: expenseId as Id<"expenses">,
 				spentOn: value.spentOn || undefined,
@@ -328,12 +328,31 @@ export function ExpenseForm({
 	});
 
 	const isSubmitting = useStore(form.store, (state) => state.isSubmitting);
+	const categoryDefaultApplied = useRef(
+		isEditing || Boolean(defaultValues?.categoryId)
+	);
 
 	useEffect(() => {
-		if (!isEditing && defaultCategoryId && !form.state.values.categoryId) {
-			form.setFieldValue("categoryId", defaultCategoryId);
+		if (categories === undefined) {
+			return;
 		}
-	}, [defaultCategoryId, isEditing, form]);
+		const selectedCategoryId = form.state.values.categoryId;
+		if (
+			selectedCategoryId &&
+			!categories.some((category) => category._id === selectedCategoryId)
+		) {
+			form.setFieldValue("categoryId", "");
+		}
+		if (!categoryDefaultApplied.current && recentExpenses !== undefined) {
+			categoryDefaultApplied.current = true;
+			if (
+				!selectedCategoryId &&
+				categories.some((category) => category._id === defaultCategoryId)
+			) {
+				form.setFieldValue("categoryId", defaultCategoryId);
+			}
+		}
+	}, [categories, defaultCategoryId, recentExpenses, form]);
 
 	useEffect(() => {
 		if (!isEditing && defaultAccountId && !form.state.values.accountId) {
@@ -423,7 +442,7 @@ export function ExpenseForm({
 				<form.Field name="accountId">
 					{(field) => (
 						<div className="space-y-2">
-							<Label>
+							<Label htmlFor={field.name}>
 								Account{" "}
 								<span className="text-muted-foreground">(optional)</span>
 							</Label>
@@ -433,6 +452,7 @@ export function ExpenseForm({
 							<AccountCombobox
 								accounts={accounts}
 								formatCurrency={formatCurrency}
+								id={field.name}
 								onChange={field.handleChange}
 								selectedAccountId={field.state.value}
 							/>
@@ -443,7 +463,7 @@ export function ExpenseForm({
 				<form.Field name="categoryId">
 					{(field) => (
 						<div className="space-y-2">
-							<Label>Category</Label>
+							<Label htmlFor={field.name}>Category</Label>
 							<p className="text-muted-foreground text-xs">
 								Search categories or create a new one for this cycle.
 							</p>
@@ -455,6 +475,7 @@ export function ExpenseForm({
 									categories={categories}
 									cycle={cycle}
 									formatCurrency={formatCurrency}
+									id={field.name}
 									onChange={field.handleChange}
 									selectedCategoryId={field.state.value}
 									types={categoryTypes}
@@ -498,7 +519,7 @@ export function ExpenseForm({
 				<form.Field name="tagIds">
 					{(field) => (
 						<div className="space-y-2">
-							<Label>
+							<Label htmlFor={field.name}>
 								Tags <span className="text-muted-foreground">(optional)</span>
 							</Label>
 							<p className="text-muted-foreground text-xs">
@@ -506,6 +527,7 @@ export function ExpenseForm({
 								&quot;Recurring&quot;.
 							</p>
 							<TagMultiSelect
+								id={field.name}
 								onChange={field.handleChange}
 								selectedTagIds={field.state.value || []}
 								tags={tags}
@@ -532,7 +554,7 @@ export function ExpenseForm({
 					)}
 					<Button
 						className="w-full"
-						disabled={isSubmitting || !cycle}
+						disabled={isSubmitting || !cycle || categories === undefined}
 						size="lg"
 						type="submit"
 					>
@@ -559,6 +581,7 @@ export function ExpenseForm({
 }
 
 interface TagMultiSelectProps {
+	id: string;
 	onChange: (tagIds: string[]) => void;
 	selectedTagIds: string[];
 	tags:
@@ -570,6 +593,7 @@ interface TagMultiSelectProps {
 }
 
 function TagMultiSelect({
+	id,
 	tags,
 	selectedTagIds,
 	onChange,
@@ -630,7 +654,7 @@ function TagMultiSelect({
 	const toggleTag = useCallback(
 		(tagId: string) => {
 			if (selectedSet.has(tagId)) {
-				onChange(selectedTagIds.filter((id) => id !== tagId));
+				onChange(selectedTagIds.filter((selectedId) => selectedId !== tagId));
 				return;
 			}
 			onChange([...selectedTagIds, tagId]);
@@ -686,6 +710,7 @@ function TagMultiSelect({
 					<Button
 						aria-expanded={open}
 						className="w-full justify-between"
+						id={id}
 						role="combobox"
 						type="button"
 						variant="outline"
@@ -777,12 +802,14 @@ function TagMultiSelect({
 interface AccountComboboxProps {
 	accounts: AccountItem[] | undefined;
 	formatCurrency: (amount: number) => string;
+	id: string;
 	onChange: (accountId: string) => void;
 	selectedAccountId: string;
 }
 
 function AccountCombobox({
 	accounts,
+	id,
 	selectedAccountId,
 	onChange,
 	formatCurrency,
@@ -821,6 +848,7 @@ function AccountCombobox({
 				<Button
 					aria-expanded={open}
 					className="w-full justify-between"
+					id={id}
 					role="combobox"
 					type="button"
 					variant="outline"
@@ -969,12 +997,14 @@ interface CategoryComboboxProps {
 	categories: CategoryItem[] | undefined;
 	cycle: CyclePreviewData;
 	formatCurrency: (amount: number) => string;
+	id: string;
 	onChange: (categoryId: string) => void;
 	selectedCategoryId: string;
 	types: CategoryTypeItem[] | undefined;
 }
 
 function CategoryCombobox({
+	id,
 	cycle,
 	categories,
 	types,
@@ -1041,6 +1071,7 @@ function CategoryCombobox({
 				<Button
 					aria-expanded={open}
 					className="w-full justify-between"
+					id={id}
 					role="combobox"
 					type="button"
 					variant="outline"

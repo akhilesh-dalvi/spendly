@@ -23,6 +23,14 @@
     "prepare": "node scripts/install-hooks.mjs",
     "test:cli": "turbo -F spendly test",
     "test:coverage": "pnpm --parallel --no-bail --filter ./apps/cli --filter ./apps/web --filter ./packages/backend test:coverage",
+    "test:e2e:backend": "node packages/e2e/run.mjs backend",
+    "test:e2e:cleanup": "pnpm --dir packages/e2e run cleanup",
+    "test:e2e:cli": "pnpm --dir packages/e2e test:cli",
+    "test:e2e:full": "node packages/e2e/run.mjs full",
+    "test:e2e:smoke": "node packages/e2e/run.mjs smoke",
+    "test:e2e:tooling": "pnpm --dir packages/e2e test",
+    "test:e2e:validate": "node packages/e2e/run.mjs validate",
+    "test:e2e:web": "pnpm --dir packages/e2e test:web",
     "typecheck:cli": "turbo -F spendly check-types"
   },
   "lint-staged": {

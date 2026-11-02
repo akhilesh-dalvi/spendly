@@ -123,7 +123,7 @@ beforeEach(() => {
 	service.updateView.mockResolvedValue(undefined);
 });
 
-// Production icon-only controls do not have accessible names yet.
+// Some remaining icon-only controls do not have accessible names yet.
 function iconButton(container: HTMLElement, icon: string): HTMLButtonElement {
 	const button = container
 		.querySelector(`svg.lucide-${icon}`)
@@ -306,10 +306,12 @@ describe("category spending chart", () => {
 
 	it("persists a view change and renders the saved simple list then grouped layout", async () => {
 		const user = userEvent.setup();
-		const { container, rerender } = render(
+		const { rerender } = render(
 			<CategorySpendingChart typeStats={typeStats} />
 		);
-		await user.click(iconButton(container, "layout-grid"));
+		await user.click(
+			screen.getByRole("button", { name: "Category view mode" })
+		);
 		await user.click(screen.getByRole("menuitem", { name: "Simple List" }));
 		expect(service.updateView).toHaveBeenCalledWith({ viewMode: "list" });
 		service.data["users:get"] = { dashboardViewMode: "list" };
@@ -322,7 +324,9 @@ describe("category spending chart", () => {
 			"/expenses?category=uncategorized",
 			"/categories/food",
 		]);
-		await user.click(iconButton(container, "list"));
+		await user.click(
+			screen.getByRole("button", { name: "Category view mode" })
+		);
 		await user.click(screen.getByRole("menuitem", { name: "Grouped by Type" }));
 		expect(service.updateView).toHaveBeenLastCalledWith({
 			viewMode: "grouped",

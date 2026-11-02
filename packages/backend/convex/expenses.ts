@@ -334,7 +334,7 @@ export const update = mutation({
 	args: {
 		accountId: v.optional(v.union(v.id("accounts"), v.null())),
 		amount: v.optional(v.number()),
-		categoryId: v.optional(v.id("categories")),
+		categoryId: v.optional(v.union(v.id("categories"), v.null())),
 		date: v.optional(v.string()),
 		id: v.id("expenses"),
 		spentOn: v.optional(v.string()),

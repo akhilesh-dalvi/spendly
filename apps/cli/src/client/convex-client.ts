@@ -249,12 +249,14 @@ export const createBackendCommandContext = async (
 				}
 			: undefined;
 	if (!backend) {
-		const store = createCredentialStore({
-			allowFileStorage: globalOptions.allowFileStorage,
-			clientId: config.clientId,
-			issuer: config.issuer,
-			warn,
-		});
+		const store =
+			(runtime.developmentTools ? runtime.credentialStore : undefined) ??
+			createCredentialStore({
+				allowFileStorage: globalOptions.allowFileStorage,
+				clientId: config.clientId,
+				issuer: config.issuer,
+				warn,
+			});
 		const session = await getActiveSession({ config, store });
 		backend = createConvexQuery(config, session.idToken);
 	}

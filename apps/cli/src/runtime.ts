@@ -1,4 +1,5 @@
 import type { Readable, Writable } from "node:stream";
+import type { CredentialStore } from "./auth/credential-store.js";
 import type { RuntimeConfig } from "./config.js";
 import type { BackendOperation } from "./core/operations.js";
 import type { InteractivePrompter } from "./input/types.js";
@@ -17,6 +18,7 @@ export interface CliRuntime {
 	backendMutation?: BackendMutation;
 	backendQuery?: BackendQuery;
 	confirm?: (message: string) => Promise<boolean>;
+	credentialStore?: CredentialStore;
 	developmentTools: boolean;
 	environment: NodeJS.ProcessEnv;
 	getConfig: () => RuntimeConfig;

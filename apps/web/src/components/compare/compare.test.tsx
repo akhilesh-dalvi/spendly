@@ -4,7 +4,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { getFunctionName } from "convex/server";
 import { useState } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ComparePage from "../../app/(app)/compare/page";
 import { CompareCategoryBreakdownList } from "./compare-category-breakdown-list";
 import { CompareCycleOverviewCards } from "./compare-cycle-overview-cards";
@@ -21,10 +21,20 @@ const service = vi.hoisted(() => ({
 vi.mock("@clerk/nextjs", () => ({
 	useAuth: () => ({ isLoaded: true, isSignedIn: true }),
 }));
-vi.mock("next/navigation", () => ({
-	useRouter: () => service.router,
-	useSearchParams: () => service.params,
-}));
+vi.mock("next/navigation", async () => {
+	const { useSyncExternalStore } = await import("react");
+	return {
+		useRouter: () => service.router,
+		useSearchParams: () =>
+			useSyncExternalStore(
+				(notify) => {
+					window.addEventListener("test:navigation", notify);
+					return () => window.removeEventListener("test:navigation", notify);
+				},
+				() => service.params
+			),
+	};
+});
 vi.mock("convex/react", () => ({
 	useQuery: (ref: Parameters<typeof getFunctionName>[0], args: unknown) => {
 		const name = getFunctionName(ref);
@@ -71,6 +81,14 @@ const money = (amount: number) =>
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	// Model Next's native-history subscription without an RSC navigation.
+	vi.spyOn(window.history, "pushState").mockImplementation(
+		(_data, _unused, url) => {
+			service.params = new URL(String(url), "http://localhost").searchParams;
+			window.dispatchEvent(new Event("test:navigation"));
+		}
+	);
+	vi.spyOn(window.history, "replaceState").mockImplementation(() => undefined);
 	service.params = new URLSearchParams();
 	service.data = {
 		"aggregations:compareMultiple": rows,
@@ -78,6 +96,8 @@ beforeEach(() => {
 		"users:get": { currency: "USD" },
 	};
 });
+
+afterEach(() => vi.restoreAllMocks());
 
 function SelectorHarness({ initialIds = [] }: { initialIds?: string[] }) {
 	const [selectedIds, setSelectedIds] = useState(initialIds);
@@ -277,19 +297,49 @@ describe("comparison page", () => {
 		).toBeVisible();
 		await user.click(screen.getByRole("combobox"));
 		await user.click(screen.getByRole("option", { name: februaryOption }));
-		expect(service.router.push).toHaveBeenCalledWith(
-			"/compare?cycles=cycle1,cycle2",
-			{ scroll: false }
+		expect(window.history.pushState).toHaveBeenCalledWith(
+			null,
+			"",
+			"/compare?cycles=cycle1,cycle2"
 		);
 		await user.keyboard("{Escape}");
 		await user.click(screen.getByRole("button", { name: "Remove January" }));
-		expect(service.router.push).toHaveBeenLastCalledWith("/compare", {
-			scroll: false,
-		});
+		expect(window.history.pushState).toHaveBeenLastCalledWith(
+			null,
+			"",
+			"/compare?cycles=cycle2"
+		);
+		await user.click(screen.getByRole("button", { name: "Remove February" }));
+		expect(window.history.pushState).toHaveBeenLastCalledWith(
+			null,
+			"",
+			"/compare"
+		);
+		expect(service.router.push).not.toHaveBeenCalled();
 		service.params = new URLSearchParams();
 		rerender(<ComparePage />);
 		expect(screen.getByText("No cycles selected yet.")).toBeVisible();
-		expect(service.router.replace).not.toHaveBeenCalled();
+		expect(window.history.replaceState).not.toHaveBeenCalled();
+	});
+
+	it("retains successive selections while the cycle picker stays open", async () => {
+		const user = userEvent.setup();
+		service.params = new URLSearchParams("cycles=cycle1");
+		render(<ComparePage />);
+		await user.click(
+			screen.getByRole("combobox", { name: "Cycles to compare" })
+		);
+		await user.click(screen.getByRole("option", { name: februaryOption }));
+		await user.click(screen.getByRole("option", { name: marchOption }));
+		expect(window.history.pushState).toHaveBeenLastCalledWith(
+			null,
+			"",
+			"/compare?cycles=cycle1,cycle2,cycle3"
+		);
+		expect(service.query).toHaveBeenCalledWith("aggregations:compareMultiple", {
+			cycleIds: ["cycle1", "cycle2", "cycle3"],
+		});
+		expect(service.router.push).not.toHaveBeenCalled();
 	});
 
 	it("sanitizes invalid, duplicate and excess URL selections before sending the query", () => {
@@ -297,9 +347,10 @@ describe("comparison page", () => {
 			"cycles=cycle1,cycle1,javascript:alert(1),bad,cycle2,cycle2,cycle3,cycle4,cycle5,cycle6"
 		);
 		render(<ComparePage />);
-		expect(service.router.replace).toHaveBeenCalledWith(
-			"/compare?cycles=cycle1,cycle2,cycle3,cycle4,cycle5",
-			{ scroll: false }
+		expect(window.history.replaceState).toHaveBeenCalledWith(
+			null,
+			"",
+			"/compare?cycles=cycle1,cycle2,cycle3,cycle4,cycle5"
 		);
 		expect(service.query).toHaveBeenCalledWith("aggregations:compareMultiple", {
 			cycleIds: ["cycle1", "cycle2", "cycle3", "cycle4", "cycle5"],
@@ -357,6 +408,6 @@ describe("comparison page", () => {
 		expect(screen.getByText("No data for this category")).toBeVisible();
 		expect(screen.getAllByText("-$50.00")).toHaveLength(2);
 		expect(document.querySelector('a[href="/dashboard"]')).toBeInTheDocument();
-		expect(service.router.replace).not.toHaveBeenCalled();
+		expect(window.history.replaceState).not.toHaveBeenCalled();
 	});
 });

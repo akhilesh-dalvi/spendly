@@ -39,12 +39,14 @@ const getAuthContext = (
 		}
 		runtime.stderr.write(`${message}\n`);
 	};
-	const store = createCredentialStore({
-		allowFileStorage: globalOptions.allowFileStorage,
-		clientId: config.clientId,
-		issuer: config.issuer,
-		warn,
-	});
+	const store =
+		(runtime.developmentTools ? runtime.credentialStore : undefined) ??
+		createCredentialStore({
+			allowFileStorage: globalOptions.allowFileStorage,
+			clientId: config.clientId,
+			issuer: config.issuer,
+			warn,
+		});
 	return { config, globalOptions, store, warn, warnings };
 };
 

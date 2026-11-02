@@ -235,7 +235,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-// These comboboxes lack author-provided accessible names; use their visible labels.
+// Match the current selection independently of each field's accessible name.
 function combobox(label: string | RegExp): HTMLElement {
 	const trigger = screen
 		.getAllByRole("combobox")
@@ -260,6 +260,74 @@ async function enterAmount(value = "12.50") {
 }
 
 describe("ExpenseForm", () => {
+	it("associates account, category and tag controls with their labels", () => {
+		render(<ExpenseForm />);
+		expect(screen.getByRole("combobox", { name: "Account (optional)" })).toBe(
+			screen.getByLabelText("Account (optional)")
+		);
+		expect(screen.getByRole("combobox", { name: "Category" })).toBe(
+			screen.getByLabelText("Category")
+		);
+		expect(screen.getByRole("combobox", { name: "Tags (optional)" })).toBe(
+			screen.getByLabelText("Tags (optional)")
+		);
+	});
+
+	it("applies the recent category only once and preserves an explicit uncategorized choice", async () => {
+		fixture(api.expenses.listRecent, undefined);
+		const view = render(<ExpenseForm defaultValues={{ amount: 24 }} />);
+		expect(combobox(UNCATEGORIZED_LABEL)).toBeInTheDocument();
+		fixture(api.expenses.listRecent, recent);
+		view.rerender(<ExpenseForm defaultValues={{ amount: 24 }} />);
+		const interaction = userEvent.setup();
+		await interaction.click(combobox(FOOD_LABEL));
+		await interaction.click(
+			screen.getByRole("option", { name: UNCATEGORIZED_LABEL })
+		);
+		fixture(
+			api.expenses.listRecent,
+			recent.map((expense) => ({ ...expense, categoryId: otherCategoryId }))
+		);
+		view.rerender(<ExpenseForm defaultValues={{ amount: 24 }} />);
+		expect(combobox(UNCATEGORIZED_LABEL)).toBeInTheDocument();
+		await interaction.click(
+			screen.getByRole("button", { name: "Add Expense" })
+		);
+		await waitFor(() =>
+			expect(mocks.create).toHaveBeenCalledWith(
+				expect.objectContaining({ categoryId: undefined })
+			)
+		);
+	});
+
+	it("waits for the new cycle's categories and explicitly clears an old category when editing", async () => {
+		const values = { amount: 24, categoryId };
+		const view = render(
+			<ExpenseForm defaultValues={values} expenseId="edit" />
+		);
+		expect(combobox(FOOD_LABEL)).toBeInTheDocument();
+		const nextCycleId = "august" as Id<"expense_cycles">;
+		fixture(api.cycles.getCurrent, { ...cycle, _id: nextCycleId });
+		fixture(api.categories.list, undefined);
+		view.rerender(<ExpenseForm defaultValues={values} expenseId="edit" />);
+		expect(screen.getByRole("button", { name: "Save Changes" })).toBeDisabled();
+		expect(mocks.query).toHaveBeenCalledWith(
+			getFunctionName(api.categories.list),
+			{ cycleId: nextCycleId }
+		);
+		fixture(api.categories.list, []);
+		view.rerender(<ExpenseForm defaultValues={values} expenseId="edit" />);
+		expect(combobox(UNCATEGORIZED_LABEL)).toBeInTheDocument();
+		await userEvent
+			.setup()
+			.click(screen.getByRole("button", { name: "Save Changes" }));
+		await waitFor(() =>
+			expect(mocks.update).toHaveBeenCalledWith(
+				expect.objectContaining({ categoryId: null })
+			)
+		);
+	});
+
 	it.each([false, true])(
 		"blocks native duplicate submissions until settlement and allows retry after rejection (editing=%s)",
 		async (editing) => {
@@ -743,7 +811,7 @@ describe("ExpenseForm", () => {
 			expect(mocks.update).toHaveBeenCalledWith({
 				accountId: null,
 				amount: 42,
-				categoryId: undefined,
+				categoryId: null,
 				date: "2026-07-09",
 				id: "edit-1",
 				spentOn: "Taxi",
@@ -803,7 +871,8 @@ describe("ExpenseForm", () => {
 			.click(screen.getByRole("button", { name: "Add Expense" }));
 		await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
 		const submit = screen.getByRole("button", { name: ADD_LABEL });
-		// The button does not subscribe to isSubmitting; the form must guard duplicates.
+		expect(submit).toBeDisabled();
+		// Native submission bypasses the disabled button; the form also guards it.
 		fireEvent.submit(submit.closest("form") as HTMLFormElement);
 		expect(mocks.create).toHaveBeenCalledOnce();
 		await act(async () => resolve("created"));

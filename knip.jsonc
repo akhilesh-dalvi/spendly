@@ -4,12 +4,29 @@
     ".": {
       // Standalone evaluation scripts are also invoked directly by contributors.
       "entry": ["skills/spendly/evals/*.mjs"],
-      // CI resolves Next.js here, but it belongs to apps/web.
-      "ignoreBinaries": ["next"]
+      // CI resolves workspace-qualified commands here; their dependencies belong
+      // to apps/web (Next.js) and packages/e2e (Playwright).
+      "ignoreBinaries": ["next", "playwright"]
     },
     "apps/cli": {
       // The development build has a separate source entry behind generated output.
       "entry": ["development/index.ts"]
+    },
+    "packages/e2e": {
+      // Live configs intentionally fail closed without secrets. Do not execute
+      // them during offline analysis; list their runner-owned entries explicitly.
+      "playwright": false,
+      "vitest": false,
+      "entry": [
+        "playwright.config.ts",
+        "vitest*.config.ts",
+        "web/**/*.spec.ts",
+        "cli/**/*.e2e.ts",
+        "src/**/*.test.ts",
+        "src/cleanup.ts",
+        "src/playwright-setup.ts",
+        "src/vitest-setup.ts"
+      ]
     },
     "packages/backend": {
       "typescript": {

@@ -231,7 +231,12 @@ export function CategorySpendingChart({
 		<div className="flex items-center gap-1">
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
-					<Button className="h-8 w-8" size="icon" variant="ghost">
+					<Button
+						aria-label="Category view mode"
+						className="h-8 w-8"
+						size="icon"
+						variant="ghost"
+					>
 						{viewMode === "grouped" ? (
 							<LayoutGrid className="h-4 w-4 text-muted-foreground" />
 						) : (

@@ -1,0 +1,368 @@
+import { randomBytes, randomUUID } from "node:crypto";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { setupClerkTestingToken } from "@clerk/testing/playwright";
+import { expect, type Page } from "@playwright/test";
+import { ConvexHttpClient } from "convex/browser";
+import type {
+	FunctionArgs,
+	FunctionReference,
+	FunctionReturnType,
+} from "convex/server";
+import { z } from "zod";
+import { allocateAuthIdentity } from "./auth-allocation";
+import {
+	completeOAuth,
+	interactWithOAuth,
+	signInThroughUi,
+	signUpThroughUi,
+} from "./authentication";
+import { api } from "./backend-api";
+import type { E2EEnvironment } from "./environment";
+import { runProcess, startProcess } from "./process";
+
+const userSchema = z.object({ id: z.string().regex(/^user_[a-zA-Z0-9]+$/u) });
+const FIXTURE_EMAIL = /^spendly-e2e-[0-9a-f-]{36}\+clerk_test@example\.com$/u;
+const CLI_ENTRY = fileURLToPath(
+	new URL(
+		"../../../apps/cli/development-dist/development/index.js",
+		import.meta.url
+	)
+);
+export const JOURNAL_DIRECTORY = new URL("../.e2e/users/", import.meta.url);
+
+const clerkRequest = async (
+	config: E2EEnvironment,
+	path: string,
+	method: string,
+	body?: unknown
+): Promise<unknown> => {
+	const response = await fetch(`https://api.clerk.com/v1/${path}`, {
+		body: body === undefined ? undefined : JSON.stringify(body),
+		headers: {
+			Authorization: `Bearer ${config.secretKey}`,
+			"Content-Type": "application/json",
+		},
+		method,
+		signal: AbortSignal.timeout(30_000),
+	});
+	if (method === "DELETE" && response.status === 404) {
+		return {};
+	}
+	if (!response.ok) {
+		throw new Error(
+			`E2E Clerk ${method} request failed (${response.status}); response withheld.`
+		);
+	}
+	return await response.json();
+};
+
+const clerkUsersSchema = z.array(
+	userSchema.extend({
+		email_addresses: z.array(z.object({ email_address: z.string() })),
+	})
+);
+
+export const findClerkUser = async (
+	config: E2EEnvironment,
+	email: string
+): Promise<string | undefined> => {
+	if (!FIXTURE_EMAIL.test(email)) {
+		throw new Error("E2E identity lookup requires an exact synthetic email.");
+	}
+	const query = new URLSearchParams({ email_address: email, limit: "2" });
+	const result = clerkUsersSchema.safeParse(
+		await clerkRequest(config, `users?${query}`, "GET")
+	);
+	if (
+		!result.success ||
+		result.data.length > 1 ||
+		result.data.some(
+			(user) =>
+				!user.email_addresses.some((address) => address.email_address === email)
+		)
+	) {
+		throw new Error("E2E creation-intent lookup failed; response withheld.");
+	}
+	return result.data[0]?.id;
+};
+
+export const removeClerkUser = async (
+	config: E2EEnvironment,
+	clerkId: string
+): Promise<void> => {
+	await clerkRequest(config, `users/${clerkId}`, "DELETE");
+};
+
+export const removeBackendUser = async (
+	config: E2EEnvironment,
+	clerkId: string,
+	email: string
+): Promise<void> => {
+	const response = await fetch(`${config.convexUrl}/api/mutation`, {
+		body: JSON.stringify({
+			args: [{ clerkId, email, expectedDeploymentUrl: config.convexUrl }],
+			format: "convex_encoded_json",
+			path: "e2eFixtures:removeUser",
+		}),
+		headers: {
+			Authorization: `Convex ${config.deployKey}`,
+			"Content-Type": "application/json",
+		},
+		method: "POST",
+		signal: AbortSignal.timeout(30_000),
+	});
+	const result = z
+		.object({ status: z.string() })
+		.safeParse(await response.json());
+	if (!(response.ok && result.success) || result.data.status !== "success") {
+		throw new Error(
+			"E2E fixture cleanup unavailable; deploy e2eFixtures and enable SPENDLY_E2E_ENABLED only on the test deployment. Response withheld."
+		);
+	}
+};
+
+export interface E2EUser {
+	cliEnvironment?: NodeJS.ProcessEnv;
+	config: E2EEnvironment;
+	credentialFile?: string;
+	dispose: () => Promise<void>;
+	email: string;
+	loginCli: () => Promise<void>;
+	mutation: <Mutation extends FunctionReference<"mutation">>(
+		mutation: Mutation,
+		args: FunctionArgs<Mutation>
+	) => Promise<FunctionReturnType<Mutation>>;
+	page: Page;
+	query: <Query extends FunctionReference<"query">>(
+		query: Query,
+		args: FunctionArgs<Query>
+	) => Promise<FunctionReturnType<Query>>;
+	runCli: (args: readonly string[]) => ReturnType<typeof runProcess>;
+}
+
+export const createUser = async (
+	page: Page,
+	config: E2EEnvironment,
+	options: { creationMode?: "admin" | "sign-up" } = {}
+): Promise<E2EUser> => {
+	const email = `spendly-e2e-${randomUUID()}+clerk_test@example.com`;
+	// Preflight verifies server-side cleanup guards before allocating any user/data.
+	await removeBackendUser(config, "e2e-preflight-absent", email);
+	const password = `${randomBytes(24).toString("base64url")}aA1!`;
+	await mkdir(JOURNAL_DIRECTORY, { mode: 0o700, recursive: true });
+	const directory = await mkdtemp(join(tmpdir(), "spendly-e2e-"));
+	const journal = new URL(`${randomUUID()}.json`, JOURNAL_DIRECTORY);
+	const record = {
+		clerkIssuer: config.clerkIssuer,
+		convexUrl: config.convexUrl,
+		directory,
+		email,
+	};
+	const id = await allocateAuthIdentity({
+		create: async () => {
+			if (options.creationMode === "sign-up") {
+				await setupClerkTestingToken({ page });
+				await page.goto(`${config.baseUrl}/sign-up`);
+				await signUpThroughUi(page, email, password);
+				let clerkId: string | undefined;
+				await expect
+					.poll(
+						async () => {
+							clerkId = await findClerkUser(config, email);
+							return Boolean(clerkId);
+						},
+						{ message: "Signup identity was not provisioned", timeout: 15_000 }
+					)
+					.toBe(true);
+				if (!clerkId) {
+					throw new Error("Signup identity unavailable");
+				}
+				return clerkId;
+			}
+			return userSchema.parse(
+				await clerkRequest(config, "users", "POST", {
+					email_address: [email],
+					password,
+					skip_password_checks: true,
+				})
+			).id;
+		},
+		journal,
+		record,
+		remove: async (clerkId) => {
+			await removeClerkUser(config, clerkId);
+			await removeBackendUser(config, clerkId, email);
+		},
+		resolve: async () => await findClerkUser(config, email),
+		stop: async () => {
+			if (!page.isClosed()) {
+				await page.close();
+			}
+		},
+	});
+	const client = new ConvexHttpClient(config.convexUrl, { logger: false });
+	const refreshAuth = async () => {
+		// A document reload resolves before Clerk hydrates its real session.
+		await page.waitForFunction(
+			() => Boolean(window.Clerk?.loaded && window.Clerk.session),
+			undefined,
+			{ timeout: 15_000 }
+		);
+		const token = await page.evaluate(async () => {
+			const sdk = window.Clerk;
+			if (!sdk?.session) {
+				throw new Error("E2E Web session unavailable");
+			}
+			return await sdk.session.getToken({ template: "convex" });
+		});
+		if (!token) {
+			throw new Error("E2E Convex JWT template unavailable");
+		}
+		client.setAuth(token);
+	};
+	const env = {
+		HOME: directory,
+		NO_COLOR: "1",
+		PATH: process.env.PATH ?? "",
+		SPENDLY_CLERK_ISSUER: config.clerkIssuer,
+		SPENDLY_CLERK_OAUTH_CLIENT_ID: config.oauthClientId,
+		SPENDLY_CONVEX_URL: config.convexUrl,
+		SPENDLY_E2E_CREDENTIAL_FILE: join(directory, "credentials", "session.json"),
+		SPENDLY_WEB_URL: config.baseUrl,
+		TZ: "UTC",
+	};
+	const dispose = async () => {
+		try {
+			// Stop UserSync before cleanup so it cannot re-create a deleted profile.
+			if (!page.isClosed()) {
+				await page.close();
+			}
+			await removeClerkUser(config, id);
+			await removeBackendUser(config, id, email);
+		} finally {
+			await rm(directory, { force: true, recursive: true });
+		}
+		// Retain recovery information until remote AND local cleanup succeeded.
+		await rm(journal, { force: true });
+	};
+	const user: E2EUser = {
+		cliEnvironment: env,
+		config,
+		credentialFile: env.SPENDLY_E2E_CREDENTIAL_FILE,
+		dispose,
+		email,
+		loginCli: async () => {
+			const login = startProcess({
+				args: [CLI_ENTRY, "auth", "login", "--no-browser"],
+				command: process.execPath,
+				env,
+				timeoutMs: 120_000,
+			});
+			try {
+				await completeOAuth({
+					clientId: config.oauthClientId,
+					interact: async (isFinished) =>
+						await interactWithOAuth(page, email, password, isFinished),
+					issuer: config.clerkIssuer,
+					login,
+					visit: async (url) =>
+						await page.goto(url, { waitUntil: "domcontentloaded" }),
+				});
+				await page.goto(`${config.baseUrl}/dashboard`);
+			} catch {
+				// biome-ignore lint/style/useErrorCause: Never retain credential-bearing provider, filesystem, or subprocess errors.
+				throw new Error(
+					"E2E CLI OAuth failed; credentials and authorization details withheld."
+				);
+			}
+		},
+		mutation: async (mutation, args) => {
+			await refreshAuth();
+			return await client.mutation(mutation, args);
+		},
+		page,
+		query: async (query, args) => {
+			await refreshAuth();
+			return await client.query(query, args);
+		},
+		runCli: async (args) =>
+			await runProcess({
+				args: [CLI_ENTRY, ...args, "--json", "--non-interactive", "--no-color"],
+				command: process.execPath,
+				env,
+			}),
+	};
+	try {
+		if (options.creationMode !== "sign-up") {
+			await setupClerkTestingToken({ page });
+			await page.goto(`${config.baseUrl}/sign-in`);
+			await signInThroughUi(page, email, password);
+			await page.goto(`${config.baseUrl}/onboarding/start`);
+		}
+		// Signup deliberately follows Clerk's actual redirect instead of
+		// navigating past a broken signup-to-onboarding transition.
+		// The Web app's UserSync owns profile provisioning; fixtures must not
+		// make onboarding pass by calling users.create themselves.
+		await expect
+			.poll(
+				async () => {
+					try {
+						const profile = await user.query(api.users.get, {});
+						return profile.clerkId === id && profile.email === email;
+					} catch {
+						return false;
+					}
+				},
+				{
+					message:
+						"Web profile synchronization did not provision the signed-in user",
+					timeout: 30_000,
+				}
+			)
+			.toBe(true);
+		return user;
+	} catch {
+		await dispose();
+		// biome-ignore lint/style/useErrorCause: Never retain credential-bearing provider, filesystem, or subprocess errors.
+		throw new Error(
+			"E2E user setup failed; credentials and provider response withheld."
+		);
+	}
+};
+
+export const seedUser = async (user: E2EUser) => {
+	await user.mutation(api.users.beginOnboarding, {
+		currency: "USD",
+		path: "free",
+	});
+	const cycleId = await user.mutation(api.cycles.saveOnboardingCycle, {
+		endDate: "2030-01-01",
+		name: "E2E tracking",
+		startDate: "2020-01-01",
+	});
+	const types = await user.query(api.accountTypes.list, {});
+	const assetType = types.find((type) => type.balanceNature === "asset");
+	if (!assetType) {
+		throw new Error("E2E requires a seeded asset account type");
+	}
+	const accountId = await user.mutation(api.accounts.createOnboardingAccount, {
+		accountTypeId: assetType._id,
+		name: "E2E Wallet",
+		openingBalance: 1000,
+	});
+	const destination = await user.mutation(api.accounts.create, {
+		accountTypeId: assetType._id,
+		name: "E2E Savings",
+		startingBalance: 200,
+	});
+	return {
+		accountId,
+		assetTypeId: assetType._id,
+		cycleId,
+		date: new Date().toISOString().slice(0, 10),
+		destinationId: destination._id,
+	};
+};
