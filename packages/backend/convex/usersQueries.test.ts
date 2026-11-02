@@ -1,6 +1,6 @@
 // biome-ignore-all lint/style/useFilenamingConvention: Convex module filenames use camelCase.
 import { convexTest } from "convex-test";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { api } from "./_generated/api";
 import schema from "./schema";
 import { modules } from "./test.setup";
@@ -105,6 +105,12 @@ describe("web user queries and preferences", () => {
 	});
 
 	it("infers legacy onboarding completion only when a user has an existing cycle", async () => {
+		vi.useFakeTimers();
+		onTestFinished(() => {
+			vi.useRealTimers();
+		});
+		// Convex transaction time cannot move backwards after fixture writes.
+		vi.setSystemTime(new Date("2026-01-15T12:00:00.000Z"));
 		const test = convexTest(schema, modules);
 		const owner = test.withIdentity({ subject: "legacy-state" });
 		await test.run(
@@ -143,18 +149,12 @@ describe("web user queries and preferences", () => {
 		expect(
 			await owner.query(api.cycles.getCurrent, { date: "2026-02-01" })
 		).toBeNull();
-		vi.useFakeTimers();
-		vi.setSystemTime(new Date("2026-01-15T12:00:00.000Z"));
-		try {
-			expect(await owner.query(api.cycles.getCurrent, {})).toMatchObject({
-				_id: cycle._id,
-			});
-			expect(
-				await owner.query(api.cycles.getCurrent, { date: "" })
-			).toMatchObject({ _id: cycle._id });
-		} finally {
-			vi.useRealTimers();
-		}
+		expect(await owner.query(api.cycles.getCurrent, {})).toMatchObject({
+			_id: cycle._id,
+		});
+		expect(
+			await owner.query(api.cycles.getCurrent, { date: "" })
+		).toMatchObject({ _id: cycle._id });
 	});
 
 	it("does not expose a foreign or deleted onboarding cycle in legacy state", async () => {
