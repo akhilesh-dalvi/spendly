@@ -206,9 +206,9 @@ export function ExpenseForm({
 			toast.warning(warning);
 		}
 
-		const resolvedCategoryId = value.categoryId
-			? (value.categoryId as Id<"categories">)
-			: undefined;
+		const resolvedCategoryId = categories?.find(
+			(category) => category._id === value.categoryId
+		)?._id;
 		const resolvedAccountId = value.accountId
 			? (value.accountId as Id<"accounts">)
 			: undefined;
@@ -218,7 +218,7 @@ export function ExpenseForm({
 				id: expenseId as Id<"expenses">,
 				amount: Number(value.amount),
 				accountId: resolvedAccountId ?? null,
-				categoryId: resolvedCategoryId,
+				categoryId: resolvedCategoryId ?? null,
 				date: format(value.date, "yyyy-MM-dd"),
 				spentOn: value.spentOn || undefined,
 				tagIds: (value.tagIds || []) as Id<"tags">[],
@@ -288,12 +288,30 @@ export function ExpenseForm({
 		},
 	});
 
-	// Set default category when recent expenses load
+	const categoryDefaultApplied = useRef(
+		isEditing || Boolean(defaultValues?.categoryId)
+	);
 	useEffect(() => {
-		if (!isEditing && defaultCategoryId && !form.state.values.categoryId) {
-			form.setFieldValue("categoryId", defaultCategoryId);
+		if (categories === undefined) {
+			return;
 		}
-	}, [defaultCategoryId, isEditing, form]);
+		const selectedCategoryId = form.state.values.categoryId;
+		if (
+			selectedCategoryId &&
+			!categories.some((category) => category._id === selectedCategoryId)
+		) {
+			form.setFieldValue("categoryId", "");
+		}
+		if (!categoryDefaultApplied.current && recentExpenses !== undefined) {
+			categoryDefaultApplied.current = true;
+			if (
+				!selectedCategoryId &&
+				categories.some((category) => category._id === defaultCategoryId)
+			) {
+				form.setFieldValue("categoryId", defaultCategoryId);
+			}
+		}
+	}, [categories, defaultCategoryId, recentExpenses, form]);
 
 	useEffect(() => {
 		if (!isEditing && defaultAccountId && !form.state.values.accountId) {
@@ -373,7 +391,7 @@ export function ExpenseForm({
 				<form.Field name="accountId">
 					{(field) => (
 						<div className="space-y-2">
-							<Label>
+							<Label htmlFor={field.name}>
 								Account{" "}
 								<span className="text-muted-foreground">(optional)</span>
 							</Label>
@@ -383,6 +401,7 @@ export function ExpenseForm({
 							<AccountCombobox
 								accounts={accounts}
 								formatCurrency={formatCurrency}
+								id={field.name}
 								onChange={field.handleChange}
 								selectedAccountId={field.state.value}
 							/>
@@ -394,7 +413,7 @@ export function ExpenseForm({
 				<form.Field name="categoryId">
 					{(field) => (
 						<div className="space-y-2">
-							<Label>Category</Label>
+							<Label htmlFor={field.name}>Category</Label>
 							<p className="text-muted-foreground text-xs">
 								Search categories or create a new one for this cycle.
 							</p>
@@ -406,6 +425,7 @@ export function ExpenseForm({
 									categories={categories}
 									cycle={cycle}
 									formatCurrency={formatCurrency}
+									id={field.name}
 									onChange={field.handleChange}
 									selectedCategoryId={field.state.value}
 									types={categoryTypes}
@@ -451,7 +471,7 @@ export function ExpenseForm({
 				<form.Field name="tagIds">
 					{(field) => (
 						<div className="space-y-2">
-							<Label>
+							<Label htmlFor={field.name}>
 								Tags <span className="text-muted-foreground">(optional)</span>
 							</Label>
 							<p className="text-muted-foreground text-xs">
@@ -459,6 +479,7 @@ export function ExpenseForm({
 								&quot;Recurring&quot;.
 							</p>
 							<TagMultiSelect
+								id={field.name}
 								onChange={field.handleChange}
 								selectedTagIds={field.state.value || []}
 								tags={tags}
@@ -484,28 +505,32 @@ export function ExpenseForm({
 							</Label>
 						</div>
 					)}
-					<Button
-						className="w-full"
-						disabled={form.state.isSubmitting || !cycle}
-						size="lg"
-						type="submit"
-					>
-						{form.state.isSubmitting ? (
-							<>
-								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-								{isEditing ? "Saving..." : "Adding..."}
-							</>
-						) : (
-							<>
-								{isEditing ? (
-									<Save className="mr-2 h-4 w-4" />
+					<form.Subscribe selector={(state) => state.isSubmitting}>
+						{(isSubmitting) => (
+							<Button
+								className="w-full"
+								disabled={isSubmitting || !cycle || categories === undefined}
+								size="lg"
+								type="submit"
+							>
+								{isSubmitting ? (
+									<>
+										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+										{isEditing ? "Saving..." : "Adding..."}
+									</>
 								) : (
-									<Plus className="mr-2 h-4 w-4" />
+									<>
+										{isEditing ? (
+											<Save className="mr-2 h-4 w-4" />
+										) : (
+											<Plus className="mr-2 h-4 w-4" />
+										)}
+										{isEditing ? "Save Changes" : "Add Expense"}
+									</>
 								)}
-								{isEditing ? "Save Changes" : "Add Expense"}
-							</>
+							</Button>
 						)}
-					</Button>
+					</form.Subscribe>
 				</div>
 			</form>
 		</div>
@@ -513,6 +538,7 @@ export function ExpenseForm({
 }
 
 interface TagMultiSelectProps {
+	id: string;
 	tags:
 		| Array<{
 				_id: Id<"tags">;
@@ -524,6 +550,7 @@ interface TagMultiSelectProps {
 }
 
 function TagMultiSelect({
+	id,
 	tags,
 	selectedTagIds,
 	onChange,
@@ -647,6 +674,7 @@ function TagMultiSelect({
 					<Button
 						aria-expanded={open}
 						className="w-full justify-between"
+						id={id}
 						role="combobox"
 						type="button"
 						variant="outline"
@@ -734,6 +762,7 @@ function TagMultiSelect({
 }
 
 interface AccountComboboxProps {
+	id: string;
 	accounts: AccountItem[] | undefined;
 	selectedAccountId: string;
 	onChange: (accountId: string) => void;
@@ -742,6 +771,7 @@ interface AccountComboboxProps {
 
 function AccountCombobox({
 	accounts,
+	id,
 	selectedAccountId,
 	onChange,
 	formatCurrency,
@@ -776,6 +806,7 @@ function AccountCombobox({
 				<Button
 					aria-expanded={open}
 					className="w-full justify-between"
+					id={id}
 					role="combobox"
 					type="button"
 					variant="outline"
@@ -919,6 +950,7 @@ function AccountCombobox({
 }
 
 interface CategoryComboboxProps {
+	id: string;
 	cycle: CyclePreviewData;
 	categories: CategoryItem[] | undefined;
 	types: CategoryTypeItem[] | undefined;
@@ -928,6 +960,7 @@ interface CategoryComboboxProps {
 }
 
 function CategoryCombobox({
+	id,
 	cycle,
 	categories,
 	types,
@@ -988,6 +1021,7 @@ function CategoryCombobox({
 				<Button
 					aria-expanded={open}
 					className="w-full justify-between"
+					id={id}
 					role="combobox"
 					type="button"
 					variant="outline"

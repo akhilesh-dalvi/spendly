@@ -12,6 +12,8 @@
       "!**/dist",
       "!**/.turbo",
       "!**/dev-dist",
+      "!**/development-dist",
+      "!**/.e2e",
       "!**/.zed",
       "!**/.vscode",
       "!**/routeTree.gen.ts",

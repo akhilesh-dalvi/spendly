@@ -30,6 +30,9 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - run: pnpm install --frozen-lockfile
       - name: Validate Renovate configuration
         run: >-
@@ -55,7 +58,9 @@ jobs:
           renovate.json
           knip.jsonc
           apps/cli/src
+          apps/cli/development
           apps/cli/scripts
+          packages/e2e
           apps/cli/package.json
           apps/cli/tsconfig.json
           apps/cli/tsconfig.development.json
@@ -69,6 +74,10 @@ jobs:
           pnpm --dir apps/cli check-types:development
       - name: Test CLI
         run: pnpm --dir apps/cli test
+      - name: Verify offline E2E tooling
+        run: |
+          pnpm test:e2e:tooling
+          pnpm --dir packages/e2e check-types
       - name: Typecheck and test backend
         run: |
           pnpm exec tsc --noEmit -p packages/backend/convex/tsconfig.json

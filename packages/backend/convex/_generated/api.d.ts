@@ -32,6 +32,7 @@ import type * as domain_dates from "../domain/dates.js";
 import type * as domain_expenseOperations from "../domain/expenseOperations.js";
 import type * as domain_idempotency from "../domain/idempotency.js";
 import type * as domain_revisions from "../domain/revisions.js";
+import type * as e2eFixtures from "../e2eFixtures.js";
 import type * as expenses from "../expenses.js";
 import type * as healthCheck from "../healthCheck.js";
 import type * as helpers from "../helpers.js";
@@ -70,6 +71,7 @@ declare const fullApi: ApiFromModules<{
   "domain/expenseOperations": typeof domain_expenseOperations;
   "domain/idempotency": typeof domain_idempotency;
   "domain/revisions": typeof domain_revisions;
+  e2eFixtures: typeof e2eFixtures;
   expenses: typeof expenses;
   healthCheck: typeof healthCheck;
   helpers: typeof helpers;

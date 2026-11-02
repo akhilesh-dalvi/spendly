@@ -1,0 +1,124 @@
+name: E2E regression
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Live regression tier
+        required: true
+        default: full
+        type: choice
+        options:
+          - smoke
+          - full
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    name: Secret-free E2E tooling
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:e2e:tooling
+      - run: pnpm --dir packages/e2e check-types
+
+  live:
+    name: Trusted live regression
+    needs: offline
+    # Forks NEVER enter this job, even when the repository opts into PR tests.
+    # No pull_request_target, unsafe checkout ref, or secrets in the offline job.
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       vars.E2E_PR_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # One dedicated backend is shared across branches. Hold this lock through
+    # deploy, both surfaces and teardown, not just through the deploy command.
+    concurrency:
+      group: spendly-dedicated-e2e-backend
+      cancel-in-progress: false
+    # REQUIRED repository setup: reviewers + trusted deployment branch policy.
+    environment: e2e
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pnpm install --frozen-lockfile
+      - name: Install Chromium
+        run: pnpm --dir packages/e2e exec playwright install --with-deps chromium
+      - name: Validate, deploy this checkout, then run the selected Web and CLI tier
+        env:
+          E2E_SUITE: ${{ github.event_name == 'pull_request' && 'smoke' || inputs.suite || 'full' }}
+          SPENDLY_E2E_ENABLED: "true"
+          E2E_CONVEX_URL: ${{ vars.E2E_CONVEX_URL }}
+          E2E_CLERK_ISSUER: ${{ vars.E2E_CLERK_ISSUER }}
+          E2E_CLERK_PUBLISHABLE_KEY: ${{ vars.E2E_CLERK_PUBLISHABLE_KEY }}
+          E2E_CLERK_OAUTH_CLIENT_ID: ${{ vars.E2E_CLERK_OAUTH_CLIENT_ID }}
+          E2E_CONVEX_DEPLOY_KEY: ${{ secrets.E2E_CONVEX_DEPLOY_KEY }}
+          E2E_CLERK_SECRET_KEY: ${{ secrets.E2E_CLERK_SECRET_KEY }}
+        run: node packages/e2e/run.mjs "$E2E_SUITE"
+      - name: Explain failed or canceled execution without uploading credentials
+        if: always()
+        env:
+          LIVE_STATUS: ${{ job.status }}
+        run: |
+          printf '\nLive job outcome: **%s**.\n' "$LIVE_STATUS" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Missing regression steps did not pass. Check setup/install, configuration, backend deploy/typecheck, auth/infrastructure and journey failures separately. A Web failure still permits CLI execution; prerequisite failures stop both surfaces.\n' >> "$GITHUB_STEP_SUMMARY"
+          printf 'No traces, screenshots, videos, auth state, journals, environment files or raw deployment output are uploaded. Canceled runners may need scoped orphan recovery; see CONTRIBUTING.md.\n' >> "$GITHUB_STEP_SUMMARY"
+
+  gate:
+    name: E2E policy gate
+    if: always()
+    needs: [offline, live]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      OFFLINE_RESULT: ${{ needs.offline.result }}
+      LIVE_RESULT: ${{ needs.live.result }}
+      LIVE_EXPECTED: >-
+        ${{ github.event_name == 'push' ||
+            github.event_name == 'workflow_dispatch' ||
+            (github.event_name == 'pull_request' &&
+             github.event.pull_request.head.repo.full_name == github.repository &&
+             vars.E2E_PR_ENABLED == 'true') }}
+    steps:
+      - name: Require completed checks for the event's trust policy
+        run: |
+          if [ "$OFFLINE_RESULT" != success ]; then
+            echo 'Secret-free E2E checks did not pass.' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          if [ "$LIVE_EXPECTED" = true ]; then
+            if [ "$LIVE_RESULT" != success ]; then
+              echo 'Trusted live regression was required by policy but did not pass (failure, cancellation, or skip).' >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+            echo 'Offline checks and the required live suite passed (PR smoke; master full; manual selection).' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Offline checks passed. Live regression was intentionally NOT run: this event is not opted-in trusted code. This is not live verification.' >> "$GITHUB_STEP_SUMMARY"
+          fi

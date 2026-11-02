@@ -1,0 +1,25 @@
+{
+  "name": "@spendly/e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run --config vitest.config.ts",
+    "check-types": "tsc --noEmit",
+    "test:web": "node run.mjs web",
+    "test:cli": "node run.mjs cli",
+    "backend": "node run.mjs backend",
+    "validate": "node run.mjs validate",
+    "cleanup": "node run.mjs cleanup",
+    "browsers:install": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@clerk/testing": "1.14.9",
+    "@playwright/test": "1.58.2",
+    "@types/node": "24.12.2",
+    "convex": "catalog:",
+    "tsx": "4.20.6",
+    "typescript": "catalog:",
+    "vitest": "4.1.11",
+    "zod": "catalog:"
+  }
+}

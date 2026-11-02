@@ -79,10 +79,12 @@ export default function ComparePage() {
 		if (current === next) {
 			return;
 		}
-		router.replace(buildCompareHref(sanitization.sanitizedIds) as never, {
-			scroll: false,
-		});
-	}, [allCycles, rawIds, sanitization.sanitizedIds, router]);
+		window.history.replaceState(
+			null,
+			"",
+			buildCompareHref(sanitization.sanitizedIds)
+		);
+	}, [allCycles, rawIds, sanitization.sanitizedIds]);
 
 	const selectedCycleIds = sanitization.sanitizedIds;
 	const compareEnabled = selectedCycleIds.length >= compareLimits.minCycles;
@@ -147,7 +149,10 @@ export default function ComparePage() {
 		}
 		const validSet = new Set(allCycles.map((cycle) => cycle._id));
 		const nextSelection = sanitizeCycleIds(ids, validSet).sanitizedIds;
-		router.push(buildCompareHref(nextSelection) as never, { scroll: false });
+		// Comparison data is entirely client-side. Next integrates native history
+		// with useSearchParams without awaiting an RSC navigation that could leave
+		// the next selection based on stale IDs. Back/forward remain supported.
+		window.history.pushState(null, "", buildCompareHref(nextSelection));
 	};
 
 	if (allCycles === undefined) {

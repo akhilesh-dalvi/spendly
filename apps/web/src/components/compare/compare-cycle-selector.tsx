@@ -70,6 +70,7 @@ export function CompareCycleSelector({
 				<PopoverTrigger asChild>
 					<Button
 						aria-expanded={open}
+						aria-label="Cycles to compare"
 						className="w-full justify-between"
 						role="combobox"
 						variant="outline"

@@ -258,6 +258,211 @@ Production builds load the Geist fonts through `next/font/google`. If a local
 build fails while fetching fonts, confirm that the environment can reach Google
 Fonts before treating it as an application failure.
 
+### Web and CLI end-to-end tests
+
+The private `packages/e2e` workspace owns browser and process E2E tooling:
+
+- **Web:** Playwright Test with Clerk testing helpers.
+- **CLI:** Vitest launches the built development CLI using Node `child_process`.
+- **Cross-surface:** Playwright drives Web while a subprocess helper executes CLI
+  commands; no runner is nested inside another runner.
+
+Ordinary application/unit test commands do not collect live E2E specs. Run the
+secret-free runner checks with `pnpm test:e2e:tooling`. Package installation,
+help/version, JSON and exit-code smoke checks remain in the existing
+`pnpm --dir apps/cli pack:verify` gate. Live tests must **never** target the packed
+production CLI or a production database.
+
+#### Dedicated environment setup
+
+1. Create a dedicated **Convex dev deployment** and **Clerk development instance**.
+   Enable email/password authentication without mandatory MFA for synthetic users,
+   and register a public CLI OAuth client
+   with the loopback redirect behavior required by Spendly's existing PKCE flow.
+2. Configure `CLERK_JWT_ISSUER_DOMAIN` and `CLERK_CLI_OAUTH_CLIENT_ID` in that
+   dedicated test deployment; configure Clerk's `convex` JWT template for Web.
+   The guarded live launcher deploys this checkout's backend before running
+   journeys, so old remotely deployed functions cannot silently stand in for
+   the code under test. Do not run an ordinary unqualified `convex deploy`.
+3. In that test deployment only, set the backend environment variable
+   `SPENDLY_E2E_ENABLED=true`. The internal `e2eFixtures:removeUser` mutation needs
+   this flag and matching deployment URL before it can remove an exact synthetic
+   fixture user's records. There is no public reset endpoint or user-auth bypass.
+   **Leave this flag unset in every production deployment.**
+4. Copy `packages/e2e/.env.example` to `packages/e2e/.env.local` and populate the
+   E2E-specific values. The Convex key must be a development deploy key matching
+   the URL (`dev:<deployment>|...`); production/project keys are rejected. The
+   Clerk keys must be test keys and the publishable key must match the issuer.
+   Never use the normal development or production user's credentials.
+5. Leave localhost port 3001 unused. Each live runner starts its own Web server
+   with the test settings and refuses to reuse an existing server.
+
+E2E tooling requires a POSIX host (Linux/macOS), Python 3.9+ for the real
+controlling-terminal bridge, and Node 24 (the CI version) or Node 22.18+ with
+native TypeScript stripping. CI installs Python 3.12 explicitly. The bridge
+executes argument arrays without a shell and reaps owned terminal processes;
+no additional npm/native PTY dependency is needed. Windows PTY/ACL and real OS
+keychain coverage are not implemented; the live CLI uses isolated development
+file credentials, never a developer keychain. The launchers do not automatically
+read `.env.local`. Load the E2E file explicitly, without sourcing shell syntax
+containing deploy-key pipes:
+
+```bash
+pnpm --dir packages/e2e browsers:install
+# Offline validation only: no subprocess, connection, deployment or server.
+node --env-file=packages/e2e/.env.local packages/e2e/run.mjs validate
+# Critical-path regression during development / before a PR:
+node --env-file=packages/e2e/.env.local packages/e2e/run.mjs smoke
+# Every existing journey before a release or for broader verification:
+node --env-file=packages/e2e/.env.local packages/e2e/run.mjs full
+```
+
+With the E2E environment already exported, use `pnpm test:e2e:smoke` for
+critical paths and `pnpm test:e2e:full` for the complete suite.
+
+Smoke selects representative auth/onboarding, expense lifecycle, account/transfer,
+ownership, totals and cross-surface journeys. Web tests use Playwright's `@smoke`
+tag; CLI test titles end with `@smoke`. The executable specs define membership.
+Smoke runs on Chromium. Full runs every Web and CLI journey in the suite,
+including smoke. Both tiers use genuine authentication and persisted financial
+state.
+
+Both tiers validate configuration first, run offline tooling tests and typechecks,
+deploy the current backend, build the development CLI once, then run Web and CLI
+as sibling runners. A Web failure still runs CLI and the final result fails if
+either fails. Configuration, offline-check, deployment or build failures stop
+live execution. Suite commands use fixed selections, and summaries identify
+the selected tier.
+
+Individual `web` and `cli` launcher actions also validate, deploy the checkout
+and build the development CLI before their selected surface. They accept runner
+arguments for focused local diagnosis. Use `pnpm --dir packages/e2e check-types`
+for offline test-tooling typechecks. The launcher explicitly forwards file-loaded
+settings to pnpm; avoid Node's `--run`, which can drop those variables.
+
+Backend-only commands (after the same complete safety validation) are:
+
+```bash
+# Online deployment and typecheck dry-run.
+node --env-file=packages/e2e/.env.local packages/e2e/run.mjs backend --check
+# Actually update ONLY the dedicated development deployment to this checkout.
+node --env-file=packages/e2e/.env.local packages/e2e/run.mjs backend
+```
+
+The launcher uses the installed Convex CLI's `deploy --env-file` with an exact
+`dev:<deployment>|...` key and typechecking enabled. That deployment-specific key
+selects its development deployment despite `deploy` normally defaulting to
+production. A short-lived owner-only file supplies the validated key; argv and
+logs never contain it. Normal backend `.env` files, ambient Convex selection/auth
+overrides and saved global credentials are not used. Raw deployment output is
+withheld; only the failed step/exit code is reported. The file is removed on
+normal success/failure. An abrupt kill can leave local temporary state; use only
+a trusted machine and disposable CI runners. Recheck CLI selection semantics
+when updating Convex. This flow intentionally changes the dedicated backend, not
+production, and does not configure remote Clerk/Convex settings for you.
+
+Web tests run headless by default, so no browser window opens. Add `--headed`
+to the Web launcher command to watch the browser. Extra Playwright arguments,
+including a spec filename, are forwarded by the launcher. Wait for the current
+run to finish before starting another; each run owns port 3001. Failed tests
+print their detailed errors in the final summary.
+
+Chromium runs the full Web suite by default. To add Firefox, WebKit and narrow
+Chromium, install those browsers with
+`pnpm --dir packages/e2e exec playwright install` and set
+`E2E_EXTENDED_BROWSERS=true` in the E2E environment file. Those optional projects
+run tests tagged `@compatibility`.
+These projects apply to full/focused Web runs; smoke always uses Chromium only.
+Both surfaces run serially. Do not run suites concurrently on the same local port
+or against the same dedicated backend, including from separate local checkouts.
+
+#### Fixture lifecycle and evidence
+
+Tests allocate fresh synthetic Clerk users, sign in through the Web UI and wait
+for the app's own profile synchronization, then obtain genuine CLI OAuth sessions
+and seed financial fixtures through authenticated public Convex operations.
+Clerk setup disables dotenv discovery, pins the official management API and
+obtains a fresh testing token rather than accepting ambient instance state. Reads
+verify persisted records and balances independently of the initiating command.
+The CLI uses a development-only explicit credential file under an owner-only
+temporary directory. Production ignores this injection and keeps its normal
+keychain policy; `--allow-file-storage` still permits fallback rather than forcing
+file storage. Browser login exercises the real authorization/callback/exchange,
+not an injected token. Credential journeys force refresh by aging local expiry
+metadata while retaining genuine signed tokens, then check renewed persistence,
+identity, permissions, expiration and logout isolation. Terminal journeys exercise
+real arrow/selection input, dry-run, confirmed creation, declined confirmation
+and Ctrl+C, with independent financial-state checks.
+
+Teardown closes the fixture page before deleting its Clerk user and matching
+backend records, then removes temporary credentials. Stopping the page first and
+cleaning backend records last prevents in-flight Web profile sync from recreating
+an already-cleaned profile. Local journals under ignored
+`packages/e2e/.e2e/users/` record creation intent before Clerk allocation and retain
+IDs/emails, matching test targets and owned temporary directories when cleanup
+fails. Recovery resolves ambiguous allocation by exact synthetic email and removes
+journals only after remote and local cleanup succeed. Recover journaled
+users older than two hours with:
+
+```bash
+node --env-file=packages/e2e/.env.local packages/e2e/run.mjs cleanup
+```
+
+Do not delete a failed-cleanup journal until recovery succeeds. An abruptly killed
+or discarded CI runner can lose its local journals; inspect the dedicated test
+instance for orphaned `spendly-e2e-...+clerk_test@example.com` users after canceled
+runs. There is no automatic broad remote-user sweep.
+
+OAuth URLs, credential files, saved browser auth and full environment files must
+never be logged or uploaded. Automatic Playwright traces/screenshots/videos are
+disabled because even synthetic-session requests contain bearer credentials.
+For local diagnosis, deliberately enable capture only with restricted storage,
+review and redaction; never attach an unreviewed trace to a public PR.
+
+#### CI execution
+
+The **E2E regression** workflow runs secret-free tooling tests and typechecks on
+all PRs (including forks), pushes to `master`, and manual dispatches. Existing
+application/backend/unit/package gates remain automatic in CLI release CI.
+Trusted pushes to `master` additionally run the full guarded live regression.
+Same-repository PRs run live **smoke** only after setting the **repository**
+variable `E2E_PR_ENABLED=true`. Manual dispatch offers a `suite` choice of smoke
+or full, defaulting to full. Fork PRs never enter the live job, even with that
+opt-in. There is no `pull_request_target` trigger.
+
+Before live execution, create and protect the GitHub **`e2e` environment** with
+required reviewers and an explicit trusted deployment branch policy. Merely
+naming an environment in YAML does not install those protections. Configure its
+variables `E2E_CONVEX_URL`, `E2E_CLERK_ISSUER`, `E2E_CLERK_PUBLISHABLE_KEY`,
+`E2E_CLERK_OAUTH_CLIENT_ID`, and secrets `E2E_CONVEX_DEPLOY_KEY`,
+`E2E_CLERK_SECRET_KEY`. Approve only reviewed trusted checkout code, including
+workflow, install scripts and dependencies; never dispatch untrusted branches.
+Do not relax environment protections just to make a PR run. Setup and synthetic
+user/OAuth configuration above are still required; absent settings fail trusted
+runs rather than silently skipping them.
+
+All live jobs share one repository-wide concurrency group, independent of branch,
+with cancellation disabled during execution. The lock covers deployment, both
+surfaces and teardown. GitHub can supersede older pending jobs; cancellation is
+not a pass. Local commands are not protected by this CI lock: coordinate them or
+use a different dedicated deployment.
+
+For a required repository check, use **E2E policy gate**, not the conditional live
+job alone. It requires successful offline checks and, for events that require
+live execution under the trust policy, an actual successful result for the
+requested tier (PR smoke, master full, manual choice). Skipped, canceled or
+failed required runs fail the gate. Forks and PRs without live opt-in receive
+secret-free verification, identified in the summary. Live verification of a fork
+change requires a separately reviewed trusted run.
+Configure branch protection only after operational verification of this policy.
+
+Live summaries list executed steps and classify configuration/deployment/build
+prerequisites separately from surface failures. No authentication artifacts or
+raw deployment logs are uploaded. A passing offline suite, a configuration
+validation or a backend dry-run is **not** evidence that live journeys passed.
+The harness is regression protection, not proof that every environment, browser,
+credential store or user configuration universally works.
+
 ## Repository conventions
 
 - [`apps/web`](apps/web) contains the Next.js application.
