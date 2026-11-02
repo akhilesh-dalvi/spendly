@@ -91,9 +91,11 @@ jobs:
         env:
           LIVE_STATUS: ${{ job.status }}
         run: |
-          printf '\nLive job outcome: **%s**.\n' "$LIVE_STATUS" >> "$GITHUB_STEP_SUMMARY"
-          printf 'Missing regression steps did not pass. Check setup/install, configuration, backend deploy/typecheck, auth/infrastructure and journey failures separately. A Web failure still permits CLI execution; prerequisite failures stop both surfaces.\n' >> "$GITHUB_STEP_SUMMARY"
-          printf 'No traces, screenshots, videos, auth state, journals, environment files or raw deployment output are uploaded. Canceled runners may need scoped orphan recovery; see CONTRIBUTING.md.\n' >> "$GITHUB_STEP_SUMMARY"
+          {
+            printf '\nLive job outcome: **%s**.\n' "$LIVE_STATUS"
+            printf 'Missing regression steps did not pass. Check setup/install, configuration, backend deploy/typecheck, auth/infrastructure and journey failures separately. A Web failure still permits CLI execution; prerequisite failures stop both surfaces.\n'
+            printf 'No traces, screenshots, videos, auth state, journals, environment files or raw deployment output are uploaded. Canceled runners may need scoped orphan recovery; see CONTRIBUTING.md.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   gate:
     name: E2E policy gate
