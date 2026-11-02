@@ -1,5 +1,4 @@
-// Better-T-Stack configuration file
-// safe to delete
+// Optional Better-T-Stack scaffolding metadata.
 
 {
   "$schema": "https://r2.better-t-stack.dev/schema.json",

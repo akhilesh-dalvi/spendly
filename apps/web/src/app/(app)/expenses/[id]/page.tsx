@@ -6,7 +6,7 @@ import { useMutation, useQuery } from "convex/react";
 import { format, parseISO } from "date-fns";
 import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { use, useState } from "react";
+import { use, useCallback, useState } from "react";
 import { toast } from "sonner";
 import { ActionSourceIndicator } from "@/components/action-source-indicator";
 import { ExpenseForm } from "@/components/expense-form";
@@ -39,6 +39,7 @@ export default function ExpenseDetailPage({
 		isDeleted ? "skip" : { expenseId: id as Id<"expenses"> }
 	);
 	const removeExpense = useMutation(api.expenses.remove);
+	const handleSuccess = useCallback(() => router.push("/expenses"), [router]);
 
 	const handleDelete = async () => {
 		try {
@@ -109,15 +110,15 @@ export default function ExpenseDetailPage({
 			<div className="rounded-xl border bg-card p-6 shadow-sm">
 				<ExpenseForm
 					defaultValues={{
-						amount: expense.amount,
 						accountId: expense.accountId ?? "",
+						amount: expense.amount,
 						categoryId: expense.categoryId ?? "",
 						date: parseISO(expense.date),
 						spentOn: expense.spentOn ?? "",
 						tagIds: expense.tagIds ?? [],
 					}}
 					expenseId={expense._id}
-					onSuccess={() => router.push("/expenses")}
+					onSuccess={handleSuccess}
 				/>
 			</div>
 		</div>

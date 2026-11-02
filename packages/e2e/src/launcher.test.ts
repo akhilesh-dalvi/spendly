@@ -1,3 +1,4 @@
+// biome-ignore-all lint/performance/noAwaitInLoops: Stateful E2E steps and fixture cleanup require ordered execution.
 import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,13 +8,13 @@ import { runProcess } from "./process";
 
 const launcher = fileURLToPath(new URL("../run.mjs", import.meta.url));
 const validEnvironment = {
-	SPENDLY_E2E_ENABLED: "true",
-	E2E_CONVEX_URL: "https://e2e-fixtures.convex.cloud",
-	E2E_CONVEX_DEPLOY_KEY: "dev:e2e-fixtures|synthetic-secret",
 	E2E_CLERK_ISSUER: "https://fixture.clerk.accounts.dev",
+	E2E_CLERK_OAUTH_CLIENT_ID: "test-oauth-client",
 	E2E_CLERK_PUBLISHABLE_KEY: `pk_test_${Buffer.from("fixture.clerk.accounts.dev$").toString("base64")}`,
 	E2E_CLERK_SECRET_KEY: "sk_test_synthetic-secret",
-	E2E_CLERK_OAUTH_CLIENT_ID: "test-oauth-client",
+	E2E_CONVEX_DEPLOY_KEY: "dev:e2e-fixtures|synthetic-secret",
+	E2E_CONVEX_URL: "https://e2e-fixtures.convex.cloud",
+	SPENDLY_E2E_ENABLED: "true",
 };
 
 const withLauncher = async (
@@ -48,7 +49,7 @@ process.exitCode = JSON.parse(readFileSync(${JSON.stringify(join(directory, "fai
 		await writeFile(join(directory, "failures.json"), "{}");
 		await run(directory);
 	} finally {
-		await rm(directory, { recursive: true, force: true });
+		await rm(directory, { force: true, recursive: true });
 	}
 };
 
@@ -87,8 +88,8 @@ it("forwards file-loaded settings and runner arguments without nested runners", 
 				.join("\n")
 		);
 		const result = await runProcess({
-			command: process.execPath,
 			args: [`--env-file=${environment}`, launcher, "web", "--list"],
+			command: process.execPath,
 			env: { PATH: directory },
 		});
 		expect(result.exitCode).toBe(0);
@@ -99,7 +100,6 @@ it("forwards file-loaded settings and runner arguments without nested runners", 
 			"playwright",
 		]);
 		expect(commands[2]).toMatchObject({
-			marker: "loaded",
 			args: [
 				"--dir",
 				fileURLToPath(new URL("../", import.meta.url)),
@@ -108,6 +108,7 @@ it("forwards file-loaded settings and runner arguments without nested runners", 
 				"test",
 				"--list",
 			],
+			marker: "loaded",
 		});
 	});
 });
@@ -124,12 +125,12 @@ it("validates before any subprocess, including deployment, and never echoes cred
 			"cleanup",
 		]) {
 			const result = await runProcess({
-				command: process.execPath,
 				args: [launcher, action],
+				command: process.execPath,
 				env: {
 					...validEnvironment,
-					PATH: directory,
 					E2E_CONVEX_DEPLOY_KEY: "prod:e2e-fixtures|do-not-log",
+					PATH: directory,
 				},
 			});
 			expect(result.exitCode).toBe(1);
@@ -144,8 +145,8 @@ it("validates before any subprocess, including deployment, and never echoes cred
 
 it("supports an entirely offline configuration validation action", async () => {
 	const result = await runProcess({
-		command: process.execPath,
 		args: [launcher, "validate"],
+		command: process.execPath,
 		env: { ...validEnvironment, PATH: "" },
 	});
 	expect(result.exitCode).toBe(0);
@@ -155,13 +156,13 @@ it("supports an entirely offline configuration validation action", async () => {
 it("deploys only through an isolated owner-only key file and supports an explicit online dry-run check", async () => {
 	await withLauncher(async (directory) => {
 		const result = await runProcess({
-			command: process.execPath,
 			args: [launcher, "backend", "--check"],
+			command: process.execPath,
 			env: {
 				...validEnvironment,
-				PATH: directory,
-				CONVEX_OVERRIDE_ACCESS_TOKEN: "ambient-token",
 				CONVEX_DEPLOY_KEY: "prod:wrong|key",
+				CONVEX_OVERRIDE_ACCESS_TOKEN: "ambient-token",
+				PATH: directory,
 			},
 		});
 		expect(result.exitCode).toBe(0);
@@ -183,9 +184,9 @@ it("deploys only through an isolated owner-only key file and supports an explici
 			"--dry-run",
 		]);
 		expect(deployment).toMatchObject({
-			mode: 0o600,
-			manageVersions: "false",
 			deployment: `CONVEX_DEPLOY_KEY=${validEnvironment.E2E_CONVEX_DEPLOY_KEY}\n`,
+			manageVersions: "false",
+			mode: 0o600,
 		});
 		expect(deployment.override).toBeUndefined();
 		expect(deployment.secret).toBeUndefined();
@@ -204,12 +205,12 @@ it("runs full sequentially, continues after a Web failure, and summarizes withou
 		);
 		const summary = join(directory, "summary.md");
 		const result = await runProcess({
-			command: process.execPath,
 			args: [launcher, "full"],
+			command: process.execPath,
 			env: {
 				...validEnvironment,
-				PATH: directory,
 				GITHUB_STEP_SUMMARY: summary,
+				PATH: directory,
 			},
 		});
 		expect(result.exitCode).toBe(1);
@@ -246,13 +247,13 @@ it("runs smoke sequentially with fixed Chromium and CLI tag filters, not a parti
 		);
 		const summary = join(directory, "smoke-summary.md");
 		const result = await runProcess({
-			command: process.execPath,
 			args: [launcher, "smoke"],
+			command: process.execPath,
 			env: {
 				...validEnvironment,
-				PATH: directory,
 				E2E_EXTENDED_BROWSERS: "true",
 				GITHUB_STEP_SUMMARY: summary,
+				PATH: directory,
 			},
 		});
 		expect(result.exitCode).toBe(1);
@@ -300,8 +301,8 @@ it("stops live work if deployment or the prerequisite build fails", async () => 
 			);
 			await writeFile(join(directory, "calls.jsonl"), "");
 			const result = await runProcess({
-				command: process.execPath,
 				args: [launcher, "web"],
+				command: process.execPath,
 				env: { ...validEnvironment, PATH: directory },
 			});
 			expect(result.exitCode).toBe(7);
@@ -319,8 +320,8 @@ it("does not deploy when offline checks fail, but still runs the offline typeche
 			JSON.stringify({ test: 1 })
 		);
 		const result = await runProcess({
-			command: process.execPath,
 			args: [launcher, "full"],
+			command: process.execPath,
 			env: { ...validEnvironment, PATH: directory },
 		});
 		expect(result.exitCode).toBe(1);
@@ -338,8 +339,8 @@ it("preserves a direct backend failure's exit status and removes its key file", 
 			JSON.stringify({ backend: 7 })
 		);
 		const result = await runProcess({
-			command: process.execPath,
 			args: [launcher, "backend"],
+			command: process.execPath,
 			env: { ...validEnvironment, PATH: directory },
 		});
 		expect(result.exitCode).toBe(7);
@@ -361,8 +362,8 @@ it("rejects retired aliases, unknown actions and suite/deploy selection override
 		["backend", "--check", "--yes"],
 	]) {
 		const result = await runProcess({
-			command: process.execPath,
 			args: [launcher, ...args],
+			command: process.execPath,
 			env: { PATH: "" },
 		});
 		expect(result.exitCode).toBe(2);

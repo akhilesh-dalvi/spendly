@@ -45,8 +45,8 @@ export const expenseUpdatePreviewSchema = z.object({
 export const expenseDeletePreviewSchema = z.object({
 	accountEffects: z.array(accountBalanceEffectSchema),
 	confirmationToken: idSchema,
-	expiresAt: z.iso.datetime({ offset: true }),
 	expense: expenseSchema,
+	expiresAt: z.iso.datetime({ offset: true }),
 	revision: z.number().int().positive(),
 });
 

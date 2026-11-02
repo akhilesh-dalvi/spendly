@@ -1,3 +1,4 @@
+// biome-ignore-all lint/performance/noAwaitInLoops: Stateful E2E steps and fixture cleanup require ordered execution.
 import { setTimeout as delay } from "node:timers/promises";
 import { loadEnvironment, webEnvironment } from "./environment";
 import { startProcess } from "./process";
@@ -15,11 +16,11 @@ export default async function setup(): Promise<() => Promise<void>> {
 		}
 	}
 	const server = startProcess({
-		command: "pnpm",
 		args: ["--dir", "../../apps/web", "dev"],
+		command: "pnpm",
 		env: webEnvironment(config),
-		timeoutMs: 30 * 60_000,
 		maxOutputBytes: 8 * 1024 * 1024,
+		timeoutMs: 30 * 60_000,
 	});
 	let ready = false;
 	const deadline = Date.now() + 120_000;
@@ -46,6 +47,7 @@ export default async function setup(): Promise<() => Promise<void>> {
 		};
 	} catch {
 		await server.stop();
+		// biome-ignore lint/style/useErrorCause: Never retain credential-bearing provider, filesystem, or subprocess errors.
 		throw new Error("E2E Web setup failed; output withheld.");
 	}
 }

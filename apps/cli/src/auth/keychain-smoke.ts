@@ -26,19 +26,18 @@ export const runKeychainSmokeTest = (): {
 		cleanup = true;
 		return { cleanup: true, platform: process.platform, roundTrip: true };
 	} catch (error) {
-		throw new CliError(
+		throw CliError.fromCause(
+			error,
 			"KEYCHAIN_UNAVAILABLE",
 			"Native keychain security test failed",
-			{
-				cause: error,
-			}
+			{}
 		);
 	} finally {
 		if (!cleanup) {
 			try {
 				entry.deletePassword();
 			} catch {
-				// Preserve the original test failure. The unique account is documented in the error path.
+				// Preserve the original failure; the error path identifies the leftover account.
 			}
 		}
 	}

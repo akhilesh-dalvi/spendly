@@ -29,12 +29,11 @@ export const mutationParsed = async <Output>(options: {
 	idempotencyKey?: string;
 	name: OperationName;
 	schema: z.ZodType<Output>;
-}): Promise<Output> => {
-	return (await options.context.operations.invoke(
+}): Promise<Output> =>
+	(await options.context.operations.invoke(
 		options.name,
 		options.args
 	)) as Output;
-};
 
 export const commitParsed = async <Output>(options: {
 	args: Readonly<Record<string, unknown>>;

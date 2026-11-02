@@ -2,19 +2,26 @@
 
 import { ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useCallback } from "react";
 import { CycleForm } from "@/components/cycle-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function NewCyclePage() {
 	const router = useRouter();
+	const goBack = useCallback(() => router.back(), [router]);
+	const viewCycles = useCallback(() => router.push("/cycles"), [router]);
+	const handleSuccess = useCallback(
+		(id: string) => router.push(`/cycles/${id}`),
+		[router]
+	);
 
 	return (
 		<div className="mx-auto w-full max-w-2xl space-y-8">
 			<div className="flex items-center gap-4">
 				<Button
 					className="rounded-full"
-					onClick={() => router.back()}
+					onClick={goBack}
 					size="icon"
 					variant="ghost"
 				>
@@ -33,16 +40,12 @@ export default function NewCyclePage() {
 					<CardTitle>Cycle Details</CardTitle>
 				</CardHeader>
 				<CardContent>
-					<CycleForm
-						onSuccess={(id) => {
-							router.push(`/cycles/${id}`);
-						}}
-					/>
+					<CycleForm onSuccess={handleSuccess} />
 				</CardContent>
 			</Card>
 
 			<div className="flex justify-center">
-				<Button onClick={() => router.push("/cycles")} variant="ghost">
+				<Button onClick={viewCycles} variant="ghost">
 					View all cycles
 				</Button>
 			</div>

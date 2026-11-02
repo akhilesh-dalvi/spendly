@@ -3,50 +3,215 @@ title: Categories
 description: Find existing categories and use them to organize expenses.
 ---
 
-Categories group expenses within a cycle, such as Food or Transport. Check what
-already exists before considering a new category. Categories are created and
-managed in Spendly Web.
+Categories group expenses within a cycle, such as Food or Transport. A cycle is
+the date range you use to track spending. You can find and use categories in the
+CLI; create and manage the categories themselves in Spendly Web.
 
-## List categories
+For example, put Lunch in Food so you can review your food spending later.
 
-Find the cycle for your expense, then copy its ID:
+## Before you start
+
+- **Required:** Install the CLI and sign in using the [Quick start](/docs/cli).
+- **Required to use Food:** Have a cycle containing the expense's date and a
+  visible Food category in that cycle. Check existing categories before creating
+  one in Spendly Web.
+- **Optional:** Leave an expense uncategorized if no category fits. You do not
+  need to create a category just to record an expense.
+- **Automatic:** A new expense uses today's local date unless you choose another
+  date. The date determines which cycle's categories you can use.
+
+## Try categorizing Lunch
+
+No saved expense yet? Start with [Add a new categorized expense](#add-a-new-categorized-expense).
+Otherwise, update the Lunch from Quick start instead of adding another one.
+Find it in `spendly expenses list`, then copy its ID. An ID is the
+unique value Spendly uses to identify a record. Replace `EXPENSE_ID` below with
+Lunch's ID and check its saved date:
 
 ```bash
-spendly cycles current
+spendly expenses get EXPENSE_ID
+```
+
+Find the cycle covering that date. Replace `YYYY-MM-DD` with Lunch's saved date,
+for example `2026-09-05`, then replace `CYCLE_ID` with the returned cycle ID:
+
+```bash
+spendly cycles current --date YYYY-MM-DD
 spendly categories list --cycle-id CYCLE_ID
 ```
 
-Replace `CYCLE_ID` with the returned ID. For an older expense, use
-`spendly cycles current --date 2026-09-05` to find its cycle instead.
-The category list shows names, planned amounts, and IDs.
+If Lunch is dated today, `spendly cycles current` also finds its cycle. If no
+cycle covers the date, follow [Cycles](/docs/cli/cycles) first. The category list
+shows names, planned amounts, and IDs. If Food is missing, [create it in Spendly Web](#add-a-category), or use another
+category that fits. A new empty cycle does
+not create Food automatically.
 
-## Use a category
+`--dry-run` checks your choices and shows a preview without changing the saved
+expense. Start with the guided preview:
 
-Use an existing category name when adding an expense:
+```bash
+spendly expenses edit EXPENSE_ID --interactive --dry-run
+```
+
+Select Category as the field to change, then choose Food. Keep the expense's
+original date unless you are correcting it.
+
+<details className="docs-disclosure">
+<summary>Alternative: enter the category as a flag</summary>
+
+```bash
+spendly expenses edit EXPENSE_ID --category "Food" --dry-run
+```
+
+Replace Food with your own existing category name if needed.
+
+</details>
+
+## Check and save
+
+Review the amount, date, category, account, and tags in the preview.
+
+- **Guided path:** Run `spendly expenses edit EXPENSE_ID --interactive` without
+  `--dry-run`. Choose Category and Food again, review the new preview, and confirm.
+- **Direct path:** Run your direct edit command again without `--dry-run`. This
+  saves immediately, without a confirmation question.
+
+Choose only one save method. Verify the same expense using its ID:
+
+```bash
+spendly expenses get EXPENSE_ID
+```
+
+Check that the category is Food and that the amount and date are unchanged.
+
+## Other things you can do
+
+<details className="docs-disclosure">
+<summary id="view-expenses-by-category">View expenses by category</summary>
+
+```bash
+spendly expenses list --cycle-id CYCLE_ID --category "Food"
+spendly expenses list --uncategorized
+```
+
+Use the cycle ID you found earlier. The second command finds expenses without a
+category.
+
+</details>
+
+<details className="docs-disclosure">
+<summary id="add-a-category">Add a category</summary>
+
+The CLI does not create categories. In the same signed-in account:
+
+1. Open [Cycles in Spendly Web](/cycles) and select the cycle whose ID you found.
+2. Choose **Add Category**, enter **Food**, then choose **Add Category** to save.
+   Type, icon, and planned amount (your budget) are optional.
+3. Back in your terminal, verify it:
+
+```bash
+spendly categories list --cycle-id CYCLE_ID
+```
+
+Choose the cycle covering Lunch's saved date. Do not create Food in a different
+cycle just because it has the same name.
+
+</details>
+
+<details className="docs-disclosure">
+<summary id="add-a-new-categorized-expense">Add a new categorized expense</summary>
+
+Use this only for a purchase you have not recorded. It creates a new expense,
+not an update to the Lunch used above:
 
 ```bash
 spendly expenses add --amount 18.75 --spent-on "Lunch" \
   --category "Food" --dry-run
 ```
 
-To change an existing expense, use its ID from `expenses list`:
+The date defaults to today. For an older purchase, add `--date YYYY-MM-DD` with
+its actual date and choose a category from that date's cycle. Review the amount,
+date, account, category, and tags. Remove `--dry-run` to save immediately, then
+verify with `spendly expenses get EXPENSE_ID` using the new expense's returned ID.
+
+</details>
+
+<details className="docs-disclosure">
+<summary id="remove-an-expenses-category">Remove an expense's category</summary>
+
+Clearing the category moves the expense to Uncategorized; it does not delete the
+expense or the category itself. Preview the change first:
 
 ```bash
-spendly expenses edit EXPENSE_ID --category "Food" --dry-run
+spendly expenses edit EXPENSE_ID --clear-category --dry-run
 ```
 
-Replace the name and ID with your own values. Remove `--dry-run` to save.
-The category must belong to the expense's cycle.
+Repeat without `--dry-run` to save immediately. Verify with
+`spendly expenses get EXPENSE_ID`. Manage the category itself in Spendly Web.
 
-To remove its category, use `expenses edit EXPENSE_ID --clear-category`.
-To find expenses without a category:
+</details>
 
-```bash
-spendly expenses list --uncategorized
-```
+## Things to know
 
-If an explicit command omits a category while adding an expense, Spendly may
-use one from matching description history; otherwise the expense stays
-uncategorized. Guided mode always asks you to choose a visible category or
-`Uncategorized`. Run
-`spendly categories --help` for category commands.
+<details className="docs-disclosure">
+<summary>Defaults, limits, and important behavior</summary>
+
+- A category must belong to the expense's cycle. A Food category in another cycle
+  is not interchangeable with this one.
+- Guided mode asks you to choose a visible category or Uncategorized. Hidden
+  categories are not offered.
+- When a direct add command omits a category, Spendly may use one from matching
+  description history. Otherwise, the expense stays uncategorized. Check the
+  preview rather than assuming what will be chosen.
+- Omitting category options when editing keeps the existing category. Use
+  `--clear-category` to remove it. If you move the expense's date into another
+  cycle, choose a category from that cycle or clear the category explicitly.
+
+</details>
+
+## If something goes wrong
+
+<details className="docs-disclosure">
+<summary>Common problems and fixes</summary>
+
+- **Food is missing:** It may be hidden or belong to another cycle. Check the
+  expense's date and list that cycle's categories. Manage categories in Spendly
+  Web if needed.
+- **No cycle contains the date:** Check the date. If it is correct, use
+  [Cycles](/docs/cli/cycles) to set up the date range you need.
+- **A name is ambiguous:** More than one category matches. Use the intended
+  category's ID with `--category-id CATEGORY_ID` instead of `--category "Food"`.
+- **Guided questions are unavailable:** They need an interactive terminal. Use
+  direct commands for scripts, following the requirements below.
+
+</details>
+
+## Next step
+
+Use [Tags](/docs/cli/tags) to label Lunch as Work without changing its Food category.
+
+## For scripts and AI agents
+
+You can skip this reference when using guided commands.
+
+<details className="docs-disclosure">
+<summary>Optional: automation and technical reference</summary>
+
+Use stable IDs rather than names in non-interactive mode. For example, list
+categories with `spendly categories list --cycle-id CYCLE_ID`, then use
+`--category-id CATEGORY_ID` when adding, editing, or filtering expenses. Replace
+both placeholders with returned IDs.
+
+Non-interactive edits require `--if-revision REVISION`, including previews.
+Read the expense with `expenses get` to obtain its current revision (the version
+number used to detect changes). Non-interactive saves also require
+`--idempotency-key KEY`: use a fresh key for each intended change. After an
+uncertain save, check current state first. Reuse the original key only for an
+explicitly requested recovery of that exact save; stop if the result remains
+unknown. If the expense changed, read it again and review a fresh preview before
+approving a new change.
+
+See [AI agents](/docs/cli/ai-agents) for the automation workflow. Run
+`spendly categories --help` or `spendly expenses edit --help` for command options.
+
+</details>

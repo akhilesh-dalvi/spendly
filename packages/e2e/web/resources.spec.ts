@@ -17,16 +17,16 @@ test("creates and edits a cycle and category with persisted planned totals throu
 	// Leave the UI's default current-month dates free, rather than overlapping
 	// seedUser's intentionally broad tracking cycle.
 	await user.mutation(api.cycles.update, {
+		endDate: "2019-01-31",
 		id: seed.cycleId,
 		startDate: "2019-01-01",
-		endDate: "2019-01-31",
 	});
 	await page.goto("/cycles/new");
 	await page.getByLabel("Cycle Name", { exact: true }).fill("Resource cycle");
-	await page.getByRole("button", { name: "Create Cycle", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "Create Cycle" }).click();
 	await expect(page).toHaveURL(CYCLE_DETAIL_URL);
 	await expect(
-		page.getByRole("heading", { name: "Resource cycle", exact: true })
+		page.getByRole("heading", { exact: true, name: "Resource cycle" })
 	).toBeVisible();
 	const cycles = await user.query(api.cycles.list, {});
 	const cycle = cycles.find((candidate) => candidate.name === "Resource cycle");
@@ -39,8 +39,8 @@ test("creates and edits a cycle and category with persisted planned totals throu
 		Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0)
 	).getUTCDate();
 	expect(cycle).toMatchObject({
-		startDate: `${month}-01`,
 		endDate: `${month}-${lastDay}`,
+		startDate: `${month}-01`,
 	});
 	await page.goto(`/cycles/${cycle._id}/edit`);
 	await expect(page.getByLabel("Cycle Name", { exact: true })).toHaveValue(
@@ -49,10 +49,10 @@ test("creates and edits a cycle and category with persisted planned totals throu
 	await page
 		.getByLabel("Cycle Name", { exact: true })
 		.fill("Resource cycle revised");
-	await page.getByRole("button", { name: "Save Changes", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "Save Changes" }).click();
 	await expect(page).toHaveURL(CYCLE_DETAIL_URL);
 	await expect(
-		page.getByRole("heading", { name: "Resource cycle revised", exact: true })
+		page.getByRole("heading", { exact: true, name: "Resource cycle revised" })
 	).toBeVisible();
 	await page.goto(`/categories/new?id=${cycle._id}`);
 	// These existing inputs have placeholders but their visual Labels are not
@@ -61,7 +61,7 @@ test("creates and edits a cycle and category with persisted planned totals throu
 		.getByPlaceholder("Category name", { exact: true })
 		.fill("Resource groceries");
 	await page.getByPlaceholder("0.00", { exact: true }).fill("125.50");
-	await page.getByRole("button", { name: "Add Category", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "Add Category" }).click();
 	await expect(page).toHaveURL(DASHBOARD_URL);
 	const categories = await user.query(api.categories.list, {
 		cycleId: cycle._id,
@@ -76,10 +76,10 @@ test("creates and edits a cycle and category with persisted planned totals throu
 		plannedAmount: 125.5,
 	});
 	await page.goto(`/categories/${category._id}`);
-	await page.getByRole("button", { name: "Edit", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "Edit" }).click();
 	const editor = page.getByRole("dialog", {
-		name: "Edit Category: Resource groceries",
 		exact: true,
+		name: "Edit Category: Resource groceries",
 	});
 	await expect(editor.getByPlaceholder("0.00", { exact: true })).toHaveValue(
 		"125.5"
@@ -89,13 +89,13 @@ test("creates and edits a cycle and category with persisted planned totals throu
 		.fill("Resource weekly groceries");
 	await editor.getByPlaceholder("0.00", { exact: true }).fill("150.75");
 	await editor
-		.getByRole("button", { name: "Save Changes", exact: true })
+		.getByRole("button", { exact: true, name: "Save Changes" })
 		.click();
 	await expect(editor).toBeHidden();
 	await expect(
 		page.getByRole("heading", {
-			name: "Resource weekly groceries",
 			exact: true,
+			name: "Resource weekly groceries",
 		})
 	).toBeVisible();
 	await expect(
@@ -107,7 +107,7 @@ test("creates and edits a cycle and category with persisted planned totals throu
 	await page.goto(`/cycles/${cycle._id}`);
 	await page.reload();
 	await expect(
-		page.getByRole("heading", { name: "Resource cycle revised", exact: true })
+		page.getByRole("heading", { exact: true, name: "Resource cycle revised" })
 	).toBeVisible();
 	await expect(
 		page
@@ -121,7 +121,7 @@ test("creates and edits a cycle and category with persisted planned totals throu
 	await page.goto("/dashboard");
 	await expect(
 		page
-			.getByRole("region", { name: "Budget left", exact: true })
+			.getByRole("region", { exact: true, name: "Budget left" })
 			.getByText("$0.00 spent of $150.75 planned", { exact: true })
 	).toBeVisible();
 });
@@ -133,15 +133,15 @@ test("creates, renames and removes an unused global tag through Web", async ({
 	await seedUser(user);
 	// Tags intentionally use a table on desktop and cards on mobile. Exercise
 	// the desktop management path once; preferences cover narrow keyboard use.
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await page.setViewportSize({ height: 900, width: 1280 });
 	await page.goto("/data/tags");
-	await page.getByRole("button", { name: "New Tag", exact: true }).click();
-	const creator = page.getByRole("dialog", { name: "Create Tag", exact: true });
+	await page.getByRole("button", { exact: true, name: "New Tag" }).click();
+	const creator = page.getByRole("dialog", { exact: true, name: "Create Tag" });
 	await creator
 		.getByLabel("Tag Name", { exact: true })
 		.fill("Resource errands");
 	await creator
-		.getByRole("button", { name: "Create Tag", exact: true })
+		.getByRole("button", { exact: true, name: "Create Tag" })
 		.click();
 	await expect(creator).toBeHidden();
 	const row = page
@@ -149,13 +149,13 @@ test("creates, renames and removes an unused global tag through Web", async ({
 		.filter({ has: page.getByText("Resource errands", { exact: true }) });
 	await expect(row.getByText("0 expenses", { exact: true })).toBeVisible();
 	await row.getByRole("button").click();
-	await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
-	const editor = page.getByRole("dialog", { name: "Edit Tag", exact: true });
+	await page.getByRole("menuitem", { exact: true, name: "Edit" }).click();
+	const editor = page.getByRole("dialog", { exact: true, name: "Edit Tag" });
 	await editor
 		.getByLabel("Tag Name", { exact: true })
 		.fill("Resource errands revised");
 	await editor
-		.getByRole("button", { name: "Save Changes", exact: true })
+		.getByRole("button", { exact: true, name: "Save Changes" })
 		.click();
 	await expect(editor).toBeHidden();
 	await page.reload();
@@ -166,9 +166,9 @@ test("creates, renames and removes an unused global tag through Web", async ({
 	const tags = await user.query(api.tags.list, {});
 	expect(tags.map((tag) => tag.name)).toEqual(["Resource errands revised"]);
 	await revised.getByRole("button").click();
-	await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+	await page.getByRole("menuitem", { exact: true, name: "Delete" }).click();
 	await expect(
-		page.getByRole("heading", { name: "No tags found", exact: true })
+		page.getByRole("heading", { exact: true, name: "No tags found" })
 	).toBeVisible();
 	expect(await user.query(api.tags.list, {})).toEqual([]);
 });
@@ -179,30 +179,30 @@ test("creates and edits a custom account type, then archives and reactivates it 
 }) => {
 	await seedUser(user);
 	await page.goto("/data/account-types");
-	await page.getByRole("button", { name: "New type", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "New type" }).click();
 	const creator = page.getByRole("dialog", {
-		name: "Create account type",
 		exact: true,
+		name: "Create account type",
 	});
 	await creator.getByLabel("Name", { exact: true }).fill("Resource reserve");
 	await creator
-		.getByRole("button", { name: "Create type", exact: true })
+		.getByRole("button", { exact: true, name: "Create type" })
 		.click();
 	await expect(creator).toBeHidden();
 	await page
-		.getByRole("button", { name: "Manage Resource reserve", exact: true })
+		.getByRole("button", { exact: true, name: "Manage Resource reserve" })
 		.click();
-	await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
+	await page.getByRole("menuitem", { exact: true, name: "Edit" }).click();
 	const editor = page.getByRole("dialog", {
-		name: "Edit account type",
 		exact: true,
+		name: "Edit account type",
 	});
 	await editor
 		.getByLabel("Name", { exact: true })
 		.fill("Resource reserve revised");
 	await editor.getByLabel("Color", { exact: true }).fill("#14B8A6");
 	await editor
-		.getByRole("button", { name: "Save changes", exact: true })
+		.getByRole("button", { exact: true, name: "Save changes" })
 		.click();
 	await expect(editor).toBeHidden();
 	await page.reload();
@@ -217,23 +217,23 @@ test("creates and edits a custom account type, then archives and reactivates it 
 	expect(type.color?.toUpperCase()).toBe("#14B8A6");
 	await page
 		.getByRole("button", {
-			name: "Manage Resource reserve revised",
 			exact: true,
+			name: "Manage Resource reserve revised",
 		})
 		.click();
-	await page.getByRole("menuitem", { name: "Archive", exact: true }).click();
+	await page.getByRole("menuitem", { exact: true, name: "Archive" }).click();
 	const confirmation = page.getByRole("alertdialog", {
-		name: "Archive Resource reserve revised?",
 		exact: true,
+		name: "Archive Resource reserve revised?",
 	});
 	await confirmation
-		.getByRole("button", { name: "Archive type", exact: true })
+		.getByRole("button", { exact: true, name: "Archive type" })
 		.click();
 	await expect(confirmation).toBeHidden();
 	const card = page.getByRole("listitem").filter({
 		has: page.getByRole("button", {
-			name: "Manage Resource reserve revised",
 			exact: true,
+			name: "Manage Resource reserve revised",
 		}),
 	});
 	await expect(card.getByText("Archived", { exact: true })).toBeVisible();
@@ -244,11 +244,11 @@ test("creates and edits a custom account type, then archives and reactivates it 
 	).toBe(false);
 	await card
 		.getByRole("button", {
-			name: "Manage Resource reserve revised",
 			exact: true,
+			name: "Manage Resource reserve revised",
 		})
 		.click();
-	await page.getByRole("menuitem", { name: "Reactivate", exact: true }).click();
+	await page.getByRole("menuitem", { exact: true, name: "Reactivate" }).click();
 	await expect(
 		card.getByText("Available for accounts", { exact: true })
 	).toBeVisible();
@@ -266,57 +266,57 @@ test("creates and edits a custom account type, then archives and reactivates it 
 publicTest(
 	"public marketing and CLI documentation internal links work with a narrow keyboard menu @compatibility",
 	async ({ page }) => {
-		await page.setViewportSize({ width: 390, height: 844 });
+		await page.setViewportSize({ height: 844, width: 390 });
 		await page.goto("/");
 		await expect(
 			page.getByRole("heading", {
+				exact: true,
 				level: 1,
 				name: "Spendly gives you a calmer way to track spending.",
-				exact: true,
 			})
 		).toBeVisible();
 		const openMenu = page.getByRole("button", {
-			name: "Open Menu",
 			exact: true,
+			name: "Open Menu",
 		});
 		await openMenu.focus();
 		await openMenu.press("Enter");
 		await expect(
-			page.getByRole("button", { name: "Close Menu", exact: true })
+			page.getByRole("button", { exact: true, name: "Close Menu" })
 		).toHaveAttribute("aria-expanded", "true");
 		await page.keyboard.press("Escape");
 		await expect(openMenu).toHaveAttribute("aria-expanded", "false");
 		await openMenu.press("Enter");
 		await page
 			.getByRole("navigation")
-			.getByRole("link", { name: "Features", exact: true })
+			.getByRole("link", { exact: true, name: "Features" })
 			.click();
 		await expect(page).toHaveURL(FEATURES_URL);
 		await expect(
 			page.getByRole("heading", {
+				exact: true,
 				level: 1,
 				name: "Expense tracking designed for observation, not enforcement.",
-				exact: true,
 			})
 		).toBeVisible();
-		await page.getByRole("button", { name: "Open Menu", exact: true }).click();
+		await page.getByRole("button", { exact: true, name: "Open Menu" }).click();
 		await page
 			.getByRole("navigation")
-			.getByRole("link", { name: "CLI Docs", exact: true })
+			.getByRole("link", { exact: true, name: "CLI Docs" })
 			.click();
 		await expect(page).toHaveURL(DOCS_URL);
 		await expect(
-			page.getByRole("heading", { level: 1, name: "Quick start", exact: true })
+			page.getByRole("heading", { exact: true, level: 1, name: "Quick start" })
 		).toBeVisible();
-		await page.getByRole("link", { name: "expenses", exact: true }).click();
+		await page.getByRole("link", { exact: true, name: "expenses" }).click();
 		await expect(page).toHaveURL(EXPENSE_DOCS_URL);
 		await expect(
-			page.getByRole("heading", { level: 1, name: "Expenses", exact: true })
+			page.getByRole("heading", { exact: true, level: 1, name: "Expenses" })
 		).toBeVisible();
 		// The heading also contains an accessible copy-anchor button. Locate its
 		// titled link, rather than assuming that button is absent from its name.
 		const findExpenses = page.getByRole("heading", { level: 2 }).filter({
-			has: page.getByRole("link", { name: "Find expenses", exact: true }),
+			has: page.getByRole("link", { exact: true, name: "Find expenses" }),
 		});
 		await expect(findExpenses).toBeVisible();
 		await expect(findExpenses).toHaveText("Find expenses");

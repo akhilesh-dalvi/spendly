@@ -96,17 +96,19 @@ def main():
                 remember_failure("reap", error)
             try:
                 os.killpg(child, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
             except Exception as error:
-                remember_failure("terminate", error)
-                # Still terminate the owned child if group termination failed.
-                try:
-                    os.kill(child, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                except Exception as child_error:
-                    remember_failure("terminate", child_error)
+                if not isinstance(error, ProcessLookupError):
+                    remember_failure("terminate", error)
+                # forkpty can return before the child finishes creating its group.
+                # ESRCH does not prove the owned child exited. Signal its unreaped
+                # PID before waiting, but never a PID already reaped above.
+                if status is None:
+                    try:
+                        os.kill(child, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    except Exception as child_error:
+                        remember_failure("terminate", child_error)
             if status is None:
                 try:
                     _waited, status = os.waitpid(child, 0)

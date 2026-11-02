@@ -5,7 +5,7 @@ import type { Id } from "@spendly/backend/convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
 import { ChevronLeft, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import React from "react";
+import React, { useCallback } from "react";
 import { toast } from "sonner";
 import { CycleForm } from "@/components/cycle-form";
 import { Loader } from "@/components/loader";
@@ -40,6 +40,12 @@ export default function EditCyclePage({
 
 	const cycle = useQuery(api.cycles.get, cycleId ? { cycleId } : "skip");
 	const removeCycle = useMutation(api.cycles.remove);
+	const goBack = useCallback(() => router.back(), [router]);
+	const viewCycles = useCallback(() => router.push("/cycles"), [router]);
+	const handleSuccess = useCallback(
+		() => router.push(`/cycles/${cycleId}`),
+		[router, cycleId]
+	);
 
 	if (cycle === undefined) {
 		return <Loader />;
@@ -49,7 +55,7 @@ export default function EditCyclePage({
 		return (
 			<div className="flex h-full flex-col items-center justify-center space-y-4">
 				<h1 className="font-bold text-2xl">Cycle not found</h1>
-				<Button onClick={() => router.push("/cycles")}>Back to Cycles</Button>
+				<Button onClick={viewCycles}>Back to Cycles</Button>
 			</div>
 		);
 	}
@@ -71,7 +77,7 @@ export default function EditCyclePage({
 			<div className="flex items-center gap-4">
 				<Button
 					className="rounded-full"
-					onClick={() => router.back()}
+					onClick={goBack}
 					size="icon"
 					variant="ghost"
 				>
@@ -97,13 +103,11 @@ export default function EditCyclePage({
 					<CycleForm
 						cycleId={cycleId}
 						defaultValues={{
+							endDate: cycle.endDate,
 							name: cycle.name,
 							startDate: cycle.startDate,
-							endDate: cycle.endDate,
 						}}
-						onSuccess={() => {
-							router.push(`/cycles/${cycleId}`);
-						}}
+						onSuccess={handleSuccess}
 					/>
 				</CardContent>
 			</Card>

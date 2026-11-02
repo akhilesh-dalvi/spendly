@@ -4,7 +4,7 @@ import { api } from "@spendly/backend/convex/_generated/api";
 import type { Doc } from "@spendly/backend/convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
 import { Info, LoaderCircle, Pencil, Plus } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { ACCOUNT_TYPE_ICON_OPTIONS } from "@/components/account-type-icon";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -95,6 +95,18 @@ const getNatureDescription = (balanceNature: BalanceNature): string => {
 	return "Positive balances represent money available, such as cash or savings.";
 };
 
+function AccountTypeColorPreset({
+	color,
+	onSelect,
+	...props
+}: Omit<React.ComponentProps<"button">, "onSelect"> & {
+	color: string;
+	onSelect: (color: string) => void;
+}) {
+	const handleClick = useCallback(() => onSelect(color), [onSelect, color]);
+	return <button {...props} onClick={handleClick} />;
+}
+
 export function AccountTypeEditorDialog({
 	accountType,
 	onOpenChange,
@@ -129,65 +141,111 @@ export function AccountTypeEditorDialog({
 		);
 	}
 
-	const updateForm = <Key extends keyof AccountTypeFormState>(
-		key: Key,
-		value: AccountTypeFormState[Key]
-	) => {
-		setForm((current) => ({ ...current, [key]: value }));
-	};
+	const updateForm = useCallback(
+		<Key extends keyof AccountTypeFormState>(
+			key: Key,
+			value: AccountTypeFormState[Key]
+		) => {
+			setForm((current) => ({ ...current, [key]: value }));
+		},
+		[]
+	);
+	const changeName = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) => {
+			updateForm("name", event.target.value);
+			setNameError(undefined);
+		},
+		[updateForm]
+	);
+	const changeIcon = useCallback(
+		(value: string) => updateForm("icon", value === "none" ? "" : value),
+		[updateForm]
+	);
+	const changeColor = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) =>
+			updateForm("color", event.target.value),
+		[updateForm]
+	);
+	const resetColor = useCallback(() => updateForm("color", ""), [updateForm]);
+	const selectColor = useCallback(
+		(color: string) => updateForm("color", color),
+		[updateForm]
+	);
+	const changeNature = useCallback(
+		(value: string) => {
+			if (value === "asset" || value === "liability") {
+				updateForm("balanceNature", value);
+			}
+		},
+		[updateForm]
+	);
+	const close = useCallback(() => onOpenChange(false), [onOpenChange]);
 
 	const saveOperation = isEditing ? "update" : "create";
 
-	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
-		const name = form.name.trim();
-		if (!name) {
-			setNameError("Enter an account type name.");
-			return;
-		}
-		if (!isColorValid) {
-			return;
-		}
+	const handleSubmit = useCallback(
+		async (event: React.FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			const name = form.name.trim();
+			if (!name) {
+				setNameError("Enter an account type name.");
+				return;
+			}
+			if (!isColorValid) {
+				return;
+			}
 
-		setNameError(undefined);
-		setIsSubmitting(true);
-		try {
-			const savedAccountType = accountType
-				? await updateAccountType({
-						accountTypeId: accountType._id,
-						balanceNature: form.balanceNature,
-						color: form.color || null,
-						icon: form.icon || null,
-						name,
-					})
-				: await createAccountType({
-						balanceNature: form.balanceNature,
-						color: form.color || undefined,
-						icon: form.icon || undefined,
-						name,
-					});
-			toast.success(
-				accountType ? "Account type updated" : "Account type created"
-			);
-			onSuccess?.(savedAccountType);
-			onOpenChange(false);
-		} catch (error) {
-			reportError(error, {
-				feature: "account-types",
-				operation: saveOperation,
-			});
-			toast.error(
-				getAccountActionErrorMessage(
-					error,
-					isEditing
-						? "Failed to update the account type"
-						: "Failed to create the account type"
-				)
-			);
-		} finally {
-			setIsSubmitting(false);
-		}
-	};
+			setNameError(undefined);
+			setIsSubmitting(true);
+			try {
+				const savedAccountType = accountType
+					? await updateAccountType({
+							accountTypeId: accountType._id,
+							balanceNature: form.balanceNature,
+							color: form.color || null,
+							icon: form.icon || null,
+							name,
+						})
+					: await createAccountType({
+							balanceNature: form.balanceNature,
+							color: form.color || undefined,
+							icon: form.icon || undefined,
+							name,
+						});
+				toast.success(
+					accountType ? "Account type updated" : "Account type created"
+				);
+				onSuccess?.(savedAccountType);
+				onOpenChange(false);
+			} catch (error) {
+				reportError(error, {
+					feature: "account-types",
+					operation: saveOperation,
+				});
+				toast.error(
+					getAccountActionErrorMessage(
+						error,
+						isEditing
+							? "Failed to update the account type"
+							: "Failed to create the account type"
+					)
+				);
+			} finally {
+				setIsSubmitting(false);
+			}
+		},
+		[
+			form,
+			isColorValid,
+			accountType,
+			updateAccountType,
+			createAccountType,
+			onSuccess,
+			onOpenChange,
+			saveOperation,
+			isEditing,
+		]
+	);
 
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
@@ -210,10 +268,7 @@ export function AccountTypeEditorDialog({
 								aria-invalid={Boolean(nameError)}
 								autoFocus
 								id={`${formPrefix}-name`}
-								onChange={(event) => {
-									updateForm("name", event.target.value);
-									setNameError(undefined);
-								}}
+								onChange={changeName}
 								placeholder="Brokerage, Mortgage, Travel wallet…"
 								value={form.name}
 							/>
@@ -225,12 +280,7 @@ export function AccountTypeEditorDialog({
 
 						<Field>
 							<FieldLabel htmlFor={`${formPrefix}-icon`}>Icon</FieldLabel>
-							<Select
-								onValueChange={(value) =>
-									updateForm("icon", value === "none" ? "" : value)
-								}
-								value={form.icon || "none"}
-							>
+							<Select onValueChange={changeIcon} value={form.icon || "none"}>
 								<SelectTrigger className="w-full" id={`${formPrefix}-icon`}>
 									<SelectValue placeholder="Choose an icon" />
 								</SelectTrigger>
@@ -254,7 +304,7 @@ export function AccountTypeEditorDialog({
 								<Input
 									aria-label="Choose account type color"
 									className="size-9 p-1"
-									onChange={(event) => updateForm("color", event.target.value)}
+									onChange={changeColor}
 									type="color"
 									value={form.color || DEFAULT_CUSTOM_COLOR}
 								/>
@@ -262,12 +312,12 @@ export function AccountTypeEditorDialog({
 									aria-invalid={!isColorValid}
 									className="w-32 font-mono uppercase"
 									id={`${formPrefix}-color`}
-									onChange={(event) => updateForm("color", event.target.value)}
+									onChange={changeColor}
 									placeholder="#6366F1"
 									value={form.color}
 								/>
 								<Button
-									onClick={() => updateForm("color", "")}
+									onClick={resetColor}
 									size="sm"
 									type="button"
 									variant="ghost"
@@ -277,12 +327,13 @@ export function AccountTypeEditorDialog({
 							</div>
 							<div className="flex flex-wrap gap-2">
 								{COLOR_PRESETS.map((color) => (
-									<button
+									<AccountTypeColorPreset
 										aria-label={`Use ${color}`}
 										aria-pressed={form.color.toUpperCase() === color}
 										className="size-7 rounded-full border ring-offset-background transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 aria-pressed:ring-2 aria-pressed:ring-ring aria-pressed:ring-offset-2"
+										color={color}
 										key={color}
-										onClick={() => updateForm("color", color)}
+										onSelect={selectColor}
 										style={{ backgroundColor: color }}
 										type="button"
 									/>
@@ -303,11 +354,7 @@ export function AccountTypeEditorDialog({
 							</FieldLabel>
 							<Select
 								disabled={isBalanceNatureLocked}
-								onValueChange={(value) => {
-									if (value === "asset" || value === "liability") {
-										updateForm("balanceNature", value);
-									}
-								}}
+								onValueChange={changeNature}
 								value={form.balanceNature}
 							>
 								<SelectTrigger className="w-full" id={`${formPrefix}-nature`}>
@@ -345,7 +392,7 @@ export function AccountTypeEditorDialog({
 					<DialogFooter>
 						<Button
 							disabled={isSubmitting}
-							onClick={() => onOpenChange(false)}
+							onClick={close}
 							type="button"
 							variant="outline"
 						>

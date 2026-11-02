@@ -13,11 +13,11 @@ const invalidJournal = () =>
 	new Error("Invalid E2E fixture journal; contents withheld.");
 
 export interface FixtureJournal {
-	email: string;
 	clerkId?: string;
-	convexUrl: string;
 	clerkIssuer: string;
+	convexUrl: string;
 	directory: string;
+	email: string;
 }
 
 export const saveJournal = async (
@@ -30,8 +30,8 @@ export const saveJournal = async (
 	try {
 		await writeFile(
 			temporary,
-			JSON.stringify({ email, clerkId, convexUrl, clerkIssuer, directory }),
-			{ mode: 0o600, flag: "wx" }
+			JSON.stringify({ clerkId, clerkIssuer, convexUrl, directory, email }),
+			{ flag: "wx", mode: 0o600 }
 		);
 		await rename(temporary, journal);
 	} finally {
@@ -64,10 +64,9 @@ export const readJournal = async (
 	config: E2EEnvironment
 ): Promise<FixtureJournal> => {
 	const schema = z.object({
-		email: z.string().regex(FIXTURE_EMAIL),
 		clerkId: z.string().regex(CLERK_ID).optional(),
-		convexUrl: z.literal(config.convexUrl),
 		clerkIssuer: z.literal(config.clerkIssuer),
+		convexUrl: z.literal(config.convexUrl),
 		directory: z
 			.string()
 			.refine(
@@ -77,12 +76,14 @@ export const readJournal = async (
 					directory === join(tmpdir(), basename(directory)) &&
 					basename(directory).startsWith("spendly-e2e-")
 			),
+		email: z.string().regex(FIXTURE_EMAIL),
 	});
 	try {
 		const record = schema.parse(JSON.parse(await readFile(journal, "utf8")));
 		await assertOwnedDirectory(record.directory);
 		return record;
 	} catch {
+		// biome-ignore lint/style/useErrorCause: Never retain credential-bearing provider, filesystem, or subprocess errors.
 		throw invalidJournal();
 	}
 };

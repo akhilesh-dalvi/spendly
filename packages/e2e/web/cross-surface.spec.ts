@@ -8,89 +8,83 @@ import { seedUser } from "../src/users";
 const NOTE_LABEL = /Note/u;
 const TRANSFER_OUT_LABEL = /^Transfer out · /u;
 const TRANSFER_IN_LABEL = /^Transfer in · /u;
-const success = z.object({ schemaVersion: z.literal(1), data: z.unknown() });
+const success = z.object({ data: z.unknown(), schemaVersion: z.literal(1) });
 const expenseResult = success.extend({
 	data: z.object({
-		id: z.string(),
 		amount: z.number(),
+		id: z.string(),
 		spentOn: z.string().nullable(),
 	}),
 });
 const accountExpenseResult = expenseResult.extend({
 	data: expenseResult.shape.data.extend({
 		account: z.object({ id: z.string(), name: z.string() }).nullable(),
-		accountSource: z.enum(["explicit", "user_default", "none"]),
 		accountEffects: z.array(
 			z.object({
 				accountId: z.string(),
-				balanceBefore: z.number(),
 				balanceAfter: z.number(),
+				balanceBefore: z.number(),
 			})
 		),
+		accountSource: z.enum(["explicit", "user_default", "none"]),
 	}),
 });
 const transferResult = success.extend({
 	data: z.object({
-		id: z.string(),
 		amount: z.number(),
-		fromAccount: z.object({ id: z.string(), currentBalance: z.number() }),
-		toAccount: z.object({ id: z.string(), currentBalance: z.number() }),
+		fromAccount: z.object({ currentBalance: z.number(), id: z.string() }),
+		id: z.string(),
+		toAccount: z.object({ currentBalance: z.number(), id: z.string() }),
 	}),
 });
 const confirmation = success.extend({
 	data: z.object({ confirmationToken: z.string(), revision: z.number() }),
 });
 
-test(
-	"CLI expense can be edited in Web and read by a fresh CLI process",
-	{ tag: "@smoke" },
-	async ({ page, user }) => {
-		const seed = await seedUser(user);
-		await user.loginCli();
-		const added = await user.runCli([
-			"expenses",
-			"add",
-			"--amount",
-			"18.75",
-			"--date",
-			seed.date,
-			"--spent-on",
-			"Cross-surface lunch",
-			"--account-id",
-			seed.accountId,
-			"--idempotency-key",
-			randomUUID(),
-		]);
-		expect(added.exitCode).toBe(0);
-		expect(added.stderr).toBe("");
-		const expense = expenseResult.parse(JSON.parse(added.stdout)).data;
-		await page.goto(`/expenses/${expense.id}`);
-		await expect(page.getByLabel("Amount", { exact: true })).toHaveValue(
-			"18.75"
-		);
-		await page.getByLabel("Amount", { exact: true }).fill("25");
-		await page
-			.getByRole("button", { name: "Save Changes", exact: true })
-			.click();
-		await expect
-			.poll(
-				async () =>
-					(await user.query(api.accounts.get, { accountId: seed.accountId }))
-						.currentBalance
-			)
-			.toBe(975);
-		const read = await user.runCli(["expenses", "get", expense.id]);
-		expect(read.exitCode).toBe(0);
-		expect(expenseResult.parse(JSON.parse(read.stdout)).data).toMatchObject({
-			id: expense.id,
-			amount: 25,
-			spentOn: "Cross-surface lunch",
-		});
-		await page.goto(`/expenses/${expense.id}`);
-		await page.reload();
-		await expect(page.getByLabel("Amount", { exact: true })).toHaveValue("25");
-	}
-);
+test("CLI expense can be edited in Web and read by a fresh CLI process", {
+	tag: "@smoke",
+}, async ({ page, user }) => {
+	const seed = await seedUser(user);
+	await user.loginCli();
+	const added = await user.runCli([
+		"expenses",
+		"add",
+		"--amount",
+		"18.75",
+		"--date",
+		seed.date,
+		"--spent-on",
+		"Cross-surface lunch",
+		"--account-id",
+		seed.accountId,
+		"--idempotency-key",
+		randomUUID(),
+	]);
+	expect(added.exitCode).toBe(0);
+	expect(added.stderr).toBe("");
+	const expense = expenseResult.parse(JSON.parse(added.stdout)).data;
+	await page.goto(`/expenses/${expense.id}`);
+	await expect(page.getByLabel("Amount", { exact: true })).toHaveValue("18.75");
+	await page.getByLabel("Amount", { exact: true }).fill("25");
+	await page.getByRole("button", { exact: true, name: "Save Changes" }).click();
+	await expect
+		.poll(
+			async () =>
+				(await user.query(api.accounts.get, { accountId: seed.accountId }))
+					.currentBalance
+		)
+		.toBe(975);
+	const read = await user.runCli(["expenses", "get", expense.id]);
+	expect(read.exitCode).toBe(0);
+	expect(expenseResult.parse(JSON.parse(read.stdout)).data).toMatchObject({
+		amount: 25,
+		id: expense.id,
+		spentOn: "Cross-surface lunch",
+	});
+	await page.goto(`/expenses/${expense.id}`);
+	await page.reload();
+	await expect(page.getByLabel("Amount", { exact: true })).toHaveValue("25");
+});
 
 test("Web expense can be confirmed and deleted by CLI with one balance reversal", async ({
 	page,
@@ -100,7 +94,7 @@ test("Web expense can be confirmed and deleted by CLI with one balance reversal"
 	await page.goto("/expenses/new");
 	await page.getByLabel("Amount", { exact: true }).fill("18.75");
 	await page.getByLabel(NOTE_LABEL).fill("Web-to-CLI lunch");
-	await page.getByRole("button", { name: "Add Expense", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "Add Expense" }).click();
 	await expect
 		.poll(
 			async () =>
@@ -113,7 +107,7 @@ test("Web expense can be confirmed and deleted by CLI with one balance reversal"
 	if (!expense) {
 		throw new Error("Expected Web-created expense");
 	}
-	expect(expense).toMatchObject({ amount: 18.75, accountId: seed.accountId });
+	expect(expense).toMatchObject({ accountId: seed.accountId, amount: 18.75 });
 	await user.loginCli();
 	const preview = await user.runCli([
 		"expenses",
@@ -186,8 +180,8 @@ test("CLI transfer appears in Web balances and history without creating an expen
 	const transfer = transferResult.parse(JSON.parse(result.stdout)).data;
 	expect(transfer).toMatchObject({
 		amount: 125,
-		fromAccount: { id: seed.accountId, currentBalance: 875 },
-		toAccount: { id: seed.destinationId, currentBalance: 325 },
+		fromAccount: { currentBalance: 875, id: seed.accountId },
+		toAccount: { currentBalance: 325, id: seed.destinationId },
 	});
 	await expect(
 		page
@@ -228,26 +222,26 @@ test("CLI transfer appears in Web balances and history without creating an expen
 		outgoing.filter((entry) => entry.type === "transfer_out")
 	).toMatchObject([
 		{
-			transferId: transfer.id,
 			amount: -125,
 			balanceAfter: 875,
 			source: "cli",
+			transferId: transfer.id,
 		},
 	]);
 	expect(
 		incoming.filter((entry) => entry.type === "transfer_in")
 	).toMatchObject([
 		{
-			transferId: transfer.id,
 			amount: 125,
 			balanceAfter: 325,
 			source: "cli",
+			transferId: transfer.id,
 		},
 	]);
 	expect(await user.query(api.expenses.list, {})).toEqual([]);
 	await page.goto("/expenses");
 	await expect(
-		page.getByRole("heading", { name: "No expenses found", exact: true })
+		page.getByRole("heading", { exact: true, name: "No expenses found" })
 	).toBeVisible();
 	await expect(
 		page.getByText("Total spent", { exact: true }).locator("..")
@@ -263,13 +257,13 @@ test("Web default-account change is used by fresh CLI processes unless --without
 	// across surfaces rather than merely loading the preference at login.
 	await user.loginCli();
 	await page.goto(`/accounts/${seed.destinationId}`);
-	await page.getByRole("button", { name: "Make default", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "Make default" }).click();
 	await expect(
-		page.getByRole("button", { name: "Default account", exact: true })
+		page.getByRole("button", { exact: true, name: "Default account" })
 	).toBeDisabled();
 	await page.reload();
 	await expect(
-		page.getByRole("button", { name: "Default account", exact: true })
+		page.getByRole("button", { exact: true, name: "Default account" })
 	).toBeDisabled();
 	expect((await user.query(api.users.get, {})).defaultAccountId).toBe(
 		seed.destinationId
@@ -293,15 +287,15 @@ test("Web default-account change is used by fresh CLI processes unless --without
 		JSON.parse(defaulted.stdout)
 	).data;
 	expect(assigned).toMatchObject({
-		amount: 10,
 		account: { id: seed.destinationId, name: "E2E Savings" },
 		accountSource: "user_default",
+		amount: 10,
 	});
 	expect(assigned.accountEffects).toEqual([
 		{
 			accountId: seed.destinationId,
-			balanceBefore: 200,
 			balanceAfter: 190,
+			balanceBefore: 200,
 		},
 	]);
 	const unassigned = await user.runCli([
@@ -323,15 +317,15 @@ test("Web default-account change is used by fresh CLI processes unless --without
 		JSON.parse(unassigned.stdout)
 	).data;
 	expect(withoutAccount).toMatchObject({
-		amount: 20,
 		account: null,
-		accountSource: "none",
 		accountEffects: [],
+		accountSource: "none",
+		amount: 20,
 	});
 	const expenses = await user.query(api.expenses.list, {});
 	expect(expenses).toHaveLength(2);
 	expect(expenses.find((expense) => expense._id === assigned.id)).toMatchObject(
-		{ amount: 10, accountId: seed.destinationId, createdSource: "cli" }
+		{ accountId: seed.destinationId, amount: 10, createdSource: "cli" }
 	);
 	expect(
 		expenses.find((expense) => expense._id === withoutAccount.id)?.accountId
@@ -376,6 +370,6 @@ test("Web default-account change is used by fresh CLI processes unless --without
 	).toHaveCount(1);
 	await page.goto(`/expenses/${withoutAccount.id}`);
 	await expect(
-		page.getByRole("combobox", { name: "Account (optional)", exact: true })
+		page.getByRole("combobox", { exact: true, name: "Account (optional)" })
 	).toHaveText("No account selected");
 });

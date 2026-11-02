@@ -100,8 +100,8 @@ export const commitAccountCreate = async (
 		currency: options.prepared.currency,
 		currentBalance: options.prepared.startingBalance,
 		isArchived: false,
-		name: options.prepared.name,
 		lastModifiedSource: options.source,
+		name: options.prepared.name,
 		revision: INITIAL_REVISION,
 		startingBalance: options.prepared.startingBalance,
 		updatedAt: now,
@@ -114,9 +114,9 @@ export const commitAccountCreate = async (
 		createdAt: now,
 		date: options.prepared.date,
 		note: "Opening balance",
+		source: options.source,
 		type: "opening_balance",
 		userId: options.user._id,
-		source: options.source,
 	});
 	const userUpdates: {
 		accountsOnboardingStatus?: "completed";
@@ -395,9 +395,9 @@ export const commitBalanceAdjustment = async (
 			amount: prepared.adjustment,
 			date: prepared.date,
 			note: prepared.note,
+			source,
 			type: "manual_adjustment",
 			userId: prepared.account.userId,
-			source,
 		});
 	}
 	const [account, transaction] = await Promise.all([
@@ -499,29 +499,29 @@ export const commitTransfer = async (
 		date: prepared.date,
 		fromAccountId: prepared.fromAccount._id,
 		note: prepared.note,
+		source,
 		toAccountId: prepared.toAccount._id,
 		userId: prepared.fromAccount.userId,
-		source,
 	});
 	const fromTransactionId = await applyAccountBalanceChange(ctx, {
 		accountId: prepared.fromAccount._id,
 		amount: -prepared.amount,
 		date: prepared.date,
 		note: prepared.note,
+		source,
 		transferId,
 		type: "transfer_out",
 		userId: prepared.fromAccount.userId,
-		source,
 	});
 	const toTransactionId = await applyAccountBalanceChange(ctx, {
 		accountId: prepared.toAccount._id,
 		amount: prepared.amount,
 		date: prepared.date,
 		note: prepared.note,
+		source,
 		transferId,
 		type: "transfer_in",
 		userId: prepared.toAccount.userId,
-		source,
 	});
 	const [fromAccount, fromTransaction, toAccount, toTransaction, transfer] =
 		await Promise.all([

@@ -25,9 +25,9 @@ const fileCredentialDocumentSchema = z.record(z.string(), storedSessionSchema);
 type FileCredentialDocument = z.infer<typeof fileCredentialDocumentSchema>;
 
 export interface CredentialStore {
-	delete(): Promise<void>;
-	read(): Promise<StoredSession | null>;
-	write(session: StoredSession): Promise<void>;
+	delete: () => Promise<void>;
+	read: () => Promise<StoredSession | null>;
+	write: (session: StoredSession) => Promise<void>;
 }
 
 export const createCredentialNamespace = (
@@ -45,10 +45,17 @@ const isFileSystemError = (
 const isMissingEntryError = (error: unknown): boolean =>
 	error instanceof Error && MISSING_ENTRY_PATTERN.test(error.message);
 
-const invalidCredentialsError = (location: string): CliError =>
+const invalidCredentialsError = (location: string, cause?: unknown): CliError =>
 	new CliError(
 		"CREDENTIALS_INVALID",
-		`Stored Spendly credentials are invalid or unsafe: ${location}`
+		`Stored Spendly credentials are invalid or unsafe: ${location}`,
+		{
+			// JSON parse errors can quote plaintext credentials in their message.
+			cause:
+				cause === undefined
+					? undefined
+					: new Error("Stored credential data could not be decoded", { cause }),
+		}
 	);
 
 const assertOwnerOnly = (options: {
@@ -72,8 +79,8 @@ const parseStoredSession = (value: string, location: string): StoredSession => {
 	let document: unknown;
 	try {
 		document = JSON.parse(value);
-	} catch {
-		throw invalidCredentialsError(location);
+	} catch (error) {
+		throw invalidCredentialsError(location, error);
 	}
 	const result = storedSessionSchema.safeParse(document);
 	if (!result.success) {
@@ -94,10 +101,10 @@ class KeychainCredentialStore implements CredentialStore {
 			this.#entry.deletePassword();
 		} catch (error) {
 			if (!isMissingEntryError(error)) {
-				throw new CliError(
+				throw CliError.fromCause(
+					error,
 					"KEYCHAIN_UNAVAILABLE",
-					"Unable to remove credentials from the operating-system keychain",
-					{ cause: error }
+					"Unable to remove credentials from the operating-system keychain"
 				);
 			}
 		}
@@ -125,10 +132,10 @@ class KeychainCredentialStore implements CredentialStore {
 			if (isMissingEntryError(error)) {
 				return Promise.resolve(null);
 			}
-			throw new CliError(
+			throw CliError.fromCause(
+				error,
 				"KEYCHAIN_UNAVAILABLE",
-				"Unable to read the operating-system keychain",
-				{ cause: error }
+				"Unable to read the operating-system keychain"
 			);
 		}
 	}
@@ -138,10 +145,10 @@ class KeychainCredentialStore implements CredentialStore {
 		try {
 			this.#entry.setPassword(JSON.stringify(validatedSession));
 		} catch (error) {
-			throw new CliError(
+			throw CliError.fromCause(
+				error,
 				"KEYCHAIN_UNAVAILABLE",
-				"Unable to write to the operating-system keychain",
-				{ cause: error }
+				"Unable to write to the operating-system keychain"
 			);
 		}
 		return Promise.resolve();
@@ -191,8 +198,8 @@ export class FileCredentialStore implements CredentialStore {
 		let document: unknown;
 		try {
 			document = JSON.parse(await readFile(this.path, "utf8"));
-		} catch {
-			throw invalidCredentialsError(this.path);
+		} catch (error) {
+			throw invalidCredentialsError(this.path, error);
 		}
 		const result = fileCredentialDocumentSchema.safeParse(document);
 		if (!result.success) {

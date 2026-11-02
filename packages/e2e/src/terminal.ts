@@ -5,12 +5,12 @@ import { stripVTControlCharacters } from "node:util";
 import { z } from "zod";
 
 export interface TerminalOptions {
-	command: string;
 	args: readonly string[];
-	env: NodeJS.ProcessEnv;
+	command: string;
 	cwd?: string;
-	timeoutMs?: number;
+	env: NodeJS.ProcessEnv;
 	maxOutputBytes?: number;
+	timeoutMs?: number;
 }
 
 interface TerminalResult {
@@ -21,10 +21,10 @@ interface TerminalResult {
 
 export interface RunningTerminal {
 	result: Promise<TerminalResult>;
+	stop: () => Promise<void>;
 	/** Waits consume output so an old prompt cannot satisfy the next step. */
-	waitForOutput(pattern: RegExp, timeoutMs?: number): Promise<void>;
-	write(input: string): void;
-	stop(): Promise<void>;
+	waitForOutput: (pattern: RegExp, timeoutMs?: number) => Promise<void>;
+	write: (input: string) => void;
 }
 
 export const terminalKeys = {
@@ -48,6 +48,7 @@ const metadataSchema = z.union([
 		.object({
 			error: z
 				.object({
+					errno: z.number().int().nonnegative().nullable(),
 					stage: z.enum([
 						"allocation",
 						"window-size",
@@ -59,7 +60,6 @@ const metadataSchema = z.union([
 						"reap",
 						"close",
 					]),
-					errno: z.number().int().nonnegative().nullable(),
 				})
 				.strict(),
 		})
@@ -187,7 +187,7 @@ export const startTerminal = (options: TerminalOptions): RunningTerminal => {
 				} else if ("error" in message) {
 					fail(bridgeFailureMessage(message.error.stage, message.error.errno));
 				} else {
-					exitCode = message.exitCode;
+					({ exitCode } = message);
 				}
 			} catch {
 				fail("Terminal bridge failed; details withheld");
@@ -222,11 +222,11 @@ export const startTerminal = (options: TerminalOptions): RunningTerminal => {
 	});
 	return {
 		result,
-		write(input) {
-			if (finished || failure) {
-				throw new Error("Terminal is no longer accepting input");
+		async stop() {
+			if (!finished) {
+				terminate();
 			}
-			child.stdin.write(input);
+			await closed;
 		},
 		waitForOutput(pattern, waitMs = 10_000) {
 			if (!positiveInteger(waitMs, MAX_TIMER_MS)) {
@@ -271,11 +271,11 @@ export const startTerminal = (options: TerminalOptions): RunningTerminal => {
 				check();
 			});
 		},
-		async stop() {
-			if (!finished) {
-				terminate();
+		write(input) {
+			if (finished || failure) {
+				throw new Error("Terminal is no longer accepting input");
 			}
-			await closed;
+			child.stdin.write(input);
 		},
 	};
 };

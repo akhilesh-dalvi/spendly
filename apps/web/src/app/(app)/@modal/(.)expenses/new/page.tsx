@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { ExpenseForm } from "@/components/expense-form";
 import {
 	Dialog,
@@ -16,15 +16,18 @@ export default function NewExpenseModal() {
 	const searchParams = useSearchParams();
 	const categoryId = searchParams.get("categoryId");
 
-	// Default open to true since the route is active
 	const [open, setOpen] = useState(true);
 
-	const handleOpenChange = (val: boolean) => {
-		setOpen(val);
-		if (!val) {
-			router.back();
-		}
-	};
+	const handleOpenChange = useCallback(
+		(val: boolean) => {
+			setOpen(val);
+			if (!val) {
+				router.back();
+			}
+		},
+		[router]
+	);
+	const close = useCallback(() => handleOpenChange(false), [handleOpenChange]);
 
 	return (
 		<Dialog onOpenChange={handleOpenChange} open={open}>
@@ -38,7 +41,7 @@ export default function NewExpenseModal() {
 				<ExpenseForm
 					className="mt-4"
 					defaultValues={categoryId ? { categoryId } : undefined}
-					onSuccess={() => handleOpenChange(false)}
+					onSuccess={close}
 				/>
 			</DialogContent>
 		</Dialog>

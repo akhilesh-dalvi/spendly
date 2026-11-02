@@ -57,6 +57,7 @@ const readDocument = async (
 		if (error instanceof Error && "code" in error && error.code === "ENOENT") {
 			return null;
 		}
+		// biome-ignore lint/style/useErrorCause: Never retain credential-bearing provider, filesystem, or subprocess errors.
 		throw new Error("E2E credential inspection failed; credentials withheld");
 	}
 };
@@ -64,14 +65,14 @@ const readDocument = async (
 const describeDocument = (document: CredentialDocument) => {
 	const [namespace, session] = Object.entries(document)[0];
 	return {
-		namespace,
-		namespaceCount: Object.keys(document).length,
-		issuer: session.issuer,
 		clientId: session.clientId,
-		subject: session.subject,
-		loginAt: session.loginAt,
 		expiresAt: session.tokens.expiresAt,
 		hasRefreshToken: session.tokens.refreshToken.length > 0,
+		issuer: session.issuer,
+		loginAt: session.loginAt,
+		namespace,
+		namespaceCount: Object.keys(document).length,
+		subject: session.subject,
 	};
 };
 
@@ -103,29 +104,30 @@ export const openCredentialProbe = async (path: string) => {
 		try {
 			await writeFile(path, `${JSON.stringify(document)}\n`, { mode: 0o600 });
 		} catch {
+			// biome-ignore lint/style/useErrorCause: Never retain credential-bearing provider, filesystem, or subprocess errors.
 			throw new Error(
 				"E2E could not change local expiry metadata; credentials withheld"
 			);
 		}
 	};
 	return {
-		summary,
-		expireForRefresh: async () => await changeMetadata("refresh"),
 		expireAuthorization: async () => await changeMetadata("authorization"),
+		expireForRefresh: async () => await changeMetadata("refresh"),
 		inspect: async () => {
 			const document = await readDocument(path);
 			const session = document?.[summary.namespace];
 			return {
 				present: Boolean(session),
-				unchanged: JSON.stringify(document) === JSON.stringify(original),
+				summary: document ? describeDocument(document) : null,
 				tokensChanged: Boolean(
 					session &&
 						(session.tokens.idToken !== originalSession.tokens.idToken ||
 							session.tokens.refreshToken !==
 								originalSession.tokens.refreshToken)
 				),
-				summary: document ? describeDocument(document) : null,
+				unchanged: JSON.stringify(document) === JSON.stringify(original),
 			};
 		},
+		summary,
 	};
 };

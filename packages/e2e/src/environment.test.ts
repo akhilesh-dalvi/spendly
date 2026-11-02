@@ -1,55 +1,56 @@
+// biome-ignore-all lint/performance/noAwaitInLoops: Stateful E2E steps and fixture cleanup require ordered execution.
 import { describe, expect, it } from "vitest";
 import { loadEnvironment, webEnvironment } from "./environment";
 import { runProcess } from "./process";
 
 const validEnvironment = () => ({
-	SPENDLY_E2E_ENABLED: "true",
-	E2E_CONVEX_URL: "https://e2e-fixtures.convex.cloud",
-	E2E_CONVEX_DEPLOY_KEY: "dev:e2e-fixtures|synthetic-secret",
 	E2E_CLERK_ISSUER: "https://fixture.clerk.accounts.dev",
+	E2E_CLERK_OAUTH_CLIENT_ID: "test-oauth-client",
 	E2E_CLERK_PUBLISHABLE_KEY: `pk_test_${Buffer.from("fixture.clerk.accounts.dev$").toString("base64")}`,
 	E2E_CLERK_SECRET_KEY: "sk_test_synthetic-secret",
-	E2E_CLERK_OAUTH_CLIENT_ID: "test-oauth-client",
+	E2E_CONVEX_DEPLOY_KEY: "dev:e2e-fixtures|synthetic-secret",
+	E2E_CONVEX_URL: "https://e2e-fixtures.convex.cloud",
+	SPENDLY_E2E_ENABLED: "true",
 });
 
 describe("live E2E environment boundary", () => {
 	it("loads live configuration without collecting offline unit tests", async () => {
 		const configUrl = new URL("../vitest.live.config.ts", import.meta.url);
 		const result = await runProcess({
-			command: process.execPath,
 			args: [
 				"--experimental-strip-types",
 				"--input-type=module",
 				"-e",
 				`const { default: config } = await import(${JSON.stringify(configUrl.href)}); process.stdout.write(JSON.stringify({ maxWorkers: config.test.maxWorkers, include: config.test.include, allowOnly: config.test.allowOnly }));`,
 			],
+			command: process.execPath,
 			env: validEnvironment(),
 		});
 		expect(result.exitCode).toBe(0);
 		expect(result.signal).toBeNull();
 		expect(JSON.parse(result.stdout)).toEqual({
-			maxWorkers: 1,
-			include: ["cli/**/*.e2e.ts"],
 			allowOnly: false,
+			include: ["cli/**/*.e2e.ts"],
+			maxWorkers: 1,
 		});
 	});
 
 	it("keeps ordinary tooling configuration secret-free and excludes live suites", async () => {
 		const configUrl = new URL("../vitest.config.ts", import.meta.url);
 		const result = await runProcess({
-			command: process.execPath,
 			args: [
 				"--input-type=module",
 				"-e",
 				`const { default: config } = await import(${JSON.stringify(configUrl.href)}); process.stdout.write(JSON.stringify({ include: config.test.include, exclude: config.test.exclude, allowOnly: config.test.allowOnly }));`,
 			],
+			command: process.execPath,
 			env: {},
 		});
 		expect(result.exitCode).toBe(0);
 		expect(JSON.parse(result.stdout)).toEqual({
-			include: ["src/**/*.test.ts"],
-			exclude: ["cli/**", "web/**", ".e2e/**"],
 			allowOnly: false,
+			exclude: ["cli/**", "web/**", ".e2e/**"],
+			include: ["src/**/*.test.ts"],
 		});
 	});
 
@@ -63,20 +64,20 @@ describe("live E2E environment boundary", () => {
 	it("accepts matching development endpoints and uses only local Web", () => {
 		expect(loadEnvironment(validEnvironment())).toMatchObject({
 			baseUrl: "http://localhost:3001",
-			convexUrl: "https://e2e-fixtures.convex.cloud",
 			clerkIssuer: "https://fixture.clerk.accounts.dev",
+			convexUrl: "https://e2e-fixtures.convex.cloud",
 		});
 	});
 
 	it("pins the Web server's Clerk API and redirects instead of inheriting local overrides", () => {
 		expect(webEnvironment(loadEnvironment(validEnvironment()))).toMatchObject({
 			CLERK_API_URL: "https://api.clerk.com",
-			NEXT_PUBLIC_CLERK_PROXY_URL: "",
 			CLERK_PROXY_URL: "",
-			NEXT_PUBLIC_CLERK_SIGN_IN_URL: "/sign-in",
-			NEXT_PUBLIC_CLERK_SIGN_UP_URL: "/sign-up",
+			NEXT_PUBLIC_CLERK_PROXY_URL: "",
 			NEXT_PUBLIC_CLERK_SIGN_IN_FORCE_REDIRECT_URL: "/onboarding/start",
+			NEXT_PUBLIC_CLERK_SIGN_IN_URL: "/sign-in",
 			NEXT_PUBLIC_CLERK_SIGN_UP_FORCE_REDIRECT_URL: "/onboarding/start",
+			NEXT_PUBLIC_CLERK_SIGN_UP_URL: "/sign-up",
 		});
 	});
 
@@ -92,8 +93,8 @@ describe("live E2E environment boundary", () => {
 		expect(() =>
 			loadEnvironment({
 				...validEnvironment(),
-				E2E_CONVEX_URL: "https://successful-donkey-782.convex.cloud",
 				E2E_CONVEX_DEPLOY_KEY: "dev:successful-donkey-782|secret",
+				E2E_CONVEX_URL: "https://successful-donkey-782.convex.cloud",
 			})
 		).toThrow("E2E configuration");
 	});
@@ -137,31 +138,31 @@ describe("live E2E environment boundary", () => {
 		const configUrl = new URL("../playwright.config.ts", import.meta.url);
 		for (const extended of ["false", "true"]) {
 			const result = await runProcess({
-				command: process.execPath,
 				args: [
 					"--input-type=module",
 					"-e",
 					`const { default: config } = await import(${JSON.stringify(configUrl.href)}); process.stdout.write(JSON.stringify(config.projects.map(p => ({ name: p.name, untagged: !p.grep || p.grep.test('ordinary journey'), tagged: !p.grep || p.grep.test('journey @compatibility'), nearMatch: !p.grep || p.grep.test('journey @compatibilityExtra'), hyphenatedTag: !p.grep || p.grep.test('journey @compatibility-other') }))));`,
 				],
+				command: process.execPath,
 				env: { ...validEnvironment(), E2E_EXTENDED_BROWSERS: extended },
 			});
 			expect(result.exitCode).toBe(0);
 			const projects = JSON.parse(result.stdout);
 			expect(projects[0]).toEqual({
-				name: "chromium",
-				untagged: true,
-				tagged: true,
-				nearMatch: true,
 				hyphenatedTag: true,
+				name: "chromium",
+				nearMatch: true,
+				tagged: true,
+				untagged: true,
 			});
 			expect(projects.slice(1)).toEqual(
 				extended === "true"
 					? ["firefox", "webkit", "narrow-chromium"].map((name) => ({
-							name,
-							untagged: false,
-							tagged: true,
-							nearMatch: false,
 							hyphenatedTag: false,
+							name,
+							nearMatch: false,
+							tagged: true,
+							untagged: false,
 						}))
 					: []
 			);

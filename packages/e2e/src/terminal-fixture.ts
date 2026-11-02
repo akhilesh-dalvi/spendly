@@ -13,13 +13,13 @@ const CLI_ENTRY = fileURLToPath(
 );
 const DISPOSABLE_HOME = /^spendly-e2e-/u;
 const fixtureSchema = z.object({
+	cliEnvironment: z.record(z.string(), z.string().optional()),
 	config: z.object({
 		clerkIssuer: z.string(),
-		oauthClientId: z.string(),
 		convexUrl: z.string(),
+		oauthClientId: z.string(),
 	}),
 	credentialFile: z.string(),
-	cliEnvironment: z.record(z.string(), z.string().optional()),
 });
 
 /** Fail closed until the auth fixture explicitly exposes its isolated paths/env. */
@@ -45,14 +45,14 @@ export const terminalFixture = (user: unknown) => {
 			"CLI E2E requires an explicit disposable credential environment; details withheld"
 		);
 	}
-	return { credentialFile, cliEnvironment };
+	return { cliEnvironment, credentialFile };
 };
 
 export const startInteractiveCli = (user: E2EUser, args: readonly string[]) => {
 	const fixture = terminalFixture(user);
 	return startTerminal({
-		command: process.execPath,
 		args: [CLI_ENTRY, ...args, "--interactive", "--no-color"],
+		command: process.execPath,
 		env: { ...fixture.cliEnvironment, TERM: "xterm-256color" },
 		timeoutMs: 45_000,
 	});

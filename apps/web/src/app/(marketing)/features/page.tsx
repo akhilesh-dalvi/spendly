@@ -31,14 +31,13 @@ const featuresDescription =
 	"Explore Spendly features for flexible expense tracking, optional planning, editable history, and cycle comparison built for real-life spending habits.";
 
 export const metadata: Metadata = createMarketingMetadata({
-	title: "Features",
 	description: featuresDescription,
 	path: "/features",
+	title: "Features",
 });
 
 const featureSections = [
 	{
-		title: "Cycles that match your real timeline",
 		description: "Use pay periods, trips, semesters, or any custom date range.",
 		icon: CalendarRange,
 		points: [
@@ -46,9 +45,9 @@ const featureSections = [
 			"Works beyond calendar months",
 			"Past and future cycles stay editable",
 		],
+		title: "Cycles that match your real timeline",
 	},
 	{
-		title: "Planning when it helps, not by default",
 		description: "Add plans only when you want more structure.",
 		icon: Layers3,
 		points: [
@@ -56,9 +55,9 @@ const featureSections = [
 			"Set plans per cycle",
 			"No hard enforcement",
 		],
+		title: "Planning when it helps, not by default",
 	},
 	{
-		title: "History stays accurate because it stays editable",
 		description: "Fix records anytime so your history stays useful.",
 		icon: Edit3,
 		points: [
@@ -66,57 +65,58 @@ const featureSections = [
 			"Change categories, tags, and amounts",
 			"Move entries by updating the date",
 		],
+		title: "History stays accurate because it stays editable",
 	},
 ] as const;
 
 const workflowItems = [
 	{
-		name: "Cycle",
-		why: "To group spending around your real timeline.",
 		how: "Create any date range that matches how you actually review money.",
 		icon: CalendarRange,
+		name: "Cycle",
+		why: "To group spending around your real timeline.",
 	},
 	{
-		name: "Category Type",
-		why: "To create broad structure without forcing one system.",
 		how: "Use types like essentials, lifestyle, or anything else you prefer.",
 		icon: FolderKanban,
+		name: "Category Type",
+		why: "To create broad structure without forcing one system.",
 	},
 	{
-		name: "Category",
-		why: "To track spending intent inside a cycle.",
 		how: "Add categories per cycle with optional planned amounts and reorder them anytime.",
 		icon: Layers3,
+		name: "Category",
+		why: "To track spending intent inside a cycle.",
 	},
 	{
-		name: "Expense",
-		why: "To capture the actual spending record.",
 		how: "Log amount, date, category, and notes quickly, then edit later if needed.",
 		icon: NotebookPen,
+		name: "Expense",
+		why: "To capture the actual spending record.",
 	},
 	{
-		name: "Compare",
-		why: "To understand what changed across cycles.",
 		how: "Review 2 to 5 cycles side by side and spot movement without judgment.",
 		icon: ChartNoAxesColumnIncreasing,
+		name: "Compare",
+		why: "To understand what changed across cycles.",
 	},
 	{
-		name: "Tags",
-		why: "To add extra context when categories are not enough.",
 		how: "Use tags like trip, recurring, gift, or project to filter and review patterns.",
 		icon: Tags,
+		name: "Tags",
+		why: "To add extra context when categories are not enough.",
 	},
 ] as const;
 
 const featuresStructuredData = createSoftwareApplicationJsonLd({
 	description: featuresDescription,
-	path: "/features",
 	featureList: [
 		"Custom expense cycles with editable history",
 		"Optional planned amounts and flexible category structures",
 		"Cycle comparison for observational spending review",
 		"Fast expense capture with tags and category context",
 	],
+	path: "/features",
 });
 
 export default function FeaturesPage() {
@@ -186,16 +186,16 @@ export default function FeaturesPage() {
 									<div className="grid gap-4 sm:grid-cols-3">
 										{[
 											{
-												value: "2-5",
 												label: "cycles compared side by side",
+												value: "2-5",
 											},
 											{
-												value: "0",
 												label: "income tracking requirements",
+												value: "0",
 											},
 											{
-												value: "Anytime",
 												label: "history can be corrected",
+												value: "Anytime",
 											},
 										].map((stat) => (
 											<div

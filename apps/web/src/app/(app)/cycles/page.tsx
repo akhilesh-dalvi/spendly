@@ -38,23 +38,23 @@ interface CycleWithStatus {
 
 interface GroupedCycles {
 	current: Doc<"expense_cycles"> | null;
-	upcoming: CycleWithStatus[];
+	historyCount: number;
 	past: CycleWithStatus[];
 	totalCount: number;
+	upcoming: CycleWithStatus[];
 	upcomingCount: number;
-	historyCount: number;
 }
 
 interface CyclesSummaryBarProps {
 	currentCycle: Doc<"expense_cycles"> | null;
-	totalCount: number;
-	upcomingCount: number;
-	historyCount: number;
-	totalSpent: number;
-	totalPlanned: number;
 	daysLabel: string;
 	daysValue: number | string;
 	formatCurrency: (value: number) => string;
+	historyCount: number;
+	totalCount: number;
+	totalPlanned: number;
+	totalSpent: number;
+	upcomingCount: number;
 }
 
 function CyclesSummaryBar({
@@ -176,10 +176,10 @@ function CyclesSummaryBar({
 }
 
 interface CyclesSectionsProps {
-	groupedCycles: GroupedCycles;
-	selectedFilter: CycleFilter;
 	budgetOnly: boolean;
+	groupedCycles: GroupedCycles;
 	resetFilters: () => void;
+	selectedFilter: CycleFilter;
 }
 
 function CyclesSections({
@@ -323,11 +323,11 @@ export default function CyclesPage() {
 		if (!allCycles) {
 			return {
 				current: null,
-				upcoming: [] as CycleWithStatus[],
+				historyCount: 0,
 				past: [] as CycleWithStatus[],
 				totalCount: 0,
+				upcoming: [] as CycleWithStatus[],
 				upcomingCount: 0,
-				historyCount: 0,
 			};
 		}
 
@@ -355,12 +355,12 @@ export default function CyclesPage() {
 
 		return {
 			current: current?.cycle ?? null,
-			upcoming: sorted.filter((item) => item.status === "upcoming"),
+			historyCount: withStatus.filter((item) => item.status === "past").length,
 			past: sorted.filter((item) => item.status === "past"),
 			totalCount: withStatus.length,
+			upcoming: sorted.filter((item) => item.status === "upcoming"),
 			upcomingCount: withStatus.filter((item) => item.status === "upcoming")
 				.length,
-			historyCount: withStatus.filter((item) => item.status === "past").length,
 		};
 	}, [allCycles, selectedFilter, selectedSort]);
 

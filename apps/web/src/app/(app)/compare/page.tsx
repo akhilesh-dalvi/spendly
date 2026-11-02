@@ -6,7 +6,7 @@ import { useQuery } from "convex/react";
 import { AlertTriangle, ArrowLeftRight, ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { type ReactNode, useEffect, useMemo } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo } from "react";
 import { CompareCategoryBreakdownList } from "@/components/compare/compare-category-breakdown-list";
 import { CompareCycleOverviewCards } from "@/components/compare/compare-cycle-overview-cards";
 import { CompareCycleSelector } from "@/components/compare/compare-cycle-selector";
@@ -60,10 +60,10 @@ export default function ComparePage() {
 	const sanitization = useMemo(() => {
 		if (!allCycles) {
 			return {
-				sanitizedIds: [] as Id<"expense_cycles">[],
-				invalidCount: 0,
-				trimmedCount: 0,
 				duplicateCount: 0,
+				invalidCount: 0,
+				sanitizedIds: [] as Id<"expense_cycles">[],
+				trimmedCount: 0,
 			};
 		}
 		const validSet = new Set(allCycles.map((cycle) => cycle._id));
@@ -99,10 +99,10 @@ export default function ComparePage() {
 			return [];
 		}
 		return allCycles.map((cycle) => ({
+			endDate: cycle.endDate,
 			id: cycle._id,
 			name: cycle.name,
 			startDate: cycle.startDate,
-			endDate: cycle.endDate,
 		}));
 	}, [allCycles]);
 
@@ -111,13 +111,13 @@ export default function ComparePage() {
 			return [];
 		}
 		return compareData.map((row) => ({
+			categoryBreakdown: row.categoryBreakdown,
 			cycleId: row.cycleId,
 			cycleName: row.cycleName,
-			startDate: row.startDate,
 			endDate: row.endDate,
-			totalSpent: row.totalSpent,
+			startDate: row.startDate,
 			totalPlanned: row.totalPlanned,
-			categoryBreakdown: row.categoryBreakdown,
+			totalSpent: row.totalSpent,
 		}));
 	}, [compareData]);
 
@@ -154,6 +154,8 @@ export default function ComparePage() {
 		// the next selection based on stale IDs. Back/forward remain supported.
 		window.history.pushState(null, "", buildCompareHref(nextSelection));
 	};
+
+	const retry = useCallback(() => router.refresh(), [router]);
 
 	if (allCycles === undefined) {
 		return <ComparePageSkeleton />;
@@ -205,7 +207,7 @@ export default function ComparePage() {
 							</p>
 						</div>
 					</div>
-					<Button onClick={() => router.refresh()} size="sm" variant="outline">
+					<Button onClick={retry} size="sm" variant="outline">
 						Retry
 					</Button>
 				</div>

@@ -1,3 +1,4 @@
+// biome-ignore-all lint/performance/noAwaitInLoops: Stateful E2E steps and fixture cleanup require ordered execution.
 import { setTimeout as delay } from "node:timers/promises";
 import { clerkSetup } from "@clerk/testing/playwright";
 import type { Page } from "@playwright/test";
@@ -18,8 +19,8 @@ const completeTestEmailChallenge = async (
 	completedChallenges: Set<string>
 ): Promise<void> => {
 	const code = page.getByRole("textbox", {
-		name: "Enter verification code",
 		exact: true,
+		name: "Enter verification code",
 	});
 	if (!(await code.isVisible())) {
 		return;
@@ -35,7 +36,7 @@ const completeTestEmailChallenge = async (
 		() => {
 			const signIn = window.Clerk?.client?.signIn;
 			if (
-				window.Clerk?.user != null ||
+				window.Clerk?.user ||
 				signIn?.status === "complete" ||
 				document.title === "Spendly authorized"
 			) {
@@ -50,7 +51,8 @@ const completeTestEmailChallenge = async (
 				if (
 					verification?.strategy === "email_code" &&
 					verification.status === "unverified" &&
-					verification.expireAt != null
+					verification.expireAt !== null &&
+					verification.expireAt !== undefined
 				) {
 					return `${factor}:${verification.expireAt.getTime()}`;
 				}
@@ -90,6 +92,7 @@ export const configureClerk = async (config: E2EEnvironment): Promise<void> => {
 		};
 		await clerkSetup(options);
 	} catch {
+		// biome-ignore lint/style/useErrorCause: Never retain credential-bearing provider, filesystem, or subprocess errors.
 		throw new Error("E2E Clerk setup failed; provider response withheld.");
 	}
 };
@@ -117,7 +120,7 @@ const beginSignIn = async (
 		// submit is resolving. Do not wait on that screen's disabled Continue.
 		if (
 			!(await page
-				.getByRole("textbox", { name: "Enter verification code", exact: true })
+				.getByRole("textbox", { exact: true, name: "Enter verification code" })
 				.isVisible())
 		) {
 			throw error;
@@ -138,14 +141,14 @@ export const signInThroughUi = async (
 		const deadline = Date.now() + SIGN_IN_TIMEOUT_MS;
 		const completedChallenges = new Set<string>();
 		while (Date.now() < deadline) {
-			if (await page.evaluate(() => window.Clerk?.user != null)) {
+			if (await page.evaluate(() => Boolean(window.Clerk?.user))) {
 				return;
 			}
 			if (
 				await page
 					.getByRole("textbox", {
-						name: "Enter verification code",
 						exact: true,
+						name: "Enter verification code",
 					})
 					.isVisible()
 			) {
@@ -161,6 +164,7 @@ export const signInThroughUi = async (
 		}
 		throw new Error("Web sign-in did not establish a session");
 	} catch {
+		// biome-ignore lint/style/useErrorCause: Never retain credential-bearing provider, filesystem, or subprocess errors.
 		throw new Error(
 			"E2E Web sign-in failed; credentials and provider response withheld."
 		);
@@ -195,11 +199,11 @@ export const signUpThroughUi = async (
 		if (await legalAcceptance.isVisible()) {
 			await legalAcceptance.check();
 		}
-		await page.getByRole("button", { name: "Continue", exact: true }).click();
+		await page.getByRole("button", { exact: true, name: "Continue" }).click();
 		const completedChallenges = new Set<string>();
 		const deadline = Date.now() + SIGN_IN_TIMEOUT_MS;
 		while (Date.now() < deadline) {
-			if (await page.evaluate(() => window.Clerk?.user != null)) {
+			if (await page.evaluate(() => Boolean(window.Clerk?.user))) {
 				return;
 			}
 			await completeTestEmailChallenge(page, email, completedChallenges);
@@ -207,6 +211,7 @@ export const signUpThroughUi = async (
 		}
 		throw new Error("Web signup did not establish a session");
 	} catch {
+		// biome-ignore lint/style/useErrorCause: Never retain credential-bearing provider, filesystem, or subprocess errors.
 		throw new Error(
 			"E2E Web signup failed; credentials and provider response withheld."
 		);
@@ -225,7 +230,7 @@ export const interactWithOAuth = async (
 	while (!isFinished()) {
 		if (
 			await page
-				.getByRole("textbox", { name: "Enter verification code", exact: true })
+				.getByRole("textbox", { exact: true, name: "Enter verification code" })
 				.isVisible()
 		) {
 			await completeTestEmailChallenge(page, email, completedChallenges);
@@ -261,11 +266,11 @@ export const interactWithOAuth = async (
 };
 
 interface OAuthOptions {
-	login: RunningProcess;
-	issuer: string;
 	clientId: string;
-	visit: (url: string) => Promise<unknown>;
 	interact?: (isFinished: () => boolean) => Promise<void>;
+	issuer: string;
+	login: RunningProcess;
+	visit: (url: string) => Promise<unknown>;
 }
 
 export const completeOAuth = async ({
@@ -303,6 +308,7 @@ export const completeOAuth = async ({
 			throw new Error("OAuth subprocess failed");
 		}
 	} catch {
+		// biome-ignore lint/style/useErrorCause: Never retain credential-bearing provider, filesystem, or subprocess errors.
 		throw new Error(
 			"E2E CLI OAuth failed; credentials and authorization details withheld."
 		);

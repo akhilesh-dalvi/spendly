@@ -2,23 +2,23 @@ import type { Id } from "@spendly/backend/convex/_generated/dataModel";
 
 interface CompareCategoryRow {
 	categoryName: string;
-	spent: number;
 	planned: number | null;
+	spent: number;
 }
 
 export interface CompareCycleRow {
+	categoryBreakdown: CompareCategoryRow[];
 	cycleId: Id<"expense_cycles">;
 	cycleName: string;
-	startDate: string;
 	endDate: string;
-	totalSpent: number;
+	startDate: string;
 	totalPlanned: number;
-	categoryBreakdown: CompareCategoryRow[];
+	totalSpent: number;
 }
 
 export interface CompareDerivedTotals {
 	cycleCount: number;
-	totalSpent: number;
-	totalPlanned: number;
 	netRemaining: number;
+	totalPlanned: number;
+	totalSpent: number;
 }

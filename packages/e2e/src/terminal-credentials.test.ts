@@ -40,16 +40,16 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-	await rm(directory, { recursive: true, force: true });
+	await rm(directory, { force: true, recursive: true });
 });
 
 describe("secret-withholding credential probes (offline)", () => {
 	it("ages only local expiry metadata and never returns token values", async () => {
 		const probe = await openCredentialProbe(path);
 		expect(probe.summary).toMatchObject({
+			hasRefreshToken: true,
 			namespace,
 			subject: "user_offline",
-			hasRefreshToken: true,
 		});
 		expect(JSON.stringify(probe).includes(session.tokens.idToken)).toBe(false);
 		expect(JSON.stringify(probe).includes(session.tokens.refreshToken)).toBe(
@@ -108,8 +108,8 @@ describe("secret-withholding credential probes (offline)", () => {
 		await rm(path);
 		expect(await probe.inspect()).toMatchObject({
 			present: false,
-			tokensChanged: false,
 			summary: null,
+			tokensChanged: false,
 		});
 		await expect(probe.expireForRefresh()).rejects.toThrow(
 			"credential file disappeared; credentials withheld"

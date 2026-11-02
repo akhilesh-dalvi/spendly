@@ -32,7 +32,6 @@ const presentCycle = (cycle: Doc<"expense_cycles">) => ({
 
 export const listCycles = query({
 	args: {},
-	returns: v.array(cycleSummaryValidator),
 	handler: async (ctx) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -48,11 +47,11 @@ export const listCycles = query({
 			}
 			return cycles.map(presentCycle);
 		}),
+	returns: v.array(cycleSummaryValidator),
 });
 
 export const getCurrentCycle = query({
 	args: { date: v.string() },
-	returns: v.union(cycleSummaryValidator, v.null()),
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -63,11 +62,11 @@ export const getCurrentCycle = query({
 			);
 			return cycle ? presentCycle(cycle) : null;
 		}),
+	returns: v.union(cycleSummaryValidator, v.null()),
 });
 
 export const listCategories = query({
 	args: { cycleId: v.id("expense_cycles") },
-	returns: v.array(categorySummaryValidator),
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -120,11 +119,11 @@ export const listCategories = query({
 					};
 				});
 		}),
+	returns: v.array(categorySummaryValidator),
 });
 
 export const listTags = query({
 	args: {},
-	returns: v.array(tagSummaryValidator),
 	handler: async (ctx) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -145,6 +144,7 @@ export const listTags = query({
 					name: tag.name,
 				}));
 		}),
+	returns: v.array(tagSummaryValidator),
 });
 
 const categoryStatValidator = v.object({
@@ -213,7 +213,6 @@ const getDaysRemaining = (
 
 export const getSummary = query({
 	args: { cycleId: v.id("expense_cycles"), today: v.string() },
-	returns: summaryValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -347,4 +346,5 @@ export const getSummary = query({
 				types: typeStats,
 			};
 		}),
+	returns: summaryValidator,
 });

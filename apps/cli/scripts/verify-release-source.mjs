@@ -47,12 +47,12 @@ export const verifyReleaseSource = async (environment, request, mode) => {
 	);
 	assertRelease(
 		runs.workflow_runs.some(
-			(run) =>
-				run.head_sha === commit &&
-				run.head_branch === "master" &&
-				run.event === "push" &&
-				run.conclusion === "success" &&
-				run.head_repository?.full_name === environment.GITHUB_REPOSITORY
+			(workflowRun) =>
+				workflowRun.head_sha === commit &&
+				workflowRun.head_branch === "master" &&
+				workflowRun.event === "push" &&
+				workflowRun.conclusion === "success" &&
+				workflowRun.head_repository?.full_name === environment.GITHUB_REPOSITORY
 		),
 		"The complete CLI readiness suite must pass on this master commit"
 	);
@@ -80,7 +80,7 @@ if (
 	process.argv[1] &&
 	import.meta.url === pathToFileURL(resolve(process.argv[1])).href
 ) {
-	const mode = process.argv[2];
+	const [, , mode] = process.argv;
 	assertRelease(
 		["candidate", "publish", "identity"].includes(mode),
 		"Expected candidate, publish, or identity verification mode"

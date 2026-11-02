@@ -40,12 +40,12 @@ const clerkRequest = async (
 	body?: unknown
 ): Promise<unknown> => {
 	const response = await fetch(`https://api.clerk.com/v1/${path}`, {
-		method,
+		body: body === undefined ? undefined : JSON.stringify(body),
 		headers: {
 			Authorization: `Bearer ${config.secretKey}`,
 			"Content-Type": "application/json",
 		},
-		body: body === undefined ? undefined : JSON.stringify(body),
+		method,
 		signal: AbortSignal.timeout(30_000),
 	});
 	if (method === "DELETE" && response.status === 404) {
@@ -102,16 +102,16 @@ export const removeBackendUser = async (
 	email: string
 ): Promise<void> => {
 	const response = await fetch(`${config.convexUrl}/api/mutation`, {
-		method: "POST",
+		body: JSON.stringify({
+			args: [{ clerkId, email, expectedDeploymentUrl: config.convexUrl }],
+			format: "convex_encoded_json",
+			path: "e2eFixtures:removeUser",
+		}),
 		headers: {
 			Authorization: `Convex ${config.deployKey}`,
 			"Content-Type": "application/json",
 		},
-		body: JSON.stringify({
-			path: "e2eFixtures:removeUser",
-			format: "convex_encoded_json",
-			args: [{ clerkId, email, expectedDeploymentUrl: config.convexUrl }],
-		}),
+		method: "POST",
 		signal: AbortSignal.timeout(30_000),
 	});
 	const result = z
@@ -125,22 +125,22 @@ export const removeBackendUser = async (
 };
 
 export interface E2EUser {
-	page: Page;
-	email: string;
+	cliEnvironment?: NodeJS.ProcessEnv;
 	config: E2EEnvironment;
 	credentialFile?: string;
-	cliEnvironment?: NodeJS.ProcessEnv;
-	query: <Query extends FunctionReference<"query">>(
-		query: Query,
-		args: FunctionArgs<Query>
-	) => Promise<FunctionReturnType<Query>>;
+	dispose: () => Promise<void>;
+	email: string;
+	loginCli: () => Promise<void>;
 	mutation: <Mutation extends FunctionReference<"mutation">>(
 		mutation: Mutation,
 		args: FunctionArgs<Mutation>
 	) => Promise<FunctionReturnType<Mutation>>;
+	page: Page;
+	query: <Query extends FunctionReference<"query">>(
+		query: Query,
+		args: FunctionArgs<Query>
+	) => Promise<FunctionReturnType<Query>>;
 	runCli: (args: readonly string[]) => ReturnType<typeof runProcess>;
-	loginCli: () => Promise<void>;
-	dispose: () => Promise<void>;
 }
 
 export const createUser = async (
@@ -152,18 +152,16 @@ export const createUser = async (
 	// Preflight verifies server-side cleanup guards before allocating any user/data.
 	await removeBackendUser(config, "e2e-preflight-absent", email);
 	const password = `${randomBytes(24).toString("base64url")}aA1!`;
-	await mkdir(JOURNAL_DIRECTORY, { recursive: true, mode: 0o700 });
+	await mkdir(JOURNAL_DIRECTORY, { mode: 0o700, recursive: true });
 	const directory = await mkdtemp(join(tmpdir(), "spendly-e2e-"));
 	const journal = new URL(`${randomUUID()}.json`, JOURNAL_DIRECTORY);
 	const record = {
-		email,
-		convexUrl: config.convexUrl,
 		clerkIssuer: config.clerkIssuer,
+		convexUrl: config.convexUrl,
 		directory,
+		email,
 	};
 	const id = await allocateAuthIdentity({
-		journal,
-		record,
 		create: async () => {
 			if (options.creationMode === "sign-up") {
 				await setupClerkTestingToken({ page });
@@ -176,7 +174,7 @@ export const createUser = async (
 							clerkId = await findClerkUser(config, email);
 							return Boolean(clerkId);
 						},
-						{ timeout: 15_000, message: "Signup identity was not provisioned" }
+						{ message: "Signup identity was not provisioned", timeout: 15_000 }
 					)
 					.toBe(true);
 				if (!clerkId) {
@@ -192,15 +190,17 @@ export const createUser = async (
 				})
 			).id;
 		},
+		journal,
+		record,
+		remove: async (clerkId) => {
+			await removeClerkUser(config, clerkId);
+			await removeBackendUser(config, clerkId, email);
+		},
 		resolve: async () => await findClerkUser(config, email),
 		stop: async () => {
 			if (!page.isClosed()) {
 				await page.close();
 			}
-		},
-		remove: async (clerkId) => {
-			await removeClerkUser(config, clerkId);
-			await removeBackendUser(config, clerkId, email);
 		},
 	});
 	const client = new ConvexHttpClient(config.convexUrl, { logger: false });
@@ -224,15 +224,15 @@ export const createUser = async (
 		client.setAuth(token);
 	};
 	const env = {
-		PATH: process.env.PATH ?? "",
 		HOME: directory,
-		TZ: "UTC",
 		NO_COLOR: "1",
+		PATH: process.env.PATH ?? "",
 		SPENDLY_CLERK_ISSUER: config.clerkIssuer,
 		SPENDLY_CLERK_OAUTH_CLIENT_ID: config.oauthClientId,
 		SPENDLY_CONVEX_URL: config.convexUrl,
-		SPENDLY_WEB_URL: config.baseUrl,
 		SPENDLY_E2E_CREDENTIAL_FILE: join(directory, "credentials", "session.json"),
+		SPENDLY_WEB_URL: config.baseUrl,
+		TZ: "UTC",
 	};
 	const dispose = async () => {
 		try {
@@ -243,56 +243,57 @@ export const createUser = async (
 			await removeClerkUser(config, id);
 			await removeBackendUser(config, id, email);
 		} finally {
-			await rm(directory, { recursive: true, force: true });
+			await rm(directory, { force: true, recursive: true });
 		}
 		// Retain recovery information until remote AND local cleanup succeeded.
 		await rm(journal, { force: true });
 	};
 	const user: E2EUser = {
-		page,
-		email,
+		cliEnvironment: env,
 		config,
 		credentialFile: env.SPENDLY_E2E_CREDENTIAL_FILE,
-		cliEnvironment: env,
-		query: async (query, args) => {
-			await refreshAuth();
-			return await client.query(query, args);
-		},
-		mutation: async (mutation, args) => {
-			await refreshAuth();
-			return await client.mutation(mutation, args);
-		},
-		runCli: async (args) =>
-			await runProcess({
-				command: process.execPath,
-				args: [CLI_ENTRY, ...args, "--json", "--non-interactive", "--no-color"],
-				env,
-			}),
+		dispose,
+		email,
 		loginCli: async () => {
 			const login = startProcess({
-				command: process.execPath,
 				args: [CLI_ENTRY, "auth", "login", "--no-browser"],
+				command: process.execPath,
 				env,
 				timeoutMs: 120_000,
 			});
 			try {
 				await completeOAuth({
-					login,
-					issuer: config.clerkIssuer,
 					clientId: config.oauthClientId,
-					visit: async (url) =>
-						await page.goto(url, { waitUntil: "domcontentloaded" }),
 					interact: async (isFinished) =>
 						await interactWithOAuth(page, email, password, isFinished),
+					issuer: config.clerkIssuer,
+					login,
+					visit: async (url) =>
+						await page.goto(url, { waitUntil: "domcontentloaded" }),
 				});
 				await page.goto(`${config.baseUrl}/dashboard`);
 			} catch {
+				// biome-ignore lint/style/useErrorCause: Never retain credential-bearing provider, filesystem, or subprocess errors.
 				throw new Error(
 					"E2E CLI OAuth failed; credentials and authorization details withheld."
 				);
 			}
 		},
-		dispose,
+		mutation: async (mutation, args) => {
+			await refreshAuth();
+			return await client.mutation(mutation, args);
+		},
+		page,
+		query: async (query, args) => {
+			await refreshAuth();
+			return await client.query(query, args);
+		},
+		runCli: async (args) =>
+			await runProcess({
+				args: [CLI_ENTRY, ...args, "--json", "--non-interactive", "--no-color"],
+				command: process.execPath,
+				env,
+			}),
 	};
 	try {
 		if (options.creationMode !== "sign-up") {
@@ -316,15 +317,16 @@ export const createUser = async (
 					}
 				},
 				{
-					timeout: 30_000,
 					message:
 						"Web profile synchronization did not provision the signed-in user",
+					timeout: 30_000,
 				}
 			)
 			.toBe(true);
 		return user;
 	} catch {
 		await dispose();
+		// biome-ignore lint/style/useErrorCause: Never retain credential-bearing provider, filesystem, or subprocess errors.
 		throw new Error(
 			"E2E user setup failed; credentials and provider response withheld."
 		);
@@ -337,9 +339,9 @@ export const seedUser = async (user: E2EUser) => {
 		path: "free",
 	});
 	const cycleId = await user.mutation(api.cycles.saveOnboardingCycle, {
+		endDate: "2030-01-01",
 		name: "E2E tracking",
 		startDate: "2020-01-01",
-		endDate: "2030-01-01",
 	});
 	const types = await user.query(api.accountTypes.list, {});
 	const assetType = types.find((type) => type.balanceNature === "asset");
@@ -347,20 +349,20 @@ export const seedUser = async (user: E2EUser) => {
 		throw new Error("E2E requires a seeded asset account type");
 	}
 	const accountId = await user.mutation(api.accounts.createOnboardingAccount, {
-		name: "E2E Wallet",
 		accountTypeId: assetType._id,
+		name: "E2E Wallet",
 		openingBalance: 1000,
 	});
 	const destination = await user.mutation(api.accounts.create, {
-		name: "E2E Savings",
 		accountTypeId: assetType._id,
+		name: "E2E Savings",
 		startingBalance: 200,
 	});
 	return {
-		cycleId,
 		accountId,
-		destinationId: destination._id,
 		assetTypeId: assetType._id,
+		cycleId,
 		date: new Date().toISOString().slice(0, 10),
+		destinationId: destination._id,
 	};
 };

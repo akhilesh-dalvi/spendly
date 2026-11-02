@@ -136,11 +136,11 @@ const renderDateFrame = (options: {
 		options.values.year || "YYYY",
 		options.values.month || "MM",
 		options.values.day || "DD",
-	].map((value, index) =>
+	].map((segment, index) =>
 		index === options.segmentIndex &&
 		!(["cancel", "submit"] as PromptState[]).includes(options.state)
-			? `[${value}]`
-			: value
+			? `[${segment}]`
+			: segment
 	);
 	const value = segments.join("-");
 	if (options.state === "cancel") {

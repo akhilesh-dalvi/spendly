@@ -22,37 +22,37 @@ const pricingDescription =
 	"Spendly pricing is simple: the product is free to use, with optional future donation channels for people who want to support development.";
 
 export const metadata: Metadata = createMarketingMetadata({
-	title: "Pricing",
 	description: pricingDescription,
 	path: "/pricing",
+	title: "Pricing",
 });
 
 const pricingStructuredData = createSoftwareApplicationJsonLd({
 	description: pricingDescription,
-	path: "/pricing",
 	featureList: [
 		"Free expense tracking with flexible cycles",
 		"Optional planning and comparison without premium tiers",
 		"Potential donation support through common creator platforms",
 		"No required subscription to use core features",
 	],
+	path: "/pricing",
 });
 
 const donationWays = [
 	{
-		title: "Recurring support",
 		description:
 			"GitHub Sponsors works well when people want to fund ongoing maintenance in a familiar developer-friendly way.",
+		title: "Recurring support",
 	},
 	{
-		title: "One-time tips",
 		description:
 			"Buy Me a Coffee and Ko-fi are simple choices for casual support without creating a subscription commitment.",
+		title: "One-time tips",
 	},
 	{
-		title: "Direct payments",
 		description:
 			"UPI, PayPal, or Stripe payment links can be offered for direct donations when the project owner is ready.",
+		title: "Direct payments",
 	},
 ] as const;
 
@@ -100,21 +100,21 @@ export default function PricingPage() {
 						<div className="grid gap-6 md:grid-cols-3">
 							{[
 								{
+									description: "No subscription required to use the product.",
 									title: "Price",
 									value: "Free",
-									description: "No subscription required to use the product.",
 								},
 								{
-									title: "Upgrade pressure",
-									value: "None",
 									description:
 										"Core tracking, planning, and comparison stay available.",
+									title: "Upgrade pressure",
+									value: "None",
 								},
 								{
-									title: "Support model",
-									value: "Optional",
 									description:
 										"Donations can exist later without changing access.",
+									title: "Support model",
+									value: "Optional",
 								},
 							].map((item) => (
 								<Card className="border-border/70 bg-muted/20" key={item.title}>

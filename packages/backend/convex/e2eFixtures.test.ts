@@ -1,3 +1,4 @@
+// biome-ignore-all lint/performance/noAwaitInLoops: Stateful E2E steps and fixture cleanup require ordered execution.
 // biome-ignore-all lint/style/useFilenamingConvention: Match the Convex module name.
 
 import { makeFunctionReference } from "convex/server";
@@ -129,6 +130,17 @@ const seedAllUserRecords = async (
 			result: { expenseId },
 			userId,
 		});
+		const cycleConfirmationId = await ctx.db.insert(
+			"cli_cycle_deletion_confirmations",
+			{
+				categorySnapshot: "fixture",
+				createdAt: 1,
+				cycleId,
+				expiresAt: 2,
+				revision: 1,
+				userId,
+			}
+		);
 		const confirmationId = await ctx.db.insert("cli_deletion_confirmations", {
 			createdAt: 1,
 			expenseId,
@@ -148,6 +160,7 @@ const seedAllUserRecords = async (
 				accounts: accountId,
 				categories: categoryId,
 				category_types: categoryTypeId,
+				cli_cycle_deletion_confirmations: cycleConfirmationId,
 				cli_deletion_confirmations: confirmationId,
 				cli_idempotency: idempotencyId,
 				expense_cycles: cycleId,
@@ -215,7 +228,7 @@ describe("internal E2E cleanup", () => {
 			testContext.mutation(removeUser, cleanupArgs)
 		).resolves.toBeNull();
 		expect(await readUserRecords(testContext, fixture)).toEqual(
-			new Array<null>(13).fill(null)
+			new Array<null>(Object.keys(fixture.ids).length).fill(null)
 		);
 	});
 
@@ -279,38 +292,44 @@ describe("internal E2E cleanup", () => {
 		"expense_cycles",
 		"cli_idempotency",
 		"cli_deletion_confirmations",
-	] as const)("aborts all deletion when %s exceeds 1000 owned rows", async (table) => {
-		const testContext = createBackendTest();
-		const fixture = await seedAllUserRecords(testContext);
-		const recordsBefore = await readUserRecords(testContext, fixture);
-		const extraIds = await testContext.run(async (ctx) => {
-			const record = await ctx.db.get(fixture.ids[table]);
-			if (!record) {
-				throw new Error("Expected a seeded record");
-			}
-			const {
-				_id: _ignoredId,
-				_creationTime: _ignoredTime,
-				...fields
-			} = record;
-			const ids: Id<typeof table>[] = [];
-			const extraCount = table === "accounts" ? 999 : 1000;
-			for (let index = 0; index < extraCount; index += 1) {
-				ids.push(await ctx.db.insert(table, fields));
-			}
-			return ids;
-		});
+		"cli_cycle_deletion_confirmations",
+	] as const)(
+		"aborts all deletion when %s exceeds 1000 owned rows",
+		async (table) => {
+			const testContext = createBackendTest();
+			const fixture = await seedAllUserRecords(testContext);
+			const recordsBefore = await readUserRecords(testContext, fixture);
+			const extraIds = await testContext.run(async (ctx) => {
+				const record = await ctx.db.get(fixture.ids[table]);
+				if (!record) {
+					throw new Error("Expected a seeded record");
+				}
+				const {
+					_id: _ignoredId,
+					_creationTime: _ignoredTime,
+					...fields
+				} = record;
+				const ids: Id<typeof table>[] = [];
+				const extraCount = table === "accounts" ? 999 : 1000;
+				for (let index = 0; index < extraCount; index += 1) {
+					ids.push(await ctx.db.insert(table, fields));
+				}
+				return ids;
+			});
 
-		await expect(testContext.mutation(removeUser, cleanupArgs)).rejects.toThrow(
-			"E2E cleanup exceeds the per-table row limit"
-		);
+			await expect(
+				testContext.mutation(removeUser, cleanupArgs)
+			).rejects.toThrow("E2E cleanup exceeds the per-table row limit");
 
-		expect(await readUserRecords(testContext, fixture)).toEqual(recordsBefore);
-		const extraRecords = await testContext.run(
-			async (ctx) => await Promise.all(extraIds.map((id) => ctx.db.get(id)))
-		);
-		expect(extraRecords.every((record) => record !== null)).toBe(true);
-	});
+			expect(await readUserRecords(testContext, fixture)).toEqual(
+				recordsBefore
+			);
+			const extraRecords = await testContext.run(
+				async (ctx) => await Promise.all(extraIds.map((id) => ctx.db.get(id)))
+			);
+			expect(extraRecords.every((record) => record !== null)).toBe(true);
+		}
+	);
 
 	it("deletes all owned records without changing another user's data", async () => {
 		const testContext = createBackendTest();
@@ -327,7 +346,9 @@ describe("internal E2E cleanup", () => {
 		).resolves.toBeNull();
 
 		const fixtureRecords = await readUserRecords(testContext, fixture);
-		expect(fixtureRecords).toEqual(new Array<null>(13).fill(null));
+		expect(fixtureRecords).toEqual(
+			new Array<null>(Object.keys(fixture.ids).length).fill(null)
+		);
 		expect(await readUserRecords(testContext, otherUser)).toEqual(
 			otherRecordsBefore
 		);
@@ -341,15 +362,18 @@ describe("internal E2E cleanup", () => {
 		"spendly-e2e-12345678-1234-1234-1234-123456789abg+clerk_test@example.com",
 		FIXTURE_EMAIL.toUpperCase(),
 		`${FIXTURE_EMAIL}\n`,
-	])("rejects nonfixture emails even if the stored email matches (%s)", async (email) => {
-		const testContext = createBackendTest();
-		const seeded = await seedUser(testContext, cleanupArgs.clerkId, email);
+	])(
+		"rejects nonfixture emails even if the stored email matches (%s)",
+		async (email) => {
+			const testContext = createBackendTest();
+			const seeded = await seedUser(testContext, cleanupArgs.clerkId, email);
 
-		await expect(
-			testContext.mutation(removeUser, { ...cleanupArgs, email })
-		).rejects.toThrow("E2E cleanup requires a fixture email");
-		expect(await userRecordsExist(testContext, seeded)).toBe(true);
-	});
+			await expect(
+				testContext.mutation(removeUser, { ...cleanupArgs, email })
+			).rejects.toThrow("E2E cleanup requires a fixture email");
+			expect(await userRecordsExist(testContext, seeded)).toBe(true);
+		}
+	);
 
 	it.each([
 		"real-user@example.com",
@@ -379,19 +403,19 @@ describe("internal E2E cleanup", () => {
 		expect(await userRecordsExist(testContext, seeded)).toBe(true);
 	});
 
-	it.each([
-		undefined,
-		"https://other-dev-123.convex.cloud",
-	])("rejects a missing or mismatched deployment URL (%s)", async (deploymentUrl) => {
-		const testContext = createBackendTest();
-		const seeded = await seedUser(testContext);
-		vi.stubEnv("CONVEX_CLOUD_URL", deploymentUrl);
+	it.each([undefined, "https://other-dev-123.convex.cloud"])(
+		"rejects a missing or mismatched deployment URL (%s)",
+		async (deploymentUrl) => {
+			const testContext = createBackendTest();
+			const seeded = await seedUser(testContext);
+			vi.stubEnv("CONVEX_CLOUD_URL", deploymentUrl);
 
-		await expect(testContext.mutation(removeUser, cleanupArgs)).rejects.toThrow(
-			"E2E cleanup deployment URL mismatch"
-		);
-		expect(await userRecordsExist(testContext, seeded)).toBe(true);
-	});
+			await expect(
+				testContext.mutation(removeUser, cleanupArgs)
+			).rejects.toThrow("E2E cleanup deployment URL mismatch");
+			expect(await userRecordsExist(testContext, seeded)).toBe(true);
+		}
+	);
 
 	it.each([
 		"http://spendly-e2e-123.convex.cloud",
@@ -421,19 +445,17 @@ describe("internal E2E cleanup", () => {
 		expect(await userRecordsExist(testContext, seeded)).toBe(true);
 	});
 
-	it.each([
-		undefined,
-		"false",
-		"TRUE",
-		"1",
-	])("rejects cleanup unless explicitly enabled (%s)", async (enabled) => {
-		const testContext = createBackendTest();
-		const seeded = await seedUser(testContext);
-		vi.stubEnv("SPENDLY_E2E_ENABLED", enabled);
+	it.each([undefined, "false", "TRUE", "1"])(
+		"rejects cleanup unless explicitly enabled (%s)",
+		async (enabled) => {
+			const testContext = createBackendTest();
+			const seeded = await seedUser(testContext);
+			vi.stubEnv("SPENDLY_E2E_ENABLED", enabled);
 
-		await expect(testContext.mutation(removeUser, cleanupArgs)).rejects.toThrow(
-			"E2E cleanup is disabled"
-		);
-		expect(await userRecordsExist(testContext, seeded)).toBe(true);
-	});
+			await expect(
+				testContext.mutation(removeUser, cleanupArgs)
+			).rejects.toThrow("E2E cleanup is disabled");
+			expect(await userRecordsExist(testContext, seeded)).toBe(true);
+		}
+	);
 });

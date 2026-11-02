@@ -25,11 +25,11 @@ export const proveConvexIdentity = async (options: {
 	try {
 		return await client.query(identityProofQuery, {});
 	} catch (error) {
-		throw new CliError(
+		throw CliError.fromCause(
+			error,
 			"NETWORK_ERROR",
 			"Convex rejected the authenticated identity proof",
 			{
-				cause: error,
 				retryable: true,
 			}
 		);

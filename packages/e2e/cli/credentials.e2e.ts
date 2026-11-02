@@ -1,3 +1,4 @@
+// biome-ignore-all lint/performance/noAwaitInLoops: Stateful E2E steps and fixture cleanup require ordered execution.
 import { createHash } from "node:crypto";
 import { chmod, lstat } from "node:fs/promises";
 import { dirname } from "node:path";
@@ -22,17 +23,17 @@ import { terminalFixture } from "../src/terminal-fixture";
 import { createUser, type E2EUser, seedUser } from "../src/users";
 
 const statusSchema = z.object({
-	schemaVersion: z.literal(1),
 	data: z.object({
 		authenticated: z.literal(true),
 		backendUserId: z.string().min(1),
 		identitySubject: z.string().min(1),
 		subjectMatchesBackendUser: z.literal(true),
 	}),
+	schemaVersion: z.literal(1),
 });
 const failureSchema = z.object({
-	schemaVersion: z.literal(1),
 	error: z.object({ code: z.string() }),
+	schemaVersion: z.literal(1),
 });
 
 const parseOutput = <Output>(
@@ -95,13 +96,13 @@ describe("genuine OAuth CLI credential lifecycle", () => {
 	let config: E2EEnvironment;
 	let browser: Browser;
 	let context: BrowserContext | undefined;
-	let user: E2EUser | undefined;
+	let fixtureUser: E2EUser | undefined;
 
 	const fixture = () => {
-		if (!user) {
+		if (!fixtureUser) {
 			throw new Error("Credential lifecycle user unavailable");
 		}
-		return user;
+		return fixtureUser;
 	};
 
 	beforeAll(async () => {
@@ -116,18 +117,18 @@ describe("genuine OAuth CLI credential lifecycle", () => {
 	});
 
 	beforeEach(async () => {
-		user = undefined;
+		fixtureUser = undefined;
 		context = await browser.newContext({ timezoneId: "UTC" });
-		user = await createUser(await context.newPage(), config);
-		await seedUser(user);
-		await user.loginCli();
+		fixtureUser = await createUser(await context.newPage(), config);
+		await seedUser(fixtureUser);
+		await fixtureUser.loginCli();
 	});
 
 	afterEach(async () => {
 		try {
-			await user?.dispose();
+			await fixtureUser?.dispose();
 		} finally {
-			user = undefined;
+			fixtureUser = undefined;
 			await context?.close();
 			context = undefined;
 		}
@@ -149,11 +150,11 @@ describe("genuine OAuth CLI credential lifecycle", () => {
 			.update(`${config.clerkIssuer}\0${config.oauthClientId}`)
 			.digest("hex");
 		expect(probe.summary).toMatchObject({
-			namespace: expectedNamespace,
-			namespaceCount: 1,
-			issuer: config.clerkIssuer,
 			clientId: config.oauthClientId,
 			hasRefreshToken: true,
+			issuer: config.clerkIssuer,
+			namespace: expectedNamespace,
+			namespaceCount: 1,
 		});
 		expect(probe.summary.subject === backend.clerkId).toBe(true);
 		for (const [path, mode] of [
@@ -246,25 +247,25 @@ describe("genuine OAuth CLI credential lifecycle", () => {
 		).toBe(true);
 	});
 
-	it.each([
-		"file",
-		"directory",
-	] as const)("rejects and removes credentials with unsafe %s permissions", async (target) => {
-		const user = fixture();
-		const { credentialFile } = terminalFixture(user);
-		const probe = await openCredentialProbe(credentialFile);
-		const directory = dirname(credentialFile);
-		try {
-			await chmod(
-				target === "file" ? credentialFile : directory,
-				target === "file" ? 0o644 : 0o755
-			);
-			expect(await failureCode(user)).toBe("CREDENTIALS_INVALID");
-			await chmod(directory, 0o700);
-			expect((await probe.inspect()).present).toBe(false);
-			expect(await failureCode(user)).toBe("AUTHENTICATION_REQUIRED");
-		} finally {
-			await chmod(directory, 0o700);
+	it.each(["file", "directory"] as const)(
+		"rejects and removes credentials with unsafe %s permissions",
+		async (target) => {
+			const user = fixture();
+			const { credentialFile } = terminalFixture(user);
+			const probe = await openCredentialProbe(credentialFile);
+			const directory = dirname(credentialFile);
+			try {
+				await chmod(
+					target === "file" ? credentialFile : directory,
+					target === "file" ? 0o644 : 0o755
+				);
+				expect(await failureCode(user)).toBe("CREDENTIALS_INVALID");
+				await chmod(directory, 0o700);
+				expect((await probe.inspect()).present).toBe(false);
+				expect(await failureCode(user)).toBe("AUTHENTICATION_REQUIRED");
+			} finally {
+				await chmod(directory, 0o700);
+			}
 		}
-	});
+	);
 });

@@ -3,6 +3,7 @@
 import type { Id } from "@spendly/backend/convex/_generated/dataModel";
 import { ChevronLeft } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback } from "react";
 import { CategoryForm } from "@/components/category-form";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +18,8 @@ export default function NewCategoryPage() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const cycleId = searchParams.get("id") as Id<"expense_cycles">;
+	const goBack = useCallback(() => router.back(), [router]);
+	const handleSuccess = useCallback(() => router.push("/dashboard"), [router]);
 
 	if (!cycleId) {
 		router.push("/dashboard");
@@ -27,7 +30,7 @@ export default function NewCategoryPage() {
 		<div className="mx-auto max-w-2xl space-y-4">
 			<Button
 				className="-ml-2 text-muted-foreground"
-				onClick={() => router.back()}
+				onClick={goBack}
 				size="sm"
 				variant="ghost"
 			>
@@ -43,10 +46,7 @@ export default function NewCategoryPage() {
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
-					<CategoryForm
-						cycleId={cycleId}
-						onSuccess={() => router.push("/dashboard")}
-					/>
+					<CategoryForm cycleId={cycleId} onSuccess={handleSuccess} />
 				</CardContent>
 			</Card>
 		</div>

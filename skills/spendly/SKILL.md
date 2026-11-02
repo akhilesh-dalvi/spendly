@@ -1,6 +1,6 @@
 ---
 name: spendly
-description: Use the local Spendly CLI to read or manage expenses, accounts, balances, and transfers, including categorizing expenses, setting default accounts, and reconciling balances.
+description: Use the local Spendly CLI to read or manage expenses, expense cycles, accounts, balances, and transfers, including categorizing expenses, setting default accounts, and reconciling balances.
 ---
 
 # Spendly CLI
@@ -10,11 +10,10 @@ Use `spendly` to work with the user's Spendly data from their local computer.
 ## Get started
 
 Public documentation: [Spendly CLI](https://spendly.akhileshdalvi.com/docs/cli).
-The initial `0.1.2` release is available on npm for macOS. Install that exact
-version with `npm install --global spendly@0.1.2` on Node.js 22 or newer, or use
-`npm install --global spendly` for the default release. Production authentication
-and Codex read-only skill use are verified; broader workflows remain subject to
-ongoing validation. If npm cannot find the package, report the installation
+Install or update to the latest release with `npm install --global spendly@latest`
+on Node.js 22 or newer. macOS is the currently verified platform. Production
+authentication and Codex read-only skill use are verified; broader workflows
+remain subject to ongoing validation. If npm cannot find the package, report the installation
 failure; do not substitute an unrelated package.
 
 ```bash
@@ -42,7 +41,7 @@ example, `REVISION_CONFLICT` requires a fresh read rather than a blind retry.
 | Spending summary                       | `spendly --agent --json --non-interactive summary --help`       |
 | List, add, edit, delete expenses       | `spendly --agent --json --non-interactive expenses --help`      |
 | Accounts, balances, history, transfers | `spendly --agent --json --non-interactive accounts --help`      |
-| Find cycles                            | `spendly --agent --json --non-interactive cycles --help`        |
+| List, add, edit, delete cycles         | `spendly --agent --json --non-interactive cycles --help`        |
 | Find categories                        | `spendly --agent --json --non-interactive categories --help`    |
 | Find tags                              | `spendly --agent --json --non-interactive tags --help`          |
 | Find account types                     | `spendly --agent --json --non-interactive account-types --help` |
@@ -76,16 +75,21 @@ spendly --agent --json --non-interactive account-types list
 
 Categories belong to a cycle; resolve and use the expense date's cycle. Including archived
 accounts helps spot an existing account before creating another. Categories,
-tags, account types, and cycles are currently read-only through the CLI and
-can be managed in Spendly Web.
+tags, and account types are currently read-only through the CLI and can be
+managed in Spendly Web. Cycle CRUD requires a version that advertises it in
+`cycles --help`; older releases only list/find cycles.
 
 ## Run an action
 
 `--agent --json --non-interactive` declares agent use, gives structured output,
 and disables prompts. List and get commands provide the IDs and revisions used
 by write commands. `--dry-run`
-previews a change; removing it applies the change. Several requested changes
-can be handled as separate commands.
+previews a change; removing it applies the change. For separately reviewed cycle
+copying, capture `data.copySnapshot` and commit with `--if-copy-snapshot` using
+identical source, selection, and plan inputs; follow [Cycles](references/cycle-workflows.md)
+for snapshot guards and uncertain-write replay. Stop on `CYCLE_COPY_CONFLICT`
+(exit 5) and obtain fresh preview approval before a new commit.
+Several requested changes can be handled as separate commands.
 
 Apply only writes the user requested. Stop on ambiguity, a stale revision, an
 unexpected warning, or a result that remains uncertain. Never retry a write
@@ -98,6 +102,8 @@ Use the reference that fits the task:
 - [Command basics](references/cli-contract.md): JSON, IDs, dates, pagination,
   previews, revisions, and idempotency keys.
 - [Expenses](references/expense-workflows.md): list, add, edit, delete.
+- [Cycles](references/cycle-workflows.md): create/copy category plans, inspect,
+  change dates, or delete a cycle and its categories.
 - [Accounts](references/account-workflows.md): add, edit, archive,
   reconcile, transfer, and inspect history.
 - [Troubleshooting](references/troubleshooting.md): login, conflicts,

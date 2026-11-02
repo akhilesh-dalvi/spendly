@@ -28,18 +28,21 @@ export interface MultiSelectPromptOptions<Value extends string = string> {
 }
 
 export interface InteractivePrompter {
-	confirm(options: {
+	confirm: (options: {
 		initialValue?: boolean;
 		message: string;
-	}): Promise<boolean>;
-	date(options: { initialValue?: string; message: string }): Promise<string>;
-	multiselect<Value extends string>(
+	}) => Promise<boolean>;
+	date: (options: {
+		initialValue?: string;
+		message: string;
+	}) => Promise<string>;
+	multiselect: <Value extends string>(
 		options: MultiSelectPromptOptions<Value>
-	): Promise<Value[]>;
-	select<Value extends string>(
+	) => Promise<Value[]>;
+	select: <Value extends string>(
 		options: SelectPromptOptions<Value>
-	): Promise<Value>;
-	text(options: TextPromptOptions): Promise<string>;
+	) => Promise<Value>;
+	text: (options: TextPromptOptions) => Promise<string>;
 }
 
 export class PromptCancelledError extends Error {

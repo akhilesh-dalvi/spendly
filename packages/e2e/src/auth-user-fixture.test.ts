@@ -19,10 +19,10 @@ vi.mock("@clerk/testing/playwright", () => ({
 	setupClerkTestingToken: vi.fn(() => Promise.resolve()),
 }));
 vi.mock("./authentication", () => ({
-	signInThroughUi: vi.fn(() => Promise.resolve()),
-	signUpThroughUi: vi.fn(() => Promise.resolve()),
 	completeOAuth: vi.fn(),
 	interactWithOAuth: vi.fn(),
+	signInThroughUi: vi.fn(() => Promise.resolve()),
+	signUpThroughUi: vi.fn(() => Promise.resolve()),
 }));
 vi.mock("convex/browser", () => ({
 	ConvexHttpClient: class {
@@ -36,25 +36,25 @@ vi.mock("convex/browser", () => ({
 }));
 
 const config = loadEnvironment({
-	SPENDLY_E2E_ENABLED: "true",
-	E2E_CONVEX_URL: "https://e2e-test.convex.cloud",
-	E2E_CONVEX_DEPLOY_KEY: "dev:e2e-test|synthetic",
 	E2E_CLERK_ISSUER: "https://e2e-test.clerk.accounts.dev",
+	E2E_CLERK_OAUTH_CLIENT_ID: "synthetic-client",
 	E2E_CLERK_PUBLISHABLE_KEY: `pk_test_${Buffer.from("e2e-test.clerk.accounts.dev$").toString("base64")}`,
 	E2E_CLERK_SECRET_KEY: "sk_test_synthetic",
-	E2E_CLERK_OAUTH_CLIENT_ID: "synthetic-client",
+	E2E_CONVEX_DEPLOY_KEY: "dev:e2e-test|synthetic",
+	E2E_CONVEX_URL: "https://e2e-test.convex.cloud",
+	SPENDLY_E2E_ENABLED: "true",
 });
 
 const fakePage = () =>
 	({
-		goto: vi.fn(() => Promise.resolve(null)),
-		isClosed: vi.fn(() => false),
 		close: vi.fn(() => {
 			state.events.push("close");
 			return Promise.resolve();
 		}),
-		waitForFunction: vi.fn(() => Promise.resolve()),
 		evaluate: vi.fn(() => Promise.resolve("offline-synthetic-token")),
+		goto: vi.fn(() => Promise.resolve(null)),
+		isClosed: vi.fn(() => false),
+		waitForFunction: vi.fn(() => Promise.resolve()),
 	}) as unknown as Page;
 
 beforeEach(() => {
@@ -81,8 +81,8 @@ beforeEach(() => {
 			return Promise.resolve(
 				Response.json([
 					{
-						id: "user_synthetic",
 						email_addresses: [{ email_address: state.email }],
+						id: "user_synthetic",
 					},
 				])
 			);

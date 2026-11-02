@@ -22,25 +22,25 @@ test("currency and theme persist after reload on a narrow keyboard path @compati
 	expect(savingsBefore.currency).toBe("USD");
 	const ledgerBefore = await user.query(api.accounts.listTransactions, {});
 	await user.mutation(api.expenses.create, {
-		amount: 10,
 		accountId: null,
+		amount: 10,
 		date: seed.date,
 		spentOn: "Preference currency expense",
 	});
-	await page.setViewportSize({ width: 390, height: 844 });
+	await page.setViewportSize({ height: 844, width: 390 });
 	await page.goto("/settings");
 	await expect(
-		page.getByRole("heading", { name: "Settings", exact: true })
+		page.getByRole("heading", { exact: true, name: "Settings" })
 	).toBeVisible();
 	await page
 		.getByRole("combobox")
 		.filter({ hasText: "US Dollar (USD)" })
 		.click();
-	await page.getByRole("option", { name: "Euro (EUR)", exact: true }).click();
+	await page.getByRole("option", { exact: true, name: "Euro (EUR)" }).click();
 	await expect
 		.poll(async () => (await user.query(api.users.get, {})).currency)
 		.toBe("EUR");
-	const dark = page.getByRole("button", { name: "Dark", exact: true });
+	const dark = page.getByRole("button", { exact: true, name: "Dark" });
 	await dark.focus();
 	await expect(dark).toBeFocused();
 	await dark.press("Enter");
@@ -58,7 +58,7 @@ test("currency and theme persist after reload on a narrow keyboard path @compati
 		page
 			.getByRole("row")
 			.filter({ hasText: "Preference currency expense" })
-			.getByRole("cell", { name: "€10.00", exact: true })
+			.getByRole("cell", { exact: true, name: "€10.00" })
 	).toBeVisible();
 	// Onboarding accounts intentionally inherit the user's display currency.
 	// Accounts with an explicit currency must retain that currency instead.
@@ -86,7 +86,7 @@ test("currency and theme persist after reload on a narrow keyboard path @compati
 		ledgerBefore
 	);
 	await page.goto("/settings");
-	await page.getByRole("button", { name: "Light", exact: true }).press("Enter");
+	await page.getByRole("button", { exact: true, name: "Light" }).press("Enter");
 	await page.reload();
 	await expect(page.locator("html")).toHaveClass(LIGHT_CLASS);
 });
@@ -103,18 +103,18 @@ test("dashboard category view mode persists through navigation and reload", asyn
 		throw new Error("Preference category type was not created");
 	}
 	await user.mutation(api.categories.create, {
+		categoryTypeId: type._id,
 		cycleId,
 		name: "Preference groceries",
-		categoryTypeId: type._id,
 		plannedAmount: 50,
 	});
 	await page.goto("/dashboard");
 	await expect(page.getByRole("button", { name: GROUP_HEADING })).toBeVisible();
 	await page
-		.getByRole("button", { name: "Category view mode", exact: true })
+		.getByRole("button", { exact: true, name: "Category view mode" })
 		.click();
 	await page
-		.getByRole("menuitem", { name: "Simple List", exact: true })
+		.getByRole("menuitem", { exact: true, name: "Simple List" })
 		.click();
 	await expect
 		.poll(async () => (await user.query(api.users.get, {})).dashboardViewMode)
@@ -132,10 +132,10 @@ test("dashboard category view mode persists through navigation and reload", asyn
 		0
 	);
 	await page
-		.getByRole("button", { name: "Category view mode", exact: true })
+		.getByRole("button", { exact: true, name: "Category view mode" })
 		.click();
 	await page
-		.getByRole("menuitem", { name: "Grouped by Type", exact: true })
+		.getByRole("menuitem", { exact: true, name: "Grouped by Type" })
 		.click();
 	await expect
 		.poll(async () => (await user.query(api.users.get, {})).dashboardViewMode)

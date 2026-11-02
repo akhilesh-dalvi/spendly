@@ -25,18 +25,18 @@ export const nullableResolvedAccountTypeFields = {
 } as const;
 
 export const accountTypeValidator = v.object({
-	_id: v.id("account_types"),
 	_creationTime: v.number(),
-	userId: v.id("users"),
+	_id: v.id("account_types"),
+	balanceNature: accountTypeBalanceNatureValidator,
+	color: v.optional(v.string()),
+	createdAt: v.number(),
+	icon: v.optional(v.string()),
+	isArchived: v.optional(v.boolean()),
 	name: v.string(),
 	normalizedName: v.string(),
-	icon: v.optional(v.string()),
-	color: v.optional(v.string()),
-	balanceNature: accountTypeBalanceNatureValidator,
 	order: v.number(),
-	isArchived: v.optional(v.boolean()),
-	createdAt: v.number(),
 	updatedAt: v.optional(v.number()),
+	userId: v.id("users"),
 });
 
 export const accountTypeListValidator = v.array(accountTypeValidator);

@@ -48,12 +48,12 @@ const setSidebarCookie = (openState: boolean) => {
 };
 
 interface SidebarContextProps {
-	state: "expanded" | "collapsed";
-	open: boolean;
-	setOpen: (open: boolean) => void;
-	openMobile: boolean;
-	setOpenMobile: (open: boolean) => void;
 	isMobile: boolean;
+	open: boolean;
+	openMobile: boolean;
+	setOpen: (open: boolean) => void;
+	setOpenMobile: (open: boolean) => void;
+	state: "expanded" | "collapsed";
 	toggleSidebar: () => void;
 }
 
@@ -84,8 +84,6 @@ function SidebarProvider({
 	const isMobile = useIsMobile();
 	const [openMobile, setOpenMobile] = useState(false);
 
-	// This is the internal state of the sidebar.
-	// We use openProp and setOpenProp for control from outside the component.
 	const [_open, _setOpen] = useState(defaultOpen);
 	const open = openProp ?? _open;
 	const setOpen = useCallback(
@@ -97,18 +95,19 @@ function SidebarProvider({
 				_setOpen(openState);
 			}
 
-			// This sets the cookie to keep the sidebar state.
 			setSidebarCookie(openState);
 		},
 		[setOpenProp, open]
 	);
 
-	// Helper to toggle the sidebar.
-	const toggleSidebar = useCallback(() => {
-		return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
-	}, [isMobile, setOpen]);
+	const toggleSidebar = useCallback(
+		() =>
+			isMobile
+				? setOpenMobile((current) => !current)
+				: setOpen((current) => !current),
+		[isMobile, setOpen]
+	);
 
-	// Adds a keyboard shortcut to toggle the sidebar.
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (
@@ -124,18 +123,16 @@ function SidebarProvider({
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [toggleSidebar]);
 
-	// We add a state so that we can do data-state="expanded" or "collapsed".
-	// This makes it easier to style the sidebar with Tailwind classes.
 	const state = open ? "expanded" : "collapsed";
 
 	const contextValue = useMemo<SidebarContextProps>(
 		() => ({
-			state,
-			open,
-			setOpen,
 			isMobile,
+			open,
 			openMobile,
+			setOpen,
 			setOpenMobile,
+			state,
 			toggleSidebar,
 		}),
 		[state, open, setOpen, isMobile, openMobile, toggleSidebar]
@@ -229,7 +226,7 @@ function Sidebar({
 			data-state={state}
 			data-variant={variant}
 		>
-			{/* This is what handles the sidebar gap on desktop */}
+			{/* Reserve layout space for the fixed sidebar. */}
 			<div
 				className={cn(
 					"relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
@@ -247,7 +244,6 @@ function Sidebar({
 					side === "left"
 						? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
 						: "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
-					// Adjust the padding for floating and inset variants.
 					variant === "floating" || variant === "inset"
 						? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
 						: "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l",
@@ -274,16 +270,20 @@ function SidebarTrigger({
 	...props
 }: ComponentProps<typeof Button>) {
 	const { toggleSidebar } = useSidebar();
+	const handleClick = useCallback(
+		(event: React.MouseEvent<HTMLButtonElement>) => {
+			onClick?.(event);
+			toggleSidebar();
+		},
+		[onClick, toggleSidebar]
+	);
 
 	return (
 		<Button
 			className={cn("size-7", className)}
 			data-sidebar="trigger"
 			data-slot="sidebar-trigger"
-			onClick={(event) => {
-				onClick?.(event);
-				toggleSidebar();
-			}}
+			onClick={handleClick}
 			size="icon"
 			variant="ghost"
 			{...props}
@@ -401,21 +401,21 @@ function SidebarMenuItem({ className, ...props }: ComponentProps<"li">) {
 const sidebarMenuButtonVariants = cva(
 	"peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
 	{
+		defaultVariants: {
+			size: "default",
+			variant: "default",
+		},
 		variants: {
+			size: {
+				default: "h-8 text-sm",
+				lg: "h-12 text-sm group-data-[collapsible=icon]:p-0!",
+				sm: "h-7 text-xs",
+			},
 			variant: {
 				default: "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
 				outline:
 					"bg-background shadow-[0_0_0_1px_hsl(var(--sidebar-border))] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_0_0_1px_hsl(var(--sidebar-accent))]",
 			},
-			size: {
-				default: "h-8 text-sm",
-				sm: "h-7 text-xs",
-				lg: "h-12 text-sm group-data-[collapsible=icon]:p-0!",
-			},
-		},
-		defaultVariants: {
-			variant: "default",
-			size: "default",
 		},
 	}
 );
@@ -438,7 +438,7 @@ function SidebarMenuButton({
 
 	const button = (
 		<Comp
-			className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
+			className={cn(sidebarMenuButtonVariants({ size, variant }), className)}
 			data-active={isActive}
 			data-sidebar="menu-button"
 			data-size={size}
@@ -485,7 +485,7 @@ function SidebarMenuAction({
 		<Comp
 			className={cn(
 				"absolute top-1.5 right-1 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground outline-hidden ring-sidebar-ring transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 peer-hover/menu-button:text-sidebar-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0",
-				// Increases the hit area of the button on mobile.
+				// Expand the mobile hit target.
 				"after:absolute after:-inset-2 md:after:hidden",
 				"peer-data-[size=sm]/menu-button:top-1",
 				"peer-data-[size=default]/menu-button:top-1.5",

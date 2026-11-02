@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { verifyProductionShrinkwrap } from "./verify-production-shrinkwrap.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const packageDirectory = join(scriptDirectory, "..");
@@ -106,6 +107,7 @@ assert(
 	"Published metadata must not reference internal Spendly development packages"
 );
 assert(shrinkwrap.lockfileVersion === 3, "npm shrinkwrap must use lockfile v3");
+verifyProductionShrinkwrap(shrinkwrap);
 const shrinkwrapRoot = shrinkwrap.packages?.[""];
 assert(
 	shrinkwrapRoot?.license === packageMetadata.license,

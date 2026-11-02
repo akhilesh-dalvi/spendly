@@ -1,3 +1,4 @@
+// biome-ignore-all lint/performance/noAwaitInLoops: Stateful E2E steps and fixture cleanup require ordered execution.
 import { expect } from "@playwright/test";
 import { api } from "../src/backend-api";
 import { test } from "../src/playwright-fixtures";
@@ -27,84 +28,82 @@ const seedReports = async (user: E2EUser) => {
 	const tagId = await user.mutation(api.tags.create, { name: "Report work" });
 	for (const input of [
 		{
+			accountId: seed.accountId,
 			amount: 25,
 			categoryId: food._id,
-			accountId: seed.accountId,
 			spentOn: "Report lunch",
 			tagIds: [tagId],
 		},
 		{
+			accountId: seed.accountId,
 			amount: 15,
 			categoryId: food._id,
-			accountId: seed.accountId,
 			spentOn: "Report dinner",
 		},
 		{
+			accountId: seed.destinationId,
 			amount: 60,
 			categoryId: transport._id,
-			accountId: seed.destinationId,
 			spentOn: "Report train",
 			tagIds: [tagId],
 		},
-		{ amount: 5, accountId: null, spentOn: "Report uncategorized" },
+		{ accountId: null, amount: 5, spentOn: "Report uncategorized" },
 	]) {
 		await user.mutation(api.expenses.create, { ...input, date: seed.date });
 	}
 	return { ...seed, foodId: food._id };
 };
 
-test(
-	"dashboard and category show exact fixture spending and planned totals @compatibility",
-	{ tag: "@smoke" },
-	async ({ page, user }) => {
-		const seed = await seedReports(user);
-		await page.goto("/dashboard");
-		const budget = page.getByRole("region", {
-			name: "Budget left",
-			exact: true,
-		});
-		await expect(budget.getByText("$195.00", { exact: true })).toBeVisible();
-		await expect(
-			budget.getByText("$105.00 spent of $300.00 planned", { exact: true })
-		).toBeVisible();
-		await expect(budget.getByText("35% spent", { exact: true })).toBeVisible();
-		await expect(
-			budget.getByRole("progressbar", { name: "Budget spent" })
-		).toHaveAttribute("aria-valuenow", "35");
-		await expect(
-			page
-				.getByRole("region", { name: "Tracked funds" })
-				.getByText("$1,100.00", { exact: true })
-		).toBeVisible();
+test("dashboard and category show exact fixture spending and planned totals @compatibility", {
+	tag: "@smoke",
+}, async ({ page, user }) => {
+	const seed = await seedReports(user);
+	await page.goto("/dashboard");
+	const budget = page.getByRole("region", {
+		exact: true,
+		name: "Budget left",
+	});
+	await expect(budget.getByText("$195.00", { exact: true })).toBeVisible();
+	await expect(
+		budget.getByText("$105.00 spent of $300.00 planned", { exact: true })
+	).toBeVisible();
+	await expect(budget.getByText("35% spent", { exact: true })).toBeVisible();
+	await expect(
+		budget.getByRole("progressbar", { name: "Budget spent" })
+	).toHaveAttribute("aria-valuenow", "35");
+	await expect(
+		page
+			.getByRole("region", { name: "Tracked funds" })
+			.getByText("$1,100.00", { exact: true })
+	).toBeVisible();
 
-		await page.goto(`/categories/${seed.foodId}`);
+	await page.goto(`/categories/${seed.foodId}`);
+	await expect(
+		page.getByRole("heading", { exact: true, name: "Report food" })
+	).toBeVisible();
+	for (const amount of ["$40.00", "$60.00", "$100.00"]) {
 		await expect(
-			page.getByRole("heading", { name: "Report food", exact: true })
-		).toBeVisible();
-		for (const amount of ["$40.00", "$60.00", "$100.00"]) {
-			await expect(
-				page.getByRole("heading", { name: amount, exact: true })
-			).toBeVisible();
-		}
-		await expect(page.getByText("2 total", { exact: true })).toBeVisible();
-		await expect(
-			page
-				.getByRole("row")
-				.filter({ hasText: "Report lunch" })
-				.getByRole("cell", { name: "$25.00", exact: true })
-		).toBeVisible();
-		await expect(
-			page
-				.getByRole("row")
-				.filter({ hasText: "Report dinner" })
-				.getByRole("cell", { name: "$15.00", exact: true })
-		).toBeVisible();
-		await page.reload();
-		await expect(
-			page.getByRole("heading", { name: "$40.00", exact: true })
+			page.getByRole("heading", { exact: true, name: amount })
 		).toBeVisible();
 	}
-);
+	await expect(page.getByText("2 total", { exact: true })).toBeVisible();
+	await expect(
+		page
+			.getByRole("row")
+			.filter({ hasText: "Report lunch" })
+			.getByRole("cell", { exact: true, name: "$25.00" })
+	).toBeVisible();
+	await expect(
+		page
+			.getByRole("row")
+			.filter({ hasText: "Report dinner" })
+			.getByRole("cell", { exact: true, name: "$15.00" })
+	).toBeVisible();
+	await page.reload();
+	await expect(
+		page.getByRole("heading", { exact: true, name: "$40.00" })
+	).toBeVisible();
+});
 
 test("expense filters intersect cycle, category, account and tag and recover from empty search results", async ({
 	page,
@@ -117,7 +116,7 @@ test("expense filters intersect cycle, category, account and tag and recover fro
 	await expect(total).toHaveText("Total spent$105.00");
 	await expect(count).toHaveText("Count4");
 	await page.getByRole("combobox").filter({ hasText: "All cycles" }).click();
-	await page.getByRole("option", { name: "E2E tracking", exact: true }).click();
+	await page.getByRole("option", { exact: true, name: "E2E tracking" }).click();
 	await page
 		.getByRole("combobox")
 		.filter({ hasText: "All categories" })
@@ -127,7 +126,7 @@ test("expense filters intersect cycle, category, account and tag and recover fro
 	await expect(count).toHaveText("Count2");
 	await page.getByRole("combobox").filter({ hasText: "All accounts" }).click();
 	await page.getByRole("option", { name: WALLET_OPTION }).click();
-	await page.getByRole("button", { name: "Report work", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "Report work" }).click();
 	await expect(count).toHaveText("Count1");
 	await expect(total).toHaveText("Total spent$25.00");
 	await expect(
@@ -141,7 +140,7 @@ test("expense filters intersect cycle, category, account and tag and recover fro
 		.getByPlaceholder("Search description...", { exact: true })
 		.fill("no-matching-report-expense");
 	await expect(
-		page.getByRole("cell", { name: "No results.", exact: true })
+		page.getByRole("cell", { exact: true, name: "No results." })
 	).toBeVisible();
 	await expect(
 		page.getByRole("row").filter({ hasText: "Report lunch" })
@@ -157,22 +156,22 @@ test("expense filters intersect cycle, category, account and tag and recover fro
 	await page.getByRole("combobox").filter({ hasText: "E2E Wallet" }).click();
 	await page.getByRole("option", { name: SAVINGS_OPTION }).click();
 	await expect(
-		page.getByRole("heading", { name: "No expenses found", exact: true })
+		page.getByRole("heading", { exact: true, name: "No expenses found" })
 	).toBeVisible();
 	await expect(total).toHaveText("Total spent$0.00");
 	await expect(count).toHaveText("Count0");
-	await page.getByRole("button", { name: "Clear all", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "Clear all" }).click();
 	await expect(count).toHaveText("Count4");
 	await expect(total).toHaveText("Total spent$105.00");
 
 	await page.getByRole("combobox").filter({ hasText: "All cycles" }).click();
-	await page.getByRole("option", { name: "E2E tracking", exact: true }).click();
+	await page.getByRole("option", { exact: true, name: "E2E tracking" }).click();
 	await page
 		.getByRole("combobox")
 		.filter({ hasText: "All categories" })
 		.click();
 	await page
-		.getByRole("option", { name: "Uncategorized", exact: true })
+		.getByRole("option", { exact: true, name: "Uncategorized" })
 		.click();
 	await expect(count).toHaveText("Count1");
 	await expect(total).toHaveText("Total spent$5.00");
@@ -187,17 +186,17 @@ test("rapid comparison selections survive delayed navigation and browser history
 }) => {
 	const seed = await seedUser(user);
 	const previous = await user.mutation(api.cycles.create, {
+		endDate: "2019-12-31",
 		name: "Report previous",
 		startDate: "2019-01-01",
-		endDate: "2019-12-31",
 	});
 	if (!previous) {
 		throw new Error("Previous comparison cycle was not created");
 	}
 	await page.goto("/compare");
 	const cyclePicker = page.getByRole("combobox", {
-		name: "Cycles to compare",
 		exact: true,
+		name: "Cycles to compare",
 	});
 	await expect(cyclePicker).toHaveText("Select cycles to compare");
 	let resumeNavigation: () => void = () => undefined;
@@ -247,9 +246,9 @@ test("two selected cycles compare exact totals and persist selection in the URL"
 }) => {
 	const seed = await seedReports(user);
 	const previous = await user.mutation(api.cycles.create, {
+		endDate: "2019-12-31",
 		name: "Report previous",
 		startDate: "2019-01-01",
-		endDate: "2019-12-31",
 	});
 	if (!previous) {
 		throw new Error("Previous report cycle was not created");
@@ -263,9 +262,9 @@ test("two selected cycles compare exact totals and persist selection in the URL"
 		throw new Error("Previous report category was not created");
 	}
 	await user.mutation(api.expenses.create, {
+		accountId: null,
 		amount: 20,
 		categoryId: food._id,
-		accountId: null,
 		date: "2019-06-15",
 		spentOn: "Previous report lunch",
 	});
@@ -277,8 +276,8 @@ test("two selected cycles compare exact totals and persist selection in the URL"
 		)
 	).toBeVisible();
 	const cyclePicker = page.getByRole("combobox", {
-		name: "Cycles to compare",
 		exact: true,
+		name: "Cycles to compare",
 	});
 	await cyclePicker.click();
 	await page.getByRole("option", { name: CURRENT_OPTION }).click();
@@ -292,13 +291,13 @@ test("two selected cycles compare exact totals and persist selection in the URL"
 		previous._id,
 	]);
 	await expect(
-		page.getByRole("heading", { name: "$125.00", exact: true })
+		page.getByRole("heading", { exact: true, name: "$125.00" })
 	).toBeVisible();
 	await expect(
-		page.getByRole("heading", { name: "$380.00", exact: true })
+		page.getByRole("heading", { exact: true, name: "$380.00" })
 	).toBeVisible();
 	await expect(
-		page.getByRole("heading", { name: "$255.00", exact: true })
+		page.getByRole("heading", { exact: true, name: "$255.00" })
 	).toBeVisible();
 	await expect(
 		page.getByText("$105.00 of $300.00", { exact: true })
@@ -317,10 +316,10 @@ test("two selected cycles compare exact totals and persist selection in the URL"
 	).toBeVisible();
 	await page.reload();
 	await expect(
-		page.getByRole("heading", { name: "$125.00", exact: true })
+		page.getByRole("heading", { exact: true, name: "$125.00" })
 	).toBeVisible();
 	await page
-		.getByRole("button", { name: "Remove Report previous", exact: true })
+		.getByRole("button", { exact: true, name: "Remove Report previous" })
 		.click();
 	await expect(
 		page.getByText(

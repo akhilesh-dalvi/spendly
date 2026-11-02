@@ -1,3 +1,4 @@
+// biome-ignore-all lint/performance/noAwaitInLoops: Stateful E2E steps and fixture cleanup require ordered execution.
 import { randomUUID } from "node:crypto";
 import { type Browser, type BrowserContext, chromium } from "@playwright/test";
 import {
@@ -170,6 +171,7 @@ const document = (stdout: string): unknown => {
 		// JSON.parse rejects empty output, banners and multiple JSON documents.
 		return JSON.parse(stdout);
 	} catch {
+		// biome-ignore lint/style/useErrorCause: Never retain credential-bearing provider, filesystem, or subprocess errors.
 		throw new Error("CLI stdout was not one JSON document; output withheld.");
 	}
 };
@@ -190,9 +192,9 @@ const success = async <Output>(
 	return parse(
 		z
 			.object({
-				schemaVersion: z.literal(1),
 				data: schema,
 				meta: z.record(z.string(), z.unknown()),
+				schemaVersion: z.literal(1),
 			})
 			.strict(),
 		document(result.stdout)
@@ -209,7 +211,6 @@ const failure = async (user: E2EUser, args: readonly string[]) => {
 	const envelope = parse(
 		z
 			.object({
-				schemaVersion: z.literal(1),
 				error: z
 					.object({
 						code: z.string(),
@@ -218,6 +219,7 @@ const failure = async (user: E2EUser, args: readonly string[]) => {
 						retryable: z.boolean(),
 					})
 					.strict(),
+				schemaVersion: z.literal(1),
 			})
 			.strict(),
 		document(result.stdout)
@@ -261,8 +263,8 @@ const walletEffect = (
 ) => ({
 	accountId: seed.accountId,
 	accountName: "E2E Wallet",
-	balanceBefore: before,
 	balanceAfter: after,
+	balanceBefore: before,
 	currency: "USD",
 	delta: after - before,
 });
@@ -271,14 +273,14 @@ describe("live CLI subprocess contract", () => {
 	let config: E2EEnvironment;
 	let browser: Browser;
 	let context: BrowserContext | undefined;
-	let user: E2EUser | undefined;
-	let seed: Awaited<ReturnType<typeof seedUser>>;
+	let fixtureUser: E2EUser | undefined;
+	let fixtureSeed: Awaited<ReturnType<typeof seedUser>>;
 
 	const fixture = () => {
-		if (!user) {
+		if (!fixtureUser) {
 			throw new Error("Live CLI user fixture is unavailable");
 		}
-		return { user, seed };
+		return { seed: fixtureSeed, user: fixtureUser };
 	};
 
 	beforeAll(async () => {
@@ -288,18 +290,18 @@ describe("live CLI subprocess contract", () => {
 	});
 
 	beforeEach(async () => {
-		user = undefined;
+		fixtureUser = undefined;
 		context = await browser.newContext({ timezoneId: "UTC" });
-		user = await createUser(await context.newPage(), config);
-		seed = await seedUser(user);
-		await user.loginCli();
+		fixtureUser = await createUser(await context.newPage(), config);
+		fixtureSeed = await seedUser(fixtureUser);
+		await fixtureUser.loginCli();
 	});
 
 	afterEach(async () => {
 		try {
-			await user?.dispose();
+			await fixtureUser?.dispose();
 		} finally {
-			user = undefined;
+			fixtureUser = undefined;
 			await context?.close();
 			context = undefined;
 		}
@@ -317,15 +319,15 @@ describe("live CLI subprocess contract", () => {
 			["categories", "list", "--cycle-id", seed.cycleId],
 			z.array(
 				z.object({
+					cycleId: id<"expense_cycles">(),
 					id: id<"categories">(),
 					name: z.string(),
-					cycleId: id<"expense_cycles">(),
 				})
 			)
 		);
 		expect(categories.data).toEqual([
-			{ id: metadata.meals._id, name: "E2E Meals", cycleId: seed.cycleId },
-			{ id: metadata.travel._id, name: "E2E Travel", cycleId: seed.cycleId },
+			{ cycleId: seed.cycleId, id: metadata.meals._id, name: "E2E Meals" },
+			{ cycleId: seed.cycleId, id: metadata.travel._id, name: "E2E Travel" },
 		]);
 		const tags = await success(
 			user,
@@ -353,21 +355,21 @@ describe("live CLI subprocess contract", () => {
 			)
 		).data;
 		expect(created).toMatchObject({
-			amount: 25,
-			date: seed.date,
-			spentOn: "Synthetic lunch",
-			currency: "USD",
-			revision: 1,
 			account: { id: seed.accountId },
+			accountEffects: [walletEffect(seed, 1000, 975)],
 			accountSource: "explicit",
+			amount: 25,
 			category: { id: metadata.meals._id, name: "E2E Meals" },
 			categorySource: "explicit",
+			currency: "USD",
 			cycle: { id: seed.cycleId },
+			date: seed.date,
+			revision: 1,
+			spentOn: "Synthetic lunch",
 			tags: [
 				{ id: metadata.workId, name: "E2E Work" },
 				{ id: metadata.personalId, name: "E2E Personal" },
 			],
-			accountEffects: [walletEffect(seed, 1000, 975)],
 		});
 		expect(
 			await user.query(api.cli.v1.expenses.get, { expenseId: created.id })
@@ -412,11 +414,11 @@ describe("live CLI subprocess contract", () => {
 			expenseResult
 		);
 		expect(edited.data).toMatchObject({
-			id: created.id,
 			amount: 40,
+			category: { id: metadata.travel._id, name: "E2E Travel" },
+			id: created.id,
 			revision: 2,
 			spentOn: null,
-			category: { id: metadata.travel._id, name: "E2E Travel" },
 			tags: [{ id: metadata.personalId, name: "E2E Personal" }],
 		});
 		expect(edited.data.accountEffects).toEqual([walletEffect(seed, 975, 960)]);
@@ -452,12 +454,12 @@ describe("live CLI subprocess contract", () => {
 		];
 		const cleared = await success(user, clearArgs, expenseResult);
 		expect(cleared.data).toMatchObject({
-			id: created.id,
-			amount: 40,
-			revision: 3,
-			category: null,
-			tags: [],
 			accountEffects: [],
+			amount: 40,
+			category: null,
+			id: created.id,
+			revision: 3,
+			tags: [],
 		});
 		expect((await success(user, clearArgs, expenseResult)).data).toEqual(
 			cleared.data
@@ -513,19 +515,19 @@ describe("live CLI subprocess contract", () => {
 		];
 		const moved = await success(user, moveArgs, expenseResult);
 		expect(moved.data).toMatchObject({
-			id: created.id,
-			amount: 25,
-			revision: 2,
 			account: { id: seed.destinationId },
+			amount: 25,
+			id: created.id,
+			revision: 2,
 		});
 		expect(moved.data.accountEffects).toEqual([
 			walletEffect(seed, 975, 1000),
 			{
 				accountId: seed.destinationId,
 				accountName: "E2E Savings",
-				currency: "USD",
-				balanceBefore: 200,
 				balanceAfter: 175,
+				balanceBefore: 200,
+				currency: "USD",
 				delta: -25,
 			},
 		]);
@@ -543,12 +545,12 @@ describe("live CLI subprocess contract", () => {
 		);
 		expect(afterMove.walletLedger[0]).toMatchObject({
 			accountId: seed.accountId,
-			expenseId: created.id,
 			amount: 25,
 			balanceAfter: 1000,
-			type: "expense",
-			source: "cli",
 			date: seed.date,
+			expenseId: created.id,
+			source: "cli",
+			type: "expense",
 		});
 		expect(afterMove.walletLedger.slice(1)).toEqual(beforeMove.walletLedger);
 		expect(afterMove.savingsLedger).toHaveLength(
@@ -556,12 +558,12 @@ describe("live CLI subprocess contract", () => {
 		);
 		expect(afterMove.savingsLedger[0]).toMatchObject({
 			accountId: seed.destinationId,
-			expenseId: created.id,
 			amount: -25,
 			balanceAfter: 175,
-			type: "expense",
-			source: "cli",
 			date: seed.date,
+			expenseId: created.id,
+			source: "cli",
+			type: "expense",
 		});
 		expect(afterMove.savingsLedger.slice(1)).toEqual(beforeMove.savingsLedger);
 		expect((await success(user, moveArgs, expenseResult)).data).toEqual(
@@ -584,18 +586,18 @@ describe("live CLI subprocess contract", () => {
 		];
 		const cleared = await success(user, clearArgs, expenseResult);
 		expect(cleared.data).toMatchObject({
-			id: created.id,
-			amount: 25,
-			revision: 3,
 			account: null,
+			amount: 25,
+			id: created.id,
+			revision: 3,
 		});
 		expect(cleared.data.accountEffects).toEqual([
 			{
 				accountId: seed.destinationId,
 				accountName: "E2E Savings",
-				currency: "USD",
-				balanceBefore: 175,
 				balanceAfter: 200,
+				balanceBefore: 175,
+				currency: "USD",
 				delta: 25,
 			},
 		]);
@@ -611,12 +613,12 @@ describe("live CLI subprocess contract", () => {
 		);
 		expect(afterClear.savingsLedger[0]).toMatchObject({
 			accountId: seed.destinationId,
-			expenseId: created.id,
 			amount: 25,
 			balanceAfter: 200,
-			type: "expense",
-			source: "cli",
 			date: seed.date,
+			expenseId: created.id,
+			source: "cli",
+			type: "expense",
 		});
 		expect(afterClear.savingsLedger.slice(1)).toEqual(afterMove.savingsLedger);
 		expect((await success(user, clearArgs, expenseResult)).data).toEqual(
@@ -642,8 +644,8 @@ describe("live CLI subprocess contract", () => {
 		);
 		expect(clearAgain.data).toMatchObject({
 			account: null,
-			revision: 4,
 			accountEffects: [],
+			revision: 4,
 		});
 		expect(await readExpenseFinancialState(user, seed)).toEqual(afterClear);
 		expect(
@@ -668,9 +670,9 @@ describe("live CLI subprocess contract", () => {
 			)
 		).data;
 		expect(created).toMatchObject({
-			date: seed.date,
 			category: { id: oldCategory._id },
 			cycle: { id: seed.cycleId },
+			date: seed.date,
 		});
 		const before = await readExpenseFinancialState(user, seed);
 		expect(
@@ -693,17 +695,17 @@ describe("live CLI subprocess contract", () => {
 			randomUUID(),
 		]);
 		expect(rejected).toMatchObject({
-			exitCode: CLI_EXIT_CODE.conflict,
 			error: {
 				code: "CATEGORY_CYCLE_MISMATCH",
-				retryable: false,
 				details: {
-					category: { id: oldCategory._id, name: oldCategory.name },
-					oldCycle: { id: seed.cycleId, endDateExclusive: boundary },
-					newCycle: { id: nextCycle._id, startDate: boundary },
 					candidates: [{ id: newCategory._id, name: newCategory.name }],
+					category: { id: oldCategory._id, name: oldCategory.name },
+					newCycle: { id: nextCycle._id, startDate: boundary },
+					oldCycle: { endDateExclusive: boundary, id: seed.cycleId },
 				},
+				retryable: false,
 			},
+			exitCode: CLI_EXIT_CODE.conflict,
 		});
 		expect(
 			await user.query(api.cli.v1.expenses.get, { expenseId: created.id })
@@ -723,11 +725,11 @@ describe("live CLI subprocess contract", () => {
 		];
 		const reset = await success(user, resetArgs, expenseResult);
 		expect(reset.data).toMatchObject({
-			date: boundary,
+			accountEffects: [],
 			category: null,
 			cycle: { id: nextCycle._id, startDate: boundary },
+			date: boundary,
 			revision: 2,
-			accountEffects: [],
 		});
 		expect((await success(user, resetArgs, expenseResult)).data).toEqual(
 			reset.data
@@ -767,11 +769,11 @@ describe("live CLI subprocess contract", () => {
 		];
 		const reselected = await success(user, reselectArgs, expenseResult);
 		expect(reselected.data).toMatchObject({
-			date: boundary,
-			cycle: { id: nextCycle._id },
-			category: { id: newCategory._id, name: newCategory.name },
-			revision: 3,
 			accountEffects: [],
+			category: { id: newCategory._id, name: newCategory.name },
+			cycle: { id: nextCycle._id },
+			date: boundary,
+			revision: 3,
 		});
 		expect((await success(user, reselectArgs, expenseResult)).data).toEqual(
 			reselected.data
@@ -796,9 +798,9 @@ describe("live CLI subprocess contract", () => {
 			expenseProposal
 		);
 		expect(proposal.meta).toMatchObject({
-			dryRun: true,
 			date: seed.date,
 			dateSource: "explicit",
+			dryRun: true,
 		});
 		expect(proposal.data).toEqual({
 			accountEffects: [walletEffect(seed, 1000, 975)],
@@ -836,18 +838,18 @@ describe("live CLI subprocess contract", () => {
 				"--dry-run",
 			],
 			z.object({
-				before: expense,
-				after: expense,
 				accountEffects: z.array(effect),
+				after: expense,
+				before: expense,
 			})
 		);
 		expect(preview.meta).toMatchObject({ dryRun: true, expectedRevision: 1 });
 		expect(preview.data.before).toEqual(parse(expense, created));
 		expect(preview.data.after).toMatchObject({
-			id: created.id,
 			account: null,
-			revision: 2,
 			amount: 25,
+			id: created.id,
+			revision: 2,
 		});
 		expect(preview.data.accountEffects).toEqual([
 			walletEffect(seed, 975, 1000),
@@ -876,8 +878,8 @@ describe("live CLI subprocess contract", () => {
 			randomUUID(),
 		]);
 		expect(rejected).toMatchObject({
-			exitCode: CLI_EXIT_CODE.invalidInput,
 			error: { code: "NON_INTERACTIVE_INPUT_REQUIRED", retryable: false },
+			exitCode: CLI_EXIT_CODE.invalidInput,
 		});
 		const preview = await success(
 			user,
@@ -885,8 +887,8 @@ describe("live CLI subprocess contract", () => {
 			z.object({
 				accountEffects: z.array(effect),
 				confirmationToken: z.string().min(1),
-				expiresAt: z.string(),
 				expense,
+				expiresAt: z.string(),
 				revision: z.number(),
 			})
 		);
@@ -940,8 +942,8 @@ describe("live CLI subprocess contract", () => {
 				.sort((a, b) => a - b)
 		).toEqual([-25, 25]);
 		expect(await failure(user, ["expenses", "get", created.id])).toMatchObject({
-			exitCode: CLI_EXIT_CODE.notFound,
 			error: { code: "RESOURCE_NOT_FOUND" },
+			exitCode: CLI_EXIT_CODE.notFound,
 		});
 	});
 
@@ -968,8 +970,8 @@ describe("live CLI subprocess contract", () => {
 			key,
 		]);
 		expect(conflict).toMatchObject({
-			exitCode: CLI_EXIT_CODE.conflict,
 			error: { code: "IDEMPOTENCY_CONFLICT", details: {}, retryable: false },
+			exitCode: CLI_EXIT_CODE.conflict,
 		});
 		expect((await user.query(api.cli.v1.expenses.list, {})).items).toEqual([
 			parse(expense, first.data),
@@ -1024,12 +1026,12 @@ describe("live CLI subprocess contract", () => {
 				randomUUID(),
 			])
 		).toMatchObject({
-			exitCode: CLI_EXIT_CODE.conflict,
 			error: {
 				code: "EXPENSE_REVISION_CONFLICT",
 				details: { expectedRevision: 1 },
 				retryable: false,
 			},
+			exitCode: CLI_EXIT_CODE.conflict,
 		});
 		expect(
 			await user.query(api.cli.v1.expenses.get, { expenseId: created.id })
@@ -1067,12 +1069,12 @@ describe("live CLI subprocess contract", () => {
 				randomUUID(),
 			])
 		).toMatchObject({
-			exitCode: CLI_EXIT_CODE.conflict,
 			error: {
 				code: "ACCOUNT_REVISION_CONFLICT",
 				details: { expectedRevision: current.revision, lifecycle: "archive" },
 				retryable: false,
 			},
+			exitCode: CLI_EXIT_CODE.conflict,
 		});
 		expect(
 			await user.query(api.cli.v1.expenses.get, { expenseId: created.id })
@@ -1120,13 +1122,13 @@ describe("live CLI subprocess contract", () => {
 			})
 		);
 		expect(proposal.data).toMatchObject({
-			name: "Synthetic travel",
-			startingBalance: 50,
-			currentBalance: 50,
-			currency: "USD",
-			date: seed.date,
-			revision: 1,
 			accountType: { id: seed.assetTypeId },
+			currency: "USD",
+			currentBalance: 50,
+			date: seed.date,
+			name: "Synthetic travel",
+			revision: 1,
+			startingBalance: 50,
 		});
 		expect(await user.query(api.cli.v1.accounts.list, {})).toHaveLength(2);
 		const created = await success(
@@ -1135,12 +1137,12 @@ describe("live CLI subprocess contract", () => {
 			account.extend({ openingTransaction: transaction })
 		);
 		expect(created.data).toMatchObject({
-			name: "Synthetic travel",
 			currentBalance: 50,
-			startingBalance: 50,
 			isArchived: false,
 			isDefault: false,
+			name: "Synthetic travel",
 			revision: 1,
+			startingBalance: 50,
 		});
 		expect(created.data.openingTransaction).toMatchObject({
 			accountId: created.data.id,
@@ -1205,9 +1207,9 @@ describe("live CLI subprocess contract", () => {
 			account
 		);
 		expect(archived.data).toMatchObject({
+			currentBalance: 50,
 			isArchived: true,
 			isDefault: false,
-			currentBalance: 50,
 		});
 		expect(
 			(await user.query(api.users.get, {})).defaultAccountId
@@ -1236,9 +1238,9 @@ describe("live CLI subprocess contract", () => {
 			account
 		);
 		expect(restored.data).toMatchObject({
+			currentBalance: 50,
 			isArchived: false,
 			isDefault: false,
-			currentBalance: 50,
 			name: "Synthetic travel renamed",
 		});
 		expect(
@@ -1295,8 +1297,8 @@ describe("live CLI subprocess contract", () => {
 			currency: "USD",
 			date: seed.date,
 			fromBalanceAfter: 875,
-			toBalanceAfter: 325,
 			note: "Synthetic move",
+			toBalanceAfter: 325,
 			warnings: [],
 		});
 		expect(preview.data.fromAccount).toEqual(from);
@@ -1324,32 +1326,32 @@ describe("live CLI subprocess contract", () => {
 			result.data
 		);
 		expect(result.data.fromAccount).toMatchObject({
-			id: seed.accountId,
 			currentBalance: 875,
+			id: seed.accountId,
 			revision: from.revision + 1,
 		});
 		expect(result.data.toAccount).toMatchObject({
-			id: seed.destinationId,
 			currentBalance: 325,
+			id: seed.destinationId,
 			revision: to.revision + 1,
 		});
 		expect(result.data.fromTransaction).toMatchObject({
 			accountId: seed.accountId,
 			amount: -125,
 			balanceAfter: 875,
-			type: "transfer_out",
-			relatedId: result.data.id,
 			date: seed.date,
 			note: "Synthetic move",
+			relatedId: result.data.id,
+			type: "transfer_out",
 		});
 		expect(result.data.toTransaction).toMatchObject({
 			accountId: seed.destinationId,
 			amount: 125,
 			balanceAfter: 325,
-			type: "transfer_in",
-			relatedId: result.data.id,
 			date: seed.date,
 			note: "Synthetic move",
+			relatedId: result.data.id,
+			type: "transfer_in",
 		});
 		expect(
 			await user.query(api.cli.v1.accounts.get, { accountId: seed.accountId })
@@ -1422,19 +1424,19 @@ describe("live CLI subprocess contract", () => {
 		const result = await success(user, commit, schema);
 		expect((await success(user, commit, schema)).data).toEqual(result.data);
 		expect(result.data).toMatchObject({
+			account: { currentBalance: -50, revision: current.revision + 1 },
 			adjustment: -1050,
 			resultingBalance: -50,
 			warnings: ["NEGATIVE_BALANCE"],
-			account: { currentBalance: -50, revision: current.revision + 1 },
 		});
 		expect(result.data.transaction).toMatchObject({
 			accountId: seed.accountId,
 			amount: -1050,
 			balanceAfter: -50,
-			type: "manual_adjustment",
 			date: seed.date,
 			note: "Synthetic reconciliation",
 			relatedId: null,
+			type: "manual_adjustment",
 		});
 		expect(
 			await user.query(api.cli.v1.accounts.get, { accountId: seed.accountId })
@@ -1530,7 +1532,7 @@ describe("live CLI subprocess contract", () => {
 		});
 		expect(
 			contextResult.data.accounts.find((entry) => entry.id === seed.accountId)
-		).toMatchObject({ isDefault: true, currentBalance: 1000 });
+		).toMatchObject({ currentBalance: 1000, isDefault: true });
 		const cycles = await success(user, ["cycles", "list"], cycle.array());
 		expect(cycles.data.map((entry) => entry.id)).toEqual([seed.cycleId]);
 		expect(
@@ -1590,10 +1592,10 @@ describe("live CLI subprocess contract", () => {
 			);
 			expect(added.data).toMatchObject({
 				account: null,
-				accountSource: "none",
-				category: null,
-				amount,
 				accountEffects: [],
+				accountSource: "none",
+				amount,
+				category: null,
 			});
 			unassignedIds.push(added.data.id);
 		}
@@ -1629,8 +1631,8 @@ describe("live CLI subprocess contract", () => {
 				expect(entry).toMatchObject({
 					account: null,
 					category: null,
-					date: seed.date,
 					cycle: { id: seed.cycleId },
+					date: seed.date,
 				});
 				seenIds.push(entry.id);
 			}
@@ -1670,16 +1672,16 @@ describe("live CLI subprocess contract", () => {
 			["summary", "--cycle-id", seed.cycleId, "--date", seed.date],
 			z.object({
 				cycle,
-				totalSpent: z.number(),
-				totalPlanned: z.number(),
 				remaining: z.number(),
+				totalPlanned: z.number(),
+				totalSpent: z.number(),
 			})
 		);
 		expect(summary.data).toMatchObject({
 			cycle: { id: seed.cycleId },
-			totalSpent: 60,
-			totalPlanned: 0,
 			remaining: -60,
+			totalPlanned: 0,
+			totalSpent: 60,
 		});
 		expect(
 			(await user.query(api.cli.v1.expenses.list, {})).items
@@ -1716,8 +1718,8 @@ describe("live CLI subprocess contract", () => {
 			["accounts", "get", seed.accountId],
 		]) {
 			expect(await failure(user, args)).toMatchObject({
-				exitCode: CLI_EXIT_CODE.authentication,
 				error: { code: "AUTHENTICATION_REQUIRED", retryable: false },
+				exitCode: CLI_EXIT_CODE.authentication,
 			});
 		}
 		expect(
@@ -1773,8 +1775,8 @@ describe("live CLI subprocess contract", () => {
 				],
 			]) {
 				expect(await failure(other, args)).toMatchObject({
-					exitCode: CLI_EXIT_CODE.notFound,
 					error: { code: "RESOURCE_NOT_FOUND", details: {}, retryable: false },
+					exitCode: CLI_EXIT_CODE.notFound,
 				});
 			}
 			expect(

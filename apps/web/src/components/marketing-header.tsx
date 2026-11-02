@@ -4,22 +4,25 @@ import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
 import { Menu, X } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Logo } from "@/components/logo";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Button } from "@/components/ui/button";
 
 const menuItems = [
-	{ name: "Home", href: "/" },
-	{ name: "Features", href: "/features" },
-	{ name: "Pricing", href: "/pricing" },
-	{ name: "CLI Docs", href: "/docs/cli" },
-	{ name: "About", href: "/about" },
-	{ name: "FAQs", href: "/faqs" },
+	{ href: "/", name: "Home" },
+	{ href: "/features", name: "Features" },
+	{ href: "/pricing", name: "Pricing" },
+	{ href: "/docs/cli", name: "CLI Docs" },
+	{ href: "/about", name: "About" },
+	{ href: "/faqs", name: "FAQs" },
 ] as const;
 
 export function MarketingHeader() {
 	const [menuState, setMenuState] = useState(false);
+
+	const closeMenu = useCallback(() => setMenuState(false), []);
+	const toggleMenu = useCallback(() => setMenuState((current) => !current), []);
 
 	useEffect(() => {
 		if (!menuState) {
@@ -49,7 +52,7 @@ export function MarketingHeader() {
 								aria-label="home"
 								className="flex items-center space-x-2"
 								href="/"
-								onClick={() => setMenuState(false)}
+								onClick={closeMenu}
 							>
 								<Logo />
 							</Link>
@@ -72,7 +75,7 @@ export function MarketingHeader() {
 									aria-expanded={menuState}
 									aria-label={menuState ? "Close Menu" : "Open Menu"}
 									className="relative z-20 -m-2.5 -mr-4 block cursor-pointer p-2.5"
-									onClick={() => setMenuState((currentState) => !currentState)}
+									onClick={toggleMenu}
 									type="button"
 								>
 									<Menu className="m-auto size-6 in-data-[state=active]:rotate-180 in-data-[state=active]:scale-0 in-data-[state=active]:opacity-0 duration-200" />
@@ -92,7 +95,7 @@ export function MarketingHeader() {
 											<Link
 												className="block text-muted-foreground duration-150 hover:text-accent-foreground"
 												href={item.href as Route}
-												onClick={() => setMenuState(false)}
+												onClick={closeMenu}
 											>
 												<span>{item.name}</span>
 											</Link>

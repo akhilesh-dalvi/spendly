@@ -20,13 +20,16 @@ describe("publication mode", () => {
 		["0.1.0", "false"],
 		["0.1.1", "true"],
 		["0.1.1", "false"],
-	])("rejects superseded %s with bootstrap=%s before registry access", async (version, bootstrap) => {
-		const request = vi.fn();
-		await expect(
-			verifyPublicationMode(environment(version, bootstrap), request)
-		).rejects.toThrow(`superseded ${version}`);
-		expect(request).not.toHaveBeenCalled();
-	});
+	])(
+		"rejects superseded %s with bootstrap=%s before registry access",
+		async (version, bootstrap) => {
+			const request = vi.fn();
+			await expect(
+				verifyPublicationMode(environment(version, bootstrap), request)
+			).rejects.toThrow(`superseded ${version}`);
+			expect(request).not.toHaveBeenCalled();
+		}
+	);
 	it.each([
 		["0.1.2", "false"],
 		["0.1.3", "true"],
@@ -38,25 +41,26 @@ describe("publication mode", () => {
 		).rejects.toThrow("Only the initial 0.1.2");
 		expect(request).not.toHaveBeenCalled();
 	});
-	it.each([
-		"0.1.3",
-		"0.2.0",
-	])("allows OIDC staging for %s when the package exists", async (version) => {
-		await expect(
-			verifyPublicationMode(environment(version, "false"), async () => ({
-				status: 200,
-			}))
-		).resolves.toBeUndefined();
-	});
-	it.each([
-		200, 401, 429, 500,
-	])("refuses bootstrap on registry status %s", async (status) => {
-		await expect(
-			verifyPublicationMode(environment("0.1.2", "true"), async () => ({
-				status,
-			}))
-		).rejects.toThrow("Unexpected npm package state");
-	});
+	it.each(["0.1.3", "0.2.0"])(
+		"allows OIDC staging for %s when the package exists",
+		async (version) => {
+			await expect(
+				verifyPublicationMode(environment(version, "false"), async () => ({
+					status: 200,
+				}))
+			).resolves.toBeUndefined();
+		}
+	);
+	it.each([200, 401, 429, 500])(
+		"refuses bootstrap on registry status %s",
+		async (status) => {
+			await expect(
+				verifyPublicationMode(environment("0.1.2", "true"), async () => ({
+					status,
+				}))
+			).rejects.toThrow("Unexpected npm package state");
+		}
+	);
 	it("refuses OIDC staging before the package exists", async () => {
 		await expect(
 			verifyPublicationMode(environment("0.1.3", "false"), async () => ({
@@ -64,15 +68,14 @@ describe("publication mode", () => {
 			}))
 		).rejects.toThrow("Unexpected npm package state");
 	});
-	it.each([
-		undefined,
-		"",
-		"yes",
-	])("rejects ambiguous bootstrap input %s", async (bootstrap) => {
-		const request = vi.fn();
-		await expect(
-			verifyPublicationMode(environment("0.1.2", bootstrap), request)
-		).rejects.toThrow("explicitly true or false");
-		expect(request).not.toHaveBeenCalled();
-	});
+	it.each([undefined, "", "yes"])(
+		"rejects ambiguous bootstrap input %s",
+		async (bootstrap) => {
+			const request = vi.fn();
+			await expect(
+				verifyPublicationMode(environment("0.1.2", bootstrap), request)
+			).rejects.toThrow("explicitly true or false");
+			expect(request).not.toHaveBeenCalled();
+		}
+	);
 });

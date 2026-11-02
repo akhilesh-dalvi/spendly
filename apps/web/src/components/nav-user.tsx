@@ -3,6 +3,7 @@
 import { useClerk } from "@clerk/nextjs";
 import { BadgeCheck, ChevronsUpDown, LogOut, Settings } from "lucide-react";
 import Link from "next/link";
+import { useCallback } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -32,6 +33,8 @@ export function NavUser({
 }) {
 	const { isMobile } = useSidebar();
 	const { signOut, openUserProfile } = useClerk();
+	const handleProfile = useCallback(() => openUserProfile(), [openUserProfile]);
+	const handleSignOut = useCallback(() => signOut(), [signOut]);
 
 	return (
 		<SidebarMenu>
@@ -81,7 +84,7 @@ export function NavUser({
 						</DropdownMenuLabel>
 						<DropdownMenuSeparator />
 						<DropdownMenuGroup>
-							<DropdownMenuItem onClick={() => openUserProfile()}>
+							<DropdownMenuItem onClick={handleProfile}>
 								<BadgeCheck />
 								Account
 							</DropdownMenuItem>
@@ -93,7 +96,7 @@ export function NavUser({
 							</DropdownMenuItem>
 						</DropdownMenuGroup>
 						<DropdownMenuSeparator />
-						<DropdownMenuItem onClick={() => signOut()}>
+						<DropdownMenuItem onClick={handleSignOut}>
 							<LogOut />
 							Log out
 						</DropdownMenuItem>

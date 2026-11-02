@@ -35,11 +35,11 @@ const COMMAND_GROUPS = new Set([
 const REQUIRED_PAGES = [
 	"index",
 	"ai-agents",
-	"expenses",
 	"accounts",
 	"cycles",
 	"categories",
 	"tags",
+	"expenses",
 	"troubleshooting",
 ];
 const REQUIRED_COMMAND_PATHS = [
@@ -66,6 +66,10 @@ const REQUIRED_COMMAND_PATHS = [
 	"accounts transfer",
 	"cycles list",
 	"cycles current",
+	"cycles get",
+	"cycles add",
+	"cycles edit",
+	"cycles delete",
 	"categories list",
 	"tags list",
 	"account-types list",

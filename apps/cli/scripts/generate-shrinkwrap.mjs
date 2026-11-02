@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { verifyProductionShrinkwrap } from "./verify-production-shrinkwrap.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const packageDirectory = join(scriptDirectory, "..");
@@ -15,12 +16,12 @@ const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
 const packageMetadata = JSON.parse(readFileSync(packagePath, "utf8"));
 const generationManifest = {
-	name: packageMetadata.name,
-	version: packageMetadata.version,
-	private: true,
-	license: packageMetadata.license,
-	engines: packageMetadata.engines,
 	dependencies: packageMetadata.dependencies,
+	engines: packageMetadata.engines,
+	license: packageMetadata.license,
+	name: packageMetadata.name,
+	private: true,
+	version: packageMetadata.version,
 };
 
 try {
@@ -51,6 +52,7 @@ try {
 	const lockfile = JSON.parse(
 		readFileSync(join(generationDirectory, "package-lock.json"), "utf8")
 	);
+	verifyProductionShrinkwrap(lockfile);
 	writeFileSync(shrinkwrapPath, `${JSON.stringify(lockfile, null, 2)}\n`);
 	process.stdout.write(
 		`Generated ${shrinkwrapPath} from exact production dependencies.\n`

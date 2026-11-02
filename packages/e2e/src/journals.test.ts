@@ -18,13 +18,13 @@ import { loadEnvironment } from "./environment";
 import { type FixtureJournal, readJournal, saveJournal } from "./journals";
 
 const config = loadEnvironment({
-	SPENDLY_E2E_ENABLED: "true",
-	E2E_CONVEX_URL: "https://e2e-fixtures.convex.cloud",
-	E2E_CONVEX_DEPLOY_KEY: "dev:e2e-fixtures|synthetic-secret",
 	E2E_CLERK_ISSUER: "https://fixture.clerk.accounts.dev",
+	E2E_CLERK_OAUTH_CLIENT_ID: "test-oauth-client",
 	E2E_CLERK_PUBLISHABLE_KEY: `pk_test_${Buffer.from("fixture.clerk.accounts.dev$").toString("base64")}`,
 	E2E_CLERK_SECRET_KEY: "sk_test_synthetic-secret",
-	E2E_CLERK_OAUTH_CLIENT_ID: "test-oauth-client",
+	E2E_CONVEX_DEPLOY_KEY: "dev:e2e-fixtures|synthetic-secret",
+	E2E_CONVEX_URL: "https://e2e-fixtures.convex.cloud",
+	SPENDLY_E2E_ENABLED: "true",
 });
 
 let directory: string;
@@ -35,16 +35,16 @@ beforeEach(async () => {
 	directory = await mkdtemp(join(tmpdir(), "spendly-e2e-journals-"));
 	journal = pathToFileURL(join(directory, "intent.json"));
 	record = {
+		clerkIssuer: config.clerkIssuer,
+		convexUrl: config.convexUrl,
+		directory,
 		email:
 			"spendly-e2e-12345678-1234-1234-1234-123456789abc+clerk_test@example.com",
-		convexUrl: config.convexUrl,
-		clerkIssuer: config.clerkIssuer,
-		directory,
 	};
 });
 
 afterEach(async () => {
-	await rm(directory, { recursive: true, force: true });
+	await rm(directory, { force: true, recursive: true });
 });
 
 describe("fixture journals", () => {

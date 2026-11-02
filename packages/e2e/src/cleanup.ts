@@ -1,3 +1,4 @@
+// biome-ignore-all lint/performance/noAwaitInLoops: Stateful E2E steps and fixture cleanup require ordered execution.
 import { mkdir, readdir, rm, stat } from "node:fs/promises";
 import { loadEnvironment } from "./environment";
 import { readJournal } from "./journals";
@@ -10,7 +11,7 @@ import {
 
 const config = loadEnvironment();
 const STALE_AFTER_MS = 2 * 60 * 60_000;
-await mkdir(JOURNAL_DIRECTORY, { recursive: true, mode: 0o700 });
+await mkdir(JOURNAL_DIRECTORY, { mode: 0o700, recursive: true });
 let removed = 0;
 for (const name of await readdir(JOURNAL_DIRECTORY)) {
 	if (name.startsWith(".") || !name.endsWith(".json")) {
@@ -27,7 +28,7 @@ for (const name of await readdir(JOURNAL_DIRECTORY)) {
 		await removeBackendUser(config, clerkId, email);
 		await removeClerkUser(config, clerkId);
 	}
-	await rm(directory, { recursive: true, force: true });
+	await rm(directory, { force: true, recursive: true });
 	await rm(journal);
 	removed += 1;
 }

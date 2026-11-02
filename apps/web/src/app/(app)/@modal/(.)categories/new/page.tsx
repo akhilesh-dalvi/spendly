@@ -2,7 +2,7 @@
 
 import type { Id } from "@spendly/backend/convex/_generated/dataModel";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { CategoryForm } from "@/components/category-form";
 import {
 	Dialog,
@@ -17,15 +17,18 @@ export default function NewCategoryModal() {
 	const searchParams = useSearchParams();
 	const cycleId = searchParams.get("id") as Id<"expense_cycles">;
 
-	// Default open to true since the route is active
 	const [open, setOpen] = useState(true);
 
-	const handleOpenChange = (val: boolean) => {
-		setOpen(val);
-		if (!val) {
-			router.back();
-		}
-	};
+	const handleOpenChange = useCallback(
+		(val: boolean) => {
+			setOpen(val);
+			if (!val) {
+				router.back();
+			}
+		},
+		[router]
+	);
+	const close = useCallback(() => handleOpenChange(false), [handleOpenChange]);
 
 	if (!cycleId) {
 		return null;
@@ -40,11 +43,7 @@ export default function NewCategoryModal() {
 						Create a new spending category for this cycle.
 					</DialogDescription>
 				</DialogHeader>
-				<CategoryForm
-					className="mt-4"
-					cycleId={cycleId}
-					onSuccess={() => handleOpenChange(false)}
-				/>
+				<CategoryForm className="mt-4" cycleId={cycleId} onSuccess={close} />
 			</DialogContent>
 		</Dialog>
 	);

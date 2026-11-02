@@ -1,3 +1,4 @@
+// biome-ignore-all lint/performance/noAwaitInLoops: Stateful E2E steps and fixture cleanup require ordered execution.
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -59,59 +60,58 @@ describe("development credential-file runtime", () => {
 		expect(stdout).toContain("Usage: spendly");
 		expect(stdout).not.toContain("relative-private-path");
 	});
-	it.each([
-		"read",
-		"write",
-		"delete",
-	] as const)("sanitizes file storage %s errors without leaking paths or tokens", async (operation) => {
-		const directory = await mkdtemp(join(tmpdir(), "spendly-e2e-private-"));
-		temporaryDirectories.push(directory);
-		const blockingFile = join(directory, "secret-token");
-		await writeFile(blockingFile, "private-refresh");
-		const runtime = createDevelopmentRuntime({
-			...environment,
-			SPENDLY_E2E_CREDENTIAL_FILE: join(blockingFile, "credentials.json"),
-		});
-		const store = runtime.credentialStore;
-		if (!store) {
-			throw new Error("Expected a development credential store");
+	it.each(["read", "write", "delete"] as const)(
+		"sanitizes file storage %s errors without leaking paths or tokens",
+		async (operation) => {
+			const directory = await mkdtemp(join(tmpdir(), "spendly-e2e-private-"));
+			temporaryDirectories.push(directory);
+			const blockingFile = join(directory, "secret-token");
+			await writeFile(blockingFile, "private-refresh");
+			const runtime = createDevelopmentRuntime({
+				...environment,
+				SPENDLY_E2E_CREDENTIAL_FILE: join(blockingFile, "credentials.json"),
+			});
+			const store = runtime.credentialStore;
+			if (!store) {
+				throw new Error("Expected a development credential store");
+			}
+
+			await expect(
+				operation === "write" ? store.write(session) : store[operation]()
+			).rejects.toMatchObject({
+				code: "CREDENTIALS_INVALID",
+				message: "Unable to access development credential storage",
+			});
 		}
+	);
 
-		await expect(
-			operation === "write" ? store.write(session) : store[operation]()
-		).rejects.toMatchObject({
-			code: "CREDENTIALS_INVALID",
-			message: "Unable to access development credential storage",
-		});
-	});
+	it.each(["", "secret-token/credentials.json"])(
+		"rejects non-absolute credential paths without disclosing them: %j",
+		async (path) => {
+			const runtime = createDevelopmentRuntime({
+				...environment,
+				SPENDLY_E2E_CREDENTIAL_FILE: path,
+			});
+			let stdout = "";
+			runtime.stdout = {
+				write: (value) => {
+					stdout += value;
+				},
+			};
+			runtime.stderr = { write: () => undefined };
 
-	it.each([
-		"",
-		"secret-token/credentials.json",
-	])("rejects non-absolute credential paths without disclosing them: %j", async (path) => {
-		const runtime = createDevelopmentRuntime({
-			...environment,
-			SPENDLY_E2E_CREDENTIAL_FILE: path,
-		});
-		let stdout = "";
-		runtime.stdout = {
-			write: (value) => {
-				stdout += value;
-			},
-		};
-		runtime.stderr = { write: () => undefined };
-
-		expect(await runCli(["auth", "status", "--json"], runtime)).toBe(
-			CLI_EXIT_CODE.invalidInput
-		);
-		expect(JSON.parse(stdout)).toMatchObject({
-			error: {
-				code: "CONFIGURATION_ERROR",
-				message: "Development credential file must use an absolute path",
-			},
-		});
-		expect(stdout).not.toContain("secret-token");
-	});
+			expect(await runCli(["auth", "status", "--json"], runtime)).toBe(
+				CLI_EXIT_CODE.invalidInput
+			);
+			expect(JSON.parse(stdout)).toMatchObject({
+				error: {
+					code: "CONFIGURATION_ERROR",
+					message: "Development credential file must use an absolute path",
+				},
+			});
+			expect(stdout).not.toContain("secret-token");
+		}
+	);
 
 	it("forces the explicit file with the development issuer/client namespace", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "spendly-e2e-credentials-"));

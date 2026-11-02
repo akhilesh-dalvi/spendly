@@ -20,9 +20,9 @@ const fixture = async () => {
 		name: "Expense category regression",
 	});
 	const cycle = await client.mutation(api.cycles.create, {
+		endDate: "2026-02-01",
 		name: "Before boundary",
 		startDate: "2026-01-01",
-		endDate: "2026-02-01",
 	});
 	if (!cycle) {
 		throw new Error("Expected expense cycle fixture");
@@ -35,21 +35,21 @@ const fixture = async () => {
 		throw new Error("Expected expense category fixture");
 	}
 	const expense = await client.mutation(api.expenses.create, {
+		accountId: null,
 		amount: 25,
 		categoryId: category._id,
-		accountId: null,
 		date: "2026-01-15",
 	});
-	return { client, category, expense };
+	return { category, client, expense };
 };
 
 it("preserves an omitted category and clears an explicitly null category through the Web API", async () => {
 	const { client, category, expense } = await fixture();
-	await client.mutation(api.expenses.update, { id: expense._id, amount: 30 });
+	await client.mutation(api.expenses.update, { amount: 30, id: expense._id });
 	expect(
 		await client.query(api.expenses.get, { expenseId: expense._id })
 	).toMatchObject({ amount: 30, categoryId: category._id, revision: 2 });
-	await client.mutation(clearCategory, { id: expense._id, categoryId: null });
+	await client.mutation(clearCategory, { categoryId: null, id: expense._id });
 	const cleared = await client.query(api.expenses.get, {
 		expenseId: expense._id,
 	});
@@ -65,25 +65,25 @@ it("preserves an omitted category and clears an explicitly null category through
 it("moves an expense across an exclusive cycle boundary while clearing its old category", async () => {
 	const { client, expense } = await fixture();
 	const next = await client.mutation(api.cycles.create, {
+		endDate: "2026-03-01",
 		name: "After boundary",
 		startDate: "2026-02-01",
-		endDate: "2026-03-01",
 	});
 	if (!next) {
 		throw new Error("Expected next cycle fixture");
 	}
 	await client.mutation(clearCategory, {
-		id: expense._id,
 		categoryId: null,
 		date: "2026-02-01",
+		id: expense._id,
 	});
 	const moved = await client.query(api.expenses.get, {
 		expenseId: expense._id,
 	});
 	expect(moved).toMatchObject({
 		amount: 25,
-		date: "2026-02-01",
 		cycleId: next._id,
+		date: "2026-02-01",
 		revision: 2,
 	});
 	expect(moved.categoryId).toBeUndefined();

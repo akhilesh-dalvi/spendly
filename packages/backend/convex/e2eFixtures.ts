@@ -1,3 +1,4 @@
+// biome-ignore-all lint/performance/noAwaitInLoops: Stateful E2E steps and fixture cleanup require ordered execution.
 // biome-ignore-all lint/style/useFilenamingConvention: Convex module paths cannot contain hyphens.
 import { v } from "convex/values";
 import { internalMutation } from "./_generated/server";
@@ -15,6 +16,7 @@ const assertDeployment = (expectedDeploymentUrl: string): void => {
 	try {
 		url = new URL(expectedDeploymentUrl);
 	} catch {
+		// biome-ignore lint/style/useErrorCause: Never retain credential-bearing provider, filesystem, or subprocess errors.
 		throw new Error(INVALID_ORIGIN_MESSAGE);
 	}
 	if (
@@ -44,7 +46,6 @@ export const removeUser = internalMutation({
 		email: v.string(),
 		expectedDeploymentUrl: v.string(),
 	},
-	returns: v.null(),
 	handler: async (ctx, args) => {
 		if (process.env.SPENDLY_E2E_ENABLED !== "true") {
 			throw new Error("E2E cleanup is disabled");
@@ -96,6 +97,11 @@ export const removeUser = internalMutation({
 				.query("cli_idempotency")
 				.withIndex("by_userId_key", (query) => query.eq("userId", user._id)),
 			ctx.db
+				.query("cli_cycle_deletion_confirmations")
+				.withIndex("by_userId_cycleId", (query) =>
+					query.eq("userId", user._id)
+				),
+			ctx.db
 				.query("cli_deletion_confirmations")
 				.withIndex("by_userId_expenseId", (query) =>
 					query.eq("userId", user._id)
@@ -114,4 +120,5 @@ export const removeUser = internalMutation({
 		await ctx.db.delete(user._id);
 		return null;
 	},
+	returns: v.null(),
 });

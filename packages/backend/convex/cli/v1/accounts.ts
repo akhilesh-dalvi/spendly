@@ -19,6 +19,7 @@ import { resolveCliActionSource } from "../../domain/actionSource";
 import { executeIdempotentMutation } from "../../domain/idempotency";
 import { INITIAL_REVISION } from "../../domain/revisions";
 import { getCurrentUser, validateAccountOwnership } from "../../helpers";
+import { forEachSequential } from "../../lib/async";
 import { withCliErrors } from "./errors";
 import { presentAccount, presentTransaction } from "./presenters";
 import {
@@ -53,7 +54,6 @@ const normalizeLimit = (limit: number | undefined): number => {
 
 export const list = query({
 	args: { includeArchived: v.optional(v.boolean()) },
-	returns: v.array(accountSummaryValidator),
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -78,11 +78,11 @@ export const list = query({
 				visible.map((account) => presentAccount(ctx, account, user))
 			);
 		}),
+	returns: v.array(accountSummaryValidator),
 });
 
 export const get = query({
 	args: { accountId: v.id("accounts") },
-	returns: accountSummaryValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -93,6 +93,7 @@ export const get = query({
 			);
 			return await presentAccount(ctx, account, user);
 		}),
+	returns: accountSummaryValidator,
 });
 
 export const listTransactions = query({
@@ -101,11 +102,6 @@ export const listTransactions = query({
 		cursor: v.optional(v.string()),
 		limit: v.optional(v.number()),
 	},
-	returns: v.object({
-		hasMore: v.boolean(),
-		items: v.array(accountTransactionValidator),
-		nextCursor: v.union(v.string(), v.null()),
-	}),
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -126,6 +122,11 @@ export const listTransactions = query({
 				nextCursor: page.isDone ? null : page.continueCursor,
 			};
 		}),
+	returns: v.object({
+		hasMore: v.boolean(),
+		items: v.array(accountTransactionValidator),
+		nextCursor: v.union(v.string(), v.null()),
+	}),
 });
 
 export const previewCreate = mutation({
@@ -135,7 +136,6 @@ export const previewCreate = mutation({
 		name: v.string(),
 		startingBalance: v.number(),
 	},
-	returns: accountCreateProposalValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -161,6 +161,7 @@ export const previewCreate = mutation({
 				startingBalance: prepared.startingBalance,
 			};
 		}),
+	returns: accountCreateProposalValidator,
 });
 
 export const create = mutation({
@@ -172,7 +173,6 @@ export const create = mutation({
 		name: v.string(),
 		startingBalance: v.number(),
 	},
-	returns: accountCreateResultValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -201,6 +201,7 @@ export const create = mutation({
 				userId: user._id,
 			});
 		}),
+	returns: accountCreateResultValidator,
 });
 
 export const previewUpdate = mutation({
@@ -210,10 +211,6 @@ export const previewUpdate = mutation({
 		expectedRevision: v.optional(v.number()),
 		name: v.optional(v.string()),
 	},
-	returns: v.object({
-		after: accountSummaryValidator,
-		before: accountSummaryValidator,
-	}),
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -228,6 +225,10 @@ export const previewUpdate = mutation({
 				before: await presentAccount(ctx, prepared.before, user),
 			};
 		}),
+	returns: v.object({
+		after: accountSummaryValidator,
+		before: accountSummaryValidator,
+	}),
 });
 
 export const update = mutation({
@@ -239,7 +240,6 @@ export const update = mutation({
 		idempotencyKey: v.string(),
 		name: v.optional(v.string()),
 	},
-	returns: accountSummaryValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -261,6 +261,7 @@ export const update = mutation({
 				userId: user._id,
 			});
 		}),
+	returns: accountSummaryValidator,
 });
 
 const previewArchiveHandler = async (
@@ -288,15 +289,15 @@ export const previewArchive = mutation({
 		accountId: v.id("accounts"),
 		expectedRevision: v.optional(v.number()),
 	},
-	returns: v.object({
-		after: accountSummaryValidator,
-		before: accountSummaryValidator,
-	}),
 	handler: async (ctx, args) =>
 		await withCliErrors(
 			async () =>
 				await previewArchiveHandler(ctx, { ...args, isArchived: true })
 		),
+	returns: v.object({
+		after: accountSummaryValidator,
+		before: accountSummaryValidator,
+	}),
 });
 
 export const previewReactivate = mutation({
@@ -304,15 +305,15 @@ export const previewReactivate = mutation({
 		accountId: v.id("accounts"),
 		expectedRevision: v.optional(v.number()),
 	},
-	returns: v.object({
-		after: accountSummaryValidator,
-		before: accountSummaryValidator,
-	}),
 	handler: async (ctx, args) =>
 		await withCliErrors(
 			async () =>
 				await previewArchiveHandler(ctx, { ...args, isArchived: false })
 		),
+	returns: v.object({
+		after: accountSummaryValidator,
+		before: accountSummaryValidator,
+	}),
 });
 
 const lifecycleBatchAccountValidator = v.object({
@@ -381,7 +382,6 @@ const accountUpdatePreviewArrayValidator = v.array(
 
 export const previewArchiveBatch = mutation({
 	args: { accounts: v.array(lifecycleBatchAccountValidator) },
-	returns: accountUpdatePreviewArrayValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(
 			async () =>
@@ -390,11 +390,11 @@ export const previewArchiveBatch = mutation({
 					isArchived: true,
 				})
 		),
+	returns: accountUpdatePreviewArrayValidator,
 });
 
 export const previewReactivateBatch = mutation({
 	args: { accounts: v.array(lifecycleBatchAccountValidator) },
-	returns: accountUpdatePreviewArrayValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(
 			async () =>
@@ -403,6 +403,7 @@ export const previewReactivateBatch = mutation({
 					isArchived: false,
 				})
 		),
+	returns: accountUpdatePreviewArrayValidator,
 });
 
 const commitArchive = async (
@@ -449,20 +450,20 @@ const lifecycleCommitArgs = {
 
 export const archive = mutation({
 	args: lifecycleCommitArgs,
-	returns: accountSummaryValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(
 			async () => await commitArchive(ctx, { ...args, isArchived: true })
 		),
+	returns: accountSummaryValidator,
 });
 
 export const reactivate = mutation({
 	args: lifecycleCommitArgs,
-	returns: accountSummaryValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(
 			async () => await commitArchive(ctx, { ...args, isArchived: false })
 		),
+	returns: accountSummaryValidator,
 });
 
 const commitArchiveBatch = async (
@@ -495,7 +496,7 @@ const commitArchiveBatch = async (
 			const updatedAccounts: Awaited<
 				ReturnType<typeof commitAccountArchive>
 			>[] = [];
-			for (const account of args.accounts) {
+			await forEachSequential(args.accounts, async (account) => {
 				updatedAccounts.push(
 					await commitAccountArchive(ctx, {
 						...account,
@@ -504,7 +505,7 @@ const commitArchiveBatch = async (
 						user,
 					})
 				);
-			}
+			});
 			const currentUser = (await ctx.db.get(user._id)) ?? user;
 			return await Promise.all(
 				updatedAccounts.map(
@@ -529,20 +530,20 @@ const lifecycleBatchCommitArgs = {
 
 export const archiveBatch = mutation({
 	args: lifecycleBatchCommitArgs,
-	returns: v.array(accountSummaryValidator),
 	handler: async (ctx, args) =>
 		await withCliErrors(
 			async () => await commitArchiveBatch(ctx, { ...args, isArchived: true })
 		),
+	returns: v.array(accountSummaryValidator),
 });
 
 export const reactivateBatch = mutation({
 	args: lifecycleBatchCommitArgs,
-	returns: v.array(accountSummaryValidator),
 	handler: async (ctx, args) =>
 		await withCliErrors(
 			async () => await commitArchiveBatch(ctx, { ...args, isArchived: false })
 		),
+	returns: v.array(accountSummaryValidator),
 });
 
 export const previewSetDefault = mutation({
@@ -550,7 +551,6 @@ export const previewSetDefault = mutation({
 		accountId: v.id("accounts"),
 		expectedRevision: v.optional(v.number()),
 	},
-	returns: accountSummaryValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -560,11 +560,11 @@ export const previewSetDefault = mutation({
 				defaultAccountId: account._id,
 			});
 		}),
+	returns: accountSummaryValidator,
 });
 
 export const setDefault = mutation({
 	args: lifecycleCommitArgs,
-	returns: accountSummaryValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -592,6 +592,7 @@ export const setDefault = mutation({
 				userId: user._id,
 			});
 		}),
+	returns: accountSummaryValidator,
 });
 
 const adjustmentArgs = {
@@ -604,7 +605,6 @@ const adjustmentArgs = {
 
 export const previewBalanceAdjustment = mutation({
 	args: adjustmentArgs,
-	returns: balanceAdjustmentPreviewValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -618,6 +618,7 @@ export const previewBalanceAdjustment = mutation({
 				warnings: prepared.warnings,
 			};
 		}),
+	returns: balanceAdjustmentPreviewValidator,
 });
 
 export const adjustBalance = mutation({
@@ -627,7 +628,6 @@ export const adjustBalance = mutation({
 		expectedRevision: v.number(),
 		idempotencyKey: v.string(),
 	},
-	returns: balanceAdjustmentResultValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -660,6 +660,7 @@ export const adjustBalance = mutation({
 				userId: user._id,
 			});
 		}),
+	returns: balanceAdjustmentResultValidator,
 });
 
 const transferArgs = {
@@ -674,7 +675,6 @@ const transferArgs = {
 
 export const previewTransfer = mutation({
 	args: transferArgs,
-	returns: transferPreviewValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -691,6 +691,7 @@ export const previewTransfer = mutation({
 				warnings: prepared.warnings,
 			};
 		}),
+	returns: transferPreviewValidator,
 });
 
 export const transfer = mutation({
@@ -701,7 +702,6 @@ export const transfer = mutation({
 		expectedToRevision: v.number(),
 		idempotencyKey: v.string(),
 	},
-	returns: transferResultValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -730,4 +730,5 @@ export const transfer = mutation({
 				userId: user._id,
 			});
 		}),
+	returns: transferResultValidator,
 });

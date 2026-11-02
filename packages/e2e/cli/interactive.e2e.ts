@@ -17,11 +17,11 @@ import { startInteractiveCli } from "../src/terminal-fixture";
 import { createUser, type E2EUser, seedUser } from "../src/users";
 
 const patterns = {
+	amount: /Expense amount/u,
+	cancelled: /Cancelled; no changes made/u,
 	dryRun:
 		/PREVIEW ONLY - no changes were saved\.[\s\S]*Account: E2E Savings[\s\S]*Tags: E2E Essential/u,
 	success: /OK - Expense added successfully/u,
-	cancelled: /Cancelled; no changes made/u,
-	amount: /Expense amount/u,
 };
 
 const PREVIEW_CONFIRMATION =
@@ -51,15 +51,15 @@ describe("genuine interactive CLI terminal journeys", () => {
 	let config: E2EEnvironment;
 	let browser: Browser;
 	let context: BrowserContext | undefined;
-	let user: E2EUser | undefined;
+	let fixtureUser: E2EUser | undefined;
 	let seed: Awaited<ReturnType<typeof seedUser>>;
 	let terminal: RunningTerminal | undefined;
 
 	const fixture = () => {
-		if (!user) {
+		if (!fixtureUser) {
 			throw new Error("Interactive CLI user unavailable");
 		}
-		return user;
+		return fixtureUser;
 	};
 
 	const start = (dryRun = false) => {
@@ -85,14 +85,14 @@ describe("genuine interactive CLI terminal journeys", () => {
 	});
 
 	beforeEach(async () => {
-		user = undefined;
+		fixtureUser = undefined;
 		terminal = undefined;
 		context = await browser.newContext({ timezoneId: "UTC" });
-		user = await createUser(await context.newPage(), config);
-		seed = await seedUser(user);
-		await user.mutation(api.tags.create, { name: "E2E Essential" });
-		await user.mutation(api.tags.create, { name: "E2E Optional" });
-		await user.loginCli();
+		fixtureUser = await createUser(await context.newPage(), config);
+		seed = await seedUser(fixtureUser);
+		await fixtureUser.mutation(api.tags.create, { name: "E2E Essential" });
+		await fixtureUser.mutation(api.tags.create, { name: "E2E Optional" });
+		await fixtureUser.loginCli();
 	});
 
 	afterEach(async () => {
@@ -101,10 +101,10 @@ describe("genuine interactive CLI terminal journeys", () => {
 			await terminal?.stop();
 		} finally {
 			try {
-				await user?.dispose();
+				await fixtureUser?.dispose();
 			} finally {
 				terminal = undefined;
-				user = undefined;
+				fixtureUser = undefined;
 				await context?.close();
 				context = undefined;
 			}
@@ -144,10 +144,10 @@ describe("genuine interactive CLI terminal journeys", () => {
 		const after = await financialState(user);
 		expect(after.expenses).toHaveLength(1);
 		expect(after.expenses[0]).toMatchObject({
+			account: { id: seed.destinationId, name: "E2E Savings" },
 			amount: 12.5,
 			date: seed.date,
 			spentOn: "PTY synthetic purchase",
-			account: { id: seed.destinationId, name: "E2E Savings" },
 			tags: [{ name: "E2E Essential" }],
 		});
 		expect(
@@ -186,25 +186,25 @@ describe("genuine interactive CLI terminal journeys", () => {
 		expect(await financialState(user)).toEqual(before);
 	});
 
-	it.each([
-		"amount",
-		"confirmation",
-	] as const)("handles actual Ctrl+C at %s without financial writes", async (stage) => {
-		const user = fixture();
-		const before = await financialState(user);
-		const child = start();
-		if (stage === "amount") {
-			await child.waitForOutput(patterns.amount);
-		} else {
-			await answerAddExpense(
-				child,
-				before.accounts.map((account) => account.name)
-			);
-			await child.waitForOutput(PREVIEW_CONFIRMATION);
+	it.each(["amount", "confirmation"] as const)(
+		"handles actual Ctrl+C at %s without financial writes",
+		async (stage) => {
+			const user = fixture();
+			const before = await financialState(user);
+			const child = start();
+			if (stage === "amount") {
+				await child.waitForOutput(patterns.amount);
+			} else {
+				await answerAddExpense(
+					child,
+					before.accounts.map((account) => account.name)
+				);
+				await child.waitForOutput(PREVIEW_CONFIRMATION);
+			}
+			child.write(terminalKeys.ctrlC);
+			await child.waitForOutput(patterns.cancelled);
+			expect(await child.result).toEqual({ exitCode: 0, signal: null });
+			expect(await financialState(user)).toEqual(before);
 		}
-		child.write(terminalKeys.ctrlC);
-		await child.waitForOutput(patterns.cancelled);
-		expect(await child.result).toEqual({ exitCode: 0, signal: null });
-		expect(await financialState(user)).toEqual(before);
-	});
+	);
 });

@@ -1,8 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
   "constraints": {
-    "npm": "11.19.0"
+    "npm": "11.21.1"
   },
   "schedule": ["before 6am on monday"],
   "timezone": "Asia/Kolkata",

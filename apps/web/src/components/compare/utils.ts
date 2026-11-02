@@ -7,10 +7,10 @@ import type {
 const MAX_COMPARE_CYCLES = 5;
 
 interface SanitizeResult {
-	sanitizedIds: Id<"expense_cycles">[];
-	invalidCount: number;
-	trimmedCount: number;
 	duplicateCount: number;
+	invalidCount: number;
+	sanitizedIds: Id<"expense_cycles">[];
+	trimmedCount: number;
 }
 
 export function sanitizeCycleIds(
@@ -36,10 +36,10 @@ export function sanitizeCycleIds(
 	const trimmedCount = validOnly.length - trimmed.length;
 
 	return {
-		sanitizedIds: trimmed as Id<"expense_cycles">[],
-		invalidCount,
-		trimmedCount,
 		duplicateCount,
+		invalidCount,
+		sanitizedIds: trimmed as Id<"expense_cycles">[],
+		trimmedCount,
 	};
 }
 
@@ -69,9 +69,9 @@ export function deriveCompareTotals(
 
 	return {
 		cycleCount,
-		totalSpent,
-		totalPlanned,
 		netRemaining: totalPlanned - totalSpent,
+		totalPlanned,
+		totalSpent,
 	};
 }
 

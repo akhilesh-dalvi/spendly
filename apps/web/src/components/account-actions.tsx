@@ -12,7 +12,7 @@ import {
 	TriangleAlert,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AccountTypeIcon } from "@/components/account-type-icon";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -138,44 +138,75 @@ function BalanceAdjustmentDialog({
 		? parsedBalance - account.currentBalance
 		: undefined;
 
-	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
-		if (!hasValidBalance) {
-			setBalanceError("Enter a valid account balance.");
-			return;
-		}
+	const changeBalance = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) =>
+			setNewBalance(event.target.value),
+		[]
+	);
+	const changeDate = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) => setDate(event.target.value),
+		[]
+	);
+	const changeNote = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) => setNote(event.target.value),
+		[]
+	);
+	const close = useCallback(() => onOpenChange(false), [onOpenChange]);
+	const handleSubmit = useCallback(
+		async (event: React.FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			if (!hasValidBalance) {
+				setBalanceError("Enter a valid account balance.");
+				return;
+			}
 
-		setBalanceError(undefined);
-		if (adjustment === 0) {
-			toast.info("The account balance already matches");
-			onOpenChange(false);
-			return;
-		}
+			setBalanceError(undefined);
+			if (adjustment === 0) {
+				toast.info("The account balance already matches");
+				onOpenChange(false);
+				return;
+			}
 
-		setIsSubmitting(true);
-		try {
-			await updateBalance({
-				accountId: account._id,
-				date,
-				newBalance: parsedBalance,
-				note: note.trim() || undefined,
-			});
-			toast.success("Balance updated", {
-				description: `${account.name} now matches ${formatAccountMoney(
-					parsedBalance,
-					currency
-				)}.`,
-			});
-			onOpenChange(false);
-		} catch (error) {
-			reportError(error, { feature: "accounts", operation: "adjust-balance" });
-			toast.error(
-				getAccountActionErrorMessage(error, "Failed to update the balance")
-			);
-		} finally {
-			setIsSubmitting(false);
-		}
-	};
+			setIsSubmitting(true);
+			try {
+				await updateBalance({
+					accountId: account._id,
+					date,
+					newBalance: parsedBalance,
+					note: note.trim() || undefined,
+				});
+				toast.success("Balance updated", {
+					description: `${account.name} now matches ${formatAccountMoney(
+						parsedBalance,
+						currency
+					)}.`,
+				});
+				onOpenChange(false);
+			} catch (error) {
+				reportError(error, {
+					feature: "accounts",
+					operation: "adjust-balance",
+				});
+				toast.error(
+					getAccountActionErrorMessage(error, "Failed to update the balance")
+				);
+			} finally {
+				setIsSubmitting(false);
+			}
+		},
+		[
+			hasValidBalance,
+			adjustment,
+			updateBalance,
+			account._id,
+			account.name,
+			date,
+			parsedBalance,
+			note,
+			currency,
+			onOpenChange,
+		]
+	);
 
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
@@ -199,7 +230,7 @@ function BalanceAdjustmentDialog({
 								autoFocus
 								id="adjusted-balance"
 								inputMode="decimal"
-								onChange={(event) => setNewBalance(event.target.value)}
+								onChange={changeBalance}
 								step="0.01"
 								type="number"
 								value={newBalance}
@@ -220,7 +251,7 @@ function BalanceAdjustmentDialog({
 							<FieldLabel htmlFor="adjustment-date">Date</FieldLabel>
 							<Input
 								id="adjustment-date"
-								onChange={(event) => setDate(event.target.value)}
+								onChange={changeDate}
 								required
 								type="date"
 								value={date}
@@ -231,7 +262,7 @@ function BalanceAdjustmentDialog({
 							<FieldLabel htmlFor="adjustment-note">Note</FieldLabel>
 							<Input
 								id="adjustment-note"
-								onChange={(event) => setNote(event.target.value)}
+								onChange={changeNote}
 								placeholder="ATM correction, bank reconciliation…"
 								value={note}
 							/>
@@ -249,7 +280,7 @@ function BalanceAdjustmentDialog({
 					<DialogFooter>
 						<Button
 							disabled={isSubmitting}
-							onClick={() => onOpenChange(false)}
+							onClick={close}
 							type="button"
 							variant="outline"
 						>
@@ -290,10 +321,9 @@ function TransferDialog({
 	const [destinationError, setDestinationError] = useState<string>();
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const currency = getAccountCurrency(account, defaultCurrency);
-	const eligibleAccounts = getEligibleTransferAccounts(
-		account,
-		accounts,
-		defaultCurrency
+	const eligibleAccounts = useMemo(
+		() => getEligibleTransferAccounts(account, accounts, defaultCurrency),
+		[account, accounts, defaultCurrency]
 	);
 	const parsedAmount = Number(amount);
 	const hasValidAmount =
@@ -304,53 +334,97 @@ function TransferDialog({
 		? account.currentBalance - parsedAmount
 		: undefined;
 
-	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
-		const nextAmountError = hasValidAmount
-			? undefined
-			: "Enter an amount greater than zero.";
-		const nextDestinationError = destinationId
-			? undefined
-			: "Choose a destination account.";
-		setAmountError(nextAmountError);
-		setDestinationError(nextDestinationError);
-		if (nextAmountError || nextDestinationError || !destinationId) {
-			return;
-		}
-
-		setIsSubmitting(true);
-		try {
-			await transfer({
-				amount: parsedAmount,
-				date,
-				fromAccountId: account._id,
-				note: note.trim() || undefined,
-				toAccountId: destinationId,
-			});
+	const changeDate = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) => setDate(event.target.value),
+		[]
+	);
+	const changeNote = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) => setNote(event.target.value),
+		[]
+	);
+	const changeAmount = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) => {
+			setAmount(event.target.value);
+			setAmountError(undefined);
+		},
+		[]
+	);
+	const selectDestination = useCallback(
+		(value: string) => {
 			const destination = eligibleAccounts.find(
-				(candidate) => candidate._id === destinationId
+				(candidate) => candidate._id === value
 			);
-			toast.success("Transfer recorded", {
-				action: destination
-					? {
-							label: `View ${destination.name}`,
-							onClick: () => router.push(`/accounts/${destination._id}`),
-						}
-					: undefined,
-				description: destination
-					? `${formatAccountMoney(parsedAmount, currency)} moved from ${account.name} to ${destination.name} (${destination.accountTypeName}).`
-					: `${formatAccountMoney(parsedAmount, currency)} moved from ${account.name}.`,
-			});
-			onOpenChange(false);
-		} catch (error) {
-			reportError(error, { feature: "accounts", operation: "transfer" });
-			toast.error(
-				getAccountActionErrorMessage(error, "Failed to record the transfer")
-			);
-		} finally {
-			setIsSubmitting(false);
-		}
-	};
+			if (destination) {
+				setDestinationId(destination._id);
+			}
+			setDestinationError(undefined);
+		},
+		[eligibleAccounts]
+	);
+	const close = useCallback(() => onOpenChange(false), [onOpenChange]);
+	const handleSubmit = useCallback(
+		async (event: React.FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			const nextAmountError = hasValidAmount
+				? undefined
+				: "Enter an amount greater than zero.";
+			const nextDestinationError = destinationId
+				? undefined
+				: "Choose a destination account.";
+			setAmountError(nextAmountError);
+			setDestinationError(nextDestinationError);
+			if (nextAmountError || nextDestinationError || !destinationId) {
+				return;
+			}
+
+			setIsSubmitting(true);
+			try {
+				await transfer({
+					amount: parsedAmount,
+					date,
+					fromAccountId: account._id,
+					note: note.trim() || undefined,
+					toAccountId: destinationId,
+				});
+				const destination = eligibleAccounts.find(
+					(candidate) => candidate._id === destinationId
+				);
+				toast.success("Transfer recorded", {
+					action: destination
+						? {
+								label: `View ${destination.name}`,
+								onClick: () => router.push(`/accounts/${destination._id}`),
+							}
+						: undefined,
+					description: destination
+						? `${formatAccountMoney(parsedAmount, currency)} moved from ${account.name} to ${destination.name} (${destination.accountTypeName}).`
+						: `${formatAccountMoney(parsedAmount, currency)} moved from ${account.name}.`,
+				});
+				onOpenChange(false);
+			} catch (error) {
+				reportError(error, { feature: "accounts", operation: "transfer" });
+				toast.error(
+					getAccountActionErrorMessage(error, "Failed to record the transfer")
+				);
+			} finally {
+				setIsSubmitting(false);
+			}
+		},
+		[
+			hasValidAmount,
+			destinationId,
+			transfer,
+			parsedAmount,
+			date,
+			account._id,
+			account.name,
+			note,
+			eligibleAccounts,
+			router,
+			currency,
+			onOpenChange,
+		]
+	);
 
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
@@ -369,13 +443,7 @@ function TransferDialog({
 							<FieldLabel htmlFor="transfer-destination">
 								Destination account
 							</FieldLabel>
-							<Select
-								onValueChange={(value) => {
-									setDestinationId(value as Id<"accounts">);
-									setDestinationError(undefined);
-								}}
-								value={destinationId}
-							>
+							<Select onValueChange={selectDestination} value={destinationId}>
 								<SelectTrigger
 									aria-invalid={Boolean(destinationError)}
 									className="w-full"
@@ -430,10 +498,7 @@ function TransferDialog({
 								id="transfer-amount"
 								inputMode="decimal"
 								min="0.01"
-								onChange={(event) => {
-									setAmount(event.target.value);
-									setAmountError(undefined);
-								}}
+								onChange={changeAmount}
 								step="0.01"
 								type="number"
 								value={amount}
@@ -449,7 +514,7 @@ function TransferDialog({
 							<FieldLabel htmlFor="transfer-date">Date</FieldLabel>
 							<Input
 								id="transfer-date"
-								onChange={(event) => setDate(event.target.value)}
+								onChange={changeDate}
 								required
 								type="date"
 								value={date}
@@ -460,7 +525,7 @@ function TransferDialog({
 							<FieldLabel htmlFor="transfer-note">Note</FieldLabel>
 							<Input
 								id="transfer-note"
-								onChange={(event) => setNote(event.target.value)}
+								onChange={changeNote}
 								placeholder="Emergency fund, rent transfer…"
 								value={note}
 							/>
@@ -478,7 +543,7 @@ function TransferDialog({
 					<DialogFooter>
 						<Button
 							disabled={isSubmitting}
-							onClick={() => onOpenChange(false)}
+							onClick={close}
 							type="button"
 							variant="outline"
 						>
@@ -513,6 +578,13 @@ export function AccountActionDialogs({
 }: AccountActionDialogsProps) {
 	const [activeDialog, setActiveDialog] = useState<ActiveDialog>();
 	const currency = getAccountCurrency(account, defaultCurrency);
+	const openAdjust = useCallback(() => setActiveDialog("adjust"), []);
+	const openTransfer = useCallback(() => setActiveDialog("transfer"), []);
+	const closeDialog = useCallback((open: boolean) => {
+		if (!open) {
+			setActiveDialog(undefined);
+		}
+	}, []);
 
 	if (account.isArchived) {
 		return null;
@@ -533,11 +605,11 @@ export function AccountActionDialogs({
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
 						<DropdownMenuGroup>
-							<DropdownMenuItem onSelect={() => setActiveDialog("adjust")}>
+							<DropdownMenuItem onSelect={openAdjust}>
 								<SlidersHorizontal />
 								Adjust balance
 							</DropdownMenuItem>
-							<DropdownMenuItem onSelect={() => setActiveDialog("transfer")}>
+							<DropdownMenuItem onSelect={openTransfer}>
 								<ArrowLeftRight />
 								Transfer
 							</DropdownMenuItem>
@@ -546,11 +618,11 @@ export function AccountActionDialogs({
 				</DropdownMenu>
 			) : (
 				<>
-					<Button onClick={() => setActiveDialog("adjust")} variant="outline">
+					<Button onClick={openAdjust} variant="outline">
 						<SlidersHorizontal data-icon="inline-start" />
 						Adjust balance
 					</Button>
-					<Button onClick={() => setActiveDialog("transfer")} variant="outline">
+					<Button onClick={openTransfer} variant="outline">
 						<ArrowLeftRight data-icon="inline-start" />
 						Transfer
 					</Button>
@@ -561,11 +633,7 @@ export function AccountActionDialogs({
 				<BalanceAdjustmentDialog
 					account={account}
 					currency={currency}
-					onOpenChange={(open) => {
-						if (!open) {
-							setActiveDialog(undefined);
-						}
-					}}
+					onOpenChange={closeDialog}
 					open
 				/>
 			) : null}
@@ -575,11 +643,7 @@ export function AccountActionDialogs({
 					account={account}
 					accounts={accounts}
 					defaultCurrency={defaultCurrency}
-					onOpenChange={(open) => {
-						if (!open) {
-							setActiveDialog(undefined);
-						}
-					}}
+					onOpenChange={closeDialog}
 					open
 				/>
 			) : null}

@@ -5,12 +5,12 @@ const DEVELOPMENT_KEY = /^dev:([a-z0-9]+(?:-[a-z0-9]+)*)\|[A-Za-z0-9_+/=-]+$/u;
 
 export interface E2EEnvironment {
 	baseUrl: string;
+	clerkIssuer: string;
 	convexUrl: string;
 	deployKey: string;
-	clerkIssuer: string;
+	oauthClientId: string;
 	publishableKey: string;
 	secretKey: string;
-	oauthClientId: string;
 }
 
 const invalidConfiguration = () =>
@@ -23,6 +23,7 @@ const parseOrigin = (value: string): URL => {
 	try {
 		url = new URL(value);
 	} catch {
+		// biome-ignore lint/style/useErrorCause: Never retain credential-bearing provider, filesystem, or subprocess errors.
 		throw invalidConfiguration();
 	}
 	if (
@@ -76,35 +77,35 @@ export const loadEnvironment = (
 	}
 	return {
 		baseUrl: "http://localhost:3001",
+		clerkIssuer: issuer.origin,
 		convexUrl: deployment.origin,
 		deployKey,
-		clerkIssuer: issuer.origin,
+		oauthClientId,
 		publishableKey,
 		secretKey,
-		oauthClientId,
 	};
 };
 
 export const webEnvironment = (
 	config: E2EEnvironment
 ): Record<string, string> => ({
-	PATH: process.env.PATH ?? "",
-	HOME: process.env.HOME ?? "",
 	CI: process.env.CI ?? "",
-	TZ: "UTC",
-	NEXT_PUBLIC_CONVEX_URL: config.convexUrl,
-	NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: config.publishableKey,
-	CLERK_SECRET_KEY: config.secretKey,
 	CLERK_API_URL: "https://api.clerk.com",
 	CLERK_PROXY_URL: "",
-	NEXT_PUBLIC_CLERK_PROXY_URL: "",
+	CLERK_SECRET_KEY: config.secretKey,
 	CLERK_SIGN_IN_URL: "/sign-in",
 	CLERK_SIGN_UP_URL: "/sign-up",
-	NEXT_PUBLIC_CLERK_SIGN_IN_URL: "/sign-in",
-	NEXT_PUBLIC_CLERK_SIGN_UP_URL: "/sign-up",
+	HOME: process.env.HOME ?? "",
+	NEXT_PUBLIC_CLERK_PROXY_URL: "",
+	NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: config.publishableKey,
 	NEXT_PUBLIC_CLERK_SIGN_IN_FORCE_REDIRECT_URL: "/onboarding/start",
+	NEXT_PUBLIC_CLERK_SIGN_IN_URL: "/sign-in",
 	NEXT_PUBLIC_CLERK_SIGN_UP_FORCE_REDIRECT_URL: "/onboarding/start",
-	NEXT_PUBLIC_SITE_URL: config.baseUrl,
+	NEXT_PUBLIC_CLERK_SIGN_UP_URL: "/sign-up",
+	NEXT_PUBLIC_CONVEX_URL: config.convexUrl,
 	NEXT_PUBLIC_SENTRY_ENABLED: "false",
+	NEXT_PUBLIC_SITE_URL: config.baseUrl,
+	PATH: process.env.PATH ?? "",
 	SENTRY_AUTH_TOKEN: "",
+	TZ: "UTC",
 });

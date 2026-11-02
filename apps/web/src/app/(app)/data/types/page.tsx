@@ -7,7 +7,6 @@ import Color from "color";
 import { useMutation, useQuery } from "convex/react";
 import { format } from "date-fns";
 import {
-	ArrowUpDown,
 	Check,
 	ChevronLeft,
 	Layers,
@@ -67,6 +66,7 @@ import {
 } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { SortHeader } from "../sort-header";
 
 const DEFAULT_TYPE_COLOR = "#3b82f6";
 const PRESET_COLORS = [
@@ -82,34 +82,34 @@ const PRESET_COLORS = [
 	"#06b6d4",
 ] as const;
 const SUGGESTED_TYPES = [
-	{ name: "Needs", color: "#3b82f6" },
-	{ name: "Wants", color: "#f59e0b" },
-	{ name: "Savings", color: "#10b981" },
-	{ name: "Fixed", color: "#6366f1" },
-	{ name: "Variable", color: "#ec4899" },
-	{ name: "Debt", color: "#ef4444" },
-	{ name: "Investments", color: "#8b5cf6" },
-	{ name: "Business", color: "#14b8a6" },
+	{ color: "#3b82f6", name: "Needs" },
+	{ color: "#f59e0b", name: "Wants" },
+	{ color: "#10b981", name: "Savings" },
+	{ color: "#6366f1", name: "Fixed" },
+	{ color: "#ec4899", name: "Variable" },
+	{ color: "#ef4444", name: "Debt" },
+	{ color: "#8b5cf6", name: "Investments" },
+	{ color: "#14b8a6", name: "Business" },
 ] as const;
 
 const HEX_COLOR_REGEX = /^#([A-Fa-f0-9]{6})$/;
 
 interface CategoryTypeItem {
 	_id: Id<"category_types">;
-	name: string;
 	color?: string;
-	order?: number;
 	createdAt: number;
+	name: string;
+	order?: number;
 	usageCount: number;
 }
 
 interface TypeViewModel {
+	createdAt: number;
 	id: Id<"category_types">;
+	isInUse: boolean;
 	name: string;
 	normalizedColor: string;
-	createdAt: number;
 	usageCount: number;
-	isInUse: boolean;
 }
 
 const normalizeColor = (color?: string) => {
@@ -144,8 +144,8 @@ function TypesLoadingState() {
 }
 
 interface TypesSummaryStripProps {
-	total: number;
 	inUse: number;
+	total: number;
 	unused: number;
 }
 
@@ -174,21 +174,98 @@ function TypesSummaryStrip({ total, inUse, unused }: TypesSummaryStripProps) {
 }
 
 interface TypeFormFieldsProps {
-	name: string;
 	color: string;
-	onNameChange: (value: string) => void;
-	onColorChange: (value: string) => void;
-	nameId: string;
 	colorId: string;
 	enablePopoverColorPicker?: boolean;
-	suggestions?: readonly { name: string; color: string }[];
+	name: string;
+	nameId: string;
+	onColorChange: (value: string) => void;
+	onNameChange: (value: string) => void;
 	onSuggestionClick?: (suggestion: { name: string; color: string }) => void;
+	suggestions?: readonly { name: string; color: string }[];
 }
 
 interface MobileTypeCardProps {
-	type: TypeViewModel;
-	onEdit: (type: TypeViewModel) => void;
 	onDelete: (type: TypeViewModel) => void;
+	onEdit: (type: TypeViewModel) => void;
+	type: TypeViewModel;
+}
+
+function TypeActions({ type, onEdit, onDelete }: MobileTypeCardProps) {
+	const edit = useCallback(() => onEdit(type), [onEdit, type]);
+	const remove = useCallback(() => onDelete(type), [onDelete, type]);
+	return (
+		<>
+			<DropdownMenuItem onClick={edit}>
+				<Pencil className="mr-2 h-4 w-4" />
+				Edit
+			</DropdownMenuItem>
+			<DropdownMenuItem
+				className="text-destructive focus:text-destructive"
+				onClick={remove}
+			>
+				<Trash2 className="mr-2 h-4 w-4" />
+				Delete
+			</DropdownMenuItem>
+		</>
+	);
+}
+
+function TypeSuggestion({
+	suggestion,
+	onSelect,
+}: {
+	suggestion: { name: string; color: string };
+	onSelect: (value: { name: string; color: string }) => void;
+}) {
+	const select = useCallback(
+		() => onSelect(suggestion),
+		[onSelect, suggestion]
+	);
+	return (
+		<Button
+			className="h-8 gap-1.5 rounded-full border-dashed px-3 text-xs"
+			onClick={select}
+			type="button"
+			variant="outline"
+		>
+			<span
+				className="h-2 w-2 rounded-full"
+				style={{ backgroundColor: suggestion.color }}
+			/>
+			{suggestion.name}
+		</Button>
+	);
+}
+
+function TypeColorPreset({
+	color,
+	selected,
+	onSelect,
+}: {
+	color: string;
+	selected: boolean;
+	onSelect: (color: string) => void;
+}) {
+	const select = useCallback(() => onSelect(color), [onSelect, color]);
+	return (
+		<button
+			aria-label={`Select ${color} color`}
+			className={cn(
+				"group relative flex h-6 w-6 items-center justify-center rounded-full border transition-transform hover:scale-105",
+				selected
+					? "ring-2 ring-foreground ring-offset-2 ring-offset-background"
+					: ""
+			)}
+			onClick={select}
+			style={{ backgroundColor: color }}
+			type="button"
+		>
+			{selected === true && (
+				<Check className="h-3 w-3 text-white drop-shadow-md" />
+			)}
+		</button>
+	);
 }
 
 function MobileTypeCard({ type, onEdit, onDelete }: MobileTypeCardProps) {
@@ -226,17 +303,7 @@ function MobileTypeCard({ type, onEdit, onDelete }: MobileTypeCardProps) {
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
-						<DropdownMenuItem onClick={() => onEdit(type)}>
-							<Pencil className="mr-2 h-4 w-4" />
-							Edit
-						</DropdownMenuItem>
-						<DropdownMenuItem
-							className="text-destructive focus:text-destructive"
-							onClick={() => onDelete(type)}
-						>
-							<Trash2 className="mr-2 h-4 w-4" />
-							Delete
-						</DropdownMenuItem>
+						<TypeActions onDelete={onDelete} onEdit={onEdit} type={type} />
 					</DropdownMenuContent>
 				</DropdownMenu>
 			</div>
@@ -255,6 +322,16 @@ function TypeFormFields({
 	suggestions = [],
 	onSuggestionClick,
 }: TypeFormFieldsProps) {
+	const changeName = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) =>
+			onNameChange(event.target.value),
+		[onNameChange]
+	);
+	const changeColor = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) =>
+			onColorChange(event.target.value),
+		[onColorChange]
+	);
 	const handleColorPickerChange = useCallback(
 		(rgba: [number, number, number, number]) => {
 			const hex = Color.rgb(rgba[0], rgba[1], rgba[2]).hex();
@@ -270,7 +347,7 @@ function TypeFormFields({
 				<Input
 					autoFocus
 					id={nameId}
-					onChange={(e) => onNameChange(e.target.value)}
+					onChange={changeName}
 					placeholder="e.g. Fixed Costs, Subscriptions"
 					required
 					value={name}
@@ -291,7 +368,7 @@ function TypeFormFields({
 						<Input
 							className="h-10 w-20 p-1"
 							id={colorId}
-							onChange={(e) => onColorChange(e.target.value)}
+							onChange={changeColor}
 							type="color"
 							value={color}
 						/>
@@ -304,7 +381,7 @@ function TypeFormFields({
 						<span className="font-mono text-sm uppercase">{color}</span>
 					</div>
 
-					{enablePopoverColorPicker && (
+					{enablePopoverColorPicker === true && (
 						<Popover>
 							<PopoverTrigger asChild>
 								<Button
@@ -342,23 +419,12 @@ function TypeFormFields({
 
 				<div className="flex flex-wrap gap-2">
 					{PRESET_COLORS.map((presetColor) => (
-						<button
-							aria-label={`Select ${presetColor} color`}
-							className={cn(
-								"group relative flex h-6 w-6 items-center justify-center rounded-full border transition-transform hover:scale-105",
-								color.toLowerCase() === presetColor.toLowerCase()
-									? "ring-2 ring-foreground ring-offset-2 ring-offset-background"
-									: ""
-							)}
+						<TypeColorPreset
+							color={presetColor}
 							key={presetColor}
-							onClick={() => onColorChange(presetColor)}
-							style={{ backgroundColor: presetColor }}
-							type="button"
-						>
-							{color.toLowerCase() === presetColor.toLowerCase() && (
-								<Check className="h-3 w-3 text-white drop-shadow-md" />
-							)}
-						</button>
+							onSelect={onColorChange}
+							selected={color.toLowerCase() === presetColor.toLowerCase()}
+						/>
 					))}
 				</div>
 
@@ -369,19 +435,11 @@ function TypeFormFields({
 						</Label>
 						<div className="flex flex-wrap gap-2">
 							{suggestions.map((suggestion) => (
-								<Button
-									className="h-8 gap-1.5 rounded-full border-dashed px-3 text-xs"
+								<TypeSuggestion
 									key={suggestion.name}
-									onClick={() => onSuggestionClick(suggestion)}
-									type="button"
-									variant="outline"
-								>
-									<span
-										className="h-2 w-2 rounded-full"
-										style={{ backgroundColor: suggestion.color }}
-									/>
-									{suggestion.name}
-								</Button>
+									onSelect={onSuggestionClick}
+									suggestion={suggestion}
+								/>
 							))}
 						</div>
 					</div>
@@ -420,12 +478,12 @@ export default function CategoryTypesPage() {
 		}
 
 		return types.map((type) => ({
+			createdAt: type.createdAt,
 			id: type._id,
+			isInUse: type.usageCount > 0,
 			name: type.name,
 			normalizedColor: normalizeColor(type.color),
-			createdAt: type.createdAt,
 			usageCount: type.usageCount,
-			isInUse: type.usageCount > 0,
 		}));
 	}, [types]);
 
@@ -446,8 +504,8 @@ export default function CategoryTypesPage() {
 		const inUse = viewTypes.filter((type) => type.isInUse).length;
 
 		return {
-			total,
 			inUse,
+			total,
 			unused: Math.max(total - inUse, 0),
 		};
 	}, [viewTypes]);
@@ -462,10 +520,55 @@ export default function CategoryTypesPage() {
 		);
 	}, [viewTypes]);
 
-	const resetAddForm = () => {
+	const resetAddForm = useCallback(() => {
 		setNewTypeName("");
 		setNewTypeColor(DEFAULT_TYPE_COLOR);
-	};
+	}, []);
+	const openAdd = useCallback(() => setIsAddOpen(true), []);
+	const changeAddOpen = useCallback(
+		(open: boolean) => {
+			setIsAddOpen(open);
+			if (!open) {
+				resetAddForm();
+			}
+		},
+		[resetAddForm]
+	);
+	const changeEditOpen = useCallback((open: boolean) => {
+		setIsEditOpen(open);
+		if (!open) {
+			setEditingType(null);
+		}
+	}, []);
+	const changeSearch = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) =>
+			setSearchValue(event.target.value),
+		[]
+	);
+	const showAll = useCallback(() => setFilterMode("all"), []);
+	const showInUse = useCallback(() => setFilterMode("inUse"), []);
+	const changeEditName = useCallback(
+		(value: string) =>
+			setEditingType((prev) => (prev ? { ...prev, name: value } : null)),
+		[]
+	);
+	const changeEditColor = useCallback(
+		(value: string) =>
+			setEditingType((prev) => (prev ? { ...prev, color: value } : null)),
+		[]
+	);
+	const selectSuggestion = useCallback(
+		(suggestion: { name: string; color: string }) => {
+			setNewTypeName(suggestion.name);
+			setNewTypeColor(suggestion.color);
+		},
+		[]
+	);
+	const changeDeleteOpen = useCallback((open: boolean) => {
+		if (!open) {
+			setTypePendingDelete(null);
+		}
+	}, []);
 
 	const handleAddType = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -477,8 +580,8 @@ export default function CategoryTypesPage() {
 		setIsSubmitting(true);
 		try {
 			await createType({
-				name: trimmedName,
 				color: newTypeColor,
+				name: trimmedName,
 			});
 			resetAddForm();
 			setIsAddOpen(false);
@@ -504,9 +607,9 @@ export default function CategoryTypesPage() {
 		setIsSubmitting(true);
 		try {
 			await updateType({
+				color: editingType.color,
 				id: editingType.id,
 				name: trimmedName,
-				color: editingType.color,
 			});
 			setEditingType(null);
 			setIsEditOpen(false);
@@ -530,13 +633,21 @@ export default function CategoryTypesPage() {
 		[deleteType]
 	);
 
+	const confirmDelete = useCallback(async () => {
+		if (!typePendingDelete) {
+			return;
+		}
+		await handleDeleteType(typePendingDelete);
+		setTypePendingDelete(null);
+	}, [handleDeleteType, typePendingDelete]);
+
 	const openEditDialog = useCallback((type: TypeViewModel) => {
 		setEditingType({
-			id: type.id,
-			name: type.name,
 			color: HEX_COLOR_REGEX.test(type.normalizedColor)
 				? type.normalizedColor
 				: DEFAULT_TYPE_COLOR,
+			id: type.id,
+			name: type.name,
 		});
 		setIsEditOpen(true);
 	}, []);
@@ -545,18 +656,6 @@ export default function CategoryTypesPage() {
 		() => [
 			{
 				accessorKey: "name",
-				headerClassName: "pl-5",
-				className: "pl-5",
-				header: ({ column }) => (
-					<Button
-						className="h-8 px-0"
-						onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-						variant="ghost"
-					>
-						Type Name
-						<ArrowUpDown className="ml-2 h-4 w-4" />
-					</Button>
-				),
 				cell: ({ row }) => {
 					const type = row.original;
 					return (
@@ -572,19 +671,16 @@ export default function CategoryTypesPage() {
 						</div>
 					);
 				},
+				className: "pl-5",
+				header: ({ column }) => (
+					<SortHeader className="h-8 px-0" column={column}>
+						Type Name
+					</SortHeader>
+				),
+				headerClassName: "pl-5",
 			},
 			{
 				accessorKey: "usageCount",
-				header: ({ column }) => (
-					<Button
-						className="-ml-4 h-8"
-						onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-						variant="ghost"
-					>
-						Usage
-						<ArrowUpDown className="ml-2 h-4 w-4" />
-					</Button>
-				),
 				cell: ({ row }) => {
 					const type = row.original;
 
@@ -600,23 +696,22 @@ export default function CategoryTypesPage() {
 						</div>
 					);
 				},
+				header: ({ column }) => (
+					<SortHeader className="-ml-4 h-8" column={column}>
+						Usage
+					</SortHeader>
+				),
 			},
 			{
 				accessorKey: "createdAt",
-				header: ({ column }) => (
-					<Button
-						className="-ml-4 h-8"
-						onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-						variant="ghost"
-					>
-						Created
-						<ArrowUpDown className="ml-2 h-4 w-4" />
-					</Button>
-				),
 				cell: ({ row }) => format(row.original.createdAt, "MMM d, yyyy"),
+				header: ({ column }) => (
+					<SortHeader className="-ml-4 h-8" column={column}>
+						Created
+					</SortHeader>
+				),
 			},
 			{
-				id: "actions",
 				cell: ({ row }) => {
 					const type = row.original;
 
@@ -633,22 +728,17 @@ export default function CategoryTypesPage() {
 									</Button>
 								</DropdownMenuTrigger>
 								<DropdownMenuContent align="end">
-									<DropdownMenuItem onClick={() => openEditDialog(type)}>
-										<Pencil className="mr-2 h-4 w-4" />
-										Edit
-									</DropdownMenuItem>
-									<DropdownMenuItem
-										className="text-destructive focus:text-destructive"
-										onClick={() => setTypePendingDelete(type)}
-									>
-										<Trash2 className="mr-2 h-4 w-4" />
-										Delete
-									</DropdownMenuItem>
+									<TypeActions
+										onDelete={setTypePendingDelete}
+										onEdit={openEditDialog}
+										type={type}
+									/>
 								</DropdownMenuContent>
 							</DropdownMenu>
 						</div>
 					);
 				},
+				id: "actions",
 			},
 		],
 		[openEditDialog]
@@ -674,7 +764,7 @@ export default function CategoryTypesPage() {
 				{filteredTypes.map((type) => (
 					<MobileTypeCard
 						key={type.id}
-						onDelete={(nextType) => setTypePendingDelete(nextType)}
+						onDelete={setTypePendingDelete}
 						onEdit={openEditDialog}
 						type={type}
 					/>
@@ -687,7 +777,7 @@ export default function CategoryTypesPage() {
 		content = (
 			<EmptyState
 				action={
-					<Button onClick={() => setIsAddOpen(true)} variant="outline">
+					<Button onClick={openAdd} variant="outline">
 						<Plus className="mr-2 h-4 w-4" />
 						Add your first type
 					</Button>
@@ -728,15 +818,7 @@ export default function CategoryTypesPage() {
 						</p>
 					</div>
 				</div>
-				<Dialog
-					onOpenChange={(open) => {
-						setIsAddOpen(open);
-						if (!open) {
-							resetAddForm();
-						}
-					}}
-					open={isAddOpen}
-				>
+				<Dialog onOpenChange={changeAddOpen} open={isAddOpen}>
 					<DialogTrigger asChild>
 						<Button size="sm">
 							<Plus className="mr-2 h-4 w-4" />
@@ -759,10 +841,7 @@ export default function CategoryTypesPage() {
 								nameId="create-type-name"
 								onColorChange={setNewTypeColor}
 								onNameChange={setNewTypeName}
-								onSuggestionClick={(suggestion) => {
-									setNewTypeName(suggestion.name);
-									setNewTypeColor(suggestion.color);
-								}}
+								onSuggestionClick={selectSuggestion}
 								suggestions={createSuggestions}
 							/>
 							<DialogFooter>
@@ -793,7 +872,7 @@ export default function CategoryTypesPage() {
 							<Search className="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
 							<Input
 								className="pl-9"
-								onChange={(e) => setSearchValue(e.target.value)}
+								onChange={changeSearch}
 								placeholder="Search types..."
 								type="search"
 								value={searchValue}
@@ -801,14 +880,14 @@ export default function CategoryTypesPage() {
 						</div>
 						<div className="flex gap-2">
 							<Button
-								onClick={() => setFilterMode("all")}
+								onClick={showAll}
 								size="sm"
 								variant={filterMode === "all" ? "default" : "outline"}
 							>
 								All
 							</Button>
 							<Button
-								onClick={() => setFilterMode("inUse")}
+								onClick={showInUse}
 								size="sm"
 								variant={filterMode === "inUse" ? "default" : "outline"}
 							>
@@ -821,15 +900,7 @@ export default function CategoryTypesPage() {
 				</>
 			)}
 
-			<Dialog
-				onOpenChange={(open) => {
-					setIsEditOpen(open);
-					if (!open) {
-						setEditingType(null);
-					}
-				}}
-				open={isEditOpen}
-			>
+			<Dialog onOpenChange={changeEditOpen} open={isEditOpen}>
 				<DialogContent>
 					<DialogHeader>
 						<DialogTitle>Edit Category Type</DialogTitle>
@@ -843,26 +914,8 @@ export default function CategoryTypesPage() {
 							colorId="edit-type-color"
 							name={editingType?.name ?? ""}
 							nameId="edit-type-name"
-							onColorChange={(value) =>
-								setEditingType((prev) =>
-									prev
-										? {
-												...prev,
-												color: value,
-											}
-										: null
-								)
-							}
-							onNameChange={(value) =>
-								setEditingType((prev) =>
-									prev
-										? {
-												...prev,
-												name: value,
-											}
-										: null
-								)
-							}
+							onColorChange={changeEditColor}
+							onNameChange={changeEditName}
 						/>
 						<DialogFooter>
 							<Button
@@ -877,11 +930,7 @@ export default function CategoryTypesPage() {
 			</Dialog>
 
 			<AlertDialog
-				onOpenChange={(open) => {
-					if (!open) {
-						setTypePendingDelete(null);
-					}
-				}}
+				onOpenChange={changeDeleteOpen}
 				open={typePendingDelete !== null}
 			>
 				<AlertDialogContent>
@@ -908,16 +957,7 @@ export default function CategoryTypesPage() {
 					</AlertDialogHeader>
 					<AlertDialogFooter>
 						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							onClick={async () => {
-								if (!typePendingDelete) {
-									return;
-								}
-								await handleDeleteType(typePendingDelete);
-								setTypePendingDelete(null);
-							}}
-							variant="destructive"
-						>
+						<AlertDialogAction onClick={confirmDelete} variant="destructive">
 							Delete
 						</AlertDialogAction>
 					</AlertDialogFooter>

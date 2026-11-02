@@ -17,20 +17,20 @@ const homeDescription =
 	"Discover a calmer way to track expenses with flexible cycles, optional planning, and editable history.";
 
 export const metadata: Metadata = createMarketingMetadata({
-	title: "Flexible Expense Tracking for Real-Life Cycles",
 	description: homeDescription,
 	path: "/",
+	title: "Flexible Expense Tracking for Real-Life Cycles",
 });
 
 const homeStructuredData = createSoftwareApplicationJsonLd({
 	description: homeDescription,
-	path: "/",
 	featureList: [
 		"Track expenses across your own spending cycles",
 		"Add plans only when you want them",
 		"Compare multiple cycles without judgment",
 		"Edit history whenever your records need correction",
 	],
+	path: "/",
 });
 
 export default function LandingPage() {

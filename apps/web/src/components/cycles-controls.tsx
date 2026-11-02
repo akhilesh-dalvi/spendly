@@ -1,6 +1,7 @@
 "use client";
 
 import { SlidersHorizontal } from "lucide-react";
+import { useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Select,
@@ -22,13 +23,42 @@ const FILTER_OPTIONS: Array<{ label: string; value: CycleFilter }> = [
 ];
 
 interface CyclesControlsProps {
-	selectedFilter: CycleFilter;
-	onFilterChange: (value: CycleFilter) => void;
-	selectedSort: CycleSort;
-	onSortChange: (value: CycleSort) => void;
 	budgetOnly: boolean;
-	onBudgetOnlyChange: (value: boolean) => void;
 	className?: string;
+	onBudgetOnlyChange: (value: boolean) => void;
+	onFilterChange: (value: CycleFilter) => void;
+	onSortChange: (value: CycleSort) => void;
+	selectedFilter: CycleFilter;
+	selectedSort: CycleSort;
+}
+
+function CycleFilterButton({
+	option,
+	selected,
+	onSelect,
+}: {
+	option: (typeof FILTER_OPTIONS)[number];
+	selected: boolean;
+	onSelect: (filter: CycleFilter) => void;
+}) {
+	const select = useCallback(
+		() => onSelect(option.value),
+		[onSelect, option.value]
+	);
+	return (
+		<Button
+			aria-selected={selected}
+			className={cn(
+				"h-8 shrink-0 rounded-md px-3 text-xs",
+				selected && "bg-background text-foreground shadow-sm"
+			)}
+			onClick={select}
+			size="sm"
+			variant="ghost"
+		>
+			{option.label}
+		</Button>
+	);
 }
 
 export function CyclesControls({
@@ -40,6 +70,23 @@ export function CyclesControls({
 	onBudgetOnlyChange,
 	className,
 }: CyclesControlsProps) {
+	const toggleBudget = useCallback(
+		() => onBudgetOnlyChange(!budgetOnly),
+		[onBudgetOnlyChange, budgetOnly]
+	);
+	const changeSort = useCallback(
+		(value: string) => {
+			if (
+				value === "newest" ||
+				value === "oldest" ||
+				value === "planned_desc" ||
+				value === "spent_desc"
+			) {
+				onSortChange(value);
+			}
+		},
+		[onSortChange]
+	);
 	return (
 		<div
 			className={cn(
@@ -55,30 +102,19 @@ export function CyclesControls({
 					role="tablist"
 				>
 					{FILTER_OPTIONS.map((option) => (
-						<Button
-							aria-selected={selectedFilter === option.value}
-							className={cn(
-								"h-8 shrink-0 rounded-md px-3 text-xs",
-								selectedFilter === option.value &&
-									"bg-background text-foreground shadow-sm"
-							)}
+						<CycleFilterButton
 							key={option.value}
-							onClick={() => onFilterChange(option.value)}
-							size="sm"
-							variant="ghost"
-						>
-							{option.label}
-						</Button>
+							onSelect={onFilterChange}
+							option={option}
+							selected={selectedFilter === option.value}
+						/>
 					))}
 				</div>
 
 				<div className="flex flex-wrap items-center gap-3">
 					<div className="flex items-center gap-2">
 						<SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
-						<Select
-							onValueChange={(value) => onSortChange(value as CycleSort)}
-							value={selectedSort}
-						>
+						<Select onValueChange={changeSort} value={selectedSort}>
 							<SelectTrigger
 								aria-label="Sort cycles"
 								className="min-w-[180px]"
@@ -101,7 +137,7 @@ export function CyclesControls({
 							"h-8 rounded-md border px-2.5 font-medium text-xs",
 							budgetOnly && "border-primary/40 bg-primary/10"
 						)}
-						onClick={() => onBudgetOnlyChange(!budgetOnly)}
+						onClick={toggleBudget}
 						size="sm"
 						type="button"
 						variant="ghost"

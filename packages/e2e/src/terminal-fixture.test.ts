@@ -7,19 +7,19 @@ const fixture = () => {
 	const home = join(tmpdir(), "spendly-e2e-offline-fixture");
 	const credentialFile = join(home, "credentials", "session.json");
 	return {
-		config: {
-			clerkIssuer: "https://offline.accounts.dev",
-			oauthClientId: "offline-client",
-			convexUrl: "https://offline.convex.cloud",
-		},
-		credentialFile,
 		cliEnvironment: {
 			HOME: home,
-			SPENDLY_E2E_CREDENTIAL_FILE: credentialFile,
 			SPENDLY_CLERK_ISSUER: "https://offline.accounts.dev",
 			SPENDLY_CLERK_OAUTH_CLIENT_ID: "offline-client",
 			SPENDLY_CONVEX_URL: "https://offline.convex.cloud",
+			SPENDLY_E2E_CREDENTIAL_FILE: credentialFile,
 		},
+		config: {
+			clerkIssuer: "https://offline.accounts.dev",
+			convexUrl: "https://offline.convex.cloud",
+			oauthClientId: "offline-client",
+		},
+		credentialFile,
 	};
 };
 
@@ -57,11 +57,14 @@ describe("explicit terminal fixture isolation (offline; no processes/files opene
 		"SPENDLY_CLERK_ISSUER",
 		"SPENDLY_CLERK_OAUTH_CLIENT_ID",
 		"SPENDLY_CONVEX_URL",
-	] as const)("rejects mismatched %s instead of falling back to ambient credentials/config", (field) => {
-		const user = fixture();
-		user.cliEnvironment[field] = "unexpected";
-		expect(() => terminalFixture(user)).toThrow(
-			"explicit disposable credential environment"
-		);
-	});
+	] as const)(
+		"rejects mismatched %s instead of falling back to ambient credentials/config",
+		(field) => {
+			const user = fixture();
+			user.cliEnvironment[field] = "unexpected";
+			expect(() => terminalFixture(user)).toThrow(
+				"explicit disposable credential environment"
+			);
+		}
+	);
 });

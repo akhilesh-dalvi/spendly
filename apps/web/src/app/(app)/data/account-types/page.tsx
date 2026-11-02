@@ -18,7 +18,7 @@ import {
 	Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import {
 	ACCOUNT_TYPE_ICON_OPTIONS,
@@ -185,6 +185,28 @@ interface AccountTypeEditorDialogProps {
 	open: boolean;
 }
 
+function ColorPreset({
+	color,
+	selected,
+	onSelect,
+}: {
+	color: string;
+	selected: boolean;
+	onSelect: (color: string) => void;
+}) {
+	const select = useCallback(() => onSelect(color), [onSelect, color]);
+	return (
+		<button
+			aria-label={`Use ${color}`}
+			aria-pressed={selected}
+			className="size-7 rounded-full border ring-offset-background transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 aria-pressed:ring-2 aria-pressed:ring-ring aria-pressed:ring-offset-2"
+			onClick={select}
+			style={{ backgroundColor: color }}
+			type="button"
+		/>
+	);
+}
+
 function AccountTypeEditorDialog({
 	accountType,
 	onOpenChange,
@@ -218,59 +240,103 @@ function AccountTypeEditorDialog({
 		);
 	}
 
-	const updateForm = <Key extends keyof AccountTypeFormState>(
-		key: Key,
-		value: AccountTypeFormState[Key]
-	) => {
-		setForm((current) => ({ ...current, [key]: value }));
-	};
-
-	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
-		const name = form.name.trim();
-		if (!name) {
-			setNameError("Enter an account type name.");
-			return;
-		}
-		if (!isColorValid) {
-			return;
-		}
-
-		setNameError(undefined);
-		setIsSubmitting(true);
-		try {
-			if (accountType) {
-				await updateAccountType({
-					accountTypeId: accountType._id,
-					balanceNature: form.balanceNature,
-					color: form.color || null,
-					icon: form.icon || null,
-					name,
-				});
-				toast.success("Account type updated");
-			} else {
-				await createAccountType({
-					balanceNature: form.balanceNature,
-					color: form.color || undefined,
-					icon: form.icon || undefined,
-					name,
-				});
-				toast.success("Account type created");
+	const updateForm = useCallback(
+		<Key extends keyof AccountTypeFormState>(
+			key: Key,
+			value: AccountTypeFormState[Key]
+		) => {
+			setForm((current) => ({ ...current, [key]: value }));
+		},
+		[]
+	);
+	const changeName = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) => {
+			updateForm("name", event.target.value);
+			setNameError(undefined);
+		},
+		[updateForm]
+	);
+	const changeIcon = useCallback(
+		(value: string) => updateForm("icon", value === "none" ? "" : value),
+		[updateForm]
+	);
+	const changeColor = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) =>
+			updateForm("color", event.target.value),
+		[updateForm]
+	);
+	const selectColor = useCallback(
+		(color: string) => updateForm("color", color),
+		[updateForm]
+	);
+	const clearColor = useCallback(() => updateForm("color", ""), [updateForm]);
+	const changeNature = useCallback(
+		(value: string) => {
+			if (value === "asset" || value === "liability") {
+				updateForm("balanceNature", value);
 			}
-			onOpenChange(false);
-		} catch (error) {
-			toast.error(
-				getAccountActionErrorMessage(
-					error,
-					isEditing
-						? "Failed to update the account type"
-						: "Failed to create the account type"
-				)
-			);
-		} finally {
-			setIsSubmitting(false);
-		}
-	};
+		},
+		[updateForm]
+	);
+	const close = useCallback(() => onOpenChange(false), [onOpenChange]);
+
+	const handleSubmit = useCallback(
+		async (event: React.FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			const name = form.name.trim();
+			if (!name) {
+				setNameError("Enter an account type name.");
+				return;
+			}
+			if (!isColorValid) {
+				return;
+			}
+
+			setNameError(undefined);
+			setIsSubmitting(true);
+			try {
+				if (accountType) {
+					await updateAccountType({
+						accountTypeId: accountType._id,
+						balanceNature: form.balanceNature,
+						color: form.color || null,
+						icon: form.icon || null,
+						name,
+					});
+					toast.success("Account type updated");
+				} else {
+					await createAccountType({
+						balanceNature: form.balanceNature,
+						color: form.color || undefined,
+						icon: form.icon || undefined,
+						name,
+					});
+					toast.success("Account type created");
+				}
+				onOpenChange(false);
+			} catch (error) {
+				toast.error(
+					getAccountActionErrorMessage(
+						error,
+						isEditing
+							? "Failed to update the account type"
+							: "Failed to create the account type"
+					)
+				);
+			} finally {
+				setIsSubmitting(false);
+			}
+		},
+		[
+			form,
+			isColorValid,
+			accountType,
+			updateAccountType,
+			createAccountType,
+			onOpenChange,
+			isEditing,
+		]
+	);
 
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
@@ -293,10 +359,7 @@ function AccountTypeEditorDialog({
 								aria-invalid={Boolean(nameError)}
 								autoFocus
 								id={`${formPrefix}-name`}
-								onChange={(event) => {
-									updateForm("name", event.target.value);
-									setNameError(undefined);
-								}}
+								onChange={changeName}
 								placeholder="Brokerage, Mortgage, Travel wallet…"
 								value={form.name}
 							/>
@@ -308,12 +371,7 @@ function AccountTypeEditorDialog({
 
 						<Field>
 							<FieldLabel htmlFor={`${formPrefix}-icon`}>Icon</FieldLabel>
-							<Select
-								onValueChange={(value) =>
-									updateForm("icon", value === "none" ? "" : value)
-								}
-								value={form.icon || "none"}
-							>
+							<Select onValueChange={changeIcon} value={form.icon || "none"}>
 								<SelectTrigger className="w-full" id={`${formPrefix}-icon`}>
 									<SelectValue placeholder="Choose an icon" />
 								</SelectTrigger>
@@ -337,7 +395,7 @@ function AccountTypeEditorDialog({
 								<Input
 									aria-label="Choose account type color"
 									className="size-9 p-1"
-									onChange={(event) => updateForm("color", event.target.value)}
+									onChange={changeColor}
 									type="color"
 									value={form.color || DEFAULT_CUSTOM_COLOR}
 								/>
@@ -345,12 +403,12 @@ function AccountTypeEditorDialog({
 									aria-invalid={!isColorValid}
 									className="w-32 font-mono uppercase"
 									id={`${formPrefix}-color`}
-									onChange={(event) => updateForm("color", event.target.value)}
+									onChange={changeColor}
 									placeholder="#6366F1"
 									value={form.color}
 								/>
 								<Button
-									onClick={() => updateForm("color", "")}
+									onClick={clearColor}
 									size="sm"
 									type="button"
 									variant="ghost"
@@ -360,14 +418,11 @@ function AccountTypeEditorDialog({
 							</div>
 							<div className="flex flex-wrap gap-2">
 								{COLOR_PRESETS.map((color) => (
-									<button
-										aria-label={`Use ${color}`}
-										aria-pressed={form.color.toUpperCase() === color}
-										className="size-7 rounded-full border ring-offset-background transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 aria-pressed:ring-2 aria-pressed:ring-ring aria-pressed:ring-offset-2"
+									<ColorPreset
+										color={color}
 										key={color}
-										onClick={() => updateForm("color", color)}
-										style={{ backgroundColor: color }}
-										type="button"
+										onSelect={selectColor}
+										selected={form.color.toUpperCase() === color}
 									/>
 								))}
 							</div>
@@ -386,11 +441,7 @@ function AccountTypeEditorDialog({
 							</FieldLabel>
 							<Select
 								disabled={isBalanceNatureLocked}
-								onValueChange={(value) => {
-									if (value === "asset" || value === "liability") {
-										updateForm("balanceNature", value);
-									}
-								}}
+								onValueChange={changeNature}
 								value={form.balanceNature}
 							>
 								<SelectTrigger className="w-full" id={`${formPrefix}-nature`}>
@@ -428,7 +479,7 @@ function AccountTypeEditorDialog({
 					<DialogFooter>
 						<Button
 							disabled={isSubmitting}
-							onClick={() => onOpenChange(false)}
+							onClick={close}
 							type="button"
 							variant="outline"
 						>
@@ -468,6 +519,19 @@ function AccountTypeCard({
 	const usage = useQuery(api.accountTypes.getUsage, {
 		accountTypeId: accountType._id,
 	});
+	const edit = useCallback(() => onEdit(accountType), [onEdit, accountType]);
+	const archive = useCallback(
+		() => onArchive(accountType),
+		[onArchive, accountType]
+	);
+	const reactivate = useCallback(
+		() => onReactivate(accountType),
+		[onReactivate, accountType]
+	);
+	const remove = useCallback(
+		() => onDelete(accountType),
+		[onDelete, accountType]
+	);
 	const isArchived = Boolean(accountType.isArchived);
 	const colorStyle = accountType.color
 		? { borderLeftColor: accountType.color }
@@ -514,17 +578,17 @@ function AccountTypeCard({
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							<DropdownMenuGroup>
-								<DropdownMenuItem onClick={() => onEdit(accountType)}>
+								<DropdownMenuItem onClick={edit}>
 									<Pencil />
 									Edit
 								</DropdownMenuItem>
 								{isArchived ? (
-									<DropdownMenuItem onClick={() => onReactivate(accountType)}>
+									<DropdownMenuItem onClick={reactivate}>
 										<ArchiveRestore />
 										Reactivate
 									</DropdownMenuItem>
 								) : (
-									<DropdownMenuItem onClick={() => onArchive(accountType)}>
+									<DropdownMenuItem onClick={archive}>
 										<Archive />
 										Archive
 									</DropdownMenuItem>
@@ -534,7 +598,7 @@ function AccountTypeCard({
 							<DropdownMenuGroup>
 								<DropdownMenuItem
 									disabled={usage === undefined || !usage.canDelete}
-									onClick={() => onDelete(accountType)}
+									onClick={remove}
 									variant="destructive"
 								>
 									<Trash2 />
@@ -597,11 +661,34 @@ export default function AccountTypesPage() {
 	const [pendingDelete, setPendingDelete] = useState<AccountTypeItem | null>(
 		null
 	);
-	const [pendingMutationId, setPendingMutationId] =
-		useState<Id<"account_types">>();
+	const [pendingMutationId, setPendingMutationId] = useState<
+		Id<"account_types"> | undefined
+	>(undefined);
 	const [isSeeding, setIsSeeding] = useState(false);
 
 	const sortedTypes = accountTypes ?? EMPTY_ACCOUNT_TYPES;
+	const openCreate = useCallback(() => setCreateOpen(true), []);
+	const changeEditingOpen = useCallback((open: boolean) => {
+		if (!open) {
+			setEditingType(null);
+		}
+	}, []);
+	const changeArchiveOpen = useCallback(
+		(open: boolean) => {
+			if (!open && pendingMutationId === undefined) {
+				setPendingArchive(null);
+			}
+		},
+		[pendingMutationId]
+	);
+	const changeDeleteOpen = useCallback(
+		(open: boolean) => {
+			if (!open && pendingMutationId === undefined) {
+				setPendingDelete(null);
+			}
+		},
+		[pendingMutationId]
+	);
 
 	const handleArchive = async () => {
 		if (!pendingArchive) {
@@ -627,25 +714,28 @@ export default function AccountTypesPage() {
 		}
 	};
 
-	const handleReactivate = async (accountType: AccountTypeItem) => {
-		setPendingMutationId(accountType._id);
-		try {
-			await archiveAccountType({
-				accountTypeId: accountType._id,
-				isArchived: false,
-			});
-			toast.success("Account type reactivated");
-		} catch (error) {
-			toast.error(
-				getAccountActionErrorMessage(
-					error,
-					"Failed to reactivate the account type"
-				)
-			);
-		} finally {
-			setPendingMutationId(undefined);
-		}
-	};
+	const handleReactivate = useCallback(
+		async (accountType: AccountTypeItem) => {
+			setPendingMutationId(accountType._id);
+			try {
+				await archiveAccountType({
+					accountTypeId: accountType._id,
+					isArchived: false,
+				});
+				toast.success("Account type reactivated");
+			} catch (error) {
+				toast.error(
+					getAccountActionErrorMessage(
+						error,
+						"Failed to reactivate the account type"
+					)
+				);
+			} finally {
+				setPendingMutationId(undefined);
+			}
+		},
+		[archiveAccountType]
+	);
 
 	const handleDelete = async () => {
 		if (!pendingDelete) {
@@ -715,7 +805,7 @@ export default function AccountTypesPage() {
 						)}
 						Restore defaults
 					</Button>
-					<Button onClick={() => setCreateOpen(true)}>
+					<Button onClick={openCreate}>
 						<Plus data-icon="inline-start" />
 						New type
 					</Button>
@@ -731,7 +821,7 @@ export default function AccountTypesPage() {
 								<RotateCcw data-icon="inline-start" />
 								Restore defaults
 							</Button>
-							<Button onClick={() => setCreateOpen(true)}>
+							<Button onClick={openCreate}>
 								<Plus data-icon="inline-start" />
 								Create a type
 							</Button>
@@ -781,21 +871,13 @@ export default function AccountTypesPage() {
 			{editingType ? (
 				<AccountTypeEditorDialog
 					accountType={editingType}
-					onOpenChange={(open) => {
-						if (!open) {
-							setEditingType(null);
-						}
-					}}
+					onOpenChange={changeEditingOpen}
 					open
 				/>
 			) : null}
 
 			<AlertDialog
-				onOpenChange={(open) => {
-					if (!open && pendingMutationId === undefined) {
-						setPendingArchive(null);
-					}
-				}}
+				onOpenChange={changeArchiveOpen}
 				open={pendingArchive !== null}
 			>
 				<AlertDialogContent>
@@ -814,13 +896,13 @@ export default function AccountTypesPage() {
 							disabled={pendingMutationId !== undefined}
 							onClick={handleArchive}
 						>
-							{pendingMutationId !== undefined ? (
+							{pendingMutationId === undefined ? (
+								<Archive data-icon="inline-start" />
+							) : (
 								<LoaderCircle
 									className="animate-spin"
 									data-icon="inline-start"
 								/>
-							) : (
-								<Archive data-icon="inline-start" />
 							)}
 							Archive type
 						</AlertDialogAction>
@@ -829,11 +911,7 @@ export default function AccountTypesPage() {
 			</AlertDialog>
 
 			<AlertDialog
-				onOpenChange={(open) => {
-					if (!open && pendingMutationId === undefined) {
-						setPendingDelete(null);
-					}
-				}}
+				onOpenChange={changeDeleteOpen}
 				open={pendingDelete !== null}
 			>
 				<AlertDialogContent>
@@ -862,13 +940,13 @@ export default function AccountTypesPage() {
 							onClick={handleDelete}
 							variant="destructive"
 						>
-							{pendingMutationId !== undefined ? (
+							{pendingMutationId === undefined ? (
+								<Trash2 data-icon="inline-start" />
+							) : (
 								<LoaderCircle
 									className="animate-spin"
 									data-icon="inline-start"
 								/>
-							) : (
-								<Trash2 data-icon="inline-start" />
 							)}
 							Delete permanently
 						</AlertDialogAction>

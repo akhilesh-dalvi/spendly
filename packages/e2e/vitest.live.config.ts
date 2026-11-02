@@ -5,16 +5,16 @@ loadEnvironment();
 
 export default defineConfig({
 	test: {
-		environment: "node",
-		include: ["cli/**/*.e2e.ts"],
-		exclude: ["src/**", "web/**", ".e2e/**"],
 		allowOnly: false,
-		globalSetup: ["./src/vitest-setup.ts"],
+		environment: "node",
+		exclude: ["src/**", "web/**", ".e2e/**"],
 		fileParallelism: false,
-		maxWorkers: 1,
-		testTimeout: 120_000,
+		globalSetup: ["./src/vitest-setup.ts"],
 		hookTimeout: 120_000,
-		retry: 0,
+		include: ["cli/**/*.e2e.ts"],
+		maxWorkers: 1,
 		reporters: ["default"],
+		retry: 0,
+		testTimeout: 120_000,
 	},
 });

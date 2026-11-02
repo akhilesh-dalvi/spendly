@@ -1,3 +1,4 @@
+// biome-ignore-all lint/performance/noAwaitInLoops: Stateful E2E steps and fixture cleanup require ordered execution.
 import type { Page, WebSocketRoute } from "@playwright/test";
 import { expect } from "@playwright/test";
 import { api } from "../src/backend-api";
@@ -15,7 +16,7 @@ const SAVINGS_OPTION = /^E2E Savings\b/u;
 const NO_ACCOUNT_OPTION = /^No account selected/u;
 
 const categoryPicker = (page: Page) =>
-	page.getByRole("combobox", { name: "Category", exact: true });
+	page.getByRole("combobox", { exact: true, name: "Category" });
 
 const selectCategory = async (page: Page, current: string, next: string) => {
 	await categoryPicker(page).filter({ hasText: current }).click();
@@ -24,9 +25,9 @@ const selectCategory = async (page: Page, current: string, next: string) => {
 
 const selectTag = async (page: Page, name: string) => {
 	await page
-		.getByRole("combobox", { name: "Tags (optional)", exact: true })
+		.getByRole("combobox", { exact: true, name: "Tags (optional)" })
 		.click();
-	await page.getByRole("option", { name, exact: true }).click();
+	await page.getByRole("option", { exact: true, name }).click();
 	await page
 		.getByPlaceholder("Search tags...", { exact: true })
 		.press("Escape");
@@ -61,7 +62,7 @@ const addExpenseThroughUI = async (
 	await page.getByLabel("Note (optional)", { exact: true }).fill(note);
 	// Explicitly choose the wallet instead of depending on smart defaults.
 	await page
-		.getByRole("combobox", { name: "Account (optional)", exact: true })
+		.getByRole("combobox", { exact: true, name: "Account (optional)" })
 		.click();
 	await page.getByRole("option", { name: WALLET_OPTION }).click();
 	if (metadata) {
@@ -70,11 +71,11 @@ const addExpenseThroughUI = async (
 			await selectTag(page, tag);
 		}
 	}
-	await page.getByRole("button", { name: "Add Expense", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "Add Expense" }).click();
 	await expect
 		.poll(async () => {
 			const expenses = await user.query(api.expenses.list, {});
-			return expenses.filter((expense) => expense.spentOn === note).length;
+			return expenses.filter((candidate) => candidate.spentOn === note).length;
 		})
 		.toBe(1);
 	const expenses = await user.query(api.expenses.list, {});
@@ -95,11 +96,11 @@ test("creates an expense through the UI and persists it and the wallet balance a
 	const note = "E2E lunch persistence";
 	const expense = await addExpenseThroughUI(page, user, note);
 	expect(expense).toMatchObject({
-		amount: 18.75,
-		spentOn: note,
 		accountId,
-		cycleId,
+		amount: 18.75,
 		createdSource: "web",
+		cycleId,
+		spentOn: note,
 	});
 	await expect
 		.poll(
@@ -118,11 +119,11 @@ test("creates an expense through the UI and persists it and the wallet balance a
 		note
 	);
 	await expect(
-		page.getByRole("combobox", { name: "Account (optional)", exact: true })
+		page.getByRole("combobox", { exact: true, name: "Account (optional)" })
 	).toHaveText("E2E Wallet");
 	expect(
 		await user.query(api.expenses.get, { expenseId: expense._id })
-	).toMatchObject({ amount: 18.75, spentOn: note, accountId });
+	).toMatchObject({ accountId, amount: 18.75, spentOn: note });
 	expect(
 		(await user.query(api.accounts.get, { accountId })).currentBalance
 	).toBe(981.25);
@@ -130,233 +131,211 @@ test("creates an expense through the UI and persists it and the wallet balance a
 	await expect(page.getByText("$981.25", { exact: true })).toBeVisible();
 });
 
-test(
-	"edits a direct expense detail URL and cancels then confirms deletion, restoring the balance",
-	{ tag: "@smoke" },
-	async ({ page, user }) => {
-		const { accountId } = await seedUser(user);
-		const expense = await addExpenseThroughUI(
-			page,
-			user,
-			"E2E edit and delete"
-		);
-		await page.goto(`/expenses/${expense._id}`);
-		await expect(page.getByLabel("Amount", { exact: true })).toHaveValue(
-			"18.75"
-		);
-		await page.getByLabel("Amount", { exact: true }).fill("25");
-		await page
-			.getByRole("button", { name: "Save Changes", exact: true })
-			.click();
-		await expect(page).toHaveURL(EXPENSES_URL);
-		await expect
-			.poll(
-				async () =>
-					(await user.query(api.expenses.get, { expenseId: expense._id }))
-						.amount
-			)
-			.toBe(25);
-		await expect
-			.poll(
-				async () =>
-					(await user.query(api.accounts.get, { accountId })).currentBalance
-			)
-			.toBe(975);
-		const ledgerBeforeDeletion = await user.query(
-			api.accounts.listTransactions,
-			{
-				accountId,
-			}
-		);
-		expect(ledgerBeforeDeletion).toHaveLength(3);
+test("edits a direct expense detail URL and cancels then confirms deletion, restoring the balance", {
+	tag: "@smoke",
+}, async ({ page, user }) => {
+	const { accountId } = await seedUser(user);
+	const expense = await addExpenseThroughUI(page, user, "E2E edit and delete");
+	await page.goto(`/expenses/${expense._id}`);
+	await expect(page.getByLabel("Amount", { exact: true })).toHaveValue("18.75");
+	await page.getByLabel("Amount", { exact: true }).fill("25");
+	await page.getByRole("button", { exact: true, name: "Save Changes" }).click();
+	await expect(page).toHaveURL(EXPENSES_URL);
+	await expect
+		.poll(
+			async () =>
+				(await user.query(api.expenses.get, { expenseId: expense._id })).amount
+		)
+		.toBe(25);
+	await expect
+		.poll(
+			async () =>
+				(await user.query(api.accounts.get, { accountId })).currentBalance
+		)
+		.toBe(975);
+	const ledgerBeforeDeletion = await user.query(api.accounts.listTransactions, {
+		accountId,
+	});
+	expect(ledgerBeforeDeletion).toHaveLength(3);
 
-		await page.goto(`/expenses/${expense._id}`);
-		await page.reload();
-		await expect(page.getByLabel("Amount", { exact: true })).toHaveValue("25");
-		await page.getByRole("button", { name: "Delete", exact: true }).click();
-		const confirmation = page.getByRole("alertdialog", {
-			name: "Delete expense?",
-		});
-		await expect(confirmation).toBeVisible();
-		await confirmation
-			.getByRole("button", { name: "Cancel", exact: true })
-			.click();
-		await expect(confirmation).toBeHidden();
-		expect(
-			(await user.query(api.expenses.get, { expenseId: expense._id })).amount
-		).toBe(25);
-		expect(
-			(await user.query(api.accounts.get, { accountId })).currentBalance
-		).toBe(975);
-		expect(
-			await user.query(api.accounts.listTransactions, { accountId })
-		).toEqual(ledgerBeforeDeletion);
+	await page.goto(`/expenses/${expense._id}`);
+	await page.reload();
+	await expect(page.getByLabel("Amount", { exact: true })).toHaveValue("25");
+	await page.getByRole("button", { exact: true, name: "Delete" }).click();
+	const confirmation = page.getByRole("alertdialog", {
+		name: "Delete expense?",
+	});
+	await expect(confirmation).toBeVisible();
+	await confirmation
+		.getByRole("button", { exact: true, name: "Cancel" })
+		.click();
+	await expect(confirmation).toBeHidden();
+	expect(
+		(await user.query(api.expenses.get, { expenseId: expense._id })).amount
+	).toBe(25);
+	expect(
+		(await user.query(api.accounts.get, { accountId })).currentBalance
+	).toBe(975);
+	expect(
+		await user.query(api.accounts.listTransactions, { accountId })
+	).toEqual(ledgerBeforeDeletion);
 
-		await page.getByRole("button", { name: "Delete", exact: true }).click();
-		await confirmation
-			.getByRole("button", { name: "Delete", exact: true })
-			.click();
-		await expect(page).toHaveURL(EXPENSES_URL);
-		await expect
-			.poll(async () => {
-				const expenses = await user.query(api.expenses.list, {});
-				return expenses.some((candidate) => candidate._id === expense._id);
-			})
-			.toBe(false);
-		await expect
-			.poll(
-				async () =>
-					(await user.query(api.accounts.get, { accountId })).currentBalance
-			)
-			.toBe(1000);
-		await page.reload();
-		expect(await user.query(api.expenses.list, {})).toEqual([]);
-		expect(
-			(await user.query(api.accounts.get, { accountId })).currentBalance
-		).toBe(1000);
-		const ledger = await user.query(api.accounts.listTransactions, {
-			accountId,
-		});
-		// Deletion appends one reversal; it must not erase or rewrite audit history.
-		expect(ledger).toHaveLength(4);
-		expect(ledger.slice(1)).toEqual(ledgerBeforeDeletion);
-		expect(ledger).toMatchObject([
-			{
-				type: "expense",
-				expenseId: expense._id,
-				amount: 25,
-				balanceAfter: 1000,
-				source: "web",
-			},
-			{
-				type: "expense",
-				expenseId: expense._id,
-				amount: -6.25,
-				balanceAfter: 975,
-				source: "web",
-			},
-			{
-				type: "expense",
-				expenseId: expense._id,
-				amount: -18.75,
-				balanceAfter: 981.25,
-				source: "web",
-			},
-			{ type: "opening_balance", amount: 1000, balanceAfter: 1000 },
-		]);
-	}
-);
-
-test(
-	"switches and clears a committed expense account without duplicate balance effects",
-	{ tag: "@compatibility" },
-	async ({ page, user }) => {
-		const seed = await seedUser(user);
-		const opening = await readExpenseFinancialState(user, seed);
-		const expense = await addExpenseThroughUI(page, user, "E2E move account");
-		const created = await readExpenseFinancialState(user, seed);
-		expect(created.wallet.currentBalance).toBe(981.25);
-		expect(created.savings).toEqual(opening.savings);
-		expect(created.walletLedger).toHaveLength(opening.walletLedger.length + 1);
-		expect(created.walletLedger.slice(1)).toEqual(opening.walletLedger);
-		expect(created.savingsLedger).toEqual(opening.savingsLedger);
-
-		await page.goto(`/expenses/${expense._id}`);
-		const accountPicker = page.getByRole("combobox", {
-			name: "Account (optional)",
-			exact: true,
-		});
-		await accountPicker.click();
-		await page.getByRole("option", { name: SAVINGS_OPTION }).click();
-		await page
-			.getByRole("button", { name: "Save Changes", exact: true })
-			.click();
-		await expect(page).toHaveURL(EXPENSES_URL);
-		expect(
-			await user.query(api.expenses.get, { expenseId: expense._id })
-		).toMatchObject({
-			accountId: seed.destinationId,
-			amount: 18.75,
-			revision: 2,
-		});
-		const moved = await readExpenseFinancialState(user, seed);
-		expect(moved.wallet).toMatchObject({
-			currentBalance: 1000,
-			revision: created.wallet.revision + 1,
-		});
-		expect(moved.savings).toMatchObject({
-			currentBalance: 181.25,
-			revision: created.savings.revision + 1,
-		});
-		expect(moved.walletLedger).toHaveLength(created.walletLedger.length + 1);
-		expect(moved.walletLedger[0]).toMatchObject({
-			accountId: seed.accountId,
-			expenseId: expense._id,
-			amount: 18.75,
+	await page.getByRole("button", { exact: true, name: "Delete" }).click();
+	await confirmation
+		.getByRole("button", { exact: true, name: "Delete" })
+		.click();
+	await expect(page).toHaveURL(EXPENSES_URL);
+	await expect
+		.poll(async () => {
+			const expenses = await user.query(api.expenses.list, {});
+			return expenses.some((candidate) => candidate._id === expense._id);
+		})
+		.toBe(false);
+	await expect
+		.poll(
+			async () =>
+				(await user.query(api.accounts.get, { accountId })).currentBalance
+		)
+		.toBe(1000);
+	await page.reload();
+	expect(await user.query(api.expenses.list, {})).toEqual([]);
+	expect(
+		(await user.query(api.accounts.get, { accountId })).currentBalance
+	).toBe(1000);
+	const ledger = await user.query(api.accounts.listTransactions, {
+		accountId,
+	});
+	// Deletion appends one reversal; it must not erase or rewrite audit history.
+	expect(ledger).toHaveLength(4);
+	expect(ledger.slice(1)).toEqual(ledgerBeforeDeletion);
+	expect(ledger).toMatchObject([
+		{
+			amount: 25,
 			balanceAfter: 1000,
-			type: "expense",
-			source: "web",
-		});
-		expect(moved.walletLedger.slice(1)).toEqual(created.walletLedger);
-		expect(moved.savingsLedger).toHaveLength(created.savingsLedger.length + 1);
-		expect(moved.savingsLedger[0]).toMatchObject({
-			accountId: seed.destinationId,
 			expenseId: expense._id,
+			source: "web",
+			type: "expense",
+		},
+		{
+			amount: -6.25,
+			balanceAfter: 975,
+			expenseId: expense._id,
+			source: "web",
+			type: "expense",
+		},
+		{
 			amount: -18.75,
-			balanceAfter: 181.25,
-			type: "expense",
-			source: "web",
-		});
-		expect(moved.savingsLedger.slice(1)).toEqual(created.savingsLedger);
-
-		await page.goto(`/expenses/${expense._id}`);
-		await page.reload();
-		await expect(accountPicker).toHaveText("E2E Savings");
-		await accountPicker.click();
-		await page.getByRole("option", { name: NO_ACCOUNT_OPTION }).click();
-		await page
-			.getByRole("button", { name: "Save Changes", exact: true })
-			.click();
-		await expect(page).toHaveURL(EXPENSES_URL);
-		const cleared = await readExpenseFinancialState(user, seed);
-		expect(cleared.wallet).toEqual(moved.wallet);
-		expect(cleared.walletLedger).toEqual(moved.walletLedger);
-		expect(cleared.savings).toMatchObject({
-			currentBalance: 200,
-			revision: moved.savings.revision + 1,
-		});
-		expect(cleared.savingsLedger).toHaveLength(moved.savingsLedger.length + 1);
-		expect(cleared.savingsLedger[0]).toMatchObject({
-			accountId: seed.destinationId,
+			balanceAfter: 981.25,
 			expenseId: expense._id,
-			amount: 18.75,
-			balanceAfter: 200,
-			type: "expense",
 			source: "web",
-		});
-		expect(cleared.savingsLedger.slice(1)).toEqual(moved.savingsLedger);
-		expect(
-			(await user.query(api.expenses.get, { expenseId: expense._id })).accountId
-		).toBeUndefined();
+			type: "expense",
+		},
+		{ amount: 1000, balanceAfter: 1000, type: "opening_balance" },
+	]);
+});
 
-		// A second real save of the cleared value must not append another refund.
-		await page.goto(`/expenses/${expense._id}`);
-		await page.reload();
-		await expect(accountPicker).toHaveText("No account selected");
-		await page
-			.getByRole("button", { name: "Save Changes", exact: true })
-			.click();
-		await expect(page).toHaveURL(EXPENSES_URL);
-		await page.reload();
-		expect(await readExpenseFinancialState(user, seed)).toEqual(cleared);
-		const savedAgain = await user.query(api.expenses.get, {
-			expenseId: expense._id,
-		});
-		expect(savedAgain).toMatchObject({ amount: 18.75, revision: 4 });
-		expect(savedAgain.accountId).toBeUndefined();
-		expect(await user.query(api.expenses.list, {})).toHaveLength(1);
-	}
-);
+test("switches and clears a committed expense account without duplicate balance effects", {
+	tag: "@compatibility",
+}, async ({ page, user }) => {
+	const seed = await seedUser(user);
+	const opening = await readExpenseFinancialState(user, seed);
+	const expense = await addExpenseThroughUI(page, user, "E2E move account");
+	const created = await readExpenseFinancialState(user, seed);
+	expect(created.wallet.currentBalance).toBe(981.25);
+	expect(created.savings).toEqual(opening.savings);
+	expect(created.walletLedger).toHaveLength(opening.walletLedger.length + 1);
+	expect(created.walletLedger.slice(1)).toEqual(opening.walletLedger);
+	expect(created.savingsLedger).toEqual(opening.savingsLedger);
+
+	await page.goto(`/expenses/${expense._id}`);
+	const accountPicker = page.getByRole("combobox", {
+		exact: true,
+		name: "Account (optional)",
+	});
+	await accountPicker.click();
+	await page.getByRole("option", { name: SAVINGS_OPTION }).click();
+	await page.getByRole("button", { exact: true, name: "Save Changes" }).click();
+	await expect(page).toHaveURL(EXPENSES_URL);
+	expect(
+		await user.query(api.expenses.get, { expenseId: expense._id })
+	).toMatchObject({
+		accountId: seed.destinationId,
+		amount: 18.75,
+		revision: 2,
+	});
+	const moved = await readExpenseFinancialState(user, seed);
+	expect(moved.wallet).toMatchObject({
+		currentBalance: 1000,
+		revision: created.wallet.revision + 1,
+	});
+	expect(moved.savings).toMatchObject({
+		currentBalance: 181.25,
+		revision: created.savings.revision + 1,
+	});
+	expect(moved.walletLedger).toHaveLength(created.walletLedger.length + 1);
+	expect(moved.walletLedger[0]).toMatchObject({
+		accountId: seed.accountId,
+		amount: 18.75,
+		balanceAfter: 1000,
+		expenseId: expense._id,
+		source: "web",
+		type: "expense",
+	});
+	expect(moved.walletLedger.slice(1)).toEqual(created.walletLedger);
+	expect(moved.savingsLedger).toHaveLength(created.savingsLedger.length + 1);
+	expect(moved.savingsLedger[0]).toMatchObject({
+		accountId: seed.destinationId,
+		amount: -18.75,
+		balanceAfter: 181.25,
+		expenseId: expense._id,
+		source: "web",
+		type: "expense",
+	});
+	expect(moved.savingsLedger.slice(1)).toEqual(created.savingsLedger);
+
+	await page.goto(`/expenses/${expense._id}`);
+	await page.reload();
+	await expect(accountPicker).toHaveText("E2E Savings");
+	await accountPicker.click();
+	await page.getByRole("option", { name: NO_ACCOUNT_OPTION }).click();
+	await page.getByRole("button", { exact: true, name: "Save Changes" }).click();
+	await expect(page).toHaveURL(EXPENSES_URL);
+	const cleared = await readExpenseFinancialState(user, seed);
+	expect(cleared.wallet).toEqual(moved.wallet);
+	expect(cleared.walletLedger).toEqual(moved.walletLedger);
+	expect(cleared.savings).toMatchObject({
+		currentBalance: 200,
+		revision: moved.savings.revision + 1,
+	});
+	expect(cleared.savingsLedger).toHaveLength(moved.savingsLedger.length + 1);
+	expect(cleared.savingsLedger[0]).toMatchObject({
+		accountId: seed.destinationId,
+		amount: 18.75,
+		balanceAfter: 200,
+		expenseId: expense._id,
+		source: "web",
+		type: "expense",
+	});
+	expect(cleared.savingsLedger.slice(1)).toEqual(moved.savingsLedger);
+	expect(
+		(await user.query(api.expenses.get, { expenseId: expense._id })).accountId
+	).toBeUndefined();
+
+	// A second real save of the cleared value must not append another refund.
+	await page.goto(`/expenses/${expense._id}`);
+	await page.reload();
+	await expect(accountPicker).toHaveText("No account selected");
+	await page.getByRole("button", { exact: true, name: "Save Changes" }).click();
+	await expect(page).toHaveURL(EXPENSES_URL);
+	await page.reload();
+	expect(await readExpenseFinancialState(user, seed)).toEqual(cleared);
+	const savedAgain = await user.query(api.expenses.get, {
+		expenseId: expense._id,
+	});
+	expect(savedAgain).toMatchObject({ amount: 18.75, revision: 4 });
+	expect(savedAgain.accountId).toBeUndefined();
+	expect(await user.query(api.expenses.list, {})).toHaveLength(1);
+});
 
 test("creates, reads, replaces and removes populated expense categories and tags", async ({
 	page,
@@ -386,23 +365,23 @@ test("creates, reads, replaces and removes populated expense categories and tags
 	await page.reload();
 	await expect(categoryPicker(page)).toContainText("E2E Meals");
 	await expect(
-		page.getByRole("button", { name: "Remove tag E2E Work", exact: true })
+		page.getByRole("button", { exact: true, name: "Remove tag E2E Work" })
 	).toBeVisible();
 	await expect(
-		page.getByRole("button", { name: "Remove tag E2E Personal", exact: true })
+		page.getByRole("button", { exact: true, name: "Remove tag E2E Personal" })
 	).toBeVisible();
 	await selectCategory(page, "E2E Meals", "E2E Travel");
 	await page
-		.getByRole("button", { name: "Remove tag E2E Work", exact: true })
+		.getByRole("button", { exact: true, name: "Remove tag E2E Work" })
 		.click();
-	await page.getByRole("button", { name: "Save Changes", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "Save Changes" }).click();
 	await expect(page).toHaveURL(EXPENSES_URL);
 	expect(
 		await user.query(api.expenses.get, { expenseId: expense._id })
 	).toMatchObject({
 		categoryId: metadata.travel._id,
-		tagIds: [metadata.personalId],
 		revision: 2,
+		tagIds: [metadata.personalId],
 	});
 	expect(await readExpenseFinancialState(user, seed)).toEqual(before);
 
@@ -410,13 +389,13 @@ test("creates, reads, replaces and removes populated expense categories and tags
 	await page.reload();
 	await expect(categoryPicker(page)).toContainText("E2E Travel");
 	await expect(
-		page.getByRole("button", { name: "Remove tag E2E Work", exact: true })
+		page.getByRole("button", { exact: true, name: "Remove tag E2E Work" })
 	).toHaveCount(0);
 	await selectCategory(page, "E2E Travel", "Uncategorized");
 	await page
-		.getByRole("button", { name: "Remove tag E2E Personal", exact: true })
+		.getByRole("button", { exact: true, name: "Remove tag E2E Personal" })
 		.click();
-	await page.getByRole("button", { name: "Save Changes", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "Save Changes" }).click();
 	await expect(page).toHaveURL(EXPENSES_URL);
 	const cleared = await user.query(api.expenses.get, {
 		expenseId: expense._id,
@@ -430,7 +409,7 @@ test("creates, reads, replaces and removes populated expense categories and tags
 	await page.reload();
 	await expect(categoryPicker(page)).toContainText("Uncategorized");
 	await expect(
-		page.getByRole("combobox", { name: "Tags (optional)", exact: true })
+		page.getByRole("combobox", { exact: true, name: "Tags (optional)" })
 	).toHaveText("Add tags...");
 });
 
@@ -442,8 +421,8 @@ test("changes the date across an exclusive cycle boundary, resets the category a
 	const { boundary, nextCycle, oldCategory, newCategory } =
 		await seedExpenseCycleBoundary(user, seed);
 	const expense = await user.mutation(api.expenses.create, {
-		amount: 25,
 		accountId: seed.accountId,
+		amount: 25,
 		categoryId: oldCategory._id,
 		date: seed.date,
 		spentOn: "E2E exclusive boundary",
@@ -458,11 +437,11 @@ test("changes the date across an exclusive cycle boundary, resets the category a
 	await page.goto(`/expenses/${expense._id}`);
 	await expect(categoryPicker(page)).toContainText("E2E Boundary meals");
 	await page
-		.getByRole("button", { name: dateLabel(seed.date), exact: true })
+		.getByRole("button", { exact: true, name: dateLabel(seed.date) })
 		.click();
 	if (seed.date.slice(0, 7) !== boundary.slice(0, 7)) {
 		await page
-			.getByRole("button", { name: "Go to the Next Month", exact: true })
+			.getByRole("button", { exact: true, name: "Go to the Next Month" })
 			.click();
 	}
 	await page
@@ -475,12 +454,12 @@ test("changes the date across an exclusive cycle boundary, resets the category a
 	).toContainText(nextCycle.name);
 	await expect(categoryPicker(page)).toContainText("Uncategorized");
 	// Save before reselecting: a visual empty label must not mask a stale old-cycle ID.
-	await page.getByRole("button", { name: "Save Changes", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "Save Changes" }).click();
 	await expect(page).toHaveURL(EXPENSES_URL);
 	const moved = await user.query(api.expenses.get, { expenseId: expense._id });
 	expect(moved).toMatchObject({
-		date: boundary,
 		cycleId: nextCycle._id,
+		date: boundary,
 		revision: 2,
 	});
 	expect(moved.categoryId).toBeUndefined();
@@ -496,14 +475,14 @@ test("changes the date across an exclusive cycle boundary, resets the category a
 	await page.goto(`/expenses/${expense._id}`);
 	await page.reload();
 	await selectCategory(page, "Uncategorized", "E2E Boundary meals");
-	await page.getByRole("button", { name: "Save Changes", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "Save Changes" }).click();
 	await expect(page).toHaveURL(EXPENSES_URL);
 	expect(
 		await user.query(api.expenses.get, { expenseId: expense._id })
 	).toMatchObject({
-		date: boundary,
-		cycleId: nextCycle._id,
 		categoryId: newCategory._id,
+		cycleId: nextCycle._id,
+		date: boundary,
 		revision: 3,
 	});
 	expect(await readExpenseFinancialState(user, seed)).toEqual(before);
@@ -516,22 +495,22 @@ test("expense modal links support keyboard validation, Escape, back/forward and 
 	const seed = await seedUser(user);
 	// A populated list has one Add Expense link (the empty state has two).
 	const expense = await user.mutation(api.expenses.create, {
-		amount: 12,
 		accountId: seed.accountId,
+		amount: 12,
 		date: seed.date,
 		spentOn: "E2E navigation",
 	});
 	const before = await readExpenseFinancialState(user, seed);
 	await page.goto("/expenses");
-	const addLink = page.getByRole("link", { name: "Add Expense", exact: true });
+	const addLink = page.getByRole("link", { exact: true, name: "Add Expense" });
 	await addLink.focus();
 	await addLink.press("Enter");
-	const modal = page.getByRole("dialog", { name: "Add Expense", exact: true });
+	const modal = page.getByRole("dialog", { exact: true, name: "Add Expense" });
 	await expect(modal).toBeVisible();
 	const amount = modal.getByLabel("Amount", { exact: true });
 	await expect(amount).toBeFocused();
 	await expect(
-		modal.getByRole("button", { name: "Add Expense", exact: true })
+		modal.getByRole("button", { exact: true, name: "Add Expense" })
 	).toBeEnabled();
 	await amount.press("Enter");
 	await expect(
@@ -539,7 +518,7 @@ test("expense modal links support keyboard validation, Escape, back/forward and 
 	).toBeVisible();
 	await amount.fill("0");
 	await amount.press("Tab");
-	await modal.getByRole("button", { name: "Add Expense", exact: true }).click();
+	await modal.getByRole("button", { exact: true, name: "Add Expense" }).click();
 	await expect(modal).toBeVisible();
 	await expect(amount).toHaveValue("0");
 	expect(
@@ -561,19 +540,19 @@ test("expense modal links support keyboard validation, Escape, back/forward and 
 	await page.reload();
 	await expect(page.getByRole("dialog")).toHaveCount(0);
 	await expect(
-		page.getByRole("heading", { name: "Add New Expense", exact: true })
+		page.getByRole("heading", { exact: true, name: "Add New Expense" })
 	).toBeVisible();
 	await expect(page.getByLabel("Amount", { exact: true })).toHaveValue("");
 	await page.goto("/expenses");
 	await page.getByRole("row").filter({ hasText: "E2E navigation" }).click();
 	await expect(
-		page.getByRole("dialog", { name: "Edit Expense", exact: true })
+		page.getByRole("dialog", { exact: true, name: "Edit Expense" })
 	).toBeVisible();
 	await expect(page.getByLabel("Amount", { exact: true })).toHaveValue("12");
 	await page.reload();
 	await expect(page.getByRole("dialog")).toHaveCount(0);
 	await expect(
-		page.getByRole("heading", { name: "Edit Expense", exact: true })
+		page.getByRole("heading", { exact: true, name: "Edit Expense" })
 	).toBeVisible();
 	await expect(page.getByLabel("Amount", { exact: true })).toHaveValue("12");
 	expect(await readExpenseFinancialState(user, seed)).toEqual(before);
@@ -596,8 +575,8 @@ test("a rejected stale-account edit preserves input and retries successfully wit
 	await expect(page.getByLabel("Amount", { exact: true })).toHaveValue("18.75");
 	await page.getByLabel("Amount", { exact: true }).fill("25");
 	const accountPicker = page.getByRole("combobox", {
-		name: "Account (optional)",
 		exact: true,
+		name: "Account (optional)",
 	});
 	await accountPicker.click();
 	await page.getByRole("option", { name: SAVINGS_OPTION }).click();
@@ -608,26 +587,26 @@ test("a rejected stale-account edit preserves input and retries successfully wit
 		isArchived: true,
 	});
 	const before = await readExpenseFinancialState(user, seed);
-	await page.getByRole("button", { name: "Save Changes", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "Save Changes" }).click();
 	await expect(
 		page.getByText("Failed to update expense", { exact: true })
 	).toBeVisible();
 	await expect(
-		page.getByRole("button", { name: "Save Changes", exact: true })
+		page.getByRole("button", { exact: true, name: "Save Changes" })
 	).toBeEnabled();
 	await expect(page.getByLabel("Amount", { exact: true })).toHaveValue("25");
 	await expect(accountPicker).toHaveText("E2E Savings");
 	expect(
 		await user.query(api.expenses.get, { expenseId: expense._id })
 	).toMatchObject({
-		amount: 18.75,
 		accountId: seed.accountId,
+		amount: 18.75,
 		revision: 1,
 	});
 	expect(await readExpenseFinancialState(user, seed)).toEqual(before);
 	await accountPicker.click();
 	await page.getByRole("option", { name: WALLET_OPTION }).click();
-	await page.getByRole("button", { name: "Save Changes", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "Save Changes" }).click();
 	await expect(page).toHaveURL(EXPENSES_URL);
 	const after = await readExpenseFinancialState(user, seed);
 	expect(after.wallet).toMatchObject({
@@ -638,11 +617,11 @@ test("a rejected stale-account edit preserves input and retries successfully wit
 	expect(after.savingsLedger).toEqual(before.savingsLedger);
 	expect(after.walletLedger).toHaveLength(before.walletLedger.length + 1);
 	expect(after.walletLedger[0]).toMatchObject({
-		expenseId: expense._id,
 		amount: -6.25,
 		balanceAfter: 975,
-		type: "expense",
+		expenseId: expense._id,
 		source: "web",
+		type: "expense",
 	});
 	expect(after.walletLedger.slice(1)).toEqual(before.walletLedger);
 	await page.goto(`/expenses/${expense._id}`);
@@ -651,8 +630,8 @@ test("a rejected stale-account edit preserves input and retries successfully wit
 	expect(
 		await user.query(api.expenses.get, { expenseId: expense._id })
 	).toMatchObject({
-		amount: 25,
 		accountId: seed.accountId,
+		amount: 25,
 		revision: 2,
 	});
 	expect(await readExpenseFinancialState(user, seed)).toEqual(after);
@@ -672,6 +651,7 @@ test("resilience: a controlled Convex socket disconnect retains a pending edit a
 	await page.routeWebSocket(
 		(url) => url.hostname === convexHost,
 		async (client) => {
+			// biome-ignore lint/suspicious/noUnnecessaryConditions: Playwright reenters this callback after the disconnect flag changes.
 			if (disconnected) {
 				await client.close({ code: 1013 });
 				return;
@@ -686,7 +666,7 @@ test("resilience: a controlled Convex socket disconnect retains a pending edit a
 	const before = await readExpenseFinancialState(user, seed);
 	await page.getByLabel("Amount", { exact: true }).fill("25");
 	await expect(
-		page.getByRole("button", { name: "Save Changes", exact: true })
+		page.getByRole("button", { exact: true, name: "Save Changes" })
 	).toBeEnabled();
 	// Fault injection only: this is reconnect resilience, not happy-path proof.
 	if (!connection) {
@@ -698,10 +678,10 @@ test("resilience: a controlled Convex socket disconnect retains a pending edit a
 	try {
 		await Promise.all([connection.client.close(), connection.server.close()]);
 		await page
-			.getByRole("button", { name: "Save Changes", exact: true })
+			.getByRole("button", { exact: true, name: "Save Changes" })
 			.click();
 		await expect(
-			page.getByRole("button", { name: "Saving...", exact: true })
+			page.getByRole("button", { exact: true, name: "Saving..." })
 		).toBeDisabled();
 		await expect(page.getByLabel("Amount", { exact: true })).toHaveValue("25");
 		// This independent HTTP read cannot be satisfied by an optimistic browser
@@ -723,11 +703,11 @@ test("resilience: a controlled Convex socket disconnect retains a pending edit a
 	expect(after.savingsLedger).toEqual(before.savingsLedger);
 	expect(after.walletLedger).toHaveLength(before.walletLedger.length + 1);
 	expect(after.walletLedger[0]).toMatchObject({
-		expenseId: expense._id,
 		amount: -6.25,
 		balanceAfter: 975,
-		type: "expense",
+		expenseId: expense._id,
 		source: "web",
+		type: "expense",
 	});
 	expect(after.walletLedger.slice(1)).toEqual(before.walletLedger);
 	await page.goto(`/expenses/${expense._id}`);

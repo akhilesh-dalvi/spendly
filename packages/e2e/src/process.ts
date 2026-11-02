@@ -19,8 +19,8 @@ export interface ProcessResult {
 
 export interface RunningProcess {
 	result: Promise<ProcessResult>;
-	stop(): Promise<void>;
-	waitForOutput(pattern: RegExp, timeoutMs?: number): Promise<string>;
+	stop: () => Promise<void>;
+	waitForOutput: (pattern: RegExp, timeoutMs?: number) => Promise<string>;
 }
 
 const DEFAULT_MAX_OUTPUT_BYTES = 1024 * 1024;
@@ -34,9 +34,9 @@ const STATEFUL_FLAGS = /[gy]/gu;
 const spawnChild = (options: ProcessOptions) =>
 	spawn(options.command, options.args, {
 		cwd: options.cwd,
+		detached: process.platform !== "win32",
 		env: options.env,
 		shell: false,
-		detached: process.platform !== "win32",
 		stdio: ["ignore", "pipe", "pipe"],
 	});
 
@@ -165,8 +165,8 @@ export const startProcess = (options: ProcessOptions): RunningProcess => {
 			}
 			await closed;
 		},
-		waitForOutput(pattern, timeoutMs = DEFAULT_WAIT_TIMEOUT_MS) {
-			if (!isPositiveInteger(timeoutMs, MAX_TIMER_MS)) {
+		waitForOutput(pattern, waitTimeoutMs = DEFAULT_WAIT_TIMEOUT_MS) {
+			if (!isPositiveInteger(waitTimeoutMs, MAX_TIMER_MS)) {
 				return Promise.reject(new Error("Invalid subprocess wait timeout"));
 			}
 			const search = new RegExp(
@@ -193,7 +193,7 @@ export const startProcess = (options: ProcessOptions): RunningProcess => {
 				const timer = setTimeout(() => {
 					cleanup();
 					reject(new Error("Timed out waiting for subprocess output"));
-				}, timeoutMs);
+				}, waitTimeoutMs);
 				listeners.add(check);
 				check();
 			});

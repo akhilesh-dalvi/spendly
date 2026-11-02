@@ -9,19 +9,15 @@ export function useCurrency() {
 	const currency = user?.currency || "USD";
 	const hasUserCurrency = isSignedIn && user?.currency !== undefined;
 
-	// For now, we derive locale from currency.
-	// In the future, this could also be a user preference.
 	const locale = currency === "INR" ? "en-IN" : "en-US";
 
-	const format = (amount: number) => {
-		return formatCurrency(amount, currency, locale);
-	};
+	const format = (amount: number) => formatCurrency(amount, currency, locale);
 
 	return {
 		currency,
-		hasUserCurrency,
-		locale,
 		format,
+		hasUserCurrency,
 		isLoading: !isLoaded || (isSignedIn && user === undefined),
+		locale,
 	};
 }

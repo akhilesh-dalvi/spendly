@@ -3,12 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 interface DashboardSectionProps {
-	title: string;
 	action?: ReactNode;
 	children: ReactNode;
 	className?: string;
-	headerClassName?: string;
 	contentClassName?: string;
+	headerClassName?: string;
+	title: string;
 }
 
 export function DashboardSection({
@@ -28,7 +28,9 @@ export function DashboardSection({
 				)}
 			>
 				<CardTitle className="font-bold text-xl">{title}</CardTitle>
-				{action && <div className="flex items-center gap-2">{action}</div>}
+				{Boolean(action) && (
+					<div className="flex items-center gap-2">{action}</div>
+				)}
 			</CardHeader>
 			<CardContent className={cn("px-0", contentClassName)}>
 				{children}

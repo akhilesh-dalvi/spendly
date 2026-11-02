@@ -20,37 +20,37 @@ const aboutDescription =
 	"Learn what Spendly is for, why it stays flexible, and how it approaches expense tracking without rigid budgeting pressure.";
 
 export const metadata: Metadata = createMarketingMetadata({
-	title: "About",
 	description: aboutDescription,
 	path: "/about",
+	title: "About",
 });
 
 const aboutStructuredData = createSoftwareApplicationJsonLd({
 	description: aboutDescription,
-	path: "/about",
 	featureList: [
 		"Flexible cycles that match real timelines",
 		"Optional planning without rigid budget rules",
 		"Editable history that stays useful over time",
 		"Comparison tools for calm financial review",
 	],
+	path: "/about",
 });
 
 const principles = [
 	{
-		title: "Built around real cycles",
 		description:
 			"Not everyone reviews money by calendar month. Spendly supports pay periods, trips, semesters, and custom date ranges.",
+		title: "Built around real cycles",
 	},
 	{
-		title: "Planning is optional",
 		description:
 			"You can set planned amounts when they help and skip them when they do not. The tool stays useful either way.",
+		title: "Planning is optional",
 	},
 	{
-		title: "History stays editable",
 		description:
 			"Expense records are only helpful if they can be corrected later. Spendly keeps that door open.",
+		title: "History stays editable",
 	},
 ] as const;
 

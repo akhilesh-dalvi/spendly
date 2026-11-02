@@ -38,8 +38,8 @@ describe("OAuth login flow", () => {
 		const store: CredentialStore = {
 			delete: () => Promise.resolve(),
 			read: () => Promise.resolve(storedSession),
-			write: (session) => {
-				storedSession = session;
+			write: (nextSession) => {
+				storedSession = nextSession;
 				return Promise.resolve();
 			},
 		};

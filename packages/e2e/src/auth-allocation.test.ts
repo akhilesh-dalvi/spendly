@@ -11,19 +11,19 @@ const fixture = async () => {
 	const directory = await mkdtemp(join(tmpdir(), "spendly-e2e-"));
 	const journal = pathToFileURL(join(directory, "identity.json"));
 	const record: FixtureJournal = {
-		email: `spendly-e2e-${randomUUID()}+clerk_test@example.com`,
-		convexUrl: "https://e2e-test.convex.cloud",
 		clerkIssuer: "https://e2e-test.clerk.accounts.dev",
+		convexUrl: "https://e2e-test.convex.cloud",
 		directory,
+		email: `spendly-e2e-${randomUUID()}+clerk_test@example.com`,
 	};
 	return {
+		create: vi.fn(async () => "user_synthetic"),
 		directory,
 		journal,
 		record,
-		create: vi.fn(async () => "user_synthetic"),
+		remove: vi.fn(async (_clerkId: string) => undefined),
 		resolve: vi.fn(async (): Promise<string | undefined> => "user_synthetic"),
 		stop: vi.fn(async () => undefined),
-		remove: vi.fn(async (_clerkId: string) => undefined),
 	};
 };
 
@@ -44,7 +44,7 @@ it("durably journals a credential-free intent before a UI or admin identity can 
 		expect(allocation.resolve).not.toHaveBeenCalled();
 		expect(allocation.remove).not.toHaveBeenCalled();
 	} finally {
-		await rm(allocation.directory, { recursive: true, force: true });
+		await rm(allocation.directory, { force: true, recursive: true });
 	}
 });
 
@@ -83,8 +83,8 @@ it("stops the browser and cleans up an exact identity after ambiguous UI/provide
 		expect(
 			JSON.parse(await readFile(allocation.journal, "utf8"))
 		).toMatchObject({
-			email: allocation.record.email,
 			clerkId: id,
+			email: allocation.record.email,
 		});
 	});
 	const result = allocateAuthIdentity(allocation);
@@ -100,35 +100,34 @@ it("stops the browser and cleans up an exact identity after ambiguous UI/provide
 	});
 });
 
-it.each([
-	"missing",
-	"ambiguous",
-	"cleanup",
-])("retains recovery intent when allocation lookup/cleanup is %s", async (failure) => {
-	const allocation = await fixture();
-	try {
-		allocation.create.mockRejectedValueOnce(
-			new Error("secret provider detail")
-		);
-		if (failure === "missing") {
-			allocation.resolve.mockResolvedValueOnce(undefined);
-		} else if (failure === "ambiguous") {
-			allocation.resolve.mockRejectedValueOnce(new Error("multiple matches"));
-		} else {
-			allocation.remove.mockRejectedValueOnce(
-				new Error("secret cleanup response")
+it.each(["missing", "ambiguous", "cleanup"])(
+	"retains recovery intent when allocation lookup/cleanup is %s",
+	async (failure) => {
+		const allocation = await fixture();
+		try {
+			allocation.create.mockRejectedValueOnce(
+				new Error("secret provider detail")
 			);
+			if (failure === "missing") {
+				allocation.resolve.mockResolvedValueOnce(undefined);
+			} else if (failure === "ambiguous") {
+				allocation.resolve.mockRejectedValueOnce(new Error("multiple matches"));
+			} else {
+				allocation.remove.mockRejectedValueOnce(
+					new Error("secret cleanup response")
+				);
+			}
+			await expect(allocateAuthIdentity(allocation)).rejects.toThrow(
+				"credentials withheld"
+			);
+			expect(
+				JSON.parse(await readFile(allocation.journal, "utf8"))
+			).toMatchObject(allocation.record);
+			if (failure !== "cleanup") {
+				expect(allocation.remove).not.toHaveBeenCalled();
+			}
+		} finally {
+			await rm(allocation.directory, { force: true, recursive: true });
 		}
-		await expect(allocateAuthIdentity(allocation)).rejects.toThrow(
-			"credentials withheld"
-		);
-		expect(
-			JSON.parse(await readFile(allocation.journal, "utf8"))
-		).toMatchObject(allocation.record);
-		if (failure !== "cleanup") {
-			expect(allocation.remove).not.toHaveBeenCalled();
-		}
-	} finally {
-		await rm(allocation.directory, { recursive: true, force: true });
 	}
-});
+);

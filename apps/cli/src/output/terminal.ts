@@ -57,6 +57,14 @@ export const writeTerminalError = (options: {
 		CATEGORY_CYCLE_MISMATCH:
 			"Choose a category from the expense date's cycle, or clear the category.",
 		CREDENTIALS_INVALID: "spendly auth login",
+		CYCLE_COPY_CONFLICT:
+			"Review a fresh category-copy preview before committing; do not retry with the stale snapshot.",
+		CYCLE_HAS_EXPENSES:
+			"Move or delete the linked expenses before deleting this cycle.",
+		CYCLE_OVERLAP:
+			"Choose dates that do not overlap another cycle; the end date is exclusive.",
+		CYCLE_REVISION_CONFLICT:
+			"Read the cycle again, review a new preview, and then retry.",
 		DELETION_CONFIRMATION_EXPIRED:
 			"Create a new deletion preview; do not reuse the expired token.",
 		DELETION_CONFIRMATION_INVALID:

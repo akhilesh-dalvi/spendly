@@ -40,7 +40,7 @@ export const resolveExactName = <Resource extends NamedResource>(options: {
 			}
 		);
 	}
-	const match = matches[0];
+	const [match] = matches;
 	if (!match) {
 		throw new CliError("INTERNAL_ERROR", "Selector resolution failed");
 	}

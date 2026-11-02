@@ -25,7 +25,7 @@ export const seedExpenseMetadata = async (
 	const personalId = await user.mutation(api.tags.create, {
 		name: "E2E Personal",
 	});
-	return { meals, travel, workId, personalId };
+	return { meals, personalId, travel, workId };
 };
 
 export const seedExpenseCycleBoundary = async (
@@ -36,14 +36,14 @@ export const seedExpenseCycleBoundary = async (
 	tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
 	const boundary = tomorrow.toISOString().slice(0, 10);
 	await user.mutation(api.cycles.update, {
+		endDate: boundary,
 		id: seed.cycleId,
 		name: "E2E Before boundary",
-		endDate: boundary,
 	});
 	const nextCycle = await user.mutation(api.cycles.create, {
+		endDate: "2030-01-01",
 		name: "E2E After boundary",
 		startDate: boundary,
-		endDate: "2030-01-01",
 	});
 	if (!nextCycle) {
 		throw new Error("Expense regression next cycle was not persisted");
@@ -62,7 +62,7 @@ export const seedExpenseCycleBoundary = async (
 			"Expense regression boundary categories were not persisted"
 		);
 	}
-	return { boundary, nextCycle, oldCategory, newCategory };
+	return { boundary, newCategory, nextCycle, oldCategory };
 };
 
 export const readExpenseFinancialState = async (
@@ -77,5 +77,5 @@ export const readExpenseFinancialState = async (
 			accountId: seed.destinationId,
 		}),
 	]);
-	return { wallet, savings, walletLedger, savingsLedger };
+	return { savings, savingsLedger, wallet, walletLedger };
 };

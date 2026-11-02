@@ -23,7 +23,7 @@ const detectTimeZone = (runtimeTimeZone?: () => string | undefined) => {
 		}
 		return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
 	} catch {
-		return undefined;
+		// Timezone detection is best-effort; callers require an explicit date on failure.
 	}
 };
 

@@ -2,8 +2,8 @@ import type { CompareDerivedTotals } from "@/components/compare/types";
 import { cn } from "@/lib/utils";
 
 interface CompareKpiStripProps {
-	totals: CompareDerivedTotals;
 	formatCurrency: (amount: number) => string;
+	totals: CompareDerivedTotals;
 }
 
 export function CompareKpiStrip({

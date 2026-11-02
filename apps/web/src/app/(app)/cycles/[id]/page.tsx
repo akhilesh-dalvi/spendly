@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { use, useMemo, useState } from "react";
+import { use, useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CategoryForm } from "@/components/category-form";
 import { CategorySpendingChart } from "@/components/category-spending-chart";
@@ -49,11 +49,11 @@ import { useCurrency } from "@/hooks/use-currency";
 import { cn } from "@/lib/utils";
 
 interface CycleStatsSummary {
+	budgetProgress: number;
+	isOver: boolean;
+	remaining: number;
 	totalPlanned: number;
 	totalSpent: number;
-	remaining: number;
-	isOver: boolean;
-	budgetProgress: number;
 }
 
 interface CategoryHistoricalSpent {
@@ -114,11 +114,11 @@ function buildCycleStats(summary: {
 	const totalPlanned = summary.totalPlanned || 0;
 
 	return {
-		totalSpent,
-		totalPlanned,
-		remaining: totalPlanned - totalSpent,
-		isOver: totalSpent > totalPlanned && totalPlanned > 0,
 		budgetProgress: totalPlanned > 0 ? (totalSpent / totalPlanned) * 100 : 0,
+		isOver: totalSpent > totalPlanned && totalPlanned > 0,
+		remaining: totalPlanned - totalSpent,
+		totalPlanned,
+		totalSpent,
 	};
 }
 
@@ -133,7 +133,7 @@ function getCycleHistoricalSpentValue(
 	categoryName: string
 ) {
 	if (!historicalStats) {
-		return undefined;
+		return;
 	}
 
 	const amount = historicalStats.stats[categoryName];
@@ -175,7 +175,7 @@ async function deleteCycleCategory({
 	try {
 		await removeCategory({ categoryId: id });
 		toast.success("Category deleted");
-	} catch (_error) {
+	} catch {
 		toast.error("Failed to delete category");
 	}
 }
@@ -201,6 +201,16 @@ function CycleHeader({
 	previousCycleId,
 	startDate,
 }: CycleHeaderProps) {
+	const previous = useCallback(() => {
+		if (previousCycleId) {
+			onNavigate(previousCycleId);
+		}
+	}, [onNavigate, previousCycleId]);
+	const next = useCallback(() => {
+		if (nextCycleId) {
+			onNavigate(nextCycleId);
+		}
+	}, [onNavigate, nextCycleId]);
 	return (
 		<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 			<div className="flex items-center gap-4">
@@ -223,7 +233,7 @@ function CycleHeader({
 					<Button
 						className="h-8 w-8"
 						disabled={!previousCycleId}
-						onClick={() => previousCycleId && onNavigate(previousCycleId)}
+						onClick={previous}
 						size="icon"
 						variant="outline"
 					>
@@ -232,7 +242,7 @@ function CycleHeader({
 					<Button
 						className="h-8 w-8"
 						disabled={!nextCycleId}
-						onClick={() => nextCycleId && onNavigate(nextCycleId)}
+						onClick={next}
 						size="icon"
 						variant="outline"
 					>
@@ -450,11 +460,19 @@ function CycleCategoryCard({
 	formatCurrency: (amount: number) => string;
 	historicalSpent?: CategoryHistoricalSpent;
 	isEditing: boolean;
-	onDelete: () => Promise<void>;
-	onEditOpenChange: (open: boolean) => void;
+	onDelete: (id: Id<"categories">) => Promise<void>;
+	onEditOpenChange: (id: Id<"categories">, open: boolean) => void;
 	onEditSuccess: () => void;
 	spent: number;
 }) {
+	const handleDelete = useCallback(
+		() => onDelete(cat._id),
+		[onDelete, cat._id]
+	);
+	const handleEditOpenChange = useCallback(
+		(open: boolean) => onEditOpenChange(cat._id, open),
+		[onEditOpenChange, cat._id]
+	);
 	return (
 		<Card className="group relative overflow-hidden bg-card/50 transition-all hover:border-primary/30">
 			<CardContent className="p-5">
@@ -484,7 +502,7 @@ function CycleCategoryCard({
 						</div>
 					</div>
 					<div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-						<Dialog onOpenChange={onEditOpenChange} open={isEditing}>
+						<Dialog onOpenChange={handleEditOpenChange} open={isEditing}>
 							<DialogTrigger asChild>
 								<Button className="h-8 w-8" size="icon" variant="ghost">
 									<Pencil className="h-4 w-4" />
@@ -498,10 +516,10 @@ function CycleCategoryCard({
 									categoryId={cat._id}
 									cycleId={cycleId}
 									defaultValues={{
-										name: cat.name,
 										categoryTypeId: cat.categoryTypeId ?? undefined,
-										plannedAmount: cat.plannedAmount ?? undefined,
 										icon: cat.icon ?? undefined,
+										name: cat.name,
+										plannedAmount: cat.plannedAmount ?? undefined,
 									}}
 									historicalSpent={historicalSpent}
 									onSuccess={onEditSuccess}
@@ -530,7 +548,7 @@ function CycleCategoryCard({
 									<AlertDialogCancel>Cancel</AlertDialogCancel>
 									<AlertDialogAction
 										className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-										onClick={onDelete}
+										onClick={handleDelete}
 									>
 										Delete Category
 									</AlertDialogAction>
@@ -546,11 +564,11 @@ function CycleCategoryCard({
 							Planned
 						</p>
 						<p className="font-bold text-lg tabular-nums">
-							{cat.plannedAmount != null
-								? formatCurrency(cat.plannedAmount)
-								: "—"}
+							{cat.plannedAmount === null || cat.plannedAmount === undefined
+								? "—"
+								: formatCurrency(cat.plannedAmount)}
 						</p>
-						{historicalSpent && (
+						{historicalSpent !== undefined && (
 							<p className="text-[10px] text-muted-foreground/50 italic">
 								Last: {formatCurrency(historicalSpent.amount)}
 							</p>
@@ -605,6 +623,14 @@ function CyclePlanTab({
 	onEditCategorySuccess: () => void;
 	summary: CycleSummaryRecord;
 }) {
+	const closeAddCategory = useCallback(
+		() => onAddCategoryOpenChange(false),
+		[onAddCategoryOpenChange]
+	);
+	const openAddCategory = useCallback(
+		() => onAddCategoryOpenChange(true),
+		[onAddCategoryOpenChange]
+	);
 	return (
 		<TabsContent
 			className="fade-in-50 animate-in space-y-6 duration-300"
@@ -633,7 +659,7 @@ function CyclePlanTab({
 						<CategoryForm
 							cycleId={cycleId}
 							historicalSpent={undefined}
-							onSuccess={() => onAddCategoryOpenChange(false)}
+							onSuccess={closeAddCategory}
 						/>
 					</DialogContent>
 				</Dialog>
@@ -657,10 +683,8 @@ function CyclePlanTab({
 							historicalSpent={historicalSpent}
 							isEditing={editingCategoryId === cat._id}
 							key={cat._id}
-							onDelete={() => onDeleteCategory(cat._id)}
-							onEditOpenChange={(open) =>
-								onEditCategoryOpenChange(cat._id, open)
-							}
+							onDelete={onDeleteCategory}
+							onEditOpenChange={onEditCategoryOpenChange}
 							onEditSuccess={onEditCategorySuccess}
 							spent={spent}
 						/>
@@ -670,10 +694,7 @@ function CyclePlanTab({
 				{(!categories || categories.length === 0) && (
 					<div className="col-span-full flex h-40 flex-col items-center justify-center rounded-2xl border border-border/60 border-dashed bg-muted/20">
 						<p className="text-muted-foreground">No categories added yet.</p>
-						<Button
-							onClick={() => onAddCategoryOpenChange(true)}
-							variant="link"
-						>
+						<Button onClick={openAddCategory} variant="link">
 							Add your first category
 						</Button>
 					</div>
@@ -749,14 +770,33 @@ export default function CycleDetailPage({
 
 	const { previousCycle, nextCycle } = useMemo(() => {
 		if (!(allCycles && cycleId)) {
-			return { previousCycle: null, nextCycle: null };
+			return { nextCycle: null, previousCycle: null };
 		}
 		const index = allCycles.findIndex((c) => c._id === cycleId);
 		return {
-			previousCycle: index !== -1 ? allCycles[index + 1] : null,
-			nextCycle: index !== -1 ? allCycles[index - 1] : null,
+			nextCycle: index === -1 ? null : allCycles[index - 1],
+			previousCycle: index === -1 ? null : allCycles[index + 1],
 		};
 	}, [allCycles, cycleId]);
+
+	const handleDeleteCycle = useCallback(
+		() => deleteCycleAndNavigate({ cycleId, removeCycle, router }),
+		[cycleId, removeCycle, router]
+	);
+	const handleDeleteCategory = useCallback(
+		(categoryId: Id<"categories">) =>
+			deleteCycleCategory({ id: categoryId, removeCategory }),
+		[removeCategory]
+	);
+	const handleEditCategoryOpenChange = useCallback(
+		(categoryId: Id<"categories">, open: boolean) =>
+			setEditingCategoryId(open ? categoryId : null),
+		[]
+	);
+	const handleEditCategorySuccess = useCallback(
+		() => setEditingCategoryId(null),
+		[]
+	);
 
 	if (cycle === undefined || summary === undefined || allCycles === undefined) {
 		return <Loader />;
@@ -767,9 +807,9 @@ export default function CycleDetailPage({
 	}
 
 	const handleTabChange = (value: string) => {
-		const params = new URLSearchParams(searchParams.toString());
-		params.set("tab", value);
-		router.replace(`/cycles/${cycleId}?${params.toString()}`);
+		const tabParams = new URLSearchParams(searchParams.toString());
+		tabParams.set("tab", value);
+		router.replace(`/cycles/${cycleId}?${tabParams.toString()}`);
 	};
 
 	const stats = buildCycleStats(summary);
@@ -784,13 +824,7 @@ export default function CycleDetailPage({
 				cycleName={cycle.name}
 				endDate={cycle.endDate}
 				nextCycleId={nextCycle?._id}
-				onDeleteCycle={() =>
-					deleteCycleAndNavigate({
-						cycleId,
-						removeCycle,
-						router,
-					})
-				}
+				onDeleteCycle={handleDeleteCycle}
 				onNavigate={navigateToCycle}
 				previousCycleId={previousCycle?._id}
 				startDate={cycle.startDate}
@@ -833,16 +867,9 @@ export default function CycleDetailPage({
 					historicalStats={historicalStats}
 					isAddCategoryOpen={isAddCategoryOpen}
 					onAddCategoryOpenChange={setIsAddCategoryOpen}
-					onDeleteCategory={(id) =>
-						deleteCycleCategory({
-							id,
-							removeCategory,
-						})
-					}
-					onEditCategoryOpenChange={(id, open) =>
-						setEditingCategoryId(open ? id : null)
-					}
-					onEditCategorySuccess={() => setEditingCategoryId(null)}
+					onDeleteCategory={handleDeleteCategory}
+					onEditCategoryOpenChange={handleEditCategoryOpenChange}
+					onEditCategorySuccess={handleEditCategorySuccess}
 					summary={summary as CycleSummaryRecord}
 				/>
 

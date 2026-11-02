@@ -13,7 +13,7 @@ const git = (args, allowMissing = false) => {
 		throw result.error;
 	}
 	if (allowMissing && result.status === 1) {
-		return undefined;
+		return;
 	}
 	if (result.status !== 0) {
 		throw new Error(`Git hook setup failed: ${result.stderr.trim()}`);

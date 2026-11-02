@@ -12,48 +12,48 @@ import {
 } from "@/lib/seo";
 
 const geistSans = Geist({
-	variable: "--font-geist-sans",
 	subsets: ["latin"],
+	variable: "--font-geist-sans",
 });
 
 const geistMono = Geist_Mono({
-	variable: "--font-geist-mono",
 	subsets: ["latin"],
+	variable: "--font-geist-mono",
 });
 
 export const metadata: Metadata = {
-	metadataBase: siteUrl,
 	applicationName: SITE_NAME,
-	title: SITE_NAME,
 	description: DEFAULT_DESCRIPTION,
-	manifest: "/manifest.webmanifest",
 	icons: {
-		icon: [
-			{ url: "/favicon.ico" },
-			{ url: "/favicon/favicon-16x16.png", sizes: "16x16", type: "image/png" },
-			{ url: "/favicon/favicon-32x32.png", sizes: "32x32", type: "image/png" },
-		],
 		apple: [
 			{
-				url: "/favicon/apple-touch-icon.png",
 				sizes: "180x180",
 				type: "image/png",
+				url: "/favicon/apple-touch-icon.png",
 			},
 		],
+		icon: [
+			{ url: "/favicon.ico" },
+			{ sizes: "16x16", type: "image/png", url: "/favicon/favicon-16x16.png" },
+			{ sizes: "32x32", type: "image/png", url: "/favicon/favicon-32x32.png" },
+		],
 	},
+	manifest: "/manifest.webmanifest",
+	metadataBase: siteUrl,
 	openGraph: {
-		title: SITE_NAME,
 		description: DEFAULT_DESCRIPTION,
+		siteName: SITE_NAME,
+		title: SITE_NAME,
 		type: "website",
 		url: siteUrl,
-		siteName: SITE_NAME,
-	},
-	twitter: {
-		card: "summary_large_image",
-		title: SITE_NAME,
-		description: DEFAULT_DESCRIPTION,
 	},
 	robots: marketingRobots,
+	title: SITE_NAME,
+	twitter: {
+		card: "summary_large_image",
+		description: DEFAULT_DESCRIPTION,
+		title: SITE_NAME,
+	},
 };
 
 export default function RootLayout({

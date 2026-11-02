@@ -7,17 +7,17 @@ import { afterEach, describe, expect, it } from "vitest";
 import { type RunningTerminal, startTerminal, terminalKeys } from "./terminal";
 
 const patterns = {
-	tty: /TTY:true,true,true/u,
+	deadline: /^Terminal process timed out$/u,
+	first: /FIRST/u,
 	literalArgument: /ARG:literal; \$\(echo never-interpolate\) ' " spaces/u,
+	missing: /missing/u,
+	never: /NEVER/u,
+	outputLimit: /^Terminal output limit exceeded$/u,
+	privateReady: /ready/u,
 	ready: /READY/u,
 	received: /RECEIVED/u,
-	first: /FIRST/u,
 	second: /SECOND café/u,
-	privateReady: /ready/u,
-	deadline: /^Terminal process timed out$/u,
-	outputLimit: /^Terminal output limit exceeded$/u,
-	never: /NEVER/u,
-	missing: /missing/u,
+	tty: /TTY:true,true,true/u,
 	waitDeadline: /^Timed out waiting for terminal output; output withheld$/u,
 };
 
@@ -28,11 +28,11 @@ const terminal = (
 	options: { timeoutMs?: number; maxOutputBytes?: number; args?: string[] } = {}
 ) => {
 	const child = startTerminal({
-		command: process.execPath,
 		args: ["-e", script, ...(options.args ?? [])],
+		command: process.execPath,
 		env: { PATH: process.env.PATH ?? "", TERM: "xterm-256color" },
-		timeoutMs: options.timeoutMs ?? 5000,
 		maxOutputBytes: options.maxOutputBytes,
+		timeoutMs: options.timeoutMs ?? 5000,
 	});
 	terminals.push(child);
 	return child;
@@ -47,7 +47,7 @@ afterEach(async () => {
 			.splice(0)
 			.map(
 				async (directory) =>
-					await rm(directory, { recursive: true, force: true })
+					await rm(directory, { force: true, recursive: true })
 			)
 	);
 });

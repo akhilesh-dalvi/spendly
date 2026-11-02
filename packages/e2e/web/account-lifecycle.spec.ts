@@ -10,40 +10,40 @@ test("edits, defaults, archives and reactivates an account without losing its le
 	const { destinationId, date } = await seedUser(user);
 	await page.goto(`/accounts/${destinationId}`);
 	await page.getByLabel("Account name", { exact: true }).fill("E2E Rainy day");
-	await page.getByRole("button", { name: "Save changes", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "Save changes" }).click();
 	await expect(
-		page.getByRole("heading", { name: "E2E Rainy day", exact: true })
+		page.getByRole("heading", { exact: true, name: "E2E Rainy day" })
 	).toBeVisible();
-	await page.getByRole("button", { name: "Make default", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "Make default" }).click();
 	await expect(
-		page.getByRole("button", { name: "Default account", exact: true })
+		page.getByRole("button", { exact: true, name: "Default account" })
 	).toBeDisabled();
 	expect((await user.query(api.users.get, {})).defaultAccountId).toBe(
 		destinationId
 	);
 	await page.goto("/expenses/new");
 	await expect(
-		page.getByRole("combobox", { name: "Account (optional)", exact: true })
+		page.getByRole("combobox", { exact: true, name: "Account (optional)" })
 	).toHaveText("E2E Rainy day");
 	await page.goto(`/accounts/${destinationId}`);
-	await page.getByRole("button", { name: "Archive", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "Archive" }).click();
 	const confirmation = page.getByRole("alertdialog", {
-		name: "Archive E2E Rainy day?",
 		exact: true,
+		name: "Archive E2E Rainy day?",
 	});
 	await confirmation
-		.getByRole("button", { name: "Cancel", exact: true })
+		.getByRole("button", { exact: true, name: "Cancel" })
 		.click();
 	expect(
 		(await user.query(api.accounts.get, { accountId: destinationId }))
 			.isArchived
 	).toBe(false);
-	await page.getByRole("button", { name: "Archive", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "Archive" }).click();
 	await confirmation
-		.getByRole("button", { name: "Archive account", exact: true })
+		.getByRole("button", { exact: true, name: "Archive account" })
 		.click();
 	await expect(
-		page.getByRole("button", { name: "Reactivate", exact: true })
+		page.getByRole("button", { exact: true, name: "Reactivate" })
 	).toBeVisible();
 	expect(
 		(await user.query(api.accounts.list, {})).map((account) => account._id)
@@ -64,19 +64,19 @@ test("edits, defaults, archives and reactivates an account without losing its le
 			accountId: destinationId,
 		})
 	).toMatchObject([
-		{ type: "opening_balance", amount: 200, balanceAfter: 200 },
+		{ amount: 200, balanceAfter: 200, type: "opening_balance" },
 	]);
-	await page.getByRole("button", { name: "Reactivate", exact: true }).click();
+	await page.getByRole("button", { exact: true, name: "Reactivate" }).click();
 	await expect(
-		page.getByRole("button", { name: "Archive", exact: true })
+		page.getByRole("button", { exact: true, name: "Archive" })
 	).toBeVisible();
 	await page.reload();
 	expect(
 		await user.query(api.accounts.get, { accountId: destinationId })
 	).toMatchObject({
-		name: "E2E Rainy day",
-		isArchived: false,
 		currentBalance: 200,
+		isArchived: false,
+		name: "E2E Rainy day",
 		startingBalance: 200,
 	});
 	expect(

@@ -10,7 +10,7 @@ import type { CliRuntime } from "../src/runtime.js";
 vi.mock("@napi-rs/keyring", () => ({
 	Entry: class {
 		deletePassword() {
-			return undefined;
+			// This mock must never access the operating-system keychain.
 		}
 		getPassword() {
 			return null;
@@ -85,34 +85,32 @@ const rejectInjection = (): Promise<never> =>
 	Promise.reject(new Error("must not use injected credentials"));
 
 describe("development auth credential injection", () => {
-	it.each([
-		{ command: ["auth", "status"] },
-		{ command: ["context"] },
-	])("ignores injected storage for $command in production", async ({
-		command,
-	}) => {
-		const store: CredentialStore = {
-			delete: rejectInjection,
-			read: rejectInjection,
-			write: rejectInjection,
-		};
-		const harness = createHarness(false, store);
-		Object.defineProperty(harness.runtime, "credentialStore", {
-			get: () => {
-				throw new Error("must not inspect injected credentials");
-			},
-		});
+	it.each([{ command: ["auth", "status"] }, { command: ["context"] }])(
+		"ignores injected storage for $command in production",
+		async ({ command }) => {
+			const store: CredentialStore = {
+				delete: rejectInjection,
+				read: rejectInjection,
+				write: rejectInjection,
+			};
+			const harness = createHarness(false, store);
+			Object.defineProperty(harness.runtime, "credentialStore", {
+				get: () => {
+					throw new Error("must not inspect injected credentials");
+				},
+			});
 
-		expect(await runCli([...command, "--json"], harness.runtime)).toBe(
-			CLI_EXIT_CODE.authentication
-		);
-		expect(JSON.parse(harness.getStdout())).toMatchObject({
-			error: {
-				code: "AUTHENTICATION_REQUIRED",
-				message: "Run `spendly auth login` first",
-			},
-		});
-	});
+			expect(await runCli([...command, "--json"], harness.runtime)).toBe(
+				CLI_EXIT_CODE.authentication
+			);
+			expect(JSON.parse(harness.getStdout())).toMatchObject({
+				error: {
+					code: "AUTHENTICATION_REQUIRED",
+					message: "Run `spendly auth login` first",
+				},
+			});
+		}
+	);
 
 	it("still verifies injected tokens with the authentication provider", async () => {
 		const store = createMemoryStore({
@@ -151,26 +149,24 @@ describe("development auth credential injection", () => {
 		expect(harness.getStdout()).not.toContain("private-refresh-token");
 		expect(harness.getStdout()).not.toContain("not-a-valid-id-token");
 	});
-	it.each([
-		{ command: ["auth", "status"] },
-		{ command: ["context"] },
-	])("uses injected storage for $command without bypassing authentication", async ({
-		command,
-	}) => {
-		const store = createMemoryStore(mismatchedSession);
-		const harness = createHarness(true, store);
+	it.each([{ command: ["auth", "status"] }, { command: ["context"] }])(
+		"uses injected storage for $command without bypassing authentication",
+		async ({ command }) => {
+			const store = createMemoryStore(mismatchedSession);
+			const harness = createHarness(true, store);
 
-		const exitCode = await runCli([...command, "--json"], harness.runtime);
+			const exitCode = await runCli([...command, "--json"], harness.runtime);
 
-		expect(exitCode).toBe(CLI_EXIT_CODE.authentication);
-		expect(JSON.parse(harness.getStdout())).toMatchObject({
-			error: {
-				code: "AUTHENTICATION_REQUIRED",
-				message:
-					"Stored credentials belong to a different authentication configuration",
-			},
-		});
-		expect(await store.read()).toBeNull();
-		expect(harness.getStderr()).toBe("");
-	});
+			expect(exitCode).toBe(CLI_EXIT_CODE.authentication);
+			expect(JSON.parse(harness.getStdout())).toMatchObject({
+				error: {
+					code: "AUTHENTICATION_REQUIRED",
+					message:
+						"Stored credentials belong to a different authentication configuration",
+				},
+			});
+			expect(await store.read()).toBeNull();
+			expect(harness.getStderr()).toBe("");
+		}
+	);
 });

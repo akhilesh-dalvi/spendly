@@ -7,17 +7,17 @@ const workspace = fileURLToPath(new URL("../", import.meta.url));
 const smokePattern = "(?:^|\\s)@smoke(?:\\s|$)";
 const smokeMarker = new RegExp(smokePattern);
 const environment = {
-	PATH: process.env.PATH ?? "",
-	HOME: process.env.HOME ?? "",
-	npm_config_manage_package_manager_versions: "false",
-	SPENDLY_E2E_ENABLED: "true",
-	E2E_CONVEX_URL: "https://e2e-fixtures.convex.cloud",
-	E2E_CONVEX_DEPLOY_KEY: "dev:e2e-fixtures|synthetic-secret",
 	E2E_CLERK_ISSUER: "https://fixture.clerk.accounts.dev",
+	E2E_CLERK_OAUTH_CLIENT_ID: "test-oauth-client",
 	E2E_CLERK_PUBLISHABLE_KEY: `pk_test_${Buffer.from("fixture.clerk.accounts.dev$").toString("base64")}`,
 	E2E_CLERK_SECRET_KEY: "sk_test_synthetic-secret",
-	E2E_CLERK_OAUTH_CLIENT_ID: "test-oauth-client",
+	E2E_CONVEX_DEPLOY_KEY: "dev:e2e-fixtures|synthetic-secret",
+	E2E_CONVEX_URL: "https://e2e-fixtures.convex.cloud",
 	E2E_EXTENDED_BROWSERS: "true",
+	HOME: process.env.HOME ?? "",
+	npm_config_manage_package_manager_versions: "false",
+	PATH: process.env.PATH ?? "",
+	SPENDLY_E2E_ENABLED: "true",
 };
 
 // These are collection-only commands. Playwright --list never starts setup or
@@ -25,8 +25,8 @@ const environment = {
 // live files. Ordinary Vitest list DOES run global setup and is not safe here.
 const collect = async (args: string[]): Promise<unknown> => {
 	const result = await runProcess({
-		command: "pnpm",
 		args: ["--dir", workspace, "exec", ...args],
+		command: "pnpm",
 		env: environment,
 		timeoutMs: 10_000,
 	});
@@ -37,9 +37,9 @@ const collect = async (args: string[]): Promise<unknown> => {
 };
 
 const webSpec = z.object({
-	title: z.string(),
 	tags: z.array(z.string()),
 	tests: z.array(z.object({ projectName: z.string() })),
+	title: z.string(),
 });
 const webSuite = z.object({
 	file: z.string(),
@@ -48,8 +48,8 @@ const webSuite = z.object({
 });
 interface WebCase {
 	name: string;
-	tags: string[];
 	project: string;
+	tags: string[];
 }
 const webCases = (suites: unknown[]): WebCase[] => {
 	const cases: WebCase[] = [];
@@ -59,8 +59,8 @@ const webCases = (suites: unknown[]): WebCase[] => {
 			for (const test of spec.tests) {
 				cases.push({
 					name: `${suite.file}:${spec.title}`,
-					tags: spec.tags,
 					project: test.projectName,
+					tags: spec.tags,
 				});
 			}
 		}
@@ -69,8 +69,8 @@ const webCases = (suites: unknown[]): WebCase[] => {
 	return cases;
 };
 const webReport = z.object({
-	suites: z.array(z.unknown()),
 	errors: z.array(z.unknown()).length(0),
+	suites: z.array(z.unknown()),
 });
 
 it("collects seven Chromium smoke journeys while full retains all Web and compatibility cases", async () => {
@@ -100,7 +100,7 @@ it("statically collects five CLI smoke journeys while full retains credential an
 		"--staticParse",
 		"--json",
 	];
-	const schema = z.array(z.object({ name: z.string(), file: z.string() }));
+	const schema = z.array(z.object({ file: z.string(), name: z.string() }));
 	const smoke = schema.parse(
 		await collect([...args, "--testNamePattern", smokePattern])
 	);

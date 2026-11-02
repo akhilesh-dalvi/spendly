@@ -68,10 +68,15 @@ Read SKILL.md and only the references needed for this case. Do not execute the S
 
 ${evaluation.prompt}`;
 
-const runAgent = ({ agent, prompt, responsePath, sessionDirectory }) => {
-	const command = agent === "codex" ? "codex" : "claude";
+const runAgent = ({
+	agent: agentName,
+	prompt,
+	responsePath,
+	sessionDirectory,
+}) => {
+	const command = agentName === "codex" ? "codex" : "claude";
 	const args =
-		agent === "codex"
+		agentName === "codex"
 			? [
 					"exec",
 					"--ephemeral",
@@ -105,7 +110,7 @@ const runAgent = ({ agent, prompt, responsePath, sessionDirectory }) => {
 		result.status === 0,
 		`${command} exited with status ${result.status}: ${result.stderr.slice(-2000)}`
 	);
-	if (agent === "claude") {
+	if (agentName === "claude") {
 		writeFileSync(responsePath, result.stdout);
 	}
 };

@@ -6,8 +6,7 @@ const readCliOAuthClientId = (): string | undefined => {
 	try {
 		return process.env.CLERK_CLI_OAUTH_CLIENT_ID;
 	} catch (error) {
-		// Convex auth config throws on missing env reads instead of returning undefined.
-		// Web-only deployments must not require the optional CLI OAuth provider.
+		// Convex throws on missing env reads; CLI OAuth is optional for web-only deployments.
 		if (
 			error instanceof Error &&
 			error.message.includes(
@@ -27,9 +26,9 @@ if (!clerkDomain) {
 const cliOAuthClientId = readCliOAuthClientId();
 
 const webProvider = {
+	applicationID: "convex",
 	// See https://docs.convex.dev/auth/clerk#configuring-dev-and-prod-instances
 	domain: clerkDomain,
-	applicationID: "convex",
 };
 
 export default {

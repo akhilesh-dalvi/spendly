@@ -61,7 +61,6 @@ export const get = query({
 		),
 		timezone: v.optional(v.string()),
 	},
-	returns: contextValidator,
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
@@ -153,4 +152,5 @@ export const get = query({
 				warnings: [],
 			};
 		}),
+	returns: contextValidator,
 });

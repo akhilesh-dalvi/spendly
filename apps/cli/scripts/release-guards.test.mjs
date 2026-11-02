@@ -16,6 +16,9 @@ import { verifyReleaseArtifact } from "./verify-release-artifact.mjs";
 import { verifyReleaseSource } from "./verify-release-source.mjs";
 
 const packageDirectory = join(dirname(fileURLToPath(import.meta.url)), "..");
+const releaseVersion = JSON.parse(
+	readFileSync(join(packageDirectory, "package.json"), "utf8")
+).version;
 const bootstrapPublishPattern = /npm publish "([^"]+)"/u;
 const stagedPublishPattern = /npm stage publish "([^"]+)"/u;
 const relativePathPattern = /^\.\//u;
@@ -28,11 +31,11 @@ const createDirectory = () => {
 
 afterEach(() => {
 	for (const directory of temporaryDirectories.splice(0)) {
-		rmSync(directory, { recursive: true, force: true });
+		rmSync(directory, { force: true, recursive: true });
 	}
 });
 
-const createArtifact = (overrides = {}) => {
+const createArtifact = (overrides = {}, mutateShrinkwrap = null) => {
 	const directory = createDirectory();
 	const contents = join(directory, "contents");
 	const packedDirectory = join(contents, "package");
@@ -48,10 +51,14 @@ const createArtifact = (overrides = {}) => {
 		...overrides,
 	};
 	writeFileSync(metadataPath, JSON.stringify(metadata));
+	const shrinkwrapPath = join(packedDirectory, "npm-shrinkwrap.json");
+	const shrinkwrap = JSON.parse(readFileSync(shrinkwrapPath, "utf8"));
+	mutateShrinkwrap?.(shrinkwrap);
+	writeFileSync(shrinkwrapPath, JSON.stringify(shrinkwrap));
 	const environment = {
-		RELEASE_VERSION: "0.1.2",
+		RELEASE_VERSION: releaseVersion,
 		SOURCE_COMMIT: "a".repeat(40),
-		TARBALL: "spendly-0.1.2.tgz",
+		TARBALL: `spendly-${releaseVersion}.tgz`,
 	};
 	const tarball = join(artifactDirectory, environment.TARBALL);
 	execFileSync("tar", ["-czf", tarball, "-C", contents, "package"]);
@@ -124,7 +131,7 @@ describe("publication artifact guards", () => {
 		expect(
 			verifyReleaseArtifact(fixture.environment, fixture.artifactDirectory)
 				.version
-		).toBe("0.1.2");
+		).toBe(fixture.environment.RELEASE_VERSION);
 		expect(readFileSync(fixture.tarball)).toEqual(before);
 	});
 	it("rejects tampered tarballs even when the recorded checksum is unchanged", () => {
@@ -165,11 +172,35 @@ describe("publication artifact guards", () => {
 			verifyReleaseArtifact(fixture.environment, fixture.artifactDirectory)
 		).toThrow(message);
 	});
+	it("rejects development metadata inside an otherwise verified tarball", () => {
+		const fixture = createArtifact({}, (shrinkwrap) => {
+			shrinkwrap.packages[""].devDependencies = { vitest: "4.1.11" };
+		});
+		expect(() =>
+			verifyReleaseArtifact(fixture.environment, fixture.artifactDirectory)
+		).toThrow("Shrinkwrap root must omit devDependencies");
+	});
+	it("rejects development-only entries inside an otherwise verified tarball", () => {
+		const fixture = createArtifact({}, (shrinkwrap) => {
+			shrinkwrap.packages["node_modules/development-only"] = {
+				dev: true,
+				version: "1.0.0",
+			};
+		});
+		expect(() =>
+			verifyReleaseArtifact(fixture.environment, fixture.artifactDirectory)
+		).toThrow(
+			"Shrinkwrap entry node_modules/development-only must not be development-only"
+		);
+	});
 	it("rejects a filename outside the artifact directory", () => {
 		const fixture = createArtifact();
 		expect(() =>
 			verifyReleaseArtifact(
-				{ ...fixture.environment, TARBALL: "../spendly-0.1.2.tgz" },
+				{
+					...fixture.environment,
+					TARBALL: `../${fixture.environment.TARBALL}`,
+				},
 				fixture.artifactDirectory
 			)
 		).toThrow("Unexpected tarball filename");
@@ -186,28 +217,28 @@ describe("publication artifact guards", () => {
 const createSourceFixture = () => {
 	const commit = "a".repeat(40);
 	const environment = {
-		GITHUB_REPOSITORY: "akhilesh-dalvi/spendly",
-		GITHUB_REF: "refs/heads/master",
-		GITHUB_SHA: commit,
-		SOURCE_COMMIT: commit,
-		RELEASE_VERSION: "0.1.2",
 		CANDIDATE_RUN: "42",
+		GITHUB_REF: "refs/heads/master",
+		GITHUB_REPOSITORY: "akhilesh-dalvi/spendly",
+		GITHUB_SHA: commit,
+		RELEASE_VERSION: "0.1.2",
+		SOURCE_COMMIT: commit,
 	};
 	const run = {
-		head_sha: commit,
+		conclusion: "success",
+		event: "push",
 		head_branch: "master",
 		head_repository: { full_name: environment.GITHUB_REPOSITORY },
-		event: "push",
+		head_sha: commit,
 		status: "completed",
-		conclusion: "success",
 	};
 	const responses = {
 		"commits/master": { sha: commit },
 		"commits/refs%2Ftags%2Fv0.1.2": { sha: commit },
 		"releases/tags/v0.1.2": {
-			tag_name: "v0.1.2",
-			draft: false,
 			body: "Release notes",
+			draft: false,
+			tag_name: "v0.1.2",
 		},
 		[`actions/workflows/cli-ci.yml/runs?head_sha=${commit}&event=push&status=success&per_page=100`]:
 			{ workflow_runs: [run] },
@@ -223,7 +254,7 @@ const createSourceFixture = () => {
 		}
 		return responses[path];
 	};
-	return { environment, responses, request };
+	return { environment, request, responses };
 };
 
 describe("hosted release identity guards", () => {
@@ -311,6 +342,7 @@ describe("public release metadata", () => {
 			"package.json",
 			"npm-shrinkwrap.json",
 			"scripts/verify-release-metadata.mjs",
+			"scripts/verify-production-shrinkwrap.mjs",
 		]) {
 			copyFileSync(join(packageDirectory, name), join(fixture, name));
 		}

@@ -6,7 +6,7 @@ import { useMutation, useQuery } from "convex/react";
 import { format, parseISO } from "date-fns";
 import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { use, useState } from "react";
+import { type MouseEvent, use, useCallback, useState } from "react";
 import { toast } from "sonner";
 import { ExpenseForm } from "@/components/expense-form";
 import { Loader } from "@/components/loader";
@@ -47,26 +47,38 @@ export default function ExpenseDetailModal({
 	);
 	const removeExpense = useMutation(api.expenses.remove);
 
-	const handleOpenChange = (val: boolean) => {
-		setOpen(val);
-		if (!val) {
-			router.back();
-		}
-	};
+	const handleOpenChange = useCallback(
+		(val: boolean) => {
+			setOpen(val);
+			if (!val) {
+				router.back();
+			}
+		},
+		[router]
+	);
+	const close = useCallback(() => handleOpenChange(false), [handleOpenChange]);
 
-	const handleDelete = async () => {
-		try {
-			await removeExpense({ id: id as Id<"expenses"> });
-			setIsDeleted(true);
-			toast.success("Expense deleted");
-			handleOpenChange(false);
-		} catch (error) {
-			reportError(error, { feature: "expenses", operation: "delete" });
-			toast.error(
-				error instanceof Error ? error.message : "Failed to delete expense"
-			);
-		}
-	};
+	const stopPropagation = useCallback(
+		(event: MouseEvent<HTMLButtonElement>) => event.stopPropagation(),
+		[]
+	);
+	const handleDelete = useCallback(
+		async (event: MouseEvent<HTMLButtonElement>) => {
+			event.stopPropagation();
+			try {
+				await removeExpense({ id: id as Id<"expenses"> });
+				setIsDeleted(true);
+				toast.success("Expense deleted");
+				handleOpenChange(false);
+			} catch (error) {
+				reportError(error, { feature: "expenses", operation: "delete" });
+				toast.error(
+					error instanceof Error ? error.message : "Failed to delete expense"
+				);
+			}
+		},
+		[id, removeExpense, handleOpenChange]
+	);
 
 	return (
 		<Dialog onOpenChange={handleOpenChange} open={open}>
@@ -87,22 +99,22 @@ export default function ExpenseDetailModal({
 					<>
 						<ExpenseForm
 							defaultValues={{
-								amount: expense.amount,
 								accountId: expense.accountId ?? "",
+								amount: expense.amount,
 								categoryId: expense.categoryId ?? "",
 								date: parseISO(expense.date),
 								spentOn: expense.spentOn ?? "",
 								tagIds: expense.tagIds ?? [],
 							}}
 							expenseId={expense._id}
-							onSuccess={() => handleOpenChange(false)}
+							onSuccess={close}
 						/>
 						<DialogFooter>
 							<AlertDialog>
 								<AlertDialogTrigger asChild>
 									<Button
 										className="mx-auto border-destructive/30 hover:border-destructive hover:bg-destructive/10 hover:text-destructive"
-										onClick={(event) => event.stopPropagation()}
+										onClick={stopPropagation}
 										variant="outline"
 									>
 										<Trash2 className="mr-2 h-4 w-4" />
@@ -120,10 +132,7 @@ export default function ExpenseDetailModal({
 									<AlertDialogFooter>
 										<AlertDialogCancel>Cancel</AlertDialogCancel>
 										<AlertDialogAction
-											onClick={(event) => {
-												event.stopPropagation();
-												handleDelete();
-											}}
+											onClick={handleDelete}
 											variant="destructive"
 										>
 											Delete

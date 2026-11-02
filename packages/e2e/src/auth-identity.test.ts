@@ -4,13 +4,13 @@ import { loadEnvironment } from "./environment";
 import { findClerkUser } from "./users";
 
 const config = loadEnvironment({
-	SPENDLY_E2E_ENABLED: "true",
-	E2E_CONVEX_URL: "https://e2e-test.convex.cloud",
-	E2E_CONVEX_DEPLOY_KEY: "dev:e2e-test|synthetic",
 	E2E_CLERK_ISSUER: "https://e2e-test.clerk.accounts.dev",
+	E2E_CLERK_OAUTH_CLIENT_ID: "synthetic-client",
 	E2E_CLERK_PUBLISHABLE_KEY: `pk_test_${Buffer.from("e2e-test.clerk.accounts.dev$").toString("base64")}`,
 	E2E_CLERK_SECRET_KEY: "sk_test_synthetic",
-	E2E_CLERK_OAUTH_CLIENT_ID: "synthetic-client",
+	E2E_CONVEX_DEPLOY_KEY: "dev:e2e-test|synthetic",
+	E2E_CONVEX_URL: "https://e2e-test.convex.cloud",
+	SPENDLY_E2E_ENABLED: "true",
 });
 const email = `spendly-e2e-${randomUUID()}+clerk_test@example.com`;
 
@@ -22,7 +22,7 @@ it("resolves only the exact synthetic email, with a bounded lookup rather than a
 	const fetcher = vi.fn(
 		async (_request: string | URL | Request, _options?: RequestInit) =>
 			Response.json([
-				{ id: "user_synthetic", email_addresses: [{ email_address: email }] },
+				{ email_addresses: [{ email_address: email }], id: "user_synthetic" },
 			])
 	);
 	vi.stubGlobal("fetch", fetcher);
@@ -44,30 +44,29 @@ it("rejects non-fixture emails before any provider request", async () => {
 	expect(fetcher).not.toHaveBeenCalled();
 });
 
-it.each([
-	"mismatch",
-	"multiple",
-	"malformed",
-])("refuses %s lookup responses without disclosing provider contents", async (kind) => {
-	let response: unknown = [
-		{
-			id: "user_synthetic",
-			email_addresses: [{ email_address: "other@example.com" }],
-		},
-	];
-	if (kind === "multiple") {
-		response = [
-			{ id: "user_one", email_addresses: [{ email_address: email }] },
-			{ id: "user_two", email_addresses: [{ email_address: email }] },
+it.each(["mismatch", "multiple", "malformed"])(
+	"refuses %s lookup responses without disclosing provider contents",
+	async (kind) => {
+		let response: unknown = [
+			{
+				email_addresses: [{ email_address: "other@example.com" }],
+				id: "user_synthetic",
+			},
 		];
-	} else if (kind === "malformed") {
-		response = { private_provider_response: "secret-token" };
+		if (kind === "multiple") {
+			response = [
+				{ email_addresses: [{ email_address: email }], id: "user_one" },
+				{ email_addresses: [{ email_address: email }], id: "user_two" },
+			];
+		} else if (kind === "malformed") {
+			response = { private_provider_response: "secret-token" };
+		}
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => Response.json(response))
+		);
+		await expect(findClerkUser(config, email)).rejects.toThrow(
+			"lookup failed; response withheld"
+		);
 	}
-	vi.stubGlobal(
-		"fetch",
-		vi.fn(async () => Response.json(response))
-	);
-	await expect(findClerkUser(config, email)).rejects.toThrow(
-		"lookup failed; response withheld"
-	);
-});
+);

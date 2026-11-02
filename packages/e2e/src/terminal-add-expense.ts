@@ -1,19 +1,20 @@
+// biome-ignore-all lint/performance/noAwaitInLoops: Stateful E2E steps and fixture cleanup require ordered execution.
 import { type RunningTerminal, terminalKeys } from "./terminal";
 
 const patterns = {
 	amountPrompt: /Expense amount/u,
 	amountValue: /12\.50/u,
+	automaticAccount: /› ● Use the default account automatically/u,
 	descriptionPrompt: /What was this spent on\?/u,
 	descriptionValue: /PTY synthetic purchase/u,
-	uncategorized: /› ● Uncategorized/u,
-	automaticAccount: /› ● Use the default account automatically/u,
-	unassignedAccount: /› ● Leave unassigned/u,
-	savingsAccount: /› ● E2E Savings/u,
-	walletAccount: /› ● E2E Wallet/u,
-	essentialUnselected: /› ◻ E2E Essential/u,
 	essentialSelected: /› ◼ E2E Essential/u,
-	optionalUnselected: /› ◻ E2E Optional/u,
+	essentialUnselected: /› ◻ E2E Essential/u,
 	optionalSelected: /› ◼ E2E Optional/u,
+	optionalUnselected: /› ◻ E2E Optional/u,
+	savingsAccount: /› ● E2E Savings/u,
+	unassignedAccount: /› ● Leave unassigned/u,
+	uncategorized: /› ● Uncategorized/u,
+	walletAccount: /› ● E2E Wallet/u,
 };
 
 /** Drive the real prompt renderer, one acknowledged keypress at a time. */

@@ -14,6 +14,7 @@ const accessCredentials = async <T>(
 	try {
 		return await operation();
 	} catch {
+		// biome-ignore lint/style/useErrorCause: Never retain credential-bearing provider, filesystem, or subprocess errors.
 		throw new CliError(
 			"CREDENTIALS_INVALID",
 			"Unable to access development credential storage"

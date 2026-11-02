@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 const ALLOWED_OUTPUT_DIRECTORIES = new Set(["development-dist", "dist"]);
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const packageDirectory = resolve(scriptDirectory, "..");
-const requestedDirectory = process.argv[2];
+const [, , requestedDirectory] = process.argv;
 const outputDirectory = resolve(packageDirectory, requestedDirectory ?? "");
 
 if (

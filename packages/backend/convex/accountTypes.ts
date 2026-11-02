@@ -28,12 +28,11 @@ const MAX_ACCOUNT_TYPE_USAGE_RESULTS = 1000;
 const getUserAccountTypes = async (
 	ctx: QueryCtx | MutationCtx,
 	userId: Id<"users">
-): Promise<Doc<"account_types">[]> => {
-	return await ctx.db
+): Promise<Doc<"account_types">[]> =>
+	await ctx.db
 		.query("account_types")
 		.withIndex("by_userId_order", (q) => q.eq("userId", userId))
 		.take(MAX_ACCOUNT_TYPES_PER_USER);
-};
 
 const assertAccountTypeNameAvailable = async (
 	ctx: MutationCtx,
@@ -72,7 +71,6 @@ export const list = query({
 	args: {
 		includeArchived: v.optional(v.boolean()),
 	},
-	returns: accountTypeListValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const accountTypes = await getUserAccountTypes(ctx, user._id);
@@ -81,13 +79,13 @@ export const list = query({
 		}
 		return accountTypes.filter((accountType) => !accountType.isArchived);
 	},
+	returns: accountTypeListValidator,
 });
 
 export const get = query({
 	args: {
 		accountTypeId: v.id("account_types"),
 	},
-	returns: accountTypeValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		return await validateAccountTypeOwnership(
@@ -96,13 +94,13 @@ export const get = query({
 			user._id
 		);
 	},
+	returns: accountTypeValidator,
 });
 
 export const getUsage = query({
 	args: {
 		accountTypeId: v.id("account_types"),
 	},
-	returns: accountTypeUsageValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		await validateAccountTypeOwnership(ctx, args.accountTypeId, user._id);
@@ -123,6 +121,7 @@ export const getUsage = query({
 			hasMoreAccounts,
 		};
 	},
+	returns: accountTypeUsageValidator,
 });
 
 export const create = mutation({
@@ -132,7 +131,6 @@ export const create = mutation({
 		icon: v.optional(v.string()),
 		name: v.string(),
 	},
-	returns: accountTypeValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const { name, normalizedName } = normalizeAccountTypeName(args.name);
@@ -157,6 +155,7 @@ export const create = mutation({
 		});
 		return await getAccountTypeAfterWrite(ctx, accountTypeId);
 	},
+	returns: accountTypeValidator,
 });
 
 export const update = mutation({
@@ -167,7 +166,6 @@ export const update = mutation({
 		icon: v.optional(v.union(v.string(), v.null())),
 		name: v.optional(v.string()),
 	},
-	returns: accountTypeValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		const accountType = await validateAccountTypeOwnership(
@@ -214,6 +212,7 @@ export const update = mutation({
 		await ctx.db.patch(args.accountTypeId, updates);
 		return await getAccountTypeAfterWrite(ctx, args.accountTypeId);
 	},
+	returns: accountTypeValidator,
 });
 
 export const archive = mutation({
@@ -221,7 +220,6 @@ export const archive = mutation({
 		accountTypeId: v.id("account_types"),
 		isArchived: v.boolean(),
 	},
-	returns: accountTypeValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		await validateAccountTypeOwnership(ctx, args.accountTypeId, user._id);
@@ -231,13 +229,13 @@ export const archive = mutation({
 		});
 		return await getAccountTypeAfterWrite(ctx, args.accountTypeId);
 	},
+	returns: accountTypeValidator,
 });
 
 export const remove = mutation({
 	args: {
 		accountTypeId: v.id("account_types"),
 	},
-	returns: accountTypeRemoveResultValidator,
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		await validateAccountTypeOwnership(ctx, args.accountTypeId, user._id);
@@ -253,13 +251,14 @@ export const remove = mutation({
 		await ctx.db.delete(args.accountTypeId);
 		return { success: true } as const;
 	},
+	returns: accountTypeRemoveResultValidator,
 });
 
 export const seedDefaults = mutation({
 	args: {},
-	returns: accountTypeSeedResultValidator,
 	handler: async (ctx) => {
 		const user = await getCurrentUser(ctx);
 		return await seedDefaultAccountTypes(ctx, user._id);
 	},
+	returns: accountTypeSeedResultValidator,
 });

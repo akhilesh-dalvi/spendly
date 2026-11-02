@@ -1,4 +1,5 @@
 // biome-ignore-all lint/style/useFilenamingConvention: Convex module filenames use camelCase.
+
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
@@ -8,6 +9,7 @@ import {
 	validateAccountOwnership,
 	validateCategoryOwnership,
 } from "../helpers";
+import { forEachSequential } from "../lib/async";
 import type { ActionSource } from "./actionSource";
 import { resolveLocalDate } from "./dates";
 import { assertRevision, INITIAL_REVISION, nextRevision } from "./revisions";
@@ -94,12 +96,12 @@ const validateTagOwnership = async (
 	tagIds: Id<"tags">[]
 ): Promise<Id<"tags">[]> => {
 	const uniqueTagIds = [...new Set(tagIds)];
-	for (const tagId of uniqueTagIds) {
+	await forEachSequential(uniqueTagIds, async (tagId) => {
 		const tag = await ctx.db.get(tagId);
 		if (!tag || tag.userId !== userId) {
 			throw new ConvexError("TAG_NOT_FOUND");
 		}
-	}
+	});
 	return uniqueTagIds;
 };
 
@@ -115,7 +117,7 @@ const inferCategory = async (
 	if (!(options.spentOn && options.cycleId)) {
 		return undefined;
 	}
-	const cycleId = options.cycleId;
+	const { cycleId } = options;
 	const normalizedSpentOn = normalizeSpentOnForSearch(options.spentOn);
 	if (!normalizedSpentOn) {
 		return undefined;
@@ -311,9 +313,9 @@ export const commitExpenseCreate = async (
 		createdSource: options.source,
 		cycleId: options.prepared.cycleId,
 		date: options.prepared.date,
+		lastModifiedSource: options.source,
 		normalizedSpentOn: normalizeSpentOnForSearch(options.prepared.spentOn),
 		revision: INITIAL_REVISION,
-		lastModifiedSource: options.source,
 		spentOn: options.prepared.spentOn,
 		tagIds:
 			options.prepared.tagIds.length > 0 ? options.prepared.tagIds : undefined,
@@ -326,9 +328,9 @@ export const commitExpenseCreate = async (
 			date: options.prepared.date,
 			expenseId,
 			note: options.prepared.spentOn,
+			source: options.source,
 			type: "expense",
 			userId: options.userId,
-			source: options.source,
 		});
 	}
 	const expense = await ctx.db.get(expenseId);
@@ -431,9 +433,9 @@ const applyExpenseAccountBalanceUpdate = async (
 			date: after.date,
 			expenseId: after._id,
 			note: after.spentOn,
+			source,
 			type: "expense",
 			userId: after.userId,
-			source,
 		});
 		return;
 	}
@@ -445,9 +447,9 @@ const applyExpenseAccountBalanceUpdate = async (
 			date: after.date,
 			expenseId: after._id,
 			note: "Expense moved from account",
+			source,
 			type: "expense",
 			userId: after.userId,
-			source,
 		});
 	}
 	if (after.accountId) {
@@ -457,9 +459,9 @@ const applyExpenseAccountBalanceUpdate = async (
 			date: after.date,
 			expenseId: after._id,
 			note: after.spentOn,
+			source,
 			type: "expense",
 			userId: after.userId,
-			source,
 		});
 	}
 };
@@ -511,9 +513,9 @@ export const commitExpenseDelete = async (
 			date: expense.date,
 			expenseId: expense._id,
 			note: "Expense deleted",
+			source: options.source,
 			type: "expense",
 			userId: options.userId,
-			source: options.source,
 		});
 	}
 	await ctx.db.delete(expense._id);

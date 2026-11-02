@@ -26,15 +26,15 @@ test("signs up through the real Clerk form and follows its onboarding redirect",
 			email: user.email,
 		});
 		expect(await user.query(api.users.getOnboardingState, {})).toMatchObject({
-			step: "start",
-			path: null,
 			cycle: null,
+			path: null,
+			step: "start",
 		});
 		expect(await user.query(api.cycles.list, {})).toEqual([]);
 		await page.reload();
 		await expect(page).toHaveURL(ONBOARDING_START_URL);
 		await expect(
-			page.getByRole("button", { name: "Save and continue", exact: true })
+			page.getByRole("button", { exact: true, name: "Save and continue" })
 		).toBeVisible();
 	} finally {
 		await user.dispose();
@@ -46,9 +46,9 @@ test("signs in through the real Clerk UI and redirects a fresh user from a prote
 	user,
 }) => {
 	expect(await user.query(api.users.getOnboardingState, {})).toMatchObject({
-		step: "start",
-		path: null,
 		cycle: null,
+		path: null,
+		step: "start",
 	});
 	await page.goto("/expenses/new");
 	await expect(page).toHaveURL(ONBOARDING_START_URL);
@@ -58,46 +58,44 @@ test("signs in through the real Clerk UI and redirects a fresh user from a prote
 		})
 	).toBeVisible();
 	await expect(
-		page.getByRole("button", { name: "Save and continue", exact: true })
+		page.getByRole("button", { exact: true, name: "Save and continue" })
 	).toBeVisible();
 });
 
-test(
-	"logs out through the user menu and protects direct account and expense routes",
-	{ tag: "@smoke" },
-	async ({ page, user }) => {
-		const { accountId } = await seedUser(user);
-		await page.goto(`/accounts/${accountId}`);
-		await expect(
-			page.getByRole("heading", { name: "E2E Wallet", exact: true })
-		).toBeVisible();
-		// Exercise Spendly's NavUser handler, not the Clerk test SDK's signOut.
-		await page.getByRole("button").filter({ hasText: user.email }).click();
-		await page.getByRole("menuitem", { name: "Log out", exact: true }).click();
-		await page.waitForFunction(() =>
-			Boolean(window.Clerk?.loaded && !window.Clerk.session)
-		);
-		await page.goto(`/accounts/${accountId}`);
-		await expect(page).toHaveURL(SIGN_IN_URL);
-		expect(new URL(page.url()).searchParams.get("redirect_url")).toBe(
-			`${user.config.baseUrl}/accounts/${accountId}`
-		);
-		await expect(
-			page.getByRole("heading", { name: SIGN_IN_HEADING })
-		).toBeVisible();
-		await expect(
-			page.getByRole("heading", { name: "E2E Wallet", exact: true })
-		).toBeHidden();
-		await page.goto("/expenses/new");
-		await expect(page).toHaveURL(SIGN_IN_URL);
-		expect(new URL(page.url()).searchParams.get("redirect_url")).toBe(
-			`${user.config.baseUrl}/expenses/new`
-		);
-		await expect(page.getByLabel("Amount", { exact: true })).toBeHidden();
-		await page.reload();
-		await expect(page).toHaveURL(SIGN_IN_URL);
-		await expect(
-			page.getByRole("heading", { name: SIGN_IN_HEADING })
-		).toBeVisible();
-	}
-);
+test("logs out through the user menu and protects direct account and expense routes", {
+	tag: "@smoke",
+}, async ({ page, user }) => {
+	const { accountId } = await seedUser(user);
+	await page.goto(`/accounts/${accountId}`);
+	await expect(
+		page.getByRole("heading", { exact: true, name: "E2E Wallet" })
+	).toBeVisible();
+	// Exercise Spendly's NavUser handler, not the Clerk test SDK's signOut.
+	await page.getByRole("button").filter({ hasText: user.email }).click();
+	await page.getByRole("menuitem", { exact: true, name: "Log out" }).click();
+	await page.waitForFunction(() =>
+		Boolean(window.Clerk?.loaded && !window.Clerk.session)
+	);
+	await page.goto(`/accounts/${accountId}`);
+	await expect(page).toHaveURL(SIGN_IN_URL);
+	expect(new URL(page.url()).searchParams.get("redirect_url")).toBe(
+		`${user.config.baseUrl}/accounts/${accountId}`
+	);
+	await expect(
+		page.getByRole("heading", { name: SIGN_IN_HEADING })
+	).toBeVisible();
+	await expect(
+		page.getByRole("heading", { exact: true, name: "E2E Wallet" })
+	).toBeHidden();
+	await page.goto("/expenses/new");
+	await expect(page).toHaveURL(SIGN_IN_URL);
+	expect(new URL(page.url()).searchParams.get("redirect_url")).toBe(
+		`${user.config.baseUrl}/expenses/new`
+	);
+	await expect(page.getByLabel("Amount", { exact: true })).toBeHidden();
+	await page.reload();
+	await expect(page).toHaveURL(SIGN_IN_URL);
+	await expect(
+		page.getByRole("heading", { name: SIGN_IN_HEADING })
+	).toBeVisible();
+});

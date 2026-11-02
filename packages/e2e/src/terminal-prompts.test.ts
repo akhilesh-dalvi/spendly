@@ -50,12 +50,12 @@ try {
 let terminal: RunningTerminal | undefined;
 const start = () => {
 	terminal = startTerminal({
-		command: process.execPath,
 		args: ["--import", TSX_LOADER, "--input-type=module", "-e", SCRIPT],
+		command: process.execPath,
 		env: {
+			NO_COLOR: "1",
 			PATH: process.env.PATH ?? "",
 			TERM: "xterm-256color",
-			NO_COLOR: "1",
 		},
 		timeoutMs: 5000,
 	});
@@ -86,19 +86,19 @@ describe("real Clack prompt protocol over a PTY (offline)", () => {
 		expect(await child.result).toEqual({ exitCode: 0, signal: null });
 	});
 
-	it.each([
-		"amount",
-		"confirmation",
-	] as const)("cancels through a raw Ctrl+C byte at %s", async (stage) => {
-		const child = start();
-		if (stage === "amount") {
-			await child.waitForOutput(AMOUNT);
-		} else {
-			await answerAddExpense(child, ["E2E Wallet", "E2E Savings"]);
-			await child.waitForOutput(CONFIRMATION);
+	it.each(["amount", "confirmation"] as const)(
+		"cancels through a raw Ctrl+C byte at %s",
+		async (stage) => {
+			const child = start();
+			if (stage === "amount") {
+				await child.waitForOutput(AMOUNT);
+			} else {
+				await answerAddExpense(child, ["E2E Wallet", "E2E Savings"]);
+				await child.waitForOutput(CONFIRMATION);
+			}
+			child.write(terminalKeys.ctrlC);
+			await child.waitForOutput(CANCELLED);
+			expect(await child.result).toEqual({ exitCode: 0, signal: null });
 		}
-		child.write(terminalKeys.ctrlC);
-		await child.waitForOutput(CANCELLED);
-		expect(await child.result).toEqual({ exitCode: 0, signal: null });
-	});
+	);
 });

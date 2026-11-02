@@ -177,15 +177,18 @@ describe("isolated subprocesses", () => {
 		{ maxOutputBytes: Number.NaN },
 		{ maxOutputBytes: Number.POSITIVE_INFINITY },
 		{ maxOutputBytes: 1.5 },
-	])("rejects invalid bounds before executing the child: %j", async (limits) => {
-		await expect(
-			runProcess({
-				args: ["-e", "process.stdout.write('should not execute');"],
-				command: process.execPath,
-				...limits,
-			})
-		).rejects.toThrow("Invalid subprocess limits");
-	});
+	])(
+		"rejects invalid bounds before executing the child: %j",
+		async (limits) => {
+			await expect(
+				runProcess({
+					args: ["-e", "process.stdout.write('should not execute');"],
+					command: process.execPath,
+					...limits,
+				})
+			).rejects.toThrow("Invalid subprocess limits");
+		}
+	);
 	it("sanitizes synchronous spawn failures without exposing arguments or environment", async () => {
 		const child = startProcess({
 			args: ["secret-token\u0000"],

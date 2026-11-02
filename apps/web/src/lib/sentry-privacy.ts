@@ -75,10 +75,10 @@ interface DeploymentMetadata {
 function safeRoute(value: string): string {
 	let pathname: string;
 	try {
-		pathname = new URL(
+		({ pathname } = new URL(
 			value.replace(HTTP_METHOD, ""),
 			"https://spendly.invalid"
-		).pathname;
+		));
 	} catch {
 		return "/other";
 	}
@@ -121,14 +121,14 @@ function safeSource(value: string | undefined): string | undefined {
 
 function scrubFrame(frame: StackFrame): StackFrame {
 	return {
-		filename: safeSource(frame.filename),
 		abs_path: safeSource(frame.abs_path),
-		function: frame.function,
-		module: frame.module,
-		lineno: frame.lineno,
 		colno: frame.colno,
-		in_app: frame.in_app,
 		debug_id: frame.debug_id,
+		filename: safeSource(frame.filename),
+		function: frame.function,
+		in_app: frame.in_app,
+		lineno: frame.lineno,
+		module: frame.module,
 	};
 }
 
@@ -165,55 +165,55 @@ export function scrubErrorEvent(
 	const trace = event.contexts?.trace;
 	// Construct an allowlist instead of trying to detect arbitrary financial/free-text PII.
 	return {
-		type: undefined,
-		event_id: event.event_id,
-		timestamp: event.timestamp,
-		level: event.level,
-		platform: event.platform,
-		release: event.release,
-		environment: event.environment,
-		// An explicit non-routable IP prevents ingestion from inferring connection geolocation.
-		user: { ip_address: "0.0.0.0" },
-		sdk: event.sdk,
-		debug_meta: event.debug_meta,
-		message: event.message ? "Unexpected error in Spendly" : undefined,
-		tags: {
-			...safeTags(event.tags),
-			...getDiagnosticTags(hint.originalException),
-		},
-		transaction: event.transaction ? safeRoute(event.transaction) : undefined,
-		request: event.request?.url
-			? { url: safeRoute(event.request.url) }
-			: undefined,
 		contexts: trace
 			? {
 					trace: {
-						trace_id: trace.trace_id,
-						span_id: trace.span_id,
 						parent_span_id: trace.parent_span_id,
+						span_id: trace.span_id,
+						trace_id: trace.trace_id,
 					},
 				}
 			: undefined,
+		debug_meta: event.debug_meta,
+		environment: event.environment,
+		event_id: event.event_id,
 		exception: event.exception
 			? {
 					values: event.exception.values?.map((exception) => ({
-						type:
-							exception.type && ERROR_TYPES.has(exception.type)
-								? exception.type
-								: "Error",
-						value: "Unexpected error in Spendly",
 						mechanism: exception.mechanism
 							? {
-									type: exception.mechanism.type,
 									handled: exception.mechanism.handled,
+									type: exception.mechanism.type,
 								}
 							: undefined,
 						stacktrace: exception.stacktrace
 							? { frames: exception.stacktrace.frames?.map(scrubFrame) }
 							: undefined,
+						type:
+							exception.type && ERROR_TYPES.has(exception.type)
+								? exception.type
+								: "Error",
+						value: "Unexpected error in Spendly",
 					})),
 				}
 			: undefined,
+		level: event.level,
+		message: event.message ? "Unexpected error in Spendly" : undefined,
+		platform: event.platform,
+		release: event.release,
+		request: event.request?.url
+			? { url: safeRoute(event.request.url) }
+			: undefined,
+		sdk: event.sdk,
+		tags: {
+			...safeTags(event.tags),
+			...getDiagnosticTags(hint.originalException),
+		},
+		timestamp: event.timestamp,
+		transaction: event.transaction ? safeRoute(event.transaction) : undefined,
+		type: undefined,
+		// An explicit non-routable IP prevents ingestion from inferring connection geolocation.
+		user: { ip_address: "0.0.0.0" },
 	};
 }
 
@@ -226,14 +226,6 @@ export function scrubSpan(
 	const segmentId = span.attributes["sentry.segment.id"];
 	const segmentName = span.attributes["sentry.segment.name"];
 	return {
-		trace_id: span.trace_id,
-		span_id: span.span_id,
-		parent_span_id: span.parent_span_id,
-		start_timestamp: span.start_timestamp,
-		end_timestamp: span.end_timestamp,
-		status: span.status,
-		is_segment: span.is_segment,
-		name: span.is_segment ? safeRoute(span.name) : `Spendly ${safeOp}`,
 		attributes: {
 			"sentry.op": safeOp,
 			"sentry.trace_lifecycle": "stream",
@@ -246,6 +238,14 @@ export function scrubSpan(
 			...(deployment ? { "sentry.environment": deployment.environment } : {}),
 			...(deployment?.release ? { "sentry.release": deployment.release } : {}),
 		},
+		end_timestamp: span.end_timestamp,
+		is_segment: span.is_segment,
+		name: span.is_segment ? safeRoute(span.name) : `Spendly ${safeOp}`,
+		parent_span_id: span.parent_span_id,
+		span_id: span.span_id,
+		start_timestamp: span.start_timestamp,
+		status: span.status,
+		trace_id: span.trace_id,
 	};
 }
 
@@ -253,7 +253,7 @@ export function scrubEnvelope(
 	[headers]: [Record<string, unknown>, unknown[]],
 	deployment: DeploymentMetadata
 ): void {
-	const trace = headers.trace;
+	const { trace } = headers;
 	if (!trace || typeof trace !== "object") {
 		return;
 	}

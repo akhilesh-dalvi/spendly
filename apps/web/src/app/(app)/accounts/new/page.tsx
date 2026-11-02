@@ -1,9 +1,11 @@
 "use client";
 
 import { api } from "@spendly/backend/convex/_generated/api";
+import type { Id } from "@spendly/backend/convex/_generated/dataModel";
 import { useQuery } from "convex/react";
 import { ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useCallback } from "react";
 import { AccountForm } from "@/components/account-form";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,13 +20,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function NewAccountPage() {
 	const router = useRouter();
 	const user = useQuery(api.users.get);
+	const goBack = useCallback(() => router.push("/accounts"), [router]);
+	const handleSuccess = useCallback(
+		(accountId: Id<"accounts">) => router.push(`/accounts/${accountId}`),
+		[router]
+	);
 
 	return (
 		<div className="mx-auto flex w-full max-w-2xl flex-col gap-8 py-3">
 			<header className="flex items-center gap-4">
 				<Button
 					aria-label="Back to accounts"
-					onClick={() => router.push("/accounts")}
+					onClick={goBack}
 					size="icon"
 					variant="ghost"
 				>
@@ -56,7 +63,7 @@ export default function NewAccountPage() {
 					) : (
 						<AccountForm
 							defaultCurrency={user.currency ?? "USD"}
-							onSuccess={(accountId) => router.push(`/accounts/${accountId}`)}
+							onSuccess={handleSuccess}
 						/>
 					)}
 				</CardContent>

@@ -3,22 +3,22 @@ import { Badge } from "@/components/ui/badge";
 
 const corePoints = [
 	{
-		title: "Custom cycles instead of forced months",
 		description:
 			"Track pay periods, trips, semesters, or any timeline that reflects how you actually review spending.",
 		icon: CalendarRange,
+		title: "Custom cycles instead of forced months",
 	},
 	{
-		title: "Planning is optional, not required",
 		description:
 			"Add planned amounts when they help, or skip them completely and still keep the app useful.",
 		icon: Layers3,
+		title: "Planning is optional, not required",
 	},
 	{
-		title: "History stays editable when life changes",
 		description:
 			"Fix past records, reassign categories, and keep your expense history trustworthy over time.",
 		icon: Edit3,
+		title: "History stays editable when life changes",
 	},
 ] as const;
 

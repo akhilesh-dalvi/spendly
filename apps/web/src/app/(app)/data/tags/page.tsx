@@ -6,7 +6,6 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery } from "convex/react";
 import { format } from "date-fns";
 import {
-	ArrowUpDown,
 	ChevronLeft,
 	MoreHorizontal,
 	Pencil,
@@ -41,20 +40,21 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SortHeader } from "../sort-header";
 
 interface TagItem {
 	_id: Id<"tags">;
-	name: string;
 	createdAt: number;
+	name: string;
 	usageCount: number;
 }
 
 interface TagViewModel {
-	id: Id<"tags">;
-	name: string;
 	createdAt: number;
-	usageCount: number;
+	id: Id<"tags">;
 	isInUse: boolean;
+	name: string;
+	usageCount: number;
 }
 const SUGGESTED_TAGS = [
 	"Groceries",
@@ -71,14 +71,14 @@ interface TagFormFieldsProps {
 	name: string;
 	nameId: string;
 	onNameChange: (value: string) => void;
-	suggestions?: readonly string[];
 	onSuggestionClick?: (suggestion: string) => void;
+	suggestions?: readonly string[];
 }
 
 interface MobileTagCardProps {
-	tag: TagViewModel;
-	onEdit: (tag: TagViewModel) => void;
 	onDelete: (tag: TagViewModel) => void;
+	onEdit: (tag: TagViewModel) => void;
+	tag: TagViewModel;
 }
 
 const getErrorMessage = (error: unknown, fallback: string) => {
@@ -105,8 +105,8 @@ function TagsLoadingState() {
 }
 
 interface TagsSummaryStripProps {
-	total: number;
 	inUse: number;
+	total: number;
 	unused: number;
 }
 
@@ -132,6 +132,49 @@ function TagsSummaryStrip({ total, inUse, unused }: TagsSummaryStripProps) {
 	return <DataSummaryStrip ariaLabel="Tag overview" items={summaryItems} />;
 }
 
+function SuggestionButton({
+	suggestion,
+	onSelect,
+}: {
+	suggestion: string;
+	onSelect: (value: string) => void;
+}) {
+	const select = useCallback(
+		() => onSelect(suggestion),
+		[onSelect, suggestion]
+	);
+	return (
+		<Button
+			className="h-8 rounded-full border-dashed px-3 text-xs"
+			onClick={select}
+			type="button"
+			variant="outline"
+		>
+			{suggestion}
+		</Button>
+	);
+}
+
+function TagActions({ tag, onEdit, onDelete }: MobileTagCardProps) {
+	const edit = useCallback(() => onEdit(tag), [onEdit, tag]);
+	const remove = useCallback(() => onDelete(tag), [onDelete, tag]);
+	return (
+		<>
+			<DropdownMenuItem onClick={edit}>
+				<Pencil className="mr-2 h-4 w-4" />
+				Edit
+			</DropdownMenuItem>
+			<DropdownMenuItem
+				className="text-destructive focus:text-destructive"
+				onClick={remove}
+			>
+				<Trash2 className="mr-2 h-4 w-4" />
+				Delete
+			</DropdownMenuItem>
+		</>
+	);
+}
+
 function TagFormFields({
 	name,
 	nameId,
@@ -139,6 +182,11 @@ function TagFormFields({
 	suggestions = [],
 	onSuggestionClick,
 }: TagFormFieldsProps) {
+	const changeName = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) =>
+			onNameChange(event.target.value),
+		[onNameChange]
+	);
 	return (
 		<div className="space-y-3">
 			<div className="space-y-2">
@@ -146,7 +194,7 @@ function TagFormFields({
 				<Input
 					autoFocus
 					id={nameId}
-					onChange={(e) => onNameChange(e.target.value)}
+					onChange={changeName}
 					placeholder="e.g. Work Trip, Recurring"
 					required
 					value={name}
@@ -160,15 +208,11 @@ function TagFormFields({
 					</Label>
 					<div className="flex flex-wrap gap-2">
 						{suggestions.map((suggestion) => (
-							<Button
-								className="h-8 rounded-full border-dashed px-3 text-xs"
+							<SuggestionButton
 								key={suggestion}
-								onClick={() => onSuggestionClick(suggestion)}
-								type="button"
-								variant="outline"
-							>
-								{suggestion}
-							</Button>
+								onSelect={onSuggestionClick}
+								suggestion={suggestion}
+							/>
 						))}
 					</div>
 				</div>
@@ -210,17 +254,7 @@ function MobileTagCard({ tag, onEdit, onDelete }: MobileTagCardProps) {
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
-						<DropdownMenuItem onClick={() => onEdit(tag)}>
-							<Pencil className="mr-2 h-4 w-4" />
-							Edit
-						</DropdownMenuItem>
-						<DropdownMenuItem
-							className="text-destructive focus:text-destructive"
-							onClick={() => onDelete(tag)}
-						>
-							<Trash2 className="mr-2 h-4 w-4" />
-							Delete
-						</DropdownMenuItem>
+						<TagActions onDelete={onDelete} onEdit={onEdit} tag={tag} />
 					</DropdownMenuContent>
 				</DropdownMenu>
 			</div>
@@ -251,11 +285,11 @@ export default function TagsPage() {
 		}
 
 		return tags.map((tag) => ({
-			id: tag._id,
-			name: tag.name,
 			createdAt: tag.createdAt,
-			usageCount: tag.usageCount,
+			id: tag._id,
 			isInUse: tag.usageCount > 0,
+			name: tag.name,
+			usageCount: tag.usageCount,
 		}));
 	}, [tags]);
 
@@ -276,8 +310,8 @@ export default function TagsPage() {
 		const inUse = viewTags.filter((tag) => tag.isInUse).length;
 
 		return {
-			total,
 			inUse,
+			total,
 			unused: Math.max(total - inUse, 0),
 		};
 	}, [viewTags]);
@@ -292,9 +326,35 @@ export default function TagsPage() {
 		);
 	}, [viewTags]);
 
-	const resetAddForm = () => {
-		setNewTagName("");
-	};
+	const resetAddForm = useCallback(() => setNewTagName(""), []);
+	const openAdd = useCallback(() => setIsAddOpen(true), []);
+	const changeAddOpen = useCallback(
+		(open: boolean) => {
+			setIsAddOpen(open);
+			if (!open) {
+				resetAddForm();
+			}
+		},
+		[resetAddForm]
+	);
+	const changeEditOpen = useCallback((open: boolean) => {
+		setIsEditOpen(open);
+		if (!open) {
+			setEditingTag(null);
+		}
+	}, []);
+	const changeSearch = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) =>
+			setSearchValue(event.target.value),
+		[]
+	);
+	const showAll = useCallback(() => setFilterMode("all"), []);
+	const showInUse = useCallback(() => setFilterMode("inUse"), []);
+	const changeEditName = useCallback(
+		(value: string) =>
+			setEditingTag((prev) => (prev ? { ...prev, name: value } : null)),
+		[]
+	);
 
 	const handleAddTag = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -332,8 +392,8 @@ export default function TagsPage() {
 		setIsSubmitting(true);
 		try {
 			await updateTag({
-				tagId: editingTag.id,
 				name: trimmedName,
+				tagId: editingTag.id,
 			});
 			setEditingTag(null);
 			setIsEditOpen(false);
@@ -369,18 +429,6 @@ export default function TagsPage() {
 		() => [
 			{
 				accessorKey: "name",
-				headerClassName: "pl-5",
-				className: "pl-5",
-				header: ({ column }) => (
-					<Button
-						className="h-8 px-0"
-						onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-						variant="ghost"
-					>
-						Tag Name
-						<ArrowUpDown className="ml-2 h-4 w-4" />
-					</Button>
-				),
 				cell: ({ row }) => {
 					const tag = row.original;
 
@@ -393,19 +441,16 @@ export default function TagsPage() {
 						</div>
 					);
 				},
+				className: "pl-5",
+				header: ({ column }) => (
+					<SortHeader className="h-8 px-0" column={column}>
+						Tag Name
+					</SortHeader>
+				),
+				headerClassName: "pl-5",
 			},
 			{
 				accessorKey: "usageCount",
-				header: ({ column }) => (
-					<Button
-						className="-ml-4 h-8"
-						onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-						variant="ghost"
-					>
-						Usage
-						<ArrowUpDown className="ml-2 h-4 w-4" />
-					</Button>
-				),
 				cell: ({ row }) => {
 					const tag = row.original;
 
@@ -420,23 +465,22 @@ export default function TagsPage() {
 						</div>
 					);
 				},
+				header: ({ column }) => (
+					<SortHeader className="-ml-4 h-8" column={column}>
+						Usage
+					</SortHeader>
+				),
 			},
 			{
 				accessorKey: "createdAt",
-				header: ({ column }) => (
-					<Button
-						className="-ml-4 h-8"
-						onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-						variant="ghost"
-					>
-						Created
-						<ArrowUpDown className="ml-2 h-4 w-4" />
-					</Button>
-				),
 				cell: ({ row }) => format(row.original.createdAt, "MMM d, yyyy"),
+				header: ({ column }) => (
+					<SortHeader className="-ml-4 h-8" column={column}>
+						Created
+					</SortHeader>
+				),
 			},
 			{
-				id: "actions",
 				cell: ({ row }) => {
 					const tag = row.original;
 
@@ -453,22 +497,17 @@ export default function TagsPage() {
 									</Button>
 								</DropdownMenuTrigger>
 								<DropdownMenuContent align="end">
-									<DropdownMenuItem onClick={() => openEditDialog(tag)}>
-										<Pencil className="mr-2 h-4 w-4" />
-										Edit
-									</DropdownMenuItem>
-									<DropdownMenuItem
-										className="text-destructive focus:text-destructive"
-										onClick={() => handleDeleteTag(tag)}
-									>
-										<Trash2 className="mr-2 h-4 w-4" />
-										Delete
-									</DropdownMenuItem>
+									<TagActions
+										onDelete={handleDeleteTag}
+										onEdit={openEditDialog}
+										tag={tag}
+									/>
 								</DropdownMenuContent>
 							</DropdownMenu>
 						</div>
 					);
 				},
+				id: "actions",
 			},
 		],
 		[handleDeleteTag, openEditDialog]
@@ -507,7 +546,7 @@ export default function TagsPage() {
 		content = (
 			<EmptyState
 				action={
-					<Button onClick={() => setIsAddOpen(true)} variant="outline">
+					<Button onClick={openAdd} variant="outline">
 						<Plus className="mr-2 h-4 w-4" />
 						Add your first tag
 					</Button>
@@ -546,15 +585,7 @@ export default function TagsPage() {
 					</div>
 				</div>
 
-				<Dialog
-					onOpenChange={(open) => {
-						setIsAddOpen(open);
-						if (!open) {
-							resetAddForm();
-						}
-					}}
-					open={isAddOpen}
-				>
+				<Dialog onOpenChange={changeAddOpen} open={isAddOpen}>
 					<DialogTrigger asChild>
 						<Button size="sm">
 							<Plus className="mr-2 h-4 w-4" />
@@ -604,7 +635,7 @@ export default function TagsPage() {
 							<Search className="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
 							<Input
 								className="pl-9"
-								onChange={(e) => setSearchValue(e.target.value)}
+								onChange={changeSearch}
 								placeholder="Search tags..."
 								type="search"
 								value={searchValue}
@@ -612,14 +643,14 @@ export default function TagsPage() {
 						</div>
 						<div className="flex gap-2">
 							<Button
-								onClick={() => setFilterMode("all")}
+								onClick={showAll}
 								size="sm"
 								variant={filterMode === "all" ? "default" : "outline"}
 							>
 								All
 							</Button>
 							<Button
-								onClick={() => setFilterMode("inUse")}
+								onClick={showInUse}
 								size="sm"
 								variant={filterMode === "inUse" ? "default" : "outline"}
 							>
@@ -632,15 +663,7 @@ export default function TagsPage() {
 				</>
 			)}
 
-			<Dialog
-				onOpenChange={(open) => {
-					setIsEditOpen(open);
-					if (!open) {
-						setEditingTag(null);
-					}
-				}}
-				open={isEditOpen}
-			>
+			<Dialog onOpenChange={changeEditOpen} open={isEditOpen}>
 				<DialogContent>
 					<DialogHeader>
 						<DialogTitle>Edit Tag</DialogTitle>
@@ -650,16 +673,7 @@ export default function TagsPage() {
 						<TagFormFields
 							name={editingTag?.name ?? ""}
 							nameId="edit-tag-name"
-							onNameChange={(value) =>
-								setEditingTag((prev) =>
-									prev
-										? {
-												...prev,
-												name: value,
-											}
-										: null
-								)
-							}
+							onNameChange={changeEditName}
 						/>
 						<DialogFooter>
 							<Button

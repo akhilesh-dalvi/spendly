@@ -94,19 +94,19 @@ function getCycleStatus({
 	if (isFuture) {
 		const daysUntilStart = Math.max(0, differenceInDays(start, today));
 		return {
-			label: "Upcoming",
 			detail: `Starts in ${daysUntilStart} ${daysUntilStart === 1 ? "day" : "days"}`,
+			label: "Upcoming",
 		};
 	}
 
 	if (isPast) {
-		return { label: "Ended", detail: "Past cycle" };
+		return { detail: "Past cycle", label: "Ended" };
 	}
 
 	const remainingDays = Math.max(0, daysRemaining ?? 0);
 	return {
-		label: "Active",
 		detail: `${remainingDays} ${remainingDays === 1 ? "day" : "days"} left`,
+		label: "Active",
 	};
 }
 

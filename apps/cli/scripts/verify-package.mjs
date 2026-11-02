@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { verifyProductionShrinkwrap } from "./verify-production-shrinkwrap.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const packageDirectory = join(scriptDirectory, "..");
@@ -155,6 +156,7 @@ try {
 	const packedShrinkwrap = JSON.parse(
 		run("tar", ["-xOf", tarballPath, "package/npm-shrinkwrap.json"])
 	);
+	verifyProductionShrinkwrap(packedShrinkwrap);
 	assert(
 		JSON.stringify(packedShrinkwrap.packages?.[""]?.dependencies) ===
 			JSON.stringify(packedMetadata.dependencies),

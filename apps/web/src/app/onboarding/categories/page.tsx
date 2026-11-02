@@ -12,7 +12,7 @@ import {
 	Trash2,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CategoryTypeModal } from "@/components/category-type-modal";
 import { EmojiPicker } from "@/components/emoji-picker";
 import { OnboardingStepControls } from "@/components/onboarding-shell";
@@ -57,6 +57,143 @@ const createDraftId = (): string =>
 	globalThis.crypto?.randomUUID?.() ??
 	`category-${Date.now()}-${Math.random()}`;
 
+type DraftField = "categoryTypeId" | "icon" | "name" | "plannedAmount";
+function CategoryDraftRow({
+	category,
+	categoryTypes,
+	currencySymbol,
+	updateCategory,
+	removeCategory,
+	setCategoryTypeTargetId,
+}: {
+	category: CategoryDraft;
+	categoryTypes: { _id: Id<"category_types">; name: string }[];
+	currencySymbol: string;
+	updateCategory: (id: string, field: DraftField, value: string) => void;
+	removeCategory: (id: string) => void;
+	setCategoryTypeTargetId: (id: string) => void;
+}) {
+	const changeIcon = useCallback(
+		(emoji: string) => updateCategory(category.id, "icon", emoji),
+		[updateCategory, category.id]
+	);
+	const changeName = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) =>
+			updateCategory(category.id, "name", event.target.value),
+		[updateCategory, category.id]
+	);
+	const changeType = useCallback(
+		(value: string) => {
+			if (value === ADD_CATEGORY_TYPE_VALUE) {
+				setCategoryTypeTargetId(category.id);
+				return;
+			}
+			updateCategory(
+				category.id,
+				"categoryTypeId",
+				value === "none" ? "" : value
+			);
+		},
+		[updateCategory, setCategoryTypeTargetId, category.id]
+	);
+	const changeAmount = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) =>
+			updateCategory(category.id, "plannedAmount", event.target.value),
+		[updateCategory, category.id]
+	);
+	const remove = useCallback(
+		() => removeCategory(category.id),
+		[removeCategory, category.id]
+	);
+	return (
+		<div className="rounded-xl border border-border/70 bg-muted/20 p-3">
+			<div className="grid gap-3 sm:grid-cols-[2.5rem_minmax(0,1fr)_9rem_9rem_2.5rem] sm:items-end sm:gap-2">
+				<div className="flex flex-col gap-1.5">
+					<EmojiPicker
+						ariaLabel={`Icon for ${category.name || "category"}`}
+						className="size-10"
+						id={`category-icon-${category.id}`}
+						onChange={changeIcon}
+						value={category.icon}
+					/>
+				</div>
+				<div className="flex flex-col gap-1.5">
+					<Label htmlFor={`category-name-${category.id}`}>Category name</Label>
+					<Input
+						className="h-10"
+						id={`category-name-${category.id}`}
+						onChange={changeName}
+						placeholder="Category name"
+						value={category.name}
+					/>
+				</div>
+				<div className="flex flex-col gap-1.5">
+					<Label htmlFor={`category-group-${category.id}`}>Category type</Label>
+					<Select
+						onValueChange={changeType}
+						value={category.categoryTypeId || "none"}
+					>
+						<SelectTrigger
+							aria-label={`Category type for ${category.name || "category"}`}
+							className="w-full data-[size=default]:h-10"
+							id={`category-group-${category.id}`}
+						>
+							<SelectValue placeholder="No type" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectGroup>
+								<SelectItem value="none">No type</SelectItem>
+								{categoryTypes.map((categoryType) => (
+									<SelectItem key={categoryType._id} value={categoryType._id}>
+										{categoryType.name}
+									</SelectItem>
+								))}
+							</SelectGroup>
+							<SelectSeparator />
+							<SelectGroup>
+								<SelectItem value={ADD_CATEGORY_TYPE_VALUE}>
+									<Plus /> Add category type
+								</SelectItem>
+							</SelectGroup>
+						</SelectContent>
+					</Select>
+				</div>
+				<div className="flex flex-col gap-1.5">
+					<Label htmlFor={`category-amount-${category.id}`}>
+						Planned amount
+					</Label>
+					<div className="relative">
+						<span className="absolute inset-y-0 left-3 flex items-center text-muted-foreground text-sm">
+							{currencySymbol}
+						</span>
+						<Input
+							className="h-10 pl-8 tabular-nums"
+							id={`category-amount-${category.id}`}
+							inputMode="decimal"
+							min="0"
+							onChange={changeAmount}
+							placeholder="No plan"
+							step="0.01"
+							type="number"
+							value={category.plannedAmount}
+						/>
+					</div>
+				</div>
+				<Button
+					aria-label={`Remove ${category.name || "category"}`}
+					className="w-full text-muted-foreground hover:text-destructive sm:size-10"
+					onClick={remove}
+					size="icon"
+					type="button"
+					variant="ghost"
+				>
+					<Trash2 />
+				</Button>
+			</div>
+		</div>
+	);
+}
+
 export default function OnboardingCategoriesPage() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
@@ -77,7 +214,7 @@ export default function OnboardingCategoriesPage() {
 	const [isSkipping, setIsSkipping] = useState(false);
 	const [error, setError] = useState<string>();
 	const [categoryTypeTargetId, setCategoryTypeTargetId] = useState<string>();
-	const initialized = useRef(false);
+	const initialized = useRef<boolean>(false);
 	const requestedCycleId = searchParams.get("cycleId");
 
 	useEffect(() => {
@@ -125,20 +262,19 @@ export default function OnboardingCategoriesPage() {
 		initialized.current = true;
 	}, [categoryTypes, cycleId, existingCategories]);
 
-	const updateCategory = (
-		id: string,
-		field: "categoryTypeId" | "icon" | "name" | "plannedAmount",
-		value: string
-	) => {
-		setCategories((current) =>
-			current.map((category) =>
-				category.id === id ? { ...category, [field]: value } : category
-			)
-		);
-		setError(undefined);
-	};
+	const updateCategory = useCallback(
+		(id: string, field: DraftField, value: string) => {
+			setCategories((current) =>
+				current.map((category) =>
+					category.id === id ? { ...category, [field]: value } : category
+				)
+			);
+			setError(undefined);
+		},
+		[]
+	);
 
-	const removeCategory = (id: string) => {
+	const removeCategory = useCallback((id: string) => {
 		setCategories((current) => {
 			const category = current.find((item) => item.id === id);
 			if (category) {
@@ -146,7 +282,7 @@ export default function OnboardingCategoriesPage() {
 			}
 			return current.filter((item) => item.id !== id);
 		});
-	};
+	}, []);
 
 	const restoreLastCategory = () => {
 		const category = removedCategories.at(-1);
@@ -234,8 +370,8 @@ export default function OnboardingCategoriesPage() {
 		try {
 			await saveCategories({ categories: submissionCategories, cycleId });
 			router.push(`/onboarding/accounts?cycleId=${cycleId}`);
-		} catch (error) {
-			reportError(error, { feature: "onboarding", operation: "create" });
+		} catch (cause) {
+			reportError(cause, { feature: "onboarding", operation: "create" });
 			setError(
 				"We couldn't save your categories. Your entries are still here—please try again."
 			);
@@ -252,12 +388,26 @@ export default function OnboardingCategoriesPage() {
 		try {
 			await advanceOnboarding({ step: "account" });
 			router.push(`/onboarding/accounts?cycleId=${cycleId}`);
-		} catch (error) {
-			reportError(error, { feature: "onboarding", operation: "skip" });
+		} catch (cause) {
+			reportError(cause, { feature: "onboarding", operation: "skip" });
 			setError("We couldn't skip category setup. Please try again.");
 			setIsSkipping(false);
 		}
 	};
+
+	const handleTypeOpenChange = useCallback((open: boolean) => {
+		if (!open) {
+			setCategoryTypeTargetId(undefined);
+		}
+	}, []);
+	const handleTypeCreated = useCallback(
+		(typeId: string) => {
+			if (categoryTypeTargetId) {
+				updateCategory(categoryTypeTargetId, "categoryTypeId", typeId);
+			}
+		},
+		[categoryTypeTargetId, updateCategory]
+	);
 
 	if (
 		!cycleId ||
@@ -323,121 +473,15 @@ export default function OnboardingCategoriesPage() {
 
 					<div className="flex flex-col gap-3">
 						{categories.map((category) => (
-							<div
-								className="rounded-xl border border-border/70 bg-muted/20 p-3"
+							<CategoryDraftRow
+								category={category}
+								categoryTypes={categoryTypes}
+								currencySymbol={currencySymbol}
 								key={category.id}
-							>
-								<div className="grid gap-3 sm:grid-cols-[2.5rem_minmax(0,1fr)_9rem_9rem_2.5rem] sm:items-end sm:gap-2">
-									<div className="flex flex-col gap-1.5">
-										<EmojiPicker
-											ariaLabel={`Icon for ${category.name || "category"}`}
-											className="size-10"
-											id={`category-icon-${category.id}`}
-											onChange={(emoji) =>
-												updateCategory(category.id, "icon", emoji)
-											}
-											value={category.icon}
-										/>
-									</div>
-									<div className="flex flex-col gap-1.5">
-										<Label htmlFor={`category-name-${category.id}`}>
-											Category name
-										</Label>
-										<Input
-											className="h-10"
-											id={`category-name-${category.id}`}
-											onChange={(event) =>
-												updateCategory(category.id, "name", event.target.value)
-											}
-											placeholder="Category name"
-											value={category.name}
-										/>
-									</div>
-									<div className="flex flex-col gap-1.5">
-										<Label htmlFor={`category-group-${category.id}`}>
-											Category type
-										</Label>
-										<Select
-											onValueChange={(value) => {
-												if (value === ADD_CATEGORY_TYPE_VALUE) {
-													setCategoryTypeTargetId(category.id);
-													return;
-												}
-												updateCategory(
-													category.id,
-													"categoryTypeId",
-													value === "none" ? "" : value
-												);
-											}}
-											value={category.categoryTypeId || "none"}
-										>
-											<SelectTrigger
-												aria-label={`Category type for ${category.name || "category"}`}
-												className="w-full data-[size=default]:h-10"
-												id={`category-group-${category.id}`}
-											>
-												<SelectValue placeholder="No type" />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectGroup>
-													<SelectItem value="none">No type</SelectItem>
-													{categoryTypes.map((categoryType) => (
-														<SelectItem
-															key={categoryType._id}
-															value={categoryType._id}
-														>
-															{categoryType.name}
-														</SelectItem>
-													))}
-												</SelectGroup>
-												<SelectSeparator />
-												<SelectGroup>
-													<SelectItem value={ADD_CATEGORY_TYPE_VALUE}>
-														<Plus /> Add category type
-													</SelectItem>
-												</SelectGroup>
-											</SelectContent>
-										</Select>
-									</div>
-									<div className="flex flex-col gap-1.5">
-										<Label htmlFor={`category-amount-${category.id}`}>
-											Planned amount
-										</Label>
-										<div className="relative">
-											<span className="absolute inset-y-0 left-3 flex items-center text-muted-foreground text-sm">
-												{currencySymbol}
-											</span>
-											<Input
-												className="h-10 pl-8 tabular-nums"
-												id={`category-amount-${category.id}`}
-												inputMode="decimal"
-												min="0"
-												onChange={(event) =>
-													updateCategory(
-														category.id,
-														"plannedAmount",
-														event.target.value
-													)
-												}
-												placeholder="No plan"
-												step="0.01"
-												type="number"
-												value={category.plannedAmount}
-											/>
-										</div>
-									</div>
-									<Button
-										aria-label={`Remove ${category.name || "category"}`}
-										className="w-full text-muted-foreground hover:text-destructive sm:size-10"
-										onClick={() => removeCategory(category.id)}
-										size="icon"
-										type="button"
-										variant="ghost"
-									>
-										<Trash2 />
-									</Button>
-								</div>
-							</div>
+								removeCategory={removeCategory}
+								setCategoryTypeTargetId={setCategoryTypeTargetId}
+								updateCategory={updateCategory}
+							/>
 						))}
 					</div>
 
@@ -453,16 +497,8 @@ export default function OnboardingCategoriesPage() {
 						existingTypeNames={categoryTypes.map(
 							(categoryType) => categoryType.name
 						)}
-						onOpenChange={(open) => {
-							if (!open) {
-								setCategoryTypeTargetId(undefined);
-							}
-						}}
-						onSuccess={(typeId) => {
-							if (categoryTypeTargetId) {
-								updateCategory(categoryTypeTargetId, "categoryTypeId", typeId);
-							}
-						}}
+						onOpenChange={handleTypeOpenChange}
+						onSuccess={handleTypeCreated}
 						open={Boolean(categoryTypeTargetId)}
 					/>
 

@@ -13,7 +13,7 @@ import {
 	ReceiptText,
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { Fragment, useState } from "react";
+import { Fragment, useCallback, useState } from "react";
 import { toast } from "sonner";
 import { AccountActionDialogs } from "@/components/account-actions";
 import { AccountForm } from "@/components/account-form";
@@ -86,6 +86,43 @@ export default function AccountDetailPage() {
 	const updateDefaultAccount = useMutation(api.users.updateDefaultAccount);
 	const [isActionPending, setIsActionPending] = useState(false);
 
+	const goBack = useCallback(() => router.push("/accounts"), [router]);
+	const loadTransactions = useCallback(
+		() => loadMore(TRANSACTION_PAGE_SIZE),
+		[loadMore]
+	);
+	const handleArchiveChange = useCallback(
+		async (isArchived: boolean) => {
+			setIsActionPending(true);
+			try {
+				await archiveAccount({ accountId, isArchived });
+				toast.success(isArchived ? "Account archived" : "Account reactivated");
+			} catch (error) {
+				reportError(error, {
+					feature: "accounts",
+					operation: isArchived ? "archive" : "reactivate",
+				});
+				toast.error(
+					isArchived
+						? "Failed to archive account"
+						: "Failed to reactivate account"
+				);
+			} finally {
+				setIsActionPending(false);
+			}
+		},
+		[archiveAccount, accountId]
+	);
+	const archive = useCallback(
+		() => handleArchiveChange(true),
+		[handleArchiveChange]
+	);
+	const reactivate = useCallback(
+		() => handleArchiveChange(false),
+		[handleArchiveChange]
+	);
+	const handleSuccess = useCallback(() => undefined, []);
+
 	if (
 		account === undefined ||
 		accounts === undefined ||
@@ -111,33 +148,13 @@ export default function AccountDetailPage() {
 		}
 	};
 
-	const handleArchiveChange = async (isArchived: boolean) => {
-		setIsActionPending(true);
-		try {
-			await archiveAccount({ accountId, isArchived });
-			toast.success(isArchived ? "Account archived" : "Account reactivated");
-		} catch (error) {
-			reportError(error, {
-				feature: "accounts",
-				operation: isArchived ? "archive" : "reactivate",
-			});
-			toast.error(
-				isArchived
-					? "Failed to archive account"
-					: "Failed to reactivate account"
-			);
-		} finally {
-			setIsActionPending(false);
-		}
-	};
-
 	return (
 		<div className="flex flex-col gap-8 py-3">
 			<header className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
 				<div className="flex items-center gap-4">
 					<Button
 						aria-label="Back to accounts"
-						onClick={() => router.push("/accounts")}
+						onClick={goBack}
 						size="icon"
 						variant="ghost"
 					>
@@ -184,7 +201,7 @@ export default function AccountDetailPage() {
 					{account.isArchived ? (
 						<Button
 							disabled={isActionPending}
-							onClick={() => handleArchiveChange(false)}
+							onClick={reactivate}
 							variant="outline"
 						>
 							<ArchiveRestore data-icon="inline-start" />
@@ -224,10 +241,7 @@ export default function AccountDetailPage() {
 									</AlertDialogHeader>
 									<AlertDialogFooter>
 										<AlertDialogCancel>Cancel</AlertDialogCancel>
-										<AlertDialogAction
-											onClick={() => handleArchiveChange(true)}
-											variant="destructive"
-										>
+										<AlertDialogAction onClick={archive} variant="destructive">
 											Archive account
 										</AlertDialogAction>
 									</AlertDialogFooter>
@@ -335,7 +349,7 @@ export default function AccountDetailPage() {
 							<CardFooter className="justify-center border-t">
 								<Button
 									disabled={transactionStatus === "LoadingMore"}
-									onClick={() => loadMore(TRANSACTION_PAGE_SIZE)}
+									onClick={loadTransactions}
 									variant="outline"
 								>
 									{transactionStatus === "LoadingMore" ? (
@@ -366,7 +380,7 @@ export default function AccountDetailPage() {
 								accountTypeId: account.accountTypeId,
 								name: account.name,
 							}}
-							onSuccess={() => undefined}
+							onSuccess={handleSuccess}
 						/>
 					</CardContent>
 				</Card>

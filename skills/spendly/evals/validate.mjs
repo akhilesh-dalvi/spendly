@@ -27,7 +27,7 @@ const collectTextFiles = async (directory) => {
 	const entries = await readdir(directory, { withFileTypes: true });
 	const paths = [];
 
-	for (const entry of entries) {
+	for await (const entry of entries) {
 		const path = join(directory, entry.name);
 		if (entry.isDirectory()) {
 			paths.push(...(await collectTextFiles(path)));
@@ -41,12 +41,12 @@ const collectTextFiles = async (directory) => {
 	return paths;
 };
 
-const validateEvaluationManifest = (manifest) => {
-	assert(manifest.skill_name === "spendly", "Unexpected skill_name");
-	assert(Array.isArray(manifest.evals), "evals must be an array");
+const validateEvaluationManifest = (evaluationManifest) => {
+	assert(evaluationManifest.skill_name === "spendly", "Unexpected skill_name");
+	assert(Array.isArray(evaluationManifest.evals), "evals must be an array");
 
 	const seenIds = new Set();
-	for (const evaluation of manifest.evals) {
+	for (const evaluation of evaluationManifest.evals) {
 		assert(
 			requiredEvaluationIds.has(evaluation.id),
 			`Unexpected evaluation id: ${evaluation.id}`
@@ -141,7 +141,7 @@ const leakagePatterns = [
 
 const validateNoPersonalData = async () => {
 	const paths = await collectTextFiles(skillDirectory);
-	for (const path of paths) {
+	for await (const path of paths) {
 		const contents = await readFile(path, "utf8");
 		for (const { label, pattern } of leakagePatterns) {
 			assert(!pattern.test(contents), `${label} found in ${path}`);

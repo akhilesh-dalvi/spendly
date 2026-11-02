@@ -66,8 +66,8 @@ export const startCallbackServer = async (options: {
 
 		const states = requestUrl.searchParams.getAll("state");
 		const codes = requestUrl.searchParams.getAll("code");
-		const state = states[0];
-		const code = codes[0];
+		const [state] = states;
+		const [code] = codes;
 		const oauthError = requestUrl.searchParams.get("error");
 		if (states.length !== 1 || state !== options.expectedState) {
 			response.writeHead(400, CALLBACK_RESPONSE_HEADERS);
@@ -138,9 +138,11 @@ export const startCallbackServer = async (options: {
 	} catch (error) {
 		clearTimeout(timeout);
 		await closeServer(server);
-		throw new CliError("INTERNAL_ERROR", "Unable to start callback server", {
-			cause: error,
-		});
+		throw CliError.fromCause(
+			error,
+			"INTERNAL_ERROR",
+			"Unable to start callback server"
+		);
 	}
 	const address = server.address();
 	if (!address || typeof address === "string") {

@@ -11,44 +11,44 @@ import {
 
 const audienceGroups = [
 	{
-		title: "Freelancers",
 		description: "Track variable months with flexible cycles.",
 		icon: Briefcase,
+		title: "Freelancers",
 	},
 	{
-		title: "Students",
 		description: "Stay aware without rigid budget rules.",
 		icon: GraduationCap,
+		title: "Students",
 	},
 	{
-		title: "Couples",
 		description: "Stay aware of household spending without rigid budgets.",
 		icon: HeartHandshake,
+		title: "Couples",
 	},
 	{
-		title: "Founders",
 		description: "Keep personal spending visible during busy weeks.",
 		icon: Rocket,
+		title: "Founders",
 	},
 	{
-		title: "Creators",
 		description: "Tag expenses by project or campaign.",
 		icon: WandSparkles,
+		title: "Creators",
 	},
 	{
-		title: "Remote Teams",
 		description: "Use optional planning, not strict enforcement.",
 		icon: Laptop,
+		title: "Remote Teams",
 	},
 	{
-		title: "Consultants",
 		description: "Edit history when receipts come in late.",
 		icon: Users,
+		title: "Consultants",
 	},
 	{
-		title: "Families",
 		description: "Organize categories the way your household works.",
 		icon: House,
+		title: "Families",
 	},
 ] as const;
 

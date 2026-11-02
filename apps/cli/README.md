@@ -1,48 +1,53 @@
 # Spendly CLI
 
-Spendly CLI lets you track expenses and manage Spendly accounts from a trusted
-local terminal or through a local AI agent.
+Track expenses and manage accounts and expense cycles from a trusted local
+terminal or AI agent.
 
-The initial `0.1.2` release is available on npm for macOS. Install it on
-Node.js 22 or newer:
+## Install and sign in
+
+macOS, Node.js 22+:
 
 ```bash
-npm install --global spendly@0.1.2
+npm install --global spendly@next
 spendly --version
 spendly auth login
 ```
 
-Use `npm install --global spendly` for the default release, or the pinned command
-above for the exact initial version. Production authentication and Codex
-read-only skill use have been verified; broader validation remains follow-up work.
-Spendly will remain in the `0.x` series while real users prove the CLI contract
-is dependable enough for `1.0.0`.
+Use `spendly` instead of `spendly@next` for npm's default release. Check installed
+`--help` for supported commands; source changes may not be published.
 
-Start with the [Spendly CLI documentation](https://spendly.akhileshdalvi.com/docs/cli).
-Report ordinary problems through
-[GitHub issues](https://github.com/akhilesh-dalvi/spendly/issues) and security
-problems through
-[private vulnerability reporting](https://github.com/akhilesh-dalvi/spendly/security/advisories/new).
+[User documentation](https://spendly.akhileshdalvi.com/docs/cli) ·
+[Report a bug](https://github.com/akhilesh-dalvi/spendly/issues) ·
+[Report a vulnerability privately](https://github.com/akhilesh-dalvi/spendly/security/advisories/new)
 
-For a guided terminal flow, run:
+## Interactive use
+
+Run `spendly` for the guided menu (0.1.5+), or `spendly --interactive` explicitly.
+Both stdin and stderr must be TTYs; bare non-TTY invocation prints help.
+Guided commands provide searchable choices, validated fields, previews, and
+confirmations. For static numbered prompts, use `--accessible`, `ACCESSIBLE=1`,
+or `TERM=dumb`.
+
+Shell completion: `spendly completion zsh` (also supports `bash` and `fish`).
+
+## Scripts and agents
 
 ```bash
-spendly --interactive
+spendly --agent --json --non-interactive context
 ```
 
-The launcher and command-specific `--interactive` mode use searchable choices,
-checkbox-style multiselects, validated text and date fields, previews, and safe
-confirmations. `›` marks the focused choice, and brackets mark the active date
-segment, for example `[2026]-09-15`. Expense amount prompts show the currency
-configured during Spendly onboarding. Explicit flags remain available for
-scripts and AI agents.
+`--agent` identifies agent writes; `--json` returns structured output. Both
+disable prompts and reject missing required inputs. Neither can be combined
+with `--interactive`, which also conflicts with `--non-interactive`.
 
-For static, screen-reader-friendly numbered prompts without cursor redraws, add
-`--accessible` or set `ACCESSIBLE=1`. Spendly also selects this mode when
-`TERM=dumb`. Generate local command and global-option completion with
-`spendly completion zsh`, `spendly completion bash`, or
-`spendly completion fish`.
+Use returned IDs, preview with `--dry-run`, and commit with an idempotency key.
+Edits require revisions; deletions also require a short-lived preview token.
+For separately reviewed cycle copies, preserve `data.copySnapshot` with
+`--if-copy-snapshot`. On conflicts, approve a fresh preview; never blindly retry.
 
-The CLI stores credentials in the operating system credential store by
-default. Never share tokens, authorization URLs, request headers, credential
-files, environment variables, or personal financial output in a report.
+See [agent skill](https://github.com/akhilesh-dalvi/spendly/blob/master/skills/spendly/SKILL.md) for write-safety procedures and
+[cycle commands](https://spendly.akhileshdalvi.com/docs/cli/cycles) for copy guards
+and recovery.
+
+Credentials use the OS credential store by default. Never share credentials,
+OAuth URLs, headers, environment files, or personal financial output in reports.

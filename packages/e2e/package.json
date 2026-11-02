@@ -3,23 +3,23 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "vitest run --config vitest.config.ts",
-    "check-types": "tsc --noEmit",
-    "test:web": "node run.mjs web",
-    "test:cli": "node run.mjs cli",
     "backend": "node run.mjs backend",
-    "validate": "node run.mjs validate",
+    "browsers:install": "playwright install chromium",
+    "check-types": "tsc --noEmit",
     "cleanup": "node run.mjs cleanup",
-    "browsers:install": "playwright install chromium"
+    "test": "vitest run --config vitest.config.ts",
+    "test:cli": "node run.mjs cli",
+    "test:web": "node run.mjs web",
+    "validate": "node run.mjs validate"
   },
   "devDependencies": {
     "@clerk/testing": "1.14.9",
-    "@playwright/test": "1.58.2",
-    "@types/node": "24.12.2",
+    "@playwright/test": "1.64.1",
+    "@types/node": "24.19.2",
     "convex": "catalog:",
     "tsx": "4.20.6",
     "typescript": "catalog:",
-    "vitest": "4.1.11",
+    "vitest": "4.1.12",
     "zod": "catalog:"
   }
 }

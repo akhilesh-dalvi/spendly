@@ -13,13 +13,13 @@ vi.mock("@clerk/testing/playwright", () => ({ clerkSetup: vi.fn() }));
 
 const environment = () =>
 	loadEnvironment({
-		SPENDLY_E2E_ENABLED: "true",
-		E2E_CONVEX_URL: "https://e2e-test.convex.cloud",
-		E2E_CONVEX_DEPLOY_KEY: "dev:e2e-test|synthetic",
 		E2E_CLERK_ISSUER: "https://e2e-test.clerk.accounts.dev",
+		E2E_CLERK_OAUTH_CLIENT_ID: "synthetic-client",
 		E2E_CLERK_PUBLISHABLE_KEY: `pk_test_${Buffer.from("e2e-test.clerk.accounts.dev$").toString("base64")}`,
 		E2E_CLERK_SECRET_KEY: "sk_test_synthetic",
-		E2E_CLERK_OAUTH_CLIENT_ID: "synthetic-client",
+		E2E_CONVEX_DEPLOY_KEY: "dev:e2e-test|synthetic",
+		E2E_CONVEX_URL: "https://e2e-test.convex.cloud",
+		SPENDLY_E2E_ENABLED: "true",
 	});
 
 it("pins Clerk setup to the approved API, disables dotenv and discards ambient tokens", async () => {
@@ -41,47 +41,47 @@ it("pins Clerk setup to the approved API, disables dotenv and discards ambient t
 	}
 });
 
-it.each([
-	"host",
-	"query",
-])("waits for a whole OAuth URL line when the %s is fragmented", async (split) => {
-	const url =
-		"https://e2e-test.clerk.accounts.dev/oauth/authorize?client_id=synthetic-client&state=private-state";
-	const position = split === "host" ? 14 : url.indexOf("_id=");
-	const login = startProcess({
-		command: process.execPath,
-		args: [
-			"-e",
-			`process.stdout.write(${JSON.stringify(url.slice(0, position))}); setTimeout(() => process.stdout.write(${JSON.stringify(`${url.slice(position)}\n`)}), 40);`,
-		],
-		timeoutMs: 1000,
-	});
-	const visit = vi.fn(() => Promise.resolve());
-	await completeOAuth({
-		login,
-		issuer: environment().clerkIssuer,
-		clientId: "synthetic-client",
-		visit,
-	});
-	expect(visit).toHaveBeenCalledOnce();
-	expect(visit).toHaveBeenCalledWith(url);
-});
+it.each(["host", "query"])(
+	"waits for a whole OAuth URL line when the %s is fragmented",
+	async (split) => {
+		const url =
+			"https://e2e-test.clerk.accounts.dev/oauth/authorize?client_id=synthetic-client&state=private-state";
+		const position = split === "host" ? 14 : url.indexOf("_id=");
+		const login = startProcess({
+			args: [
+				"-e",
+				`process.stdout.write(${JSON.stringify(url.slice(0, position))}); setTimeout(() => process.stdout.write(${JSON.stringify(`${url.slice(position)}\n`)}), 40);`,
+			],
+			command: process.execPath,
+			timeoutMs: 1000,
+		});
+		const visit = vi.fn(() => Promise.resolve());
+		await completeOAuth({
+			clientId: "synthetic-client",
+			issuer: environment().clerkIssuer,
+			login,
+			visit,
+		});
+		expect(visit).toHaveBeenCalledOnce();
+		expect(visit).toHaveBeenCalledWith(url);
+	}
+);
 
 it("withholds browser navigation errors containing authorization secrets", async () => {
 	const url =
 		"https://e2e-test.clerk.accounts.dev/oauth/authorize?client_id=synthetic-client&state=private-state";
 	const login = startProcess({
-		command: process.execPath,
 		args: [
 			"-e",
 			`process.stdout.write(${JSON.stringify(`${url}\n`)}); setInterval(() => {}, 1000);`,
 		],
+		command: process.execPath,
 		timeoutMs: 1000,
 	});
 	const authorization = completeOAuth({
-		login,
-		issuer: environment().clerkIssuer,
 		clientId: "synthetic-client",
+		issuer: environment().clerkIssuer,
+		login,
 		visit: () =>
 			Promise.reject(new Error(`page.goto: navigation failed ${url}`)),
 	});
@@ -100,6 +100,7 @@ it("submits signup through form controls and waits for the real session", async 
 	const fillPassword = vi.fn();
 	const submit = vi.fn();
 	const page = {
+		evaluate: vi.fn(async () => true),
 		getByLabel: (label: string | RegExp) => {
 			if (label instanceof RegExp && label.test("Email address")) {
 				return { fill: fillEmail };
@@ -109,9 +110,8 @@ it("submits signup through form controls and waits for the real session", async 
 			}
 			return { isVisible: async () => false };
 		},
-		locator: () => ({ isVisible: async () => false }),
 		getByRole: () => ({ click: submit }),
-		evaluate: vi.fn(async () => true),
+		locator: () => ({ isVisible: async () => false }),
 	} as unknown as Page;
 	await signUpThroughUi(page, email, password);
 	expect(fillEmail).toHaveBeenCalledWith(email);
@@ -122,18 +122,18 @@ it("submits signup through form controls and waits for the real session", async 
 
 it("answers only a prepared signup email challenge through the verification textbox", async () => {
 	const sdk: { user: object | null; client: object } = {
-		user: null,
 		client: {
 			signUp: {
 				verifications: {
 					emailAddress: {
-						strategy: "email_code",
-						status: "unverified",
 						expireAt: new Date("2030-01-01T00:00:00Z"),
+						status: "unverified",
+						strategy: "email_code",
 					},
 				},
 			},
 		},
+		user: null,
 	};
 	vi.stubGlobal("window", { Clerk: sdk });
 	vi.stubGlobal("document", { title: "Spendly signup" });
@@ -143,17 +143,17 @@ it("answers only a prepared signup email challenge through the verification text
 	});
 	const field = { fill: vi.fn(), isVisible: () => Promise.resolve(false) };
 	const page = {
+		evaluate: (callback: () => unknown) => Promise.resolve(callback()),
 		getByLabel: () => field,
-		locator: () => field,
 		getByRole: (role: string) =>
 			role === "button"
 				? { click: () => Promise.resolve() }
-				: { isVisible: () => Promise.resolve(true), fill: fillCode },
-		evaluate: (callback: () => unknown) => Promise.resolve(callback()),
+				: { fill: fillCode, isVisible: () => Promise.resolve(true) },
+		locator: () => field,
 		waitForFunction: (callback: () => unknown) =>
 			Promise.resolve({
-				jsonValue: () => Promise.resolve(callback()),
 				dispose: () => Promise.resolve(),
+				jsonValue: () => Promise.resolve(callback()),
 			}),
 	} as unknown as Page;
 	try {
@@ -203,16 +203,16 @@ it("rejects authorization requests for a different client before navigation", as
 	const url =
 		"https://e2e-test.clerk.accounts.dev/oauth/authorize?client_id=wrong-client&state=private-state";
 	const login = startProcess({
-		command: process.execPath,
 		args: ["-e", `process.stdout.write(${JSON.stringify(`${url}\n`)});`],
+		command: process.execPath,
 		timeoutMs: 1000,
 	});
 	const visit = vi.fn(() => Promise.resolve());
 	await expect(
 		completeOAuth({
-			login,
-			issuer: environment().clerkIssuer,
 			clientId: "synthetic-client",
+			issuer: environment().clerkIssuer,
+			login,
 			visit,
 		})
 	).rejects.toThrow("authorization details withheld");

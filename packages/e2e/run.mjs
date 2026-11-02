@@ -17,7 +17,7 @@ const actions = new Set([
 	"cli",
 	"cleanup",
 ]);
-const action = process.argv[2];
+const [, , action] = process.argv;
 const args = process.argv.slice(3);
 const suiteActions = new Set(["smoke", "full"]);
 const smokePattern = "(?:^|\\s)@smoke(?:\\s|$)";
@@ -37,8 +37,8 @@ const record = (name, status) => {
 const command = (name, directory, commandArgs, options = {}) => {
 	const result = spawnSync("pnpm", ["--dir", directory, ...commandArgs], {
 		env: process.env,
-		stdio: ["ignore", "inherit", "inherit"],
 		shell: false,
+		stdio: ["ignore", "inherit", "inherit"],
 		timeout: 30 * 60_000,
 		...options,
 	});
@@ -75,13 +75,13 @@ const deployBackend = (config, checkOnly) => {
 			],
 			{
 				env: {
-					PATH: process.env.PATH ?? "",
-					HOME: directory,
 					CI: "true",
 					CONVEX_DISABLE_TELEMETRY: "1",
+					HOME: directory,
 					// HOME intentionally has no pnpm-managed version cache. Use the
 					// already-installed runner instead of bootstrapping inside it.
 					npm_config_manage_package_manager_versions: "false",
+					PATH: process.env.PATH ?? "",
 				},
 				// Deployment failures may include keys or environment values. Report only
 				// the step and exit status, never raw Convex output or persisted artifacts.
@@ -90,7 +90,7 @@ const deployBackend = (config, checkOnly) => {
 			}
 		);
 	} finally {
-		rmSync(directory, { recursive: true, force: true });
+		rmSync(directory, { force: true, recursive: true });
 	}
 };
 

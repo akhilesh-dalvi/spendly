@@ -1,7 +1,7 @@
 "use client";
 
 import { Search, Smile } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,7 +13,6 @@ import { cn } from "@/lib/utils";
 
 const EMOJI_CATEGORIES = [
 	{
-		title: "Home & Living",
 		emojis: [
 			{ char: "🏠", keywords: "home house living building" },
 			{ char: "🏡", keywords: "home house garden" },
@@ -25,9 +24,9 @@ const EMOJI_CATEGORIES = [
 			{ char: "🧹", keywords: "broom clean sweep" },
 			{ char: "🛠️", keywords: "tools fix repair" },
 		],
+		title: "Home & Living",
 	},
 	{
-		title: "Food & Drinks",
 		emojis: [
 			{ char: "🍔", keywords: "burger food fastfood" },
 			{ char: "🍕", keywords: "pizza food italian" },
@@ -46,9 +45,9 @@ const EMOJI_CATEGORIES = [
 			{ char: "🍺", keywords: "beer drink alcohol" },
 			{ char: "🍻", keywords: "beers drinks alcohol cheers" },
 		],
+		title: "Food & Drinks",
 	},
 	{
-		title: "Transport & Travel",
 		emojis: [
 			{ char: "🚗", keywords: "car transport travel" },
 			{ char: "🚌", keywords: "bus transport travel" },
@@ -69,9 +68,9 @@ const EMOJI_CATEGORIES = [
 			{ char: "🧳", keywords: "luggage travel suitcase" },
 			{ char: "🗺️", keywords: "map travel direction" },
 		],
+		title: "Transport & Travel",
 	},
 	{
-		title: "Utilities & Bills",
 		emojis: [
 			{ char: "💡", keywords: "light bulb electricity utility" },
 			{ char: "🔌", keywords: "plug electricity utility" },
@@ -83,9 +82,9 @@ const EMOJI_CATEGORIES = [
 			{ char: "🗑️", keywords: "trash bin waste" },
 			{ char: "📬", keywords: "mail post box" },
 		],
+		title: "Utilities & Bills",
 	},
 	{
-		title: "Shopping & Retail",
 		emojis: [
 			{ char: "🛍️", keywords: "shopping bags retail purchase" },
 			{ char: "🛒", keywords: "cart shopping grocery" },
@@ -96,9 +95,9 @@ const EMOJI_CATEGORIES = [
 			{ char: "💄", keywords: "lipstick makeup beauty" },
 			{ char: "🧴", keywords: "lotion beauty skincare" },
 		],
+		title: "Shopping & Retail",
 	},
 	{
-		title: "Entertainment & Subscriptions",
 		emojis: [
 			{ char: "🎬", keywords: "movie cinema film" },
 			{ char: "🎮", keywords: "game console play" },
@@ -114,9 +113,9 @@ const EMOJI_CATEGORIES = [
 			{ char: "📸", keywords: "camera photo picture" },
 			{ char: "🕶️", keywords: "sunglasses fashion" },
 		],
+		title: "Entertainment & Subscriptions",
 	},
 	{
-		title: "Education & Learning",
 		emojis: [
 			{ char: "🎓", keywords: "graduation education school" },
 			{ char: "📚", keywords: "books education study" },
@@ -126,9 +125,9 @@ const EMOJI_CATEGORIES = [
 			{ char: "🧮", keywords: "abacus math calculation" },
 			{ char: "🏫", keywords: "school education building" },
 		],
+		title: "Education & Learning",
 	},
 	{
-		title: "Health & Fitness",
 		emojis: [
 			{ char: "💊", keywords: "pill medicine health" },
 			{ char: "🏥", keywords: "hospital health medical" },
@@ -144,9 +143,9 @@ const EMOJI_CATEGORIES = [
 			{ char: "🪥", keywords: "toothbrush clean dental" },
 			{ char: "🧼", keywords: "soap clean hygiene" },
 		],
+		title: "Health & Fitness",
 	},
 	{
-		title: "Finance",
 		emojis: [
 			{ char: "💸", keywords: "money spend finance" },
 			{ char: "💳", keywords: "card credit finance" },
@@ -156,9 +155,9 @@ const EMOJI_CATEGORIES = [
 			{ char: "📉", keywords: "chart loss finance" },
 			{ char: "🧾", keywords: "receipt finance bill" },
 		],
+		title: "Finance",
 	},
 	{
-		title: "Work & Tech",
 		emojis: [
 			{ char: "👔", keywords: "tie work office apparel" },
 			{ char: "💻", keywords: "laptop computer tech work" },
@@ -170,9 +169,9 @@ const EMOJI_CATEGORIES = [
 			{ char: "⚙️", keywords: "gear machine process" },
 			{ char: "🧰", keywords: "toolbox tools repair" },
 		],
+		title: "Work & Tech",
 	},
 	{
-		title: "Family, Kids & Pets",
 		emojis: [
 			{ char: "👶", keywords: "baby family child" },
 			{ char: "🍼", keywords: "bottle baby family" },
@@ -185,15 +184,16 @@ const EMOJI_CATEGORIES = [
 			{ char: "🦴", keywords: "bone pet dog" },
 			{ char: "🧸", keywords: "teddy bear toy child" },
 		],
+		title: "Family, Kids & Pets",
 	},
 	{
-		title: "Gifts & Misc",
 		emojis: [
 			{ char: "🎁", keywords: "gift present surprise" },
 			{ char: "🔑", keywords: "key unlock access" },
 			{ char: "📌", keywords: "pin mark note" },
 			{ char: "🧿", keywords: "eye protection misc" },
 		],
+		title: "Gifts & Misc",
 	},
 ];
 
@@ -203,6 +203,35 @@ interface EmojiPickerProps {
 	id?: string;
 	onChange: (emoji: string) => void;
 	value?: string;
+}
+
+function EmojiOption({
+	emoji,
+	value,
+	onSelect,
+}: {
+	emoji: { char: string; keywords: string };
+	value?: string;
+	onSelect: (emoji: string) => void;
+}) {
+	const select = useCallback(
+		() => onSelect(emoji.char),
+		[onSelect, emoji.char]
+	);
+	return (
+		<button
+			className={cn(
+				"flex h-10 w-10 items-center justify-center rounded-xl text-xl transition-all hover:scale-110 hover:bg-accent active:scale-95",
+				value === emoji.char && "bg-primary/10 ring-1 ring-primary/50"
+			)}
+			key={emoji.char}
+			onClick={select}
+			title={emoji.keywords}
+			type="button"
+		>
+			{emoji.char}
+		</button>
+	);
 }
 
 export function EmojiPicker({
@@ -215,6 +244,19 @@ export function EmojiPicker({
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
 	const containerReference = useRef<HTMLDivElement>(null);
+	const changeSearch = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) =>
+			setSearch(event.target.value),
+		[]
+	);
+	const selectEmoji = useCallback(
+		(emoji: string) => {
+			onChange(emoji);
+			setOpen(false);
+			setSearch("");
+		},
+		[onChange]
+	);
 
 	const filteredCategories = useMemo(() => {
 		const query = search.toLowerCase().trim();
@@ -263,7 +305,7 @@ export function EmojiPicker({
 								<Input
 									autoFocus
 									className="h-10 rounded-xl border-none bg-background pl-9 ring-1 ring-border/50 focus-visible:ring-primary/50"
-									onChange={(e) => setSearch(e.target.value)}
+									onChange={changeSearch}
 									placeholder="Search emojis..."
 									value={search}
 								/>
@@ -279,23 +321,12 @@ export function EmojiPicker({
 											</h4>
 											<div className="grid grid-cols-6 gap-1">
 												{category.emojis.map((emoji) => (
-													<button
-														className={cn(
-															"flex h-10 w-10 items-center justify-center rounded-xl text-xl transition-all hover:scale-110 hover:bg-accent active:scale-95",
-															value === emoji.char &&
-																"bg-primary/10 ring-1 ring-primary/50"
-														)}
+													<EmojiOption
+														emoji={emoji}
 														key={emoji.char}
-														onClick={() => {
-															onChange(emoji.char);
-															setOpen(false);
-															setSearch("");
-														}}
-														title={emoji.keywords}
-														type="button"
-													>
-														{emoji.char}
-													</button>
+														onSelect={selectEmoji}
+														value={value}
+													/>
 												))}
 											</div>
 										</div>

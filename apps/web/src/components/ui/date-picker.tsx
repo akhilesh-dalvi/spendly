@@ -14,12 +14,12 @@ import {
 import { cn } from "@/lib/utils";
 
 interface DatePickerProps {
+	captionLayout?: React.ComponentProps<typeof Calendar>["captionLayout"];
+	className?: string;
 	date?: Date;
+	disabled?: boolean;
 	onDateChange: (date: Date | undefined) => void;
 	placeholder?: string;
-	className?: string;
-	disabled?: boolean;
-	captionLayout?: React.ComponentProps<typeof Calendar>["captionLayout"];
 }
 
 export function DatePicker({
@@ -95,7 +95,7 @@ export function DatePickerWithRange({
 						<CalendarIcon className="mr-2 h-4 w-4" />
 						{!date?.from && <span>{placeholder}</span>}
 						{date?.from && !date.to && format(date.from, "LLL dd, y")}
-						{date?.from && date.to && (
+						{date?.from !== undefined && date.to !== undefined && (
 							<>
 								{format(date.from, "LLL dd, y")} -{" "}
 								{format(date.to, "LLL dd, y")}

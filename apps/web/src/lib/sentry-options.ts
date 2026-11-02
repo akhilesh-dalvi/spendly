@@ -13,33 +13,33 @@ export function getSentryOptions(
 ): Parameters<typeof init>[0] {
 	const environment = configuration.environment ?? "development";
 	return {
+		beforeBreadcrumb: () => null,
+		beforeSend: scrubErrorEvent,
+		beforeSendLog: () => null,
+		beforeSendMetric: () => null,
+		beforeSendSpan: (span) =>
+			scrubSpan(span, { environment, release: configuration.release }),
+		dataCollection: {
+			cookies: false,
+			databaseQueryData: false,
+			genAI: { inputs: false, outputs: false },
+			graphQL: { document: false, variables: false },
+			httpBodies: [],
+			httpHeaders: false,
+			queues: false,
+			stackFrameVariables: false,
+			urlQueryParams: false,
+			userInfo: false,
+		},
 		dsn: configuration.dsn,
 		enabled:
 			Boolean(configuration.dsn) &&
 			(configuration.enabled ?? environment === "production"),
 		environment,
+		maxBreadcrumbs: 0,
 		release: configuration.release,
 		sampleRate: 1,
-		tracesSampleRate: 0.1,
 		tracePropagationTargets: [],
-		maxBreadcrumbs: 0,
-		beforeBreadcrumb: () => null,
-		beforeSend: scrubErrorEvent,
-		beforeSendSpan: (span) =>
-			scrubSpan(span, { environment, release: configuration.release }),
-		beforeSendLog: () => null,
-		beforeSendMetric: () => null,
-		dataCollection: {
-			userInfo: false,
-			cookies: false,
-			httpHeaders: false,
-			httpBodies: [],
-			urlQueryParams: false,
-			databaseQueryData: false,
-			stackFrameVariables: false,
-			queues: false,
-			graphQL: { document: false, variables: false },
-			genAI: { inputs: false, outputs: false },
-		},
+		tracesSampleRate: 0.1,
 	};
 }

@@ -3,128 +3,289 @@ title: Accounts
 description: View balances, manage accounts, and move funds between them.
 ---
 
-## Find accounts and balances
+Accounts track where your money is, such as a checking account or cash wallet.
+Each account has a balance and a history of changes.
 
-In guided mode, you can choose an account instead of copying its name or ID:
+For example, add “Daily checking” so you can record Lunch from that account
+and see how much money remains.
 
-```bash
-spendly accounts get --interactive
-spendly accounts transactions --interactive
-```
+## Before you start
+
+- **Required:** install the CLI and sign in using [Quick start](/docs/cli).
+- **Required to add an account:** choose a name, an opening balance, and an
+  active account type. Account types are managed in Spendly Web.
+- **Automatic:** new accounts use your Spendly currency. When you omit a date,
+  the CLI uses today's date in your computer's timezone.
+- **Default account:** if you have no default, saving a new account makes it the
+  default automatically. Otherwise, your existing default stays unchanged.
+  New expenses use that default when you do not choose an account.
+
+Check what you already have:
 
 ```bash
 spendly accounts list
-spendly accounts list --include-archived
-spendly accounts get "Daily checking"
 ```
 
-Use your own account names in these examples. Commands also accept an account
-ID from the list if names are ambiguous.
+**Already have a suitable account?** Keep it. Skip account creation and use its
+name wherever this page says Daily checking. You can [set it as your default](#change-a-name-type-or-default)
+or continue to [Cycles](/docs/cli/cycles).
 
-View recent account activity:
-
-```bash
-spendly accounts transactions "Daily checking" --limit 25
-```
-
-Use the returned cursor with `--cursor` to see the next page.
-
-## Add an account
-
-Check existing accounts first, then list the available account types:
+To add a missing account, find an active account type first:
 
 ```bash
 spendly account-types list
 ```
 
-Use a type from that list to preview a new account:
+Use your own names and amounts. Checking below must be a type from your list.
+
+## Try adding an account
+
+`--interactive` opens a guided form. `--dry-run` checks your choices and shows a
+preview without adding the account or changing its balance.
 
 ```bash
 spendly accounts add --interactive --dry-run
 ```
 
-This guided form validates the name and signed opening balance, then provides
-an active account-type selector and local-date input. The explicit equivalent
-is:
+Enter “Daily checking”, choose an active account type, and enter the opening
+balance and date. For this example, use `850.00` as the opening balance. This
+is the money already in the account, not a new expense.
+
+<details className="docs-disclosure">
+<summary>Alternative: enter the details as flags</summary>
 
 ```bash
 spendly accounts add --name "Daily checking" \
   --account-type "Checking" --starting-balance 850.00 --dry-run
 ```
 
-The account uses your Spendly currency. Remove `--dry-run` to add it with
-that opening balance. Account types are managed in Spendly Web.
+</details>
 
-## Rename, set a default, or archive
+## Check and save
 
-Choose the action you need:
+1. Check the preview's name, account type, currency, opening balance, and date.
+2. To save, run the guided command again without `--dry-run`:
+
+   ```bash
+   spendly accounts add --interactive
+   ```
+
+3. Enter the same details, review the new preview, and confirm. If you used the
+   direct command instead, remove `--dry-run` from that command to save it
+   immediately, without a confirmation prompt. Choose only one save method.
+4. Verify the saved account and its opening balance:
+
+   ```bash
+   spendly accounts get "Daily checking"
+   ```
+
+The tasks below are alternatives, not steps to run in order. If you rename an
+account, use its new name in later commands.
+
+For each change, follow the same pattern: preview with `--dry-run`, check
+the result, then rerun without it only when you want to save. Use
+`accounts get` or `accounts transactions` afterward to verify the change.
+
+## Other things you can do
+
+<details className="docs-disclosure">
+<summary id="view-balances-and-activity">View balances and activity</summary>
+
+Choose an account from a list rather than typing its name:
+
+```bash
+spendly accounts get --interactive
+spendly accounts transactions --interactive
+```
+
+Or use its name directly:
+
+```bash
+spendly accounts list --include-archived
+spendly accounts get "Daily checking"
+spendly accounts transactions "Daily checking" --limit 25
+```
+
+Commands also accept an account ID from the list when names are ambiguous.
+History may have more pages. Replace `NEXT_CURSOR` with the returned cursor
+(the marker for the next page):
+
+```bash
+spendly accounts transactions "Daily checking" --limit 25 --cursor "NEXT_CURSOR"
+```
+
+Copy it unchanged. If there is no next cursor, you have reached the end.
+
+</details>
+
+<details className="docs-disclosure">
+<summary id="change-a-name-type-or-default">Change a name, type, or default</summary>
+
+Making Daily checking the default lets you use it for new expenses without
+specifying an account each time:
+
+```bash
+spendly accounts set-default "Daily checking" --dry-run
+```
+
+You can also rename an account or change its type:
 
 ```bash
 spendly accounts edit "Daily checking" --name "Household" --dry-run
-spendly accounts set-default "Daily checking" --dry-run
-spendly accounts archive "Daily checking" --dry-run
-spendly accounts reactivate "Daily checking" --dry-run
 ```
 
-For a guided bulk preview, omit the account and select one or more eligible
-accounts:
+`accounts edit` accepts `--account-type` to choose another active type. Saving a
+rename changes the name you must use in later commands. After this example,
+verify with `spendly accounts get "Household"` instead of the old name.
 
-```bash
-spendly accounts archive --interactive --dry-run
-spendly accounts reactivate --interactive --dry-run
-```
+</details>
 
-Guided bulk Archive and Reactivate show one combined preview. Without
-`--dry-run`, one safe confirmation applies the complete selection atomically;
-if any selected account changed after selection, none are updated.
+<details className="docs-disclosure">
+<summary id="set-a-known-balance">Set a known balance</summary>
 
-Remove `--dry-run` from the chosen command to apply it. Renaming changes the
-name you'll use in later commands. `accounts edit` can also change the type
-with `--account-type`.
-
-The default account is used for new expenses when no account is specified.
-Archiving keeps history but prevents new activity. Archiving the default account
-clears that default; reactivating it does not set it as default again. The CLI
-does not permanently delete accounts.
-
-## Set a balance
-
-Use this when you want an account to match a known balance:
+A balance adjustment records the difference needed to match a balance you know
+is correct. Use it to reconcile an account, not to record Lunch or another
+purchase.
 
 ```bash
 spendly accounts adjust-balance "Daily checking" --balance 925.40 --dry-run
 ```
 
-`--balance` is the final amount you want. If the current balance is 850.00,
-this example adds an adjustment of 75.40. Remove `--dry-run` to apply it.
-Zero and negative balances are supported.
+`--balance` is the final amount you want, not the amount to add. If the current
+balance is `850.00`, this example records an adjustment of `75.40`. Check that
+difference before removing `--dry-run` to save. Zero and negative balances are
+supported.
 
-## Transfer funds
+</details>
 
-Use guided mode to filter the destination to another active account with the
-same currency:
+<details className="docs-disclosure">
+<summary id="transfer-money-between-accounts">Transfer money between accounts</summary>
+
+A transfer moves money between two different active accounts in the same
+currency. It does not count as an expense. You need both accounts before you
+can transfer money; “Savings” below means your own existing destination account.
+
+Guided mode offers eligible destination accounts:
 
 ```bash
 spendly accounts transfer --interactive --dry-run
 ```
+
+Or supply the details directly:
 
 ```bash
 spendly accounts transfer --from-account "Daily checking" \
   --to-account "Savings" --amount 100.00 --dry-run
 ```
 
-The preview shows both resulting balances. Remove `--dry-run` to transfer the
-funds. Both accounts must be active and use the same currency. Transfers do not
-count as expenses. If the source would become negative, the preview returns a
-`NEGATIVE_SOURCE_BALANCE` warning; review that warning before committing.
-Completed transfers cannot be edited or deleted. Make a separate reverse
-transfer only when the user explicitly authorizes that new transfer.
+Check both resulting balances. If the source would become negative, the preview
+returns a `NEGATIVE_SOURCE_BALANCE` warning. Review it before saving.
 
-Interactive commits generate a write key when one is not supplied.
-Non-interactive commits require a fresh `--idempotency-key` and the current
-revision for each affected account. See the
-[agent contract](/docs/cli/ai-agents#mutation-safeguards) for the complete safe
-workflow.
+**Completed transfers cannot be edited or deleted.** Only remove `--dry-run`
+when the accounts and amount are correct. In guided mode, review the preview
+again and confirm. After saving, check both accounts with `accounts get` and
+their activity with `accounts transactions`. Make a separate reverse transfer
+only when the user explicitly authorizes that new transfer.
+
+</details>
+
+<details className="docs-disclosure">
+<summary id="archive-or-reactivate-an-account">Archive or reactivate an account</summary>
+
+Archive an account when you no longer use it. **Archiving keeps its history but
+prevents new activity. Archiving the default account also clears the default.**
+The CLI does not permanently delete accounts.
+
+```bash
+spendly accounts archive "Daily checking" --dry-run
+spendly accounts reactivate "Daily checking" --dry-run
+```
+
+Choose only the action you need, then remove `--dry-run` to save it. Reactivating
+an account does not make it the default again. Verify archived accounts with
+`spendly accounts list --include-archived`.
+
+To select one or more accounts in a guided preview:
+
+```bash
+spendly accounts archive --interactive --dry-run
+spendly accounts reactivate --interactive --dry-run
+```
+
+Without `--dry-run`, one confirmation applies the whole selection together.
+Review every selected account before confirming.
+
+</details>
+
+## Things to know
+
+<details className="docs-disclosure">
+<summary>Defaults, limits, and important behavior</summary>
+
+- Opening balances and adjustments can be positive, zero, or negative.
+- New expenses use the default account when no account is specified.
+- Transfers require an amount of at least `0.01` and two active accounts in the
+  same currency. They change both balances together.
+- A preview is not a saved change. Rerunning a guided command asks for your
+  choices again; check the new preview before confirming.
+
+</details>
+
+## If something goes wrong
+
+<details className="docs-disclosure">
+<summary>Common problems and fixes</summary>
+
+- **An account name is not found or is ambiguous:** list accounts again. Use
+  the exact name or the account ID, or choose it with `--interactive`.
+- **No account type is available:** check `spendly account-types list` and manage
+  active types in Spendly Web before trying to add the account again.
+- **An account changed after you read it:** read it again and rerun the preview
+  before saving. Do not force an outdated change through.
+- **You do not know whether a change saved:** inspect the account and its
+  activity first. Do not repeat the save command blindly.
 
 Run `spendly accounts --help` for all actions, or
-`spendly accounts transfer --help` for a specific action's options.
+`spendly accounts transfer --help` for one action's options.
+
+</details>
+
+## Next step
+
+[Set up a cycle](/docs/cli/cycles) to group your spending into a useful period.
+
+## For scripts and AI agents
+
+You can skip this reference when using guided commands.
+
+<details className="docs-disclosure">
+<summary>Optional: automation and technical reference</summary>
+
+Use stable IDs with `--non-interactive`, not account or type names. Account
+creation accepts `--account-type-id`; transfers accept `--from-account-id` and
+`--to-account-id`. Supply all required inputs because non-interactive commands
+do not prompt.
+
+Interactive commits generate a write key when one is not supplied. A write key
+(`--idempotency-key`) identifies one intended change so an authorized recovery
+can recognize it rather than apply it twice. Non-interactive commits require a
+fresh key for each new intended change.
+
+A revision is an account's version number. Non-interactive edits, lifecycle
+changes, and balance adjustments require the current `--if-revision`, including
+for previews. Transfers require both `--if-from-revision` and
+`--if-to-revision`. Account creation does not require an existing account revision.
+Read affected accounts first, preview, then commit the same inputs with the
+required revisions and key.
+
+Guided bulk Archive and Reactivate show one combined preview and apply the
+complete selection atomically: if any selected account changed after selection,
+none are updated.
+
+Write commands are not retried automatically. After an uncertain result, inspect
+current state first. Only an explicitly requested recovery may repeat the
+identical command with its original idempotency key; stop if the result remains
+unknown. See the [agent contract](/docs/cli/ai-agents#mutation-safeguards) for the
+complete safe workflow.
+
+</details>

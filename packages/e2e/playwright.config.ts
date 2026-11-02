@@ -9,53 +9,53 @@ const projects: Project[] = [
 if (process.env.E2E_EXTENDED_BROWSERS === "true") {
 	projects.push(
 		{
-			name: "firefox",
 			grep: compatibility,
+			name: "firefox",
 			use: { ...devices["Desktop Firefox"] },
 		},
 		{
-			name: "webkit",
 			grep: compatibility,
+			name: "webkit",
 			use: { ...devices["Desktop Safari"] },
 		},
 		{
-			name: "narrow-chromium",
 			grep: compatibility,
+			name: "narrow-chromium",
 			use: {
 				...devices["Desktop Chrome"],
-				viewport: { width: 390, height: 844 },
+				viewport: { height: 844, width: 390 },
 			},
 		}
 	);
 }
 
 export default defineConfig({
+	expect: { timeout: 15_000 },
+	forbidOnly: true,
+	fullyParallel: false,
+	globalSetup: "./src/playwright-setup.ts",
+	outputDir: ".e2e/results",
+	projects,
+	reporter: [["list"]],
+	retries: 0,
 	testDir: "./web",
 	testMatch: "**/*.spec.ts",
-	globalSetup: "./src/playwright-setup.ts",
-	fullyParallel: false,
-	workers: 1,
-	forbidOnly: true,
-	retries: 0,
 	timeout: 120_000,
-	expect: { timeout: 15_000 },
-	reporter: [["list"]],
-	outputDir: ".e2e/results",
 	use: {
 		baseURL: config.baseUrl,
+		screenshot: "off",
 		timezoneId: "UTC",
 		trace: "off",
-		screenshot: "off",
 		video: "off",
 	},
-	projects,
 	webServer: {
 		command: "pnpm --dir ../../apps/web dev",
-		url: `${config.baseUrl}/sign-in`,
 		env: webEnvironment(config),
 		reuseExistingServer: false,
-		timeout: 120_000,
-		stdout: "ignore",
 		stderr: "ignore",
+		stdout: "ignore",
+		timeout: 120_000,
+		url: `${config.baseUrl}/sign-in`,
 	},
+	workers: 1,
 });

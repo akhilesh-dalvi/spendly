@@ -3,44 +3,198 @@ title: Tags
 description: Find tags, attach them to expenses, and filter by them.
 ---
 
-Tags add labels such as Travel or Work to expenses. One expense can have
-several tags. Tags are created and managed in Spendly Web.
+Tags are extra labels for expenses. An expense can have several tags, alongside
+its category. For example, keep Lunch in Food and add Work so you can find your
+work-related spending later.
 
-## Find existing tags
+## Before you start
+
+- **Required:** Install the CLI and sign in. Follow [Quick start](/docs/cli)
+  if you have not done that yet.
+- **Required for this example:** a saved Lunch expense and an existing Work tag.
+  No tag yet? Open [Tags in Spendly Web](/data/tags), choose **New Tag**, enter
+  **Work**, and choose **Create Tag**. The CLI does not create tags.
+- **Optional:** Tags themselves are optional. New expenses have no tags unless
+  you choose them.
+
+Find the tags you can use:
 
 ```bash
 spendly tags list
 ```
 
-The list shows each tag's name and ID. Reuse an existing tag that fits what
-you're recording.
+The list shows each tag's name and ID. Use a name from your own list wherever
+an example says `Work`.
 
-## Tag an expense
+## Try tagging Lunch
 
-Use your own tag names in these examples:
+`--dry-run` previews an expense change without saving it. Start with a guided
+preview:
 
 ```bash
-spendly expenses add --amount 12.50 --spent-on "Train ticket" \
-  --tag "Travel" --dry-run
+spendly expenses edit --interactive --dry-run
 ```
 
-To set tags on an existing expense, copy its ID from `expenses list`:
+Choose Lunch, select Tags as the field to change, and choose Work. Include any
+other tags you want to keep: changing tags replaces the expense's whole tag list.
+
+If you already know the expense ID, you can preview the change directly instead:
+
+```bash
+spendly expenses list
+spendly expenses edit EXPENSE_ID --tag "Work" --dry-run
+```
+
+Replace `EXPENSE_ID` with the ID of Lunch from the list. This direct command
+replaces its tags with Work only; it does not add Work to the existing list.
+
+## Check and save
+
+Read the preview's before and after values. Check that you chose the right
+expense and kept every tag you need.
+
+To save the guided change, run the command again without `--dry-run`, make the
+same choices, and confirm the preview:
+
+```bash
+spendly expenses edit --interactive
+```
+
+For the direct alternative, run your same command without `--dry-run` to save
+immediately, without a confirmation prompt. Choose only one save method:
+
+```bash
+spendly expenses edit EXPENSE_ID --tag "Work"
+```
+
+Verify the saved tags by viewing the expense:
+
+```bash
+spendly expenses get EXPENSE_ID
+```
+
+## Other things you can do
+
+<details className="docs-disclosure">
+<summary id="view-expenses-with-a-tag">View expenses with a tag</summary>
+
+```bash
+spendly expenses list --tag "Work"
+```
+
+Repeat `--tag` to find expenses that have **all** the specified tags. Use existing
+tag names from `spendly tags list`. Run `spendly expenses list --help` for more
+filters.
+
+</details>
+
+<details className="docs-disclosure">
+<summary id="add-a-tagged-expense">Add a tagged expense</summary>
+
+Use this only for a purchase you have not recorded. To update the Lunch from
+Quick start, use the edit walkthrough above instead.
+
+To record a new Lunch with Work already attached:
+
+```bash
+spendly expenses add --amount 18.75 --spent-on "Lunch" --tag "Work" --dry-run
+```
+
+Check the preview, including the date, account, and category. Run the same command
+without `--dry-run` to save, then use `spendly expenses get EXPENSE_ID` with the
+new expense ID to verify it. See [Expenses](/docs/cli/expenses) for account and
+category choices.
+
+</details>
+
+<details className="docs-disclosure">
+<summary id="change-an-expenses-tags">Change an expense's tags</summary>
+
+Repeat `--tag` for each tag you want to keep. For example, if Lunch already has
+Travel and you want to add Work, include **both** existing tag names:
 
 ```bash
 spendly expenses edit EXPENSE_ID --tag "Travel" --tag "Work" --dry-run
 ```
 
-Remove `--dry-run` to save. When editing, supplied tags replace the expense's
-current tags, so include every tag you want to keep. `--clear-tags` removes
-all tags. New expenses have no tags unless you supply them.
+Use names from `spendly tags list`; this command does not create either tag.
+Supplied tags replace the whole list, not just one label. Check that the preview
+keeps Travel and adds Work. Remove `--dry-run` to save immediately, then verify
+with `spendly expenses get EXPENSE_ID`.
 
-## Filter by tags
+</details>
+
+<details className="docs-disclosure">
+<summary id="remove-one-tag-or-all-tags">Remove one tag or all tags</summary>
+
+To remove Work while keeping Travel, supply only the tag you want to keep:
 
 ```bash
-spendly expenses list --tag "Travel"
-spendly expenses list --tag "Travel" --tag "Work"
+spendly expenses edit EXPENSE_ID --tag "Travel" --dry-run
 ```
 
-Repeating `--tag` finds expenses with all the specified tags. Run
-`spendly expenses list --help` for more filters or `spendly tags --help`
-for tag commands.
+Check that Work is gone and Travel remains. Remove `--dry-run` to save, then
+verify with `spendly expenses get EXPENSE_ID`. Use your actual existing tag names.
+
+`--clear-tags` removes **all** tags from the expense. It does not delete the tags
+themselves. Preview before saving:
+
+```bash
+spendly expenses edit EXPENSE_ID --clear-tags --dry-run
+```
+
+Check the result, run the same command without `--dry-run` to save, and verify
+with `spendly expenses get EXPENSE_ID`.
+
+</details>
+
+## Things to know
+
+<details className="docs-disclosure">
+<summary>Defaults, limits, and important behavior</summary>
+
+- Leaving out tag options when directly editing another field keeps the existing
+  tags unchanged.
+- Tag names must match an existing tag. Passing a new name does not create it.
+- Creating, renaming, or deleting a tag itself happens in Spendly Web.
+
+</details>
+
+## If something goes wrong
+
+<details className="docs-disclosure">
+<summary>Common problems and fixes</summary>
+
+- **Tag not found:** The name does not match an existing tag. Run
+  `spendly tags list` and copy the name, or create the tag in Spendly Web first.
+- **Name matches more than one tag:** Use its ID with `--tag-id` instead of `--tag`.
+- **Expense changed since you reviewed it:** Read it again with
+  `spendly expenses get EXPENSE_ID`, then make a fresh preview before saving.
+
+</details>
+
+## Next step
+
+[Record and manage expenses](/docs/cli/expenses) using the tags you have chosen.
+
+## For scripts and AI agents
+
+You can skip this reference when using guided commands.
+
+<details className="docs-disclosure">
+<summary>Optional: automation and technical reference</summary>
+
+Use stable tag IDs with repeatable `--tag-id` rather than names in
+`--non-interactive` mode; name selectors are rejected there. Repeated tag IDs
+also mean “all tags” when filtering and replace the entire tag list when editing.
+Do not combine `--clear-tags` with `--tag` or `--tag-id`.
+
+Non-interactive edits require `--if-revision`, including previews. Read the
+current revision from `spendly expenses get EXPENSE_ID`; it protects against
+overwriting a newer change. Non-interactive saves also require an
+`--idempotency-key`. Use a fresh key for each intended write and reuse it only
+for an explicitly requested recovery of that exact write after checking current
+state. Stop if the result is still uncertain. See [AI agents](/docs/cli/ai-agents) for the
+full automation workflow.
+
+</details>
