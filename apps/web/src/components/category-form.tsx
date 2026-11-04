@@ -5,6 +5,7 @@ import type { Doc, Id } from "@spendly/backend/convex/_generated/dataModel";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "convex/react";
 import { AlertCircle, Loader2, Plus, Save, X } from "lucide-react";
+import posthog from "posthog-js";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -337,6 +338,10 @@ export function CategoryForm({
 						name: val.name,
 						plannedAmount: val.plannedAmount,
 					});
+					posthog.capture("category_updated", {
+						has_type: Boolean(resolvedTypeId),
+						has_planned_amount: val.plannedAmount !== undefined,
+					});
 					toast.success("Category updated");
 				} else {
 					await Promise.all(
@@ -353,6 +358,9 @@ export function CategoryForm({
 							});
 						})
 					);
+					posthog.capture("category_created", {
+						category_count: value.categories.length,
+					});
 					toast.success(
 						value.categories.length > 1
 							? "Categories added successfully"

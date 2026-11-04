@@ -12,6 +12,7 @@ import {
 	Save,
 } from "lucide-react";
 import Link from "next/link";
+import posthog from "posthog-js";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AccountTypeEditorDialog } from "@/components/account-type-editor-dialog";
@@ -289,6 +290,9 @@ export function AccountForm({
 						accountTypeId: resolvedAccountTypeId,
 						name: normalizedName,
 					});
+					posthog.capture("account_updated", {
+						balance_nature: selectedAccountType?.balanceNature,
+					});
 					toast.success("Account updated");
 					onSuccess(accountId);
 					return;
@@ -302,6 +306,9 @@ export function AccountForm({
 				if (!account) {
 					throw new Error("Account could not be loaded after creation");
 				}
+				posthog.capture("account_created", {
+					balance_nature: selectedAccountType?.balanceNature,
+				});
 				toast.success("Account created");
 				onSuccess(account._id);
 			} catch (error) {
@@ -329,6 +336,7 @@ export function AccountForm({
 			createAccount,
 			onSuccess,
 			saveOperation,
+			selectedAccountType?.balanceNature,
 		]
 	);
 

@@ -10,6 +10,7 @@ import {
 	WalletCards,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
+import posthog from "posthog-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DateRange } from "react-day-picker";
 import { OnboardingStepControls } from "@/components/onboarding-shell";
@@ -172,6 +173,10 @@ export default function OnboardingCyclePage() {
 				endDate: format(dateRange.to, "yyyy-MM-dd"),
 				name: normalizedName,
 				startDate: format(dateRange.from, "yyyy-MM-dd"),
+			});
+			posthog.capture("onboarding_cycle_saved", {
+				had_existing_cycle: Boolean(onboardingState?.cycle),
+				preset,
 			});
 			if (onboardingState?.path === "plan") {
 				router.push(`/onboarding/categories?cycleId=${cycleId}`);
