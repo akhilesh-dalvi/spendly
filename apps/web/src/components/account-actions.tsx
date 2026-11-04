@@ -12,6 +12,7 @@ import {
 	TriangleAlert,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AccountTypeIcon } from "@/components/account-type-icon";
@@ -174,6 +175,10 @@ function BalanceAdjustmentDialog({
 					date,
 					newBalance: parsedBalance,
 					note: note.trim() || undefined,
+				});
+				posthog.capture("account_balance_adjusted", {
+					adjustment_direction:
+						parsedBalance > account.currentBalance ? "increase" : "decrease",
 				});
 				toast.success("Balance updated", {
 					description: `${account.name} now matches ${formatAccountMoney(
@@ -389,6 +394,7 @@ function TransferDialog({
 				const destination = eligibleAccounts.find(
 					(candidate) => candidate._id === destinationId
 				);
+				posthog.capture("account_transfer_recorded");
 				toast.success("Transfer recorded", {
 					action: destination
 						? {

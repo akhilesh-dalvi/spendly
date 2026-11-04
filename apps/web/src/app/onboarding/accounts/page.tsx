@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OnboardingStepControls } from "@/components/onboarding-shell";
 import { Badge } from "@/components/ui/badge";
@@ -176,6 +177,9 @@ export default function OnboardingAccountsPage() {
 				name: normalizedName,
 				openingBalance: parsedBalance,
 			});
+			posthog.capture("onboarding_completed", {
+				account_status: "created",
+			});
 			setCreatedAccount(true);
 			setShowSuccess(true);
 		} catch (error) {
@@ -192,6 +196,9 @@ export default function OnboardingAccountsPage() {
 		setFormError(undefined);
 		try {
 			await completeOnboarding({ accountStatus: "skipped" });
+			posthog.capture("onboarding_completed", {
+				account_status: "skipped",
+			});
 			setCreatedAccount(false);
 			setShowSuccess(true);
 		} catch (error) {

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 import {
 	type ComponentProps,
 	useCallback,
@@ -263,6 +264,11 @@ export function ExpenseForm({
 				spentOn: value.spentOn || undefined,
 				tagIds: value.tagIds as Id<"tags">[],
 			});
+			posthog.capture("expense_updated", {
+				has_account: Boolean(resolvedAccountId),
+				has_category: Boolean(resolvedCategoryId),
+				tag_count: value.tagIds.length,
+			});
 			toast.success("Expense updated");
 			return true;
 		}
@@ -274,6 +280,11 @@ export function ExpenseForm({
 			date: format(value.date, "yyyy-MM-dd"),
 			spentOn: value.spentOn || undefined,
 			tagIds: value.tagIds as Id<"tags">[],
+		});
+		posthog.capture("expense_created", {
+			has_account: Boolean(resolvedAccountId),
+			has_category: Boolean(resolvedCategoryId),
+			tag_count: value.tagIds.length,
 		});
 		toast.success("Expense added successfully");
 		return true;
