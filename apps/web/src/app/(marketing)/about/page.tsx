@@ -1,23 +1,16 @@
+import { SignedIn, SignedOut } from "@clerk/nextjs";
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import CallToAction from "@/components/call-to-action";
 import FooterSection from "@/components/footer";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
 import {
 	createMarketingMetadata,
 	createSoftwareApplicationJsonLd,
 } from "@/lib/seo";
 
 const aboutDescription =
-	"Learn what Spendly is for, why it stays flexible, and how it approaches expense tracking without rigid budgeting pressure.";
+	"The story behind Spendly: how a daily expense-tracking habit grew from pen and paper into an open-source app, built by a developer learning with AI.";
 
 export const metadata: Metadata = createMarketingMetadata({
 	description: aboutDescription,
@@ -27,132 +20,178 @@ export const metadata: Metadata = createMarketingMetadata({
 
 const aboutStructuredData = createSoftwareApplicationJsonLd({
 	description: aboutDescription,
-	featureList: [
-		"Flexible cycles that match real timelines",
-		"Optional planning without rigid budget rules",
-		"Editable history that stays useful over time",
-		"Comparison tools for calm financial review",
-	],
+	featureList: ["Expense tracking in the web app and CLI"],
 	path: "/about",
 });
 
-const principles = [
-	{
-		description:
-			"Not everyone reviews money by calendar month. Spendly supports pay periods, trips, semesters, and custom date ranges.",
-		title: "Built around real cycles",
-	},
-	{
-		description:
-			"You can set planned amounts when they help and skip them when they do not. The tool stays useful either way.",
-		title: "Planning is optional",
-	},
-	{
-		description:
-			"Expense records are only helpful if they can be corrected later. Spendly keeps that door open.",
-		title: "History stays editable",
-	},
-] as const;
-
-const whoItsFor = [
-	"People who dislike rigid budgeting apps",
-	"Anyone whose spending rhythm does not fit calendar months",
-	"Users who want observation and clarity more than enforcement",
-] as const;
-
 export default function AboutPage() {
-	const featuresHref = "/features" as Route;
-	const pricingHref = "/pricing" as Route;
-
 	return (
 		<>
 			<main className="flex-1" id="main-content">
-				<section className="border-b">
-					<div className="mx-auto flex max-w-6xl flex-col gap-10 px-6 py-16 md:py-24">
-						<div className="flex max-w-4xl flex-col gap-6">
-							<Badge className="rounded-full px-3 py-1" variant="outline">
-								About Spendly
-							</Badge>
-							<div className="flex flex-col gap-4">
-								<h1 className="max-w-4xl text-balance font-semibold text-4xl tracking-tight md:text-6xl">
-									Spendly is built for people who want calmer expense tracking.
-								</h1>
-								<p className="max-w-3xl text-balance text-base text-muted-foreground md:text-lg">
-									It is an expense tracker for real-life rhythms: flexible
-									cycles, optional planning, editable history, and comparison
-									tools that help you observe patterns without turning money
-									into punishment.
-								</p>
-							</div>
+				<section aria-labelledby="about-title" className="border-b">
+					<div className="mx-auto grid max-w-6xl items-center gap-8 px-6 py-14 md:py-20 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
+						<h1
+							className="max-w-4xl text-balance font-semibold text-4xl tracking-tight md:text-6xl"
+							id="about-title"
+						>
+							About Spendly
+						</h1>
+						<div className="flex max-w-2xl flex-col gap-6">
+							<p className="max-w-2xl text-pretty text-base text-muted-foreground md:text-lg">
+								I’m Akhilesh, the developer behind Spendly. I built it to make
+								my own daily expense tracking easier. It started with a
+								notebook, grew into a spreadsheet, and became an open-source
+								app.
+							</p>
 							<div className="flex flex-wrap gap-3">
-								<Button asChild size="lg">
-									<Link href={pricingHref}>See Pricing</Link>
-								</Button>
-								<Button asChild size="lg" variant="outline">
-									<Link href={featuresHref}>Explore Features</Link>
-								</Button>
+								<SignedOut>
+									<Button asChild size="lg">
+										<Link href={"/sign-up" as Route}>Sign up</Link>
+									</Button>
+									<Button asChild size="lg" variant="outline">
+										<Link href={"/sign-in" as Route}>Sign in</Link>
+									</Button>
+								</SignedOut>
+								<SignedIn>
+									<Button asChild size="lg">
+										<Link href={"/dashboard" as Route}>Go to Dashboard</Link>
+									</Button>
+								</SignedIn>
 							</div>
-						</div>
-
-						<div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-							<Card className="border-border/70 bg-muted/20">
-								<CardHeader>
-									<CardTitle className="text-2xl">Why it exists</CardTitle>
-									<CardDescription className="text-sm md:text-base">
-										Many budgeting tools assume one monthly cycle, one right way
-										to plan, and one fixed truth about past records. Spendly
-										takes the opposite approach.
-									</CardDescription>
-								</CardHeader>
-								<CardContent className="space-y-4 text-muted-foreground text-sm md:text-base">
-									<p>
-										Your system can be simple, structured, experimental, or
-										still-evolving. Spendly is designed to support that reality.
-									</p>
-									<p>
-										The goal is clarity, not guilt. You should be able to see
-										what happened, adjust what was recorded, and compare cycles
-										without being pushed into a rigid framework.
-									</p>
-								</CardContent>
-							</Card>
-
-							<Card className="border-border/70">
-								<CardHeader>
-									<CardTitle className="text-2xl">Who it helps most</CardTitle>
-								</CardHeader>
-								<CardContent className="space-y-3 text-muted-foreground text-sm md:text-base">
-									{whoItsFor.map((item) => (
-										<p key={item}>{item}</p>
-									))}
-								</CardContent>
-							</Card>
+							<Link
+								className="w-fit underline underline-offset-4"
+								href="/features"
+							>
+								Explore features
+							</Link>
 						</div>
 					</div>
 				</section>
 
-				<section className="border-b">
-					<div className="mx-auto grid max-w-6xl gap-6 px-6 py-16 md:grid-cols-3">
-						{principles.map((principle) => (
-							<Card className="border-border/70" key={principle.title}>
-								<CardHeader>
-									<CardTitle className="text-xl">{principle.title}</CardTitle>
-								</CardHeader>
-								<CardContent>
-									<p className="text-muted-foreground text-sm md:text-base">
-										{principle.description}
-									</p>
-								</CardContent>
-							</Card>
-						))}
-					</div>
-				</section>
+				<div className="mx-auto max-w-6xl px-6 py-4 md:py-8">
+					<section
+						aria-labelledby="origin-heading"
+						className="grid gap-5 border-b py-10 last:border-b-0 md:py-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16"
+					>
+						<h2
+							className="font-semibold text-3xl tracking-tight"
+							id="origin-heading"
+						>
+							From pen and paper to a spreadsheet
+						</h2>
+						<div className="flex max-w-2xl flex-col gap-4 text-base leading-relaxed">
+							<p className="text-muted-foreground leading-relaxed">
+								At the end of each day, I used to write down where I had spent
+								my money. Later, I moved to Excel. One sheet of expenses grew
+								into categories, category types, and charts showing how much I
+								spent in each category.
+							</p>
+							<p className="text-muted-foreground leading-relaxed">
+								I started using Google Sheets so I could add expenses from my
+								phone and laptop. The spreadsheet worked, but entering and
+								reviewing expenses felt awkward. I wanted an easier way to use
+								the system I had built.
+							</p>
+							<p className="text-muted-foreground leading-relaxed">
+								That became Spendly. My way of tracking spending had changed
+								over time, so I wanted the app to leave room for that - not make
+								everyone follow the system I happened to use.
+							</p>
+						</div>
+					</section>
 
-				<CallToAction />
-				<FooterSection />
+					<section
+						aria-labelledby="developer-heading"
+						className="grid gap-5 border-b py-10 last:border-b-0 md:py-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16"
+					>
+						<h2
+							className="font-semibold text-3xl tracking-tight"
+							id="developer-heading"
+						>
+							A personal tool, a real project
+						</h2>
+						<div className="flex max-w-2xl flex-col gap-4 text-base leading-relaxed">
+							<p className="text-muted-foreground leading-relaxed">
+								As a developer, I wanted a real product in my portfolio -
+								something I would use and maintain, not just finish as a demo.
+								Building for myself gave me a reason to keep improving it.
+							</p>
+							<p className="text-muted-foreground leading-relaxed">
+								Spendly is also how I am learning to build with AI. I review
+								AI-generated code and test what I ship, including complete user
+								journeys. Those checks help me maintain Spendly, but they do not
+								make it perfect.
+							</p>
+						</div>
+					</section>
+
+					<section
+						aria-labelledby="project-heading"
+						className="grid gap-5 border-b py-10 last:border-b-0 md:py-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16"
+					>
+						<h2
+							className="font-semibold text-3xl tracking-tight"
+							id="project-heading"
+						>
+							Why open source
+						</h2>
+						<div className="flex max-w-2xl flex-col gap-4 text-base leading-relaxed">
+							<p className="text-muted-foreground leading-relaxed">
+								Open-source libraries and tools helped me build Spendly. Sharing
+								its code felt like a natural way to give something back. I’m
+								sharing it for people who want to build their own
+								expense-tracking habit. You can learn from it, fork it to build
+								what you need, or contribute improvements.
+							</p>
+							<p className="text-muted-foreground leading-relaxed">
+								The code is available in the{" "}
+								<a
+									className="underline underline-offset-4"
+									href="https://github.com/akhilesh-dalvi/spendly"
+								>
+									akhilesh-dalvi/spendly
+								</a>{" "}
+								repository.
+							</p>
+						</div>
+					</section>
+
+					<section
+						aria-labelledby="focus-heading"
+						className="grid gap-5 border-b py-10 last:border-b-0 md:py-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16"
+					>
+						<h2
+							className="font-semibold text-3xl tracking-tight"
+							id="focus-heading"
+						>
+							Making the habit easier
+						</h2>
+						<div className="flex max-w-2xl flex-col gap-4 text-base leading-relaxed">
+							<p className="text-muted-foreground leading-relaxed">
+								My focus now is making it easier to record an expense when it
+								happens, so there is less to catch up on at the end of the day.
+								That is why I added the{" "}
+								<Link
+									className="underline underline-offset-4"
+									href={"/docs/cli" as Route}
+								>
+									Spendly CLI
+								</Link>{" "}
+								- a command-line tool for recording expenses without opening the
+								web app.
+							</p>
+						</div>
+					</section>
+				</div>
+
+				<CallToAction
+					description="Try Spendly for your own spending and see whether it fits the way you like to keep track."
+					title="Make it part of your day"
+				/>
 			</main>
+			<FooterSection />
 			<script type="application/ld+json">
-				{JSON.stringify(aboutStructuredData)}
+				{JSON.stringify(aboutStructuredData).replace(/</g, "\\u003c")}
 			</script>
 		</>
 	);

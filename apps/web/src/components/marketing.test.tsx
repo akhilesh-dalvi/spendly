@@ -3,7 +3,9 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { type ComponentProps, type ReactNode, useCallback } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import AboutPage from "../app/(marketing)/about/page";
+import AboutPage, {
+	metadata as aboutMetadata,
+} from "../app/(marketing)/about/page";
 import FaqsPage from "../app/(marketing)/faqs/page";
 import FeaturesPage from "../app/(marketing)/features/page";
 import MarketingLayout from "../app/(marketing)/layout";
@@ -20,6 +22,9 @@ import { ModeToggle } from "./mode-toggle";
 const TERMS_HEADING = /terms/i;
 const PRODUCT_TERMS = /expense|spendly/i;
 const SUPPORT_PROMPT = /Still have questions/;
+const PRICING_LINK = /pricing/i;
+const UNSUPPORTED_ABOUT_CLAIMS =
+	/Many budgeting tools|punishment|forever|zero setup|savings tracking|collaboration|MCP|No setup quiz|add cycles and plans when it helps|[—–]/i;
 const UNSUPPORTED_PRICING_CLAIMS =
 	/donat|sponsor|ko-fi|paypal|stripe|future|premium|paid tier|forever|unlimited|credit card|zero setup|MCP|AI feature|export|No setup quiz|add cycles and plans when it helps/i;
 
@@ -67,7 +72,7 @@ describe("public marketing routes", () => {
 		},
 		{ heading: "Spendly is free to use.", name: "pricing", Page: PricingPage },
 		{
-			heading: "Spendly is built for people who want calmer expense tracking.",
+			heading: "About Spendly",
 			name: "about",
 			Page: AboutPage,
 		},
@@ -118,6 +123,156 @@ describe("public marketing routes", () => {
 			).not.toBeInTheDocument();
 		}
 	);
+
+	it("tells About's personal origin, developer motivation, and open-source story", () => {
+		render(<AboutPage />);
+		expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+		expect(
+			screen
+				.getAllByRole("heading", { level: 2 })
+				.map((heading) => heading.textContent)
+		).toEqual([
+			"From pen and paper to a spreadsheet",
+			"A personal tool, a real project",
+			"Why open source",
+			"Making the habit easier",
+			"Make it part of your day",
+		]);
+		const main = screen.getByRole("main");
+		expect(main).toHaveTextContent("At the end of each day");
+		expect(main).toHaveTextContent("Later, I moved to Excel.");
+		expect(main).toHaveTextContent("Google Sheets");
+		expect(main).toHaveTextContent("phone and laptop");
+		expect(main).toHaveTextContent("The spreadsheet worked");
+		expect(main).toHaveTextContent(
+			"not make everyone follow the system I happened to use"
+		);
+		expect(main).toHaveTextContent("a real product in my portfolio");
+		expect(main).toHaveTextContent(
+			"I’m Akhilesh, the developer behind Spendly."
+		);
+		expect(main).toHaveTextContent("learning to build with AI");
+		expect(main).toHaveTextContent(
+			"I review AI-generated code and test what I ship, including complete user journeys."
+		);
+		expect(main).toHaveTextContent(
+			"people who want to build their own expense-tracking habit"
+		);
+		expect(
+			within(main).getByRole("link", { name: "Spendly CLI" })
+		).toHaveAttribute("href", "/docs/cli");
+		expect(main).toHaveTextContent("fork it to build what you need");
+		expect(main).toHaveTextContent("or contribute improvements");
+		expect(main).toHaveTextContent(
+			"a command-line tool for recording expenses without opening the web app"
+		);
+		expect(
+			within(main).getByRole("link", { name: "Explore features" })
+		).toHaveAttribute("href", "/features");
+		expect(
+			within(main).getByRole("link", {
+				name: "akhilesh-dalvi/spendly",
+			})
+		).toHaveAttribute("href", "https://github.com/akhilesh-dalvi/spendly");
+		expect(within(main).queryByRole("link", { name: PRICING_LINK })).toBeNull();
+		expect(main).not.toHaveTextContent(UNSUPPORTED_ABOUT_CLAIMS);
+	});
+
+	it.each([false, true])(
+		"keeps About's shared closing CTA accurate for signed-in state %s",
+		(signedIn) => {
+			auth.signedIn = signedIn;
+			render(<AboutPage />);
+			const hero = screen.getByRole("region", { name: "About Spendly" });
+			const primary = within(hero).getByRole("link", {
+				name: signedIn ? "Go to Dashboard" : "Sign up",
+			});
+			expect(primary).toHaveAttribute(
+				"href",
+				signedIn ? "/dashboard" : "/sign-up"
+			);
+			expect(primary).toHaveAttribute("data-variant", "default");
+			expect(primary).toHaveAttribute("data-size", "lg");
+			if (signedIn) {
+				expect(
+					within(hero).queryByRole("link", { name: "Sign up" })
+				).toBeNull();
+				expect(
+					within(hero).queryByRole("link", { name: "Sign in" })
+				).toBeNull();
+			} else {
+				const signIn = within(hero).getByRole("link", { name: "Sign in" });
+				expect(signIn).toHaveAttribute("href", "/sign-in");
+				expect(signIn).toHaveAttribute("data-variant", "outline");
+				expect(signIn).toHaveAttribute("data-size", "lg");
+			}
+			expect(
+				within(hero).getByRole("link", { name: "Explore features" })
+			).not.toHaveAttribute("data-slot", "button");
+			const closingSection = screen
+				.getByRole("heading", { name: "Make it part of your day" })
+				.closest("section");
+			if (!closingSection) {
+				throw new Error("About must render the shared closing CTA section");
+			}
+			expect(closingSection).toHaveTextContent(
+				"Try Spendly for your own spending and see whether it fits the way you like to keep track."
+			);
+			expect(within(closingSection).getAllByRole("link")).toHaveLength(1);
+			expect(
+				within(closingSection).getByRole("link", {
+					name: signedIn ? "Go to Dashboard" : "Get Started Free",
+				})
+			).toHaveAttribute("href", signedIn ? "/dashboard" : "/sign-up");
+			expect(
+				screen.queryByRole("link", {
+					name: signedIn ? "Get Started Free" : "Go to Dashboard",
+				})
+			).toBeNull();
+			const footer = screen.getByRole("contentinfo");
+			if (signedIn) {
+				expect(
+					within(footer).queryByRole("link", { name: "Sign up" })
+				).toBeNull();
+				expect(
+					within(footer).queryByRole("link", { name: "Sign in" })
+				).toBeNull();
+			} else {
+				expect(
+					within(footer).getByRole("link", { name: "Sign up" })
+				).toHaveAttribute("href", "/sign-up");
+				expect(
+					within(footer).getByRole("link", { name: "Sign in" })
+				).toHaveAttribute("href", "/sign-in");
+			}
+		}
+	);
+
+	it("keeps About metadata and structured data consistent with its scope", () => {
+		const { container } = render(<AboutPage />);
+		const description =
+			"The story behind Spendly: how a daily expense-tracking habit grew from pen and paper into an open-source app, built by a developer learning with AI.";
+		expect(aboutMetadata).toMatchObject({
+			alternates: { canonical: "https://spendly.example.com/about" },
+			description,
+			openGraph: {
+				description,
+				title: "Spendly | About",
+				url: "https://spendly.example.com/about",
+			},
+			title: "Spendly | About",
+			twitter: { description, title: "Spendly | About" },
+		});
+		const script = container.querySelector(
+			'script[type="application/ld+json"]'
+		);
+		expect(JSON.parse(script?.textContent ?? "{}")).toMatchObject({
+			"@type": "WebApplication",
+			description,
+			featureList: ["Expense tracking in the web app and CLI"],
+			url: "https://spendly.example.com/about",
+		});
+	});
 
 	it("explains present pricing and included capabilities without speculative offers", () => {
 		const { container } = render(<PricingPage />);
