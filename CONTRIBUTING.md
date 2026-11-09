@@ -42,7 +42,7 @@ Keep Convex dev running after schema or function changes to update
 Run checks proportional to the change and report what actually ran:
 
 ```bash
-pnpm dlx ultracite check   # Use fix for formatting and safe lint fixes
+pnpm lint                 # Use lint:fix for formatting and safe lint fixes
 pnpm check-types
 pnpm hooks:test
 pnpm knip:check
@@ -50,7 +50,8 @@ pnpm test:coverage
 pnpm build
 ```
 
-CLI-only checks: `pnpm check-types:cli`, `pnpm test:cli`, and `pnpm pack:cli`.
+Combined gates: `pnpm check:pr` for the repository or `pnpm check:cli` for
+CLI-only changes.
 Workspace scripts in `package.json` provide focused checks. Web typechecks
 generate route types and need public Convex/Clerk settings from the environment.
 

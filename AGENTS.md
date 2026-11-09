@@ -6,11 +6,15 @@ authorization.
 
 ## Code standards
 
+Use root `package.json` scripts for development and verification so agents, T3,
+and CI share task definitions. Choose checks proportional to the change; use
+`pnpm check:pr` for the combined pre-PR gate.
+
 Ultracite/Biome enforces formatting and lint rules:
 
 ```bash
-pnpm dlx ultracite fix
-pnpm dlx ultracite check
+pnpm lint:fix
+pnpm lint
 ```
 
 - Prefer type narrowing and `unknown` over assertions and `any`.

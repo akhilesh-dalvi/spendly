@@ -5,6 +5,8 @@
   "scripts": {
     "build": "turbo build",
     "build:cli": "turbo -F spendly build",
+    "check:cli": "pnpm check-types:cli && pnpm test:cli && pnpm pack:cli",
+    "check:pr": "pnpm lint && pnpm check-types && pnpm hooks:test && pnpm secrets:test && pnpm knip:check && pnpm test:coverage",
     "check-types": "turbo check-types",
     "check-types:cli": "turbo -F spendly check-types",
     "dev": "node scripts/with-secrets.mjs dev turbo dev",
@@ -19,9 +21,12 @@
     "knip:check": "knip --treat-config-hints-as-errors",
     "knip:production": "knip --production",
     "knip:report": "knip --no-exit-code",
+    "lint": "pnpm exec ultracite check",
+    "lint:fix": "pnpm exec ultracite fix",
     "pack:cli": "pnpm -C apps/cli pack:verify",
     "prepare": "node scripts/install-hooks.mjs",
     "secrets:test": "node --test scripts/with-secrets.test.mjs",
+    "test:backend": "pnpm --dir packages/backend test:once",
     "test:cli": "turbo -F spendly test",
     "test:coverage": "pnpm --parallel --no-bail --filter ./apps/cli --filter ./apps/web --filter ./packages/backend test:coverage",
     "test:e2e:backend": "node scripts/with-secrets.mjs e2e node packages/e2e/run.mjs backend",
@@ -32,6 +37,7 @@
     "test:e2e:tooling": "pnpm --dir packages/e2e test",
     "test:e2e:validate": "node scripts/with-secrets.mjs e2e node packages/e2e/run.mjs validate",
     "test:e2e:web": "node scripts/with-secrets.mjs e2e node packages/e2e/run.mjs web",
+    "test:web": "pnpm --dir apps/web test",
     "typecheck:cli": "turbo -F spendly check-types"
   },
   "lint-staged": {
