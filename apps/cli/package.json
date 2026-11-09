@@ -36,7 +36,7 @@
     "check-types:development": "tsc -p tsconfig.development.json --noEmit",
     "clean:development": "node scripts/clean-output.mjs development-dist",
     "clean:production": "node scripts/clean-output.mjs dist",
-    "dev": "pnpm build:development && node --env-file=.env.local development-dist/development/index.js",
+    "dev": "pnpm build:development && node development-dist/development/index.js",
     "prepack": "npm run release:check && npm run build",
     "pack:verify": "node scripts/verify-package.mjs",
     "release:check": "node scripts/verify-release-metadata.mjs",
