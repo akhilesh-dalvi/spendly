@@ -1,6 +1,7 @@
 import { SignedIn, SignedOut } from "@clerk/nextjs";
 import type { Metadata, Route } from "next";
 import Link from "next/link";
+import CallToAction from "@/components/call-to-action";
 import FooterSection from "@/components/footer";
 import Pricing from "@/components/pricing";
 import { Button } from "@/components/ui/button";
@@ -77,31 +78,6 @@ export default function PricingPage() {
 							.
 						</p>
 						<PricingActions />
-					</div>
-				</section>
-
-				<Pricing />
-
-				<section
-					aria-labelledby="pricing-setup-title"
-					className="border-t bg-muted/20"
-				>
-					<div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-16 md:py-20">
-						<h2
-							className="font-semibold text-3xl tracking-tight"
-							id="pricing-setup-title"
-						>
-							Start with a cycle
-						</h2>
-						<p className="max-w-2xl text-pretty text-muted-foreground leading-relaxed">
-							In the web app, create a cycle covering your expense date, then
-							add an expense with a positive amount. Categories, tags, notes,
-							and planned amounts are optional.
-						</p>
-						<p className="max-w-2xl text-pretty text-muted-foreground leading-relaxed">
-							Cycles cannot overlap, and the end date is not included.
-						</p>
-						<PricingActions />
 						<Link
 							className="w-fit underline underline-offset-4"
 							href="/features"
@@ -110,6 +86,13 @@ export default function PricingPage() {
 						</Link>
 					</div>
 				</section>
+
+				<Pricing />
+
+				<CallToAction
+					description="In the web app, create a cycle covering your expense date, then add an expense. Categories, tags, notes, and planned amounts are optional. Cycles cannot overlap, and the end date is not included."
+					title="Start with a cycle"
+				/>
 				<FooterSection />
 			</main>
 			<script type="application/ld+json">
