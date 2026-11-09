@@ -473,7 +473,7 @@ function ExpensesPageContent() {
 				cell: ({ row }) => {
 					const { accountName } = row.original;
 					if (!accountName) {
-						return <span className="text-muted-foreground text-sm">—</span>;
+						return <span className="text-muted-foreground text-sm"> - </span>;
 					}
 
 					return (
@@ -514,7 +514,7 @@ function ExpensesPageContent() {
 							}
 						/>
 						<span className="text-muted-foreground">
-							{row.getValue("spentOn") || "—"}
+							{row.getValue("spentOn") || "-"}
 						</span>
 					</div>
 				),
@@ -526,7 +526,7 @@ function ExpensesPageContent() {
 				cell: ({ row }) => {
 					const { tagNames } = row.original;
 					if (!tagNames || tagNames.length === 0) {
-						return <span className="text-muted-foreground text-sm">—</span>;
+						return <span className="text-muted-foreground text-sm"> - </span>;
 					}
 					return (
 						<div className="flex flex-wrap gap-1">

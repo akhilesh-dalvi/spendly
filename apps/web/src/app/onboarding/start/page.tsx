@@ -132,7 +132,7 @@ export default function OnboardingStartPage() {
 		} catch (cause) {
 			reportError(cause, { feature: "onboarding", operation: "start" });
 			setError(
-				"We couldn't save your setup choice. Your selections are still here—please try again."
+				"We couldn't save your setup choice. Your selections are still here - please try again."
 			);
 			setIsSaving(false);
 		}
@@ -146,8 +146,8 @@ export default function OnboardingStartPage() {
 						Set up the way you already think about money.
 					</h1>
 					<p className="mt-3 max-w-2xl text-pretty text-muted-foreground leading-6">
-						Choose your currency and a starting path. Nothing is locked—you can
-						add budgets, categories, or accounts later.
+						Choose your currency and a starting path. Nothing is locked - you
+						can add budgets, categories, or accounts later.
 					</p>
 				</div>
 

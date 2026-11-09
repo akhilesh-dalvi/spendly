@@ -52,7 +52,7 @@ export function AccountBalanceOverview({
 							))}
 						</div>
 					) : (
-						<h3 className="mt-2 font-medium text-3xl tracking-tight">—</h3>
+						<h3 className="mt-2 font-medium text-3xl tracking-tight"> - </h3>
 					)}
 				</div>
 				<MetricStatus>

@@ -373,7 +373,7 @@ export default function OnboardingCategoriesPage() {
 		} catch (cause) {
 			reportError(cause, { feature: "onboarding", operation: "create" });
 			setError(
-				"We couldn't save your categories. Your entries are still here—please try again."
+				"We couldn't save your categories. Your entries are still here - please try again."
 			);
 			setIsSaving(false);
 		}

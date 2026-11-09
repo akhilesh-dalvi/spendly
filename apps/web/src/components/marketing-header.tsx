@@ -5,6 +5,7 @@ import { Menu, X } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { GitHubButton } from "@/components/github-button";
 import { Logo } from "@/components/logo";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Button } from "@/components/ui/button";
@@ -45,7 +46,7 @@ export function MarketingHeader() {
 				className="fixed top-0 right-0 left-0 z-40 w-full border-b border-dashed bg-white/95 backdrop-blur dark:bg-zinc-950/80"
 				data-state={menuState ? "active" : "inactive"}
 			>
-				<div className="m-auto max-w-5xl px-6">
+				<div className="m-auto max-w-6xl px-6">
 					<div className="flex flex-wrap items-center justify-between gap-6 py-3 lg:gap-0 lg:py-4">
 						<div className="flex w-full items-center justify-between lg:w-auto">
 							<Link
@@ -60,7 +61,7 @@ export function MarketingHeader() {
 							<div className="flex items-center gap-2 lg:hidden">
 								<SignedOut>
 									<Button asChild size="sm">
-										<Link href={"/sign-up" as Route}>Get Started</Link>
+										<Link href={"/sign-up" as Route}>Sign up</Link>
 									</Button>
 								</SignedOut>
 
@@ -85,11 +86,11 @@ export function MarketingHeader() {
 						</div>
 
 						<div
-							className="mb-6 in-data-[state=active]:block hidden w-full flex-wrap items-center justify-end space-y-8 rounded-3xl border bg-background p-6 shadow-2xl shadow-zinc-300/20 md:flex-nowrap lg:m-0 lg:flex lg:w-fit lg:gap-6 lg:space-y-0 lg:border-transparent lg:bg-transparent lg:p-0 lg:shadow-none dark:shadow-none dark:lg:bg-transparent"
+							className="mb-6 in-data-[state=active]:block hidden w-full flex-wrap items-center justify-end space-y-8 rounded-3xl border bg-background p-6 shadow-2xl shadow-zinc-300/20 md:flex-nowrap lg:m-0 lg:flex lg:w-fit lg:gap-4 lg:space-y-0 lg:border-transparent lg:bg-transparent lg:p-0 lg:shadow-none dark:shadow-none dark:lg:bg-transparent"
 							id="marketing-navigation"
 						>
 							<div className="lg:pr-4">
-								<ul className="space-y-6 text-base lg:flex lg:gap-8 lg:space-y-0 lg:text-sm">
+								<ul className="space-y-6 text-base lg:flex lg:gap-5 lg:space-y-0 lg:text-sm">
 									{menuItems.map((item) => (
 										<li key={item.href}>
 											<Link
@@ -104,16 +105,17 @@ export function MarketingHeader() {
 								</ul>
 							</div>
 
-							<div className="flex w-full flex-col space-y-3 sm:flex-row sm:items-center sm:gap-3 sm:space-y-0 md:w-fit lg:border-l lg:pl-6">
+							<div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center md:w-fit lg:border-l lg:pl-4">
+								<GitHubButton />
 								<SignedOut>
 									<SignInButton mode="modal">
 										<Button size="sm" variant="outline">
-											Login
+											Sign in
 										</Button>
 									</SignInButton>
 
 									<Button asChild size="sm">
-										<Link href={"/sign-up" as Route}>Get Started</Link>
+										<Link href={"/sign-up" as Route}>Sign up</Link>
 									</Button>
 								</SignedOut>
 

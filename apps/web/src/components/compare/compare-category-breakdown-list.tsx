@@ -118,7 +118,7 @@ function CategoryBreakdownRow({
 												Planned
 											</p>
 											<p className="font-medium text-sm tabular-nums">
-												{hasPlan ? formatCurrency(plannedAmount) : "—"}
+												{hasPlan ? formatCurrency(plannedAmount) : "-"}
 											</p>
 										</div>
 										<div>
@@ -135,7 +135,7 @@ function CategoryBreakdownRow({
 											>
 												{typeof difference === "number"
 													? formatCurrency(difference)
-													: "—"}
+													: "-"}
 											</p>
 										</div>
 									</div>
@@ -203,7 +203,7 @@ export function CompareCategoryBreakdownList({
 		(categoryName: string, cycle: CompareCycleRow) => {
 			const cell = cycleCategoryStats.get(cycle.cycleId)?.get(categoryName);
 			if (!cell) {
-				return <p className="text-muted-foreground text-xs">—</p>;
+				return <p className="text-muted-foreground text-xs"> - </p>;
 			}
 
 			const hasPlan = typeof cell.planned === "number" && cell.planned > 0;
@@ -218,7 +218,7 @@ export function CompareCategoryBreakdownList({
 						{formatCurrency(cell.spent)}
 						<span className="text-muted-foreground">
 							{" "}
-							/ {hasPlan ? formatCurrency(plannedAmount) : "—"}
+							/ {hasPlan ? formatCurrency(plannedAmount) : "-"}
 						</span>
 					</p>
 					<Progress className="h-1" value={progress} />

@@ -1,6 +1,6 @@
 # Feature Specs (scratch space)
 
-This folder is for **active, in-flight feature work only** — not long-lived documentation.
+This folder is for **active, in-flight feature work only** - not long-lived documentation.
 
 ## How to use it
 

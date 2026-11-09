@@ -249,7 +249,7 @@ describe("category detail and transaction columns", () => {
 		fixtures.set(getFunctionName(api.expenses.list), []);
 		await renderPage();
 		expect(screen.getByText("📦")).toBeVisible();
-		expect(screen.getByRole("heading", { name: "—" })).toBeVisible();
+		expect(screen.getByRole("heading", { name: "-" })).toBeVisible();
 		expect(screen.queryByText("Needs")).not.toBeInTheDocument();
 		expect(screen.getByText("No transactions yet")).toBeVisible();
 		expect(screen.getByText("0 total")).toBeVisible();

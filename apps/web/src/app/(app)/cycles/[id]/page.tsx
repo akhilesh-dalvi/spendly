@@ -398,7 +398,7 @@ function CycleSummaryCards({
 						<h3 className="mt-2 font-medium text-3xl tabular-nums tracking-tight">
 							{stats.totalPlanned > 0
 								? formatCurrency(stats.totalPlanned)
-								: "—"}
+								: "-"}
 						</h3>
 					</div>
 				</div>
@@ -565,7 +565,7 @@ function CycleCategoryCard({
 						</p>
 						<p className="font-bold text-lg tabular-nums">
 							{cat.plannedAmount === null || cat.plannedAmount === undefined
-								? "—"
+								? "-"
 								: formatCurrency(cat.plannedAmount)}
 						</p>
 						{historicalSpent !== undefined && (

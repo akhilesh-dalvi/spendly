@@ -55,13 +55,13 @@ export default function FooterSection() {
 								className="block text-muted-foreground duration-150 hover:text-primary"
 								href={"/sign-in" as Route}
 							>
-								<span>Sign In</span>
+								<span>Sign in</span>
 							</Link>
 							<Link
 								className="block text-muted-foreground duration-150 hover:text-primary"
 								href={"/sign-up" as Route}
 							>
-								<span>Sign Up</span>
+								<span>Sign up</span>
 							</Link>
 						</SignedOut>
 						<SignedIn>

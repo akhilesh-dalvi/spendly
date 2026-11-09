@@ -36,7 +36,7 @@ export function CompareCycleOverviewCards({
 							<div className="text-right">
 								<p className="text-muted-foreground text-xs">Remaining</p>
 								<p className="font-semibold text-sm tabular-nums">
-									{hasPlanned ? formatCurrency(remaining) : "—"}
+									{hasPlanned ? formatCurrency(remaining) : "-"}
 								</p>
 							</div>
 						</div>
@@ -44,7 +44,7 @@ export function CompareCycleOverviewCards({
 						<div className="mt-3 flex items-center justify-between gap-2 text-xs">
 							<p className="text-muted-foreground tabular-nums">
 								{formatCurrency(row.totalSpent)} of{" "}
-								{hasPlanned ? formatCurrency(row.totalPlanned) : "—"}
+								{hasPlanned ? formatCurrency(row.totalPlanned) : "-"}
 							</p>
 							<p className="text-muted-foreground tabular-nums">
 								{hasPlanned ? `${Math.round(progress)}%` : "0%"} spent

@@ -58,7 +58,7 @@ export function CompareKpiStrip({
 					</p>
 
 					<h3 className="mt-2 font-medium text-3xl tracking-tight">
-						{hasPlanned ? formatCurrency(totals.totalPlanned) : "—"}
+						{hasPlanned ? formatCurrency(totals.totalPlanned) : "-"}
 					</h3>
 				</div>
 				<div className="mt-4 flex items-center gap-1.5">
@@ -81,7 +81,7 @@ export function CompareKpiStrip({
 							netNegative && "text-destructive"
 						)}
 					>
-						{hasPlanned ? formatCurrency(totals.netRemaining) : "—"}
+						{hasPlanned ? formatCurrency(totals.netRemaining) : "-"}
 					</h3>
 				</div>
 				<div className="mt-4 flex items-center gap-1.5">

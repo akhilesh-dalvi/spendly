@@ -43,7 +43,7 @@ for (const [slug, title] of docs) {
 		await expect(
 			page.getByRole("heading", { exact: true, level: 1, name: title })
 		).toBeVisible();
-		await expect(page).toHaveTitle(`Spendly | ${title} — CLI docs`);
+		await expect(page).toHaveTitle(`Spendly | ${title} - CLI docs`);
 		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 			"href",
 			`https://spendly.example.com${path}`

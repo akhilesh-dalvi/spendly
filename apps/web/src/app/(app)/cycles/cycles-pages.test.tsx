@@ -435,7 +435,7 @@ describe("cycle detail route", () => {
 		await renderDetail();
 		expect(screen.getByText(label)).toBeInTheDocument();
 		if (planned === 0) {
-			expect(screen.getByText("—")).toBeInTheDocument();
+			expect(screen.getByText("-")).toBeInTheDocument();
 		} else {
 			expect(screen.getByText("$20.00")).toBeInTheDocument();
 			expect(screen.getByText("(120%)")).toBeInTheDocument();

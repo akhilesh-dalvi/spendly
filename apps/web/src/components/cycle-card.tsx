@@ -99,7 +99,7 @@ export function CycleCard({
 									Spent
 								</p>
 								<p className="font-semibold text-base tabular-nums">
-									{summary ? formatCurrency(summary.totalSpent) : "—"}
+									{summary ? formatCurrency(summary.totalSpent) : "-"}
 								</p>
 							</div>
 							<div className="space-y-0.5">
@@ -107,7 +107,7 @@ export function CycleCard({
 									Planned
 								</p>
 								<p className="font-semibold text-base tabular-nums">
-									{summary ? formatCurrency(summary.totalPlanned) : "—"}
+									{summary ? formatCurrency(summary.totalPlanned) : "-"}
 								</p>
 							</div>
 							<ChevronRight className="hidden h-5 w-5 text-muted-foreground/30 transition-transform group-hover:translate-x-0.5 group-hover:text-primary/50 sm:block" />

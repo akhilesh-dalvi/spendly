@@ -400,7 +400,7 @@ export default function CyclesPage() {
 	};
 	const activeTotalSpent = activeCycleSummary?.totalSpent ?? 0;
 	const activeTotalPlanned = activeCycleSummary?.totalPlanned ?? 0;
-	let cycleDaysValue: number | string = "—";
+	let cycleDaysValue: number | string = "-";
 	let cycleDaysLabel = "Cycle Status";
 	if (groupedCycles.current) {
 		const today = new Date();

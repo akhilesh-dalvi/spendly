@@ -61,7 +61,7 @@ detect changes made since the record was read.
 `cli/v1/cycles:previewCreate` returns optional `copySnapshot` when
 `copyFromCycleId` is supplied. It is a 64-character lowercase hex SHA256 binding
 the source ID and all effective persisted category-copy fields: selected category
-IDs, names, types, plans, icons, hidden state, and order—not the source cycle
+IDs, names, types, plans, icons, hidden state, and order - not the source cycle
 revision. Explicit copy-none with a source guards the empty effective selection.
 `cli/v1/cycles:create` requires `expectedCopySnapshot` with a source and requires
 it to be absent otherwise. Invalid or missing guards yield `INVALID_INPUT`

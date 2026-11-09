@@ -43,7 +43,7 @@ export const faqItems: FaqItem[] = [
 	},
 	{
 		answer:
-			"Spendly lets you create the expense and then prompts you to create the missing cycle, so tracking never gets blocked by setup.",
+			"Create a cycle that covers the expense date before saving it. You can use past dates when recording an older expense.",
 		id: "item-7",
 		question:
 			"What happens if an expense date falls outside my current cycles?",

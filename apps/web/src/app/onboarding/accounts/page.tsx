@@ -181,7 +181,7 @@ export default function OnboardingAccountsPage() {
 		} catch (error) {
 			reportError(error, { feature: "accounts", operation: "create" });
 			setFormError(
-				"We couldn't create your account. Your entries are still here—please try again."
+				"We couldn't create your account. Your entries are still here - please try again."
 			);
 			setIsSubmitting(false);
 		}

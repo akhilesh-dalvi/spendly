@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import { Badge } from "@/components/ui/badge";
 import {
 	Dialog,
 	DialogContent,
@@ -12,7 +11,6 @@ import {
 
 interface StorySection {
 	description: string;
-	eyebrow: string;
 	height: number;
 	lightScreenshot: string;
 	screenshot: string;
@@ -24,52 +22,48 @@ interface StorySection {
 const storySections = [
 	{
 		description:
-			"Add amount, category, date, tags, and notes in seconds. Come back to a clean, readable history instead of a cluttered log.",
-		eyebrow: "Daily flow",
+			"Enter what you spent and when. Categories, tags, and notes help you find the details later.",
 		height: 1548,
 		lightScreenshot: "/images/marketing/app-screenshots/add-expense-light.png",
 		screenshot: "/images/marketing/app-screenshots/add-expense.png",
 		screenshotAlt:
-			"Spendly expense entry form showing quick capture with category, date, tags, and notes fields",
-		title: "Quick capture, calm history",
+			"Spendly expense entry form with amount, category, date, tags, and notes fields",
+		title: "Add what you spent",
 		width: 2938,
 	},
 	{
 		description:
-			"Review entries in a clean list with the details that matter, so edits, follow-ups, and quick checks never feel buried.",
-		eyebrow: "Expense history",
+			"Scan amounts, dates, and categories in one list. Edit an entry when you need to correct it.",
 		height: 1956,
 		lightScreenshot: "/images/marketing/app-screenshots/expenses-light.png",
 		screenshot: "/images/marketing/app-screenshots/expenses.png",
 		screenshotAlt:
 			"Spendly expenses view showing a clear list of transactions with categories, dates, and amounts",
-		title: "Every expense stays easy to scan",
+		title: "Find and fix past entries",
 		width: 2938,
 	},
 	{
 		description:
-			"Track pay periods, projects, semesters, or travel windows. Compare cycles when you want insight, not pressure.",
-		eyebrow: "Cycle clarity",
+			"Check your cycle total, spending charts, and recent expenses on the dashboard.",
+		height: 2712,
+		lightScreenshot:
+			"/images/marketing/app-screenshots/dashboard-overview-mar-light.png",
+		screenshot: "/images/marketing/app-screenshots/dashboard-overview-mar.png",
+		screenshotAlt:
+			"Spendly dashboard overview showing spending totals, charts, and recent activity",
+		title: "Check your spending at a glance",
+		width: 2938,
+	},
+	{
+		description:
+			"Compare spending across your cycles. See which categories changed from one period to the next.",
 		height: 4296,
 		lightScreenshot:
 			"/images/marketing/app-screenshots/compare-cycles-light.png",
 		screenshot: "/images/marketing/app-screenshots/compare-cycles.png",
 		screenshotAlt:
 			"Spendly cycle comparison view showing spending across multiple custom time periods",
-		title: "Your schedule, not a forced month",
-		width: 2938,
-	},
-	{
-		description:
-			"See totals, comparisons, and recent activity in one place so you always know where things stand without digging through entries.",
-		eyebrow: "Dashboard insight",
-		height: 2712,
-		lightScreenshot:
-			"/images/marketing/app-screenshots/dashboard-overview-mar-light.png",
-		screenshot: "/images/marketing/app-screenshots/dashboard-overview-mar.png",
-		screenshotAlt:
-			"Spendly dashboard overview showing totals, cycle comparisons, charts, and recent activity",
-		title: "A dashboard that keeps the picture clear",
+		title: "See what changed over time",
 		width: 2938,
 	},
 ] as const satisfies readonly StorySection[];
@@ -79,15 +73,11 @@ export default function LandingDemoStrip() {
 		<section className="border-border/60 border-b bg-background py-20 md:py-28">
 			<div className="mx-auto max-w-6xl px-6">
 				<div className="mx-auto max-w-3xl text-center">
-					<Badge className="rounded-full px-3 py-1" variant="outline">
-						Product tour
-					</Badge>
-					<h2 className="mt-4 text-balance font-semibold text-3xl tracking-tight md:text-5xl">
-						See how four core ideas make tracking feel natural
+					<h2 className="text-balance font-semibold text-3xl tracking-tight md:text-5xl">
+						See how Spendly works
 					</h2>
 					<p className="mt-4 text-balance text-muted-foreground md:text-lg">
-						Quick capture, flexible cycles, dashboard clarity, and readable
-						history all work together without getting in your way.
+						Take a look inside. Select any screenshot to enlarge it.
 					</p>
 				</div>
 
@@ -101,10 +91,7 @@ export default function LandingDemoStrip() {
 								key={section.title}
 							>
 								<div className="flex-shrink-0 lg:w-[340px]">
-									<p className="text-[11px] text-muted-foreground/60 uppercase tracking-[0.24em]">
-										{section.eyebrow}
-									</p>
-									<h3 className="mt-3 text-balance font-semibold text-2xl tracking-tight md:text-3xl">
+									<h3 className="text-balance font-semibold text-2xl tracking-tight md:text-3xl">
 										{section.title}
 									</h3>
 									<p className="mt-4 text-muted-foreground leading-7">
