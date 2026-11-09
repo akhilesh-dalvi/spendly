@@ -48,7 +48,7 @@ export default function Pricing() {
 						Three ways to use Spendly
 					</h2>
 					<p className="mt-3 text-muted-foreground text-sm md:text-base">
-						All free. One product, three workflows — use them together or start
+						All free. One product, three workflows - use them together or start
 						simple and evolve as you go.
 					</p>
 				</div>

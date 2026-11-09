@@ -52,7 +52,7 @@ beforeEach(() => {
 describe("public marketing routes", () => {
 	it.each([
 		{
-			heading: "Spendly gives you a calmer way to track spending.",
+			heading: "Understand your spending. On your terms.",
 			name: "home",
 			Page: LandingPage,
 		},
@@ -130,6 +130,104 @@ describe("public marketing routes", () => {
 		expect(screen.getByRole("main")).toHaveAttribute("id", "main-content");
 	});
 
+	it("explains setup before the product tour and links to the first steps", () => {
+		render(<LandingPage />);
+		expect(
+			screen
+				.getAllByRole("heading", { level: 2 })
+				.map((heading) => heading.textContent)
+		).toEqual([
+			"From setup to your first expense",
+			"See how Spendly works",
+			"Is Spendly right for you?",
+			"Common questions",
+			"Start tracking for free",
+		]);
+		expect(
+			screen.getByRole("link", { name: "See how it works" })
+		).toHaveAttribute("href", "#how-it-works");
+		const workflow = document.getElementById("how-it-works");
+		expect(workflow).toHaveTextContent(
+			"Choose a date range - Spendly calls this a cycle."
+		);
+		expect(workflow).toHaveTextContent("Enter an amount and date, then save.");
+		expect(workflow).toHaveTextContent(
+			"Your expense date must fall within this range."
+		);
+		const tourHeadings = screen
+			.getAllByRole("heading", { level: 3 })
+			.map((heading) => heading.textContent);
+		expect(
+			tourHeadings.indexOf("Check your spending at a glance")
+		).toBeLessThan(tourHeadings.indexOf("See what changed over time"));
+		expect(screen.getAllByRole("link", { name: "Sign in" })).toHaveLength(2);
+	});
+
+	it("presents product choices without manual-only wording or tour labels", () => {
+		render(<LandingPage />);
+		expect(
+			screen.getByRole("heading", { name: "Focused by design" })
+		).toBeVisible();
+		expect(screen.getByRole("link", { name: "Spendly CLI" })).toHaveAttribute(
+			"href",
+			"/docs/cli"
+		);
+		expect(screen.queryByText("Know the limits")).not.toBeInTheDocument();
+		expect(
+			screen.queryByText("You enter expenses yourself", { exact: false })
+		).not.toBeInTheDocument();
+		for (const label of [
+			"Expense entry",
+			"Expense history",
+			"Overview",
+			"Comparison",
+		]) {
+			expect(
+				screen.queryByText(label, { exact: true })
+			).not.toBeInTheDocument();
+		}
+	});
+
+	it.each([false, true])(
+		"offers public FAQ help regardless of sign-in state (%s)",
+		async (signedIn) => {
+			auth.signedIn = signedIn;
+			const user = userEvent.setup();
+			render(<LandingPage />);
+			expect(
+				screen.getByRole("link", { name: "Browse all FAQs" })
+			).toHaveAttribute("href", "/faqs");
+			const question = screen.getByRole("button", {
+				name: "What if my expense is outside my cycle dates?",
+			});
+			question.focus();
+			await user.keyboard("{Enter}");
+			expect(question).toHaveAttribute("aria-expanded", "true");
+			expect(
+				screen.getByText(
+					"Create a cycle that covers the expense date before saving it. You can use past dates when recording an older expense."
+				)
+			).toBeVisible();
+			expect(screen.queryByText(SUPPORT_PROMPT)).not.toBeInTheDocument();
+		}
+	);
+
+	it("opens the product screenshots by keyboard and restores focus on escape", async () => {
+		const user = userEvent.setup();
+		render(<LandingPage />);
+		const trigger = screen.getByRole("button", {
+			name: "Open Add what you spent screenshot fullscreen",
+		});
+		trigger.focus();
+		await user.keyboard("{Enter}");
+		expect(screen.getByRole("dialog")).toHaveAccessibleName(
+			"Add what you spent"
+		);
+		await user.keyboard("{Escape}");
+		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+		expect(trigger).toHaveFocus();
+	});
+
 	it("provides readable terms and a return link", () => {
 		render(<TermsPage />);
 		expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
@@ -143,10 +241,10 @@ describe("public marketing routes", () => {
 	});
 
 	it.each([
-		"Quick capture, calm history",
-		"Every expense stays easy to scan",
-		"Your schedule, not a forced month",
-		"A dashboard that keeps the picture clear",
+		"Add what you spent",
+		"Find and fix past entries",
+		"See what changed over time",
+		"Check your spending at a glance",
 	])(
 		"opens the %s screenshot with an accessible title and closes it",
 		async (title) => {
@@ -167,6 +265,31 @@ describe("public marketing routes", () => {
 });
 
 describe("marketing navigation and help", () => {
+	it("uses Sign in and Sign up in the navigation", () => {
+		render(<MarketingHeader />);
+		expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+		const signupLinks = screen.getAllByRole("link", { name: "Sign up" });
+		expect(signupLinks).toHaveLength(2);
+		for (const link of signupLinks) {
+			expect(link).toHaveAttribute("href", "/sign-up");
+		}
+	});
+
+	it.each([false, true])(
+		"links to GitHub regardless of sign-in state (%s)",
+		(signedIn) => {
+			auth.signedIn = signedIn;
+			render(<MarketingHeader />);
+			const link = screen.getByRole("link", { name: "GitHub" });
+			expect(link).toHaveAttribute(
+				"href",
+				"https://github.com/akhilesh-dalvi/spendly"
+			);
+			expect(link).toHaveAttribute("target", "_blank");
+			expect(link).toHaveAttribute("rel", "noopener noreferrer");
+		}
+	);
+
 	it("opens, closes, and dismisses the mobile navigation without responding to unrelated keys", async () => {
 		const user = userEvent.setup();
 		render(<MarketingHeader />);
@@ -206,7 +329,7 @@ describe("marketing navigation and help", () => {
 		render(<MarketingHeader />);
 		expect(screen.getByRole("button", { name: "Account menu" })).toBeVisible();
 		expect(
-			screen.queryByRole("button", { name: "Login" })
+			screen.queryByRole("button", { name: "Sign in" })
 		).not.toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Toggle theme" })).toBeVisible();
 	});
@@ -221,6 +344,21 @@ describe("marketing navigation and help", () => {
 			expect(auth.setTheme).toHaveBeenCalledWith(theme.toLowerCase());
 		}
 	);
+
+	it("keeps linked FAQ setup advice consistent with the homepage", async () => {
+		const user = userEvent.setup();
+		render(<FaqSection />);
+		await user.click(
+			screen.getByRole("button", {
+				name: "What happens if an expense date falls outside my current cycles?",
+			})
+		);
+		expect(
+			screen.getByText(
+				"Create a cycle that covers the expense date before saving it. You can use past dates when recording an older expense."
+			)
+		).toBeVisible();
+	});
 
 	it.each(faqItems)("expands and collapses $question", async (item) => {
 		const user = userEvent.setup();

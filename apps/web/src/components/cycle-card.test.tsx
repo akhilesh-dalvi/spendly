@@ -110,7 +110,7 @@ describe("CycleCard", () => {
 	it("displays placeholders while the summary is loading, even with budget-only enabled", () => {
 		fixture(api.aggregations.getCycleSummary, undefined);
 		render(<CycleCard cycle={cycle} requireBudget />);
-		expect(screen.getAllByText("—")).toHaveLength(2);
+		expect(screen.getAllByText("-")).toHaveLength(2);
 		expect(screen.getByRole("link")).toBeInTheDocument();
 	});
 

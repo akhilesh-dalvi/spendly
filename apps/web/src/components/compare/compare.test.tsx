@@ -198,7 +198,7 @@ describe("comparison breakdown", () => {
 		expect(screen.getByText("-$50.00")).toBeVisible();
 		expect(screen.getByText("100% spent")).toBeVisible();
 		expect(screen.getByText("0% spent")).toBeVisible();
-		expect(screen.getByText("$20.00 of —")).toBeVisible();
+		expect(screen.getByText("$20.00 of -")).toBeVisible();
 		expect(screen.getByText("Feb 1 - Feb 28, 2026")).toBeVisible();
 		expect(
 			screen
@@ -229,8 +229,8 @@ describe("comparison breakdown", () => {
 		},
 		{
 			netRemaining: -170,
-			planned: "—",
-			remaining: "—",
+			planned: "-",
+			remaining: "-",
 			status: "No planned values to compare",
 			totalPlanned: 0,
 		},

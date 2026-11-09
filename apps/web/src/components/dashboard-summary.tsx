@@ -150,7 +150,7 @@ function TrackedFundsSummary({
 					))}
 				</div>
 			) : (
-				<p className="mt-3 font-medium text-3xl tracking-tight">—</p>
+				<p className="mt-3 font-medium text-3xl tracking-tight"> - </p>
 			)}
 
 			<p className="mt-2 text-muted-foreground text-sm">
@@ -243,7 +243,7 @@ export function DashboardSummary({
 							isOverBudget && "text-destructive"
 						)}
 					>
-						{hasBudgetValue ? formatCurrency(budgetValue) : "—"}
+						{hasBudgetValue ? formatCurrency(budgetValue) : "-"}
 					</p>
 				</div>
 

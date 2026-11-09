@@ -1,7 +1,7 @@
 "use client";
 
 import { SignedIn, SignedOut } from "@clerk/nextjs";
-import { faqItems } from "@/components/faq-data";
+import { type FaqItem, faqItems } from "@/components/faq-data";
 import {
 	Accordion,
 	AccordionContent,
@@ -10,13 +10,17 @@ import {
 } from "@/components/ui/accordion";
 
 interface FaqSectionProps {
+	browseAllFaqs?: boolean;
 	description?: string;
 	id?: string;
+	items?: readonly FaqItem[];
 	showSupportText?: boolean;
 	title?: string;
 }
 
 export default function FaqSection({
+	browseAllFaqs = false,
+	items = faqItems,
 	description = "Everything here is built to help you explore your spending with flexibility and clarity.",
 	id = "faqs",
 	showSupportText = true,
@@ -40,7 +44,7 @@ export default function FaqSection({
 						collapsible
 						type="single"
 					>
-						{faqItems.map((item) => (
+						{items.map((item) => (
 							<AccordionItem
 								className="border-dashed"
 								key={item.id}
@@ -56,7 +60,18 @@ export default function FaqSection({
 						))}
 					</Accordion>
 
-					{showSupportText ? (
+					{browseAllFaqs ? (
+						<p className="mt-6 px-8 text-muted-foreground">
+							<a
+								className="font-medium text-primary hover:underline"
+								href="/faqs"
+							>
+								Browse all FAQs
+							</a>
+						</p>
+					) : null}
+
+					{showSupportText && !browseAllFaqs ? (
 						<p className="mt-6 px-8 text-muted-foreground">
 							<SignedOut>
 								Still have questions?{" "}

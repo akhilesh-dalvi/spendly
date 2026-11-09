@@ -497,7 +497,7 @@ function CategorySummaryCards({
 							Planned
 						</p>
 						<h3 className="mt-2 font-medium text-3xl tabular-nums tracking-tight">
-							{stats.planned > 0 ? format(stats.planned) : "—"}
+							{stats.planned > 0 ? format(stats.planned) : "-"}
 						</h3>
 					</div>
 				</div>

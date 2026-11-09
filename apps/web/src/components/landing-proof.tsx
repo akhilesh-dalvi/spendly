@@ -1,69 +1,65 @@
-import { CalendarRange, Edit3, Layers3 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { CalendarRange, PencilLine, TrendingUp } from "lucide-react";
 
-const corePoints = [
+const steps = [
 	{
 		description:
-			"Track pay periods, trips, semesters, or any timeline that reflects how you actually review spending.",
+			"Choose a date range - Spendly calls this a cycle. Use a month, payday to payday, or your trip dates. Your expense date must fall within this range.",
 		icon: CalendarRange,
-		title: "Custom cycles instead of forced months",
+		title: "Choose your dates",
 	},
 	{
 		description:
-			"Add planned amounts when they help, or skip them completely and still keep the app useful.",
-		icon: Layers3,
-		title: "Planning is optional, not required",
+			"Enter an amount and date, then save. Add a category, tags, or a note if you want more detail.",
+		icon: PencilLine,
+		title: "Record an expense",
 	},
 	{
 		description:
-			"Fix past records, reassign categories, and keep your expense history trustworthy over time.",
-		icon: Edit3,
-		title: "History stays editable when life changes",
+			"See where your money went. As you add more cycles, compare totals and category spending to see what changed.",
+		icon: TrendingUp,
+		title: "Review and compare",
 	},
 ] as const;
 
 export default function LandingProof() {
 	return (
-		<section className="border-b bg-background py-16 md:py-24">
+		<section
+			className="scroll-mt-24 border-b bg-background py-16 md:py-24"
+			id="how-it-works"
+		>
 			<div className="mx-auto max-w-6xl px-6">
 				<div className="mx-auto max-w-2xl text-center">
-					<Badge className="rounded-full px-3 py-1" variant="outline">
-						Why Spendly works
-					</Badge>
-					<h2 className="mt-5 text-balance font-semibold text-3xl tracking-tight md:text-5xl">
-						Built for clarity without rigid budgeting.
+					<h2 className="text-balance font-semibold text-3xl tracking-tight md:text-5xl">
+						From setup to your first expense
 					</h2>
-					<p className="mt-4 text-balance text-muted-foreground leading-7 md:text-lg">
-						Spendly is shaped around how people actually review spending:
-						flexible cycles, optional planning, and history you can fix when
-						life changes.
+					<p className="mt-4 text-muted-foreground leading-7 md:text-lg">
+						Create a free account and choose your currency. Then:
 					</p>
 				</div>
-
-				<div className="mt-12 grid gap-6 md:grid-cols-3">
-					{corePoints.map((point) => {
-						const Icon = point.icon;
-
+				<ol className="mt-10 grid gap-6 md:grid-cols-3">
+					{steps.map((step, index) => {
+						const Icon = step.icon;
 						return (
-							<article
-								className="group rounded-2xl border border-border/70 bg-muted/15 p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-border hover:shadow-black/5 hover:shadow-lg"
-								key={point.title}
+							<li
+								className="rounded-2xl border border-border/70 bg-muted/15 p-6"
+								key={step.title}
 							>
-								<div className="flex items-center">
-									<div className="inline-flex size-11 items-center justify-center rounded-2xl border bg-background">
-										<Icon aria-hidden className="size-4" />
-									</div>
+								<div className="flex items-center gap-3">
+									<Icon
+										aria-hidden
+										className="size-5 shrink-0 text-muted-foreground"
+									/>
+									<h3 className="font-semibold text-lg">
+										{index + 1}. {step.title}
+									</h3>
 								</div>
-								<h3 className="mt-5 font-semibold text-lg leading-7">
-									{point.title}
-								</h3>
 								<p className="mt-3 text-muted-foreground text-sm leading-6">
-									{point.description}
+									{step.description}
 								</p>
-							</article>
+							</li>
 						);
 					})}
-				</div>
+				</ol>
 			</div>
 		</section>
 	);

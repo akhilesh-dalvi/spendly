@@ -2,17 +2,24 @@ import { SignedIn, SignedOut } from "@clerk/nextjs";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export default function CallToAction() {
+interface CallToActionProps {
+	description?: string;
+	title?: string;
+}
+
+export default function CallToAction({
+	description = "Start simple with just expenses, or add cycles and plans when it helps. No setup quiz, no credit card.",
+	title = "Ready to track your way?",
+}: CallToActionProps) {
 	return (
 		<section className="py-16 md:py-32">
 			<div className="mx-auto max-w-5xl px-6">
 				<div className="overflow-hidden rounded-3xl bg-[#0b0c10] px-6 py-16 text-center md:px-12 md:py-24">
 					<h2 className="text-balance font-semibold text-3xl text-white md:text-4xl lg:text-5xl">
-						Ready to track your way?
+						{title}
 					</h2>
 					<p className="mx-auto mt-4 max-w-xl text-white/65 leading-relaxed">
-						Start simple with just expenses, or add cycles and plans when it
-						helps. No setup quiz, no credit card.
+						{description}
 					</p>
 
 					<div className="mt-10 flex flex-wrap justify-center gap-4">

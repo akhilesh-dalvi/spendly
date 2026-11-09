@@ -95,7 +95,7 @@ describe("dashboard budget and tracked funds", () => {
 			planned: 0,
 			progress: "0",
 			spent: 0,
-			value: "—",
+			value: "-",
 		},
 	])(
 		"explains $label with spent=$spent and planned=$planned",
@@ -237,7 +237,7 @@ describe("account-only dashboard", () => {
 			<DashboardAccountsSummary showAccountOnboarding summary={emptyAccounts} />
 		);
 		expect(screen.getByRole("heading", { name: "Not set" })).toBeVisible();
-		expect(screen.getByRole("heading", { name: "—" })).toBeVisible();
+		expect(screen.getByRole("heading", { name: "-" })).toBeVisible();
 		expect(screen.getByText("Across 0 accounts")).toBeVisible();
 		expect(screen.getByRole("link", { name: "Add account" })).toHaveAttribute(
 			"href",

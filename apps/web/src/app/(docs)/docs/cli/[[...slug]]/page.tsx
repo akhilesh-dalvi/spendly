@@ -26,7 +26,7 @@ export async function generateMetadata({
 		notFound();
 	}
 
-	const title = createMarketingTitle(`${page.data.title} — CLI docs`);
+	const title = createMarketingTitle(`${page.data.title} - CLI docs`);
 
 	return {
 		alternates: { canonical: absoluteUrl(page.url) },
