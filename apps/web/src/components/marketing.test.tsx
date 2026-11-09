@@ -8,7 +8,9 @@ import FaqsPage from "../app/(marketing)/faqs/page";
 import FeaturesPage from "../app/(marketing)/features/page";
 import MarketingLayout from "../app/(marketing)/layout";
 import LandingPage, { metadata as homeMetadata } from "../app/(marketing)/page";
-import PricingPage from "../app/(marketing)/pricing/page";
+import PricingPage, {
+	metadata as pricingMetadata,
+} from "../app/(marketing)/pricing/page";
 import TermsPage from "../app/(marketing)/terms/page";
 import { faqItems } from "./faq-data";
 import FaqSection from "./faq-section";
@@ -18,6 +20,8 @@ import { ModeToggle } from "./mode-toggle";
 const TERMS_HEADING = /terms/i;
 const PRODUCT_TERMS = /expense|spendly/i;
 const SUPPORT_PROMPT = /Still have questions/;
+const UNSUPPORTED_PRICING_CLAIMS =
+	/donat|sponsor|ko-fi|paypal|stripe|future|premium|paid tier|forever|unlimited|credit card|zero setup|MCP|AI feature|export|No setup quiz|add cycles and plans when it helps/i;
 
 const auth = vi.hoisted(() => ({ setTheme: vi.fn(), signedIn: false }));
 vi.mock("@clerk/nextjs", () => ({
@@ -80,7 +84,7 @@ describe("public marketing routes", () => {
 				screen.getByRole("heading", { level: 1, name: heading })
 			).toBeVisible();
 			for (const link of screen.getAllByRole("link", {
-				name: "Get Started Free",
+				name: Page === PricingPage ? "Sign up" : "Get Started Free",
 			})) {
 				expect(link).toHaveAttribute("href", "/sign-up");
 			}
@@ -114,6 +118,108 @@ describe("public marketing routes", () => {
 			).not.toBeInTheDocument();
 		}
 	);
+
+	it("explains present pricing and included capabilities without speculative offers", () => {
+		const { container } = render(<PricingPage />);
+		const main = screen.getByRole("main");
+		expect(main).toHaveTextContent(
+			"All current web and CLI features are free."
+		);
+		expect(main).toHaveTextContent("optional spending plans");
+		expect(main).toHaveTextContent("cycles - date ranges you choose");
+		expect(main).toHaveTextContent("Record expenses and edit past entries.");
+		expect(main).toHaveTextContent(
+			"Add categories, tags, or notes when useful."
+		);
+		expect(main).toHaveTextContent("Set optional planned amounts");
+		expect(main).toHaveTextContent(
+			"Keep tracking even when spending goes over your plan."
+		);
+		expect(main).toHaveTextContent("Compare 2-5 cycles side by side");
+		expect(main).toHaveTextContent(
+			"In the web app, create a cycle covering your expense date"
+		);
+		expect(main).toHaveTextContent("add an expense with a positive amount");
+		expect(main).toHaveTextContent(
+			"Categories, tags, notes, and planned amounts are optional."
+		);
+		expect(main).toHaveTextContent(
+			"Cycles cannot overlap, and the end date is not included."
+		);
+		expect(
+			screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)
+		).toEqual(["What's included", "Start with a cycle"]);
+		const allPricingContent = `${container.textContent} ${JSON.stringify(pricingMetadata)}`;
+		expect(allPricingContent).not.toMatch(UNSUPPORTED_PRICING_CLAIMS);
+		expect(
+			screen.queryByRole("link", { name: "Full pricing details" })
+		).not.toBeInTheDocument();
+	});
+
+	it.each([false, true])(
+		"keeps Pricing next steps useful for signed-in state %s",
+		(signedIn) => {
+			auth.signedIn = signedIn;
+			render(<PricingPage />);
+			for (const name of ["Spendly is free to use.", "Start with a cycle"]) {
+				const section = screen.getByRole("region", { name });
+				expect(
+					within(section).getByRole("link", {
+						name: signedIn ? "Go to Dashboard" : "Sign up",
+					})
+				).toHaveAttribute("href", signedIn ? "/dashboard" : "/sign-up");
+				if (signedIn) {
+					expect(
+						within(section).queryByRole("link", { name: "Sign up" })
+					).toBeNull();
+					expect(
+						within(section).queryByRole("link", { name: "Sign in" })
+					).toBeNull();
+				} else {
+					expect(
+						within(section).getByRole("link", { name: "Sign in" })
+					).toHaveAttribute("href", "/sign-in");
+					expect(
+						within(section).queryByRole("link", { name: "Go to Dashboard" })
+					).toBeNull();
+				}
+			}
+			expect(
+				screen.getByRole("link", { name: "Explore features" })
+			).toHaveAttribute("href", "/features");
+			expect(screen.getByRole("link", { name: "Spendly CLI" })).toHaveAttribute(
+				"href",
+				"/docs/cli"
+			);
+		}
+	);
+
+	it("uses consistent current facts in Pricing metadata and structured data", () => {
+		const { container } = render(<PricingPage />);
+		const description =
+			"All current Spendly web and CLI features are free, including expense tracking, optional spending plans, editable expense history, and cycle comparisons.";
+		expect(pricingMetadata).toMatchObject({
+			alternates: { canonical: "https://spendly.example.com/pricing" },
+			description,
+			openGraph: { description, title: "Spendly | Pricing" },
+			title: "Spendly | Pricing",
+			twitter: { description, title: "Spendly | Pricing" },
+		});
+		const script = container.querySelector(
+			'script[type="application/ld+json"]'
+		);
+		expect(JSON.parse(script?.textContent ?? "{}")).toMatchObject({
+			"@type": "WebApplication",
+			description,
+			featureList: [
+				"Expense tracking with flexible cycles",
+				"Editable expense history",
+				"Optional planned amounts per category and cycle",
+				"Side-by-side comparison of 2-5 cycles",
+			],
+			url: "https://spendly.example.com/pricing",
+		});
+	});
 
 	it("explains Features setup and keeps CLI and FAQ guidance public", () => {
 		render(<FeaturesPage />);

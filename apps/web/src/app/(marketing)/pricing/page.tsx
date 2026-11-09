@@ -1,25 +1,16 @@
 import { SignedIn, SignedOut } from "@clerk/nextjs";
 import type { Metadata, Route } from "next";
 import Link from "next/link";
-import CallToAction from "@/components/call-to-action";
 import FooterSection from "@/components/footer";
 import Pricing from "@/components/pricing";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
 import {
 	createMarketingMetadata,
 	createSoftwareApplicationJsonLd,
 } from "@/lib/seo";
 
 const pricingDescription =
-	"Spendly pricing is simple: the product is free to use, with optional future donation channels for people who want to support development.";
+	"All current Spendly web and CLI features are free, including expense tracking, optional spending plans, editable expense history, and cycle comparisons.";
 
 export const metadata: Metadata = createMarketingMetadata({
 	description: pricingDescription,
@@ -30,155 +21,99 @@ export const metadata: Metadata = createMarketingMetadata({
 const pricingStructuredData = createSoftwareApplicationJsonLd({
 	description: pricingDescription,
 	featureList: [
-		"Free expense tracking with flexible cycles",
-		"Optional planning and comparison without premium tiers",
-		"Potential donation support through common creator platforms",
-		"No required subscription to use core features",
+		"Expense tracking with flexible cycles",
+		"Editable expense history",
+		"Optional planned amounts per category and cycle",
+		"Side-by-side comparison of 2-5 cycles",
 	],
 	path: "/pricing",
 });
 
-const donationWays = [
-	{
-		description:
-			"GitHub Sponsors works well when people want to fund ongoing maintenance in a familiar developer-friendly way.",
-		title: "Recurring support",
-	},
-	{
-		description:
-			"Buy Me a Coffee and Ko-fi are simple choices for casual support without creating a subscription commitment.",
-		title: "One-time tips",
-	},
-	{
-		description:
-			"UPI, PayPal, or Stripe payment links can be offered for direct donations when the project owner is ready.",
-		title: "Direct payments",
-	},
-] as const;
+function PricingActions() {
+	return (
+		<div className="flex flex-wrap gap-3">
+			<SignedOut>
+				<Button asChild size="lg">
+					<Link href={"/sign-up" as Route}>Sign up</Link>
+				</Button>
+				<Button asChild size="lg" variant="outline">
+					<Link href={"/sign-in" as Route}>Sign in</Link>
+				</Button>
+			</SignedOut>
+			<SignedIn>
+				<Button asChild size="lg">
+					<Link href={"/dashboard" as Route}>Go to Dashboard</Link>
+				</Button>
+			</SignedIn>
+		</div>
+	);
+}
 
 export default function PricingPage() {
-	const signUpHref = "/sign-up" as Route;
-	const dashboardHref = "/dashboard" as Route;
-	const aboutHref = "/about" as Route;
-
 	return (
 		<>
 			<main className="flex-1" id="main-content">
-				<section className="border-b">
-					<div className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-16 md:py-24">
-						<div className="flex max-w-4xl flex-col gap-6">
-							<Badge className="rounded-full px-3 py-1" variant="outline">
-								Pricing
-							</Badge>
-							<div className="flex flex-col gap-4">
-								<h1 className="max-w-4xl text-balance font-semibold text-4xl tracking-tight md:text-6xl">
-									Spendly is free to use.
-								</h1>
-								<p className="max-w-3xl text-balance text-base text-muted-foreground md:text-lg">
-									There are no paid tiers on this page. The product experience
-									is free, and any future support model can stay optional for
-									people who simply want to help fund development.
-								</p>
-							</div>
-							<div className="flex flex-wrap gap-3">
-								<SignedOut>
-									<Button asChild size="lg">
-										<Link href={signUpHref}>Get Started Free</Link>
-									</Button>
-								</SignedOut>
-								<SignedIn>
-									<Button asChild size="lg">
-										<Link href={dashboardHref}>Go to Dashboard</Link>
-									</Button>
-								</SignedIn>
-								<Button asChild size="lg" variant="outline">
-									<Link href={aboutHref}>Why it is built this way</Link>
-								</Button>
-							</div>
-						</div>
-
-						<div className="grid gap-6 md:grid-cols-3">
-							{[
-								{
-									description: "No subscription required to use the product.",
-									title: "Price",
-									value: "Free",
-								},
-								{
-									description:
-										"Core tracking, planning, and comparison stay available.",
-									title: "Upgrade pressure",
-									value: "None",
-								},
-								{
-									description:
-										"Donations can exist later without changing access.",
-									title: "Support model",
-									value: "Optional",
-								},
-							].map((item) => (
-								<Card className="border-border/70 bg-muted/20" key={item.title}>
-									<CardHeader>
-										<CardDescription>{item.title}</CardDescription>
-										<CardTitle className="text-3xl">{item.value}</CardTitle>
-									</CardHeader>
-									<CardContent>
-										<p className="text-muted-foreground text-sm md:text-base">
-											{item.description}
-										</p>
-									</CardContent>
-								</Card>
-							))}
-						</div>
+				<section aria-labelledby="pricing-title" className="border-b">
+					<div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-16 md:py-24">
+						<h1
+							className="max-w-4xl text-balance font-semibold text-4xl tracking-tight md:text-6xl"
+							id="pricing-title"
+						>
+							Spendly is free to use.
+						</h1>
+						<p className="max-w-2xl text-pretty text-base text-muted-foreground md:text-lg">
+							All current web and CLI features are free. Track expenses, add
+							optional spending plans, and compare cycles - date ranges you
+							choose.
+						</p>
+						<p className="max-w-2xl text-muted-foreground">
+							Prefer the terminal? Explore the{" "}
+							<Link
+								className="underline underline-offset-4"
+								href={"/docs/cli" as Route}
+							>
+								Spendly CLI
+							</Link>
+							.
+						</p>
+						<PricingActions />
 					</div>
 				</section>
 
 				<Pricing />
 
-				<section className="border-t">
-					<div className="mx-auto max-w-6xl px-6 py-16 md:py-24">
-						<div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-							<Card className="border-border/70 bg-muted/20">
-								<CardHeader>
-									<CardTitle className="text-2xl">Optional donations</CardTitle>
-									<CardDescription className="text-sm md:text-base">
-										Support should feel generous, not required. If donations are
-										added later, they can sit alongside the free product without
-										turning into a paywall.
-									</CardDescription>
-								</CardHeader>
-								<CardContent className="space-y-4 text-muted-foreground text-sm md:text-base">
-									<p>
-										A clean way to present this is to say that Spendly is free,
-										and that people who want to support development can choose a
-										donation option that suits them.
-									</p>
-								</CardContent>
-							</Card>
-
-							<div className="grid gap-6 md:grid-cols-3">
-								{donationWays.map((item) => (
-									<Card className="border-border/70" key={item.title}>
-										<CardHeader>
-											<CardTitle className="text-xl">{item.title}</CardTitle>
-										</CardHeader>
-										<CardContent>
-											<p className="text-muted-foreground text-sm md:text-base">
-												{item.description}
-											</p>
-										</CardContent>
-									</Card>
-								))}
-							</div>
-						</div>
+				<section
+					aria-labelledby="pricing-setup-title"
+					className="border-t bg-muted/20"
+				>
+					<div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-16 md:py-20">
+						<h2
+							className="font-semibold text-3xl tracking-tight"
+							id="pricing-setup-title"
+						>
+							Start with a cycle
+						</h2>
+						<p className="max-w-2xl text-pretty text-muted-foreground leading-relaxed">
+							In the web app, create a cycle covering your expense date, then
+							add an expense with a positive amount. Categories, tags, notes,
+							and planned amounts are optional.
+						</p>
+						<p className="max-w-2xl text-pretty text-muted-foreground leading-relaxed">
+							Cycles cannot overlap, and the end date is not included.
+						</p>
+						<PricingActions />
+						<Link
+							className="w-fit underline underline-offset-4"
+							href="/features"
+						>
+							Explore features
+						</Link>
 					</div>
 				</section>
-
-				<CallToAction />
 				<FooterSection />
 			</main>
 			<script type="application/ld+json">
-				{JSON.stringify(pricingStructuredData)}
+				{JSON.stringify(pricingStructuredData).replace(/</g, "\\u003c")}
 			</script>
 		</>
 	);
