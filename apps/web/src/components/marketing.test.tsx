@@ -139,7 +139,7 @@ describe("public marketing routes", () => {
 		expect(main).toHaveTextContent(
 			"In the web app, create a cycle covering your expense date"
 		);
-		expect(main).toHaveTextContent("add an expense with a positive amount");
+		expect(main).toHaveTextContent("then add an expense.");
 		expect(main).toHaveTextContent(
 			"Categories, tags, notes, and planned amounts are optional."
 		);
@@ -161,29 +161,47 @@ describe("public marketing routes", () => {
 		(signedIn) => {
 			auth.signedIn = signedIn;
 			render(<PricingPage />);
-			for (const name of ["Spendly is free to use.", "Start with a cycle"]) {
-				const section = screen.getByRole("region", { name });
+			const hero = screen.getByRole("region", {
+				name: "Spendly is free to use.",
+			});
+			expect(
+				within(hero).getByRole("link", {
+					name: signedIn ? "Go to Dashboard" : "Sign up",
+				})
+			).toHaveAttribute("href", signedIn ? "/dashboard" : "/sign-up");
+			if (signedIn) {
 				expect(
-					within(section).getByRole("link", {
-						name: signedIn ? "Go to Dashboard" : "Sign up",
-					})
-				).toHaveAttribute("href", signedIn ? "/dashboard" : "/sign-up");
-				if (signedIn) {
-					expect(
-						within(section).queryByRole("link", { name: "Sign up" })
-					).toBeNull();
-					expect(
-						within(section).queryByRole("link", { name: "Sign in" })
-					).toBeNull();
-				} else {
-					expect(
-						within(section).getByRole("link", { name: "Sign in" })
-					).toHaveAttribute("href", "/sign-in");
-					expect(
-						within(section).queryByRole("link", { name: "Go to Dashboard" })
-					).toBeNull();
-				}
+					within(hero).queryByRole("link", { name: "Sign up" })
+				).toBeNull();
+				expect(
+					within(hero).queryByRole("link", { name: "Sign in" })
+				).toBeNull();
+			} else {
+				expect(
+					within(hero).getByRole("link", { name: "Sign in" })
+				).toHaveAttribute("href", "/sign-in");
+				expect(
+					within(hero).queryByRole("link", { name: "Go to Dashboard" })
+				).toBeNull();
 			}
+			const closingSection = screen
+				.getByRole("heading", { name: "Start with a cycle" })
+				.closest("section");
+			if (!closingSection) {
+				throw new Error("Pricing must render the shared closing CTA section");
+			}
+			expect(within(closingSection).getAllByRole("link")).toHaveLength(1);
+			expect(
+				within(closingSection).getByRole("link", {
+					name: signedIn ? "Go to Dashboard" : "Get Started Free",
+				})
+			).toHaveAttribute("href", signedIn ? "/dashboard" : "/sign-up");
+			expect(
+				within(closingSection).queryByRole("link", { name: "Sign in" })
+			).toBeNull();
+			expect(
+				within(closingSection).queryByRole("link", { name: "Explore features" })
+			).toBeNull();
 			expect(
 				screen.getByRole("link", { name: "Explore features" })
 			).toHaveAttribute("href", "/features");
