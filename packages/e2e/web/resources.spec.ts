@@ -272,7 +272,7 @@ publicTest(
 			page.getByRole("heading", {
 				exact: true,
 				level: 1,
-				name: "Spendly gives you a calmer way to track spending.",
+				name: "Understand your spending. On your terms.",
 			})
 		).toBeVisible();
 		const openMenu = page.getByRole("button", {
@@ -296,7 +296,7 @@ publicTest(
 			page.getByRole("heading", {
 				exact: true,
 				level: 1,
-				name: "Expense tracking designed for observation, not enforcement.",
+				name: "Record expenses. See what changed.",
 			})
 		).toBeVisible();
 		await page.getByRole("button", { exact: true, name: "Open Menu" }).click();

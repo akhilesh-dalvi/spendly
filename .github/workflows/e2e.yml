@@ -42,6 +42,9 @@ jobs:
 
   live:
     name: Trusted live regression
+    permissions:
+      contents: read
+      id-token: write
     needs: offline
     # Forks NEVER enter this job, even when the repository opts into PR tests.
     # No pull_request_target, unsafe checkout ref, or secrets in the offline job.
@@ -75,16 +78,23 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Install Chromium
         run: pnpm --dir packages/e2e exec playwright install --with-deps chromium
+      - name: Fetch E2E secrets from Infisical using GitHub OIDC
+        uses: Infisical/secrets-action@77ab1f4ccd183a543cb5b42435fbd181189f4995 # v1.0.16
+        with:
+          method: oidc
+          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+          oidc-audience: https://github.com/akhilesh-dalvi
+          project-slug: spendly
+          env-slug: e2e
+          domain: https://app.infisical.com
+          export-type: env
+          secret-path: /
+          recursive: false
+          include-imports: false
       - name: Validate, deploy this checkout, then run the selected Web and CLI tier
         env:
           E2E_SUITE: ${{ github.event_name == 'pull_request' && 'smoke' || inputs.suite || 'full' }}
           SPENDLY_E2E_ENABLED: "true"
-          E2E_CONVEX_URL: ${{ vars.E2E_CONVEX_URL }}
-          E2E_CLERK_ISSUER: ${{ vars.E2E_CLERK_ISSUER }}
-          E2E_CLERK_PUBLISHABLE_KEY: ${{ vars.E2E_CLERK_PUBLISHABLE_KEY }}
-          E2E_CLERK_OAUTH_CLIENT_ID: ${{ vars.E2E_CLERK_OAUTH_CLIENT_ID }}
-          E2E_CONVEX_DEPLOY_KEY: ${{ secrets.E2E_CONVEX_DEPLOY_KEY }}
-          E2E_CLERK_SECRET_KEY: ${{ secrets.E2E_CLERK_SECRET_KEY }}
         run: node packages/e2e/run.mjs "$E2E_SUITE"
       - name: Explain failed or canceled execution without uploading credentials
         if: always()
