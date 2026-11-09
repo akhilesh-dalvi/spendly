@@ -69,9 +69,11 @@ it("exposes only the canonical root smoke and full suite commands", async () => 
 		await readFile(new URL("../package.json", import.meta.url), "utf8")
 	);
 	expect(root.scripts["test:e2e:smoke"]).toBe(
-		"node packages/e2e/run.mjs smoke"
+		"node scripts/with-secrets.mjs e2e node packages/e2e/run.mjs smoke"
 	);
-	expect(root.scripts["test:e2e:full"]).toBe("node packages/e2e/run.mjs full");
+	expect(root.scripts["test:e2e:full"]).toBe(
+		"node scripts/with-secrets.mjs e2e node packages/e2e/run.mjs full"
+	);
 	expect(root.scripts).not.toHaveProperty("test:e2e");
 	for (const alias of ["test:regression", "test:smoke", "test:full"]) {
 		expect(workspace.scripts).not.toHaveProperty(alias);

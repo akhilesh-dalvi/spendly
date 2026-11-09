@@ -21,6 +21,10 @@ each workspace; never commit populated files.
   requires the approved public client ID in `CLERK_CLI_OAUTH_CLIENT_ID`;
   leaving it unset disables CLI OAuth.
 
+Root dev and live E2E commands load Infisical `dev` and `e2e` settings
+automatically; install the Infisical CLI and run `infisical login` first. CI reuses
+OIDC-injected secrets instead. Lint and unit tests need no Infisical login.
+
 Keep workspace `.env.example` files synchronized with configuration changes.
 
 ```bash
@@ -153,8 +157,8 @@ node --env-file=packages/e2e/.env.local packages/e2e/run.mjs smoke
 node --env-file=packages/e2e/.env.local packages/e2e/run.mjs full
 ```
 
-With the E2E environment already exported, use `pnpm test:e2e:smoke` for
-critical paths and `pnpm test:e2e:full` for the complete suite.
+Use `pnpm test:e2e:smoke` for critical paths and `pnpm test:e2e:full` for the
+complete suite; root commands automatically load Infisical's `e2e` environment.
 
 Smoke selects representative auth/onboarding, expense lifecycle, account/transfer,
 ownership, totals and cross-surface journeys. Web tests use Playwright's `@smoke`
