@@ -266,16 +266,15 @@ variable `E2E_PR_ENABLED=true`. Manual dispatch offers a `suite` choice of smoke
 or full, defaulting to full. Fork PRs never enter the live job, even with that
 opt-in. There is no `pull_request_target` trigger.
 
-Before live execution, create and protect the GitHub **`e2e` environment** with
-required reviewers and an explicit trusted deployment branch policy. Merely
-naming an environment in YAML does not install those protections. Configure its
-variables `E2E_CONVEX_URL`, `E2E_CLERK_ISSUER`, `E2E_CLERK_PUBLISHABLE_KEY`,
-`E2E_CLERK_OAUTH_CLIENT_ID`, and secrets `E2E_CONVEX_DEPLOY_KEY`,
-`E2E_CLERK_SECRET_KEY`. Approve only reviewed trusted checkout code, including
-workflow, install scripts and dependencies; never dispatch untrusted branches.
-Do not relax environment protections just to make a PR run. Setup and synthetic
-user/OAuth configuration above are still required; absent settings fail trusted
-runs rather than silently skipping them.
+Live CI fetches `E2E_*` settings from Infisical project `spendly`, environment
+`e2e`, using GitHub OIDC. Set `INFISICAL_IDENTITY_ID` in GitHub's protected `e2e`
+environment; no duplicated credentials or client secret are needed in GitHub.
+See `packages/e2e/.env.example` for required settings.
+
+Keep required reviewers enabled. Both OIDC trust and environment branch rules
+currently allow only `master`; PR opt-in does not override them. Never broaden
+access to untrusted code or log credentials. Infisical's free-plan read-only role
+is project-wide: use a separate project for production secrets.
 
 All live jobs share one repository-wide concurrency group, independent of branch,
 with cancellation disabled during execution. The lock covers deployment, both
