@@ -57,7 +57,7 @@ describe("public marketing routes", () => {
 			Page: LandingPage,
 		},
 		{
-			heading: "Expense tracking designed for observation, not enforcement.",
+			heading: "Record expenses. See what changed.",
 			name: "features",
 			Page: FeaturesPage,
 		},
@@ -114,6 +114,104 @@ describe("public marketing routes", () => {
 			).not.toBeInTheDocument();
 		}
 	);
+
+	it("explains Features setup and keeps CLI and FAQ guidance public", () => {
+		render(<FeaturesPage />);
+		const hero = screen.getByRole("region", {
+			name: "Record expenses. See what changed.",
+		});
+		expect(hero).toHaveTextContent("cycles - date ranges you choose");
+		expect(hero).toHaveTextContent(
+			"In the app, create a cycle covering your expense date"
+		);
+		expect(screen.getByRole("link", { name: "Spendly CLI" })).toHaveAttribute(
+			"href",
+			"/docs/cli"
+		);
+		expect(screen.getByRole("link", { name: "Read FAQs" })).toHaveAttribute(
+			"href",
+			"/faqs"
+		);
+		expect(within(hero).getByRole("link", { name: "Sign up" })).toHaveAttribute(
+			"href",
+			"/sign-up"
+		);
+		expect(within(hero).getByRole("link", { name: "Sign in" })).toHaveAttribute(
+			"href",
+			"/sign-in"
+		);
+		expect(hero).toHaveTextContent("enter a positive amount and date");
+		expect(hero).toHaveTextContent(
+			"set the end date to the first day of the next month"
+		);
+		expect(hero).toHaveTextContent("set the end date to your next payday");
+		expect(hero).toHaveTextContent(
+			"set the end date to the day after you return"
+		);
+		expect(hero).toHaveTextContent("The end date is not included.");
+		expect(hero).toHaveTextContent("Cycles cannot overlap");
+		expect(screen.getByRole("main")).toHaveTextContent(
+			"Add your first expense and build a clearer picture of your spending as you go."
+		);
+		expect(screen.getByRole("main")).not.toHaveTextContent(
+			"or add cycles and plans when it helps"
+		);
+	});
+
+	it("introduces core terms before Features benefits without making organization required", () => {
+		render(<FeaturesPage />);
+		const terms = screen.getByRole("region", {
+			name: "A few names you'll see in Spendly",
+		});
+		expect(
+			within(terms)
+				.getAllByRole("term")
+				.map((term) => term.textContent)
+		).toEqual([
+			"Cycle",
+			"Expense",
+			"Category",
+			"Category type",
+			"Tag",
+			"Planned amount",
+		]);
+		expect(within(terms).getAllByRole("definition")).toHaveLength(6);
+		expect(terms).toHaveTextContent(
+			"Categories, category types, tags, notes, and planned amounts are optional."
+		);
+		expect(terms).toHaveTextContent(
+			"Something you spent money on, like groceries or a taxi ride."
+		);
+		expect(terms).toHaveTextContent(
+			"A group of similar expenses within a cycle"
+		);
+		expect(terms).toHaveTextContent(
+			"such as Groceries, Rent, Dining out, or Gifts"
+		);
+		expect(terms).toHaveTextContent("Group Groceries and Rent under Needs");
+		expect(terms).toHaveTextContent(
+			"Savings is also a label, not a savings-tracking feature."
+		);
+		expect(terms).toHaveTextContent("Dining out and Gifts under Wants");
+		expect(terms).toHaveTextContent(
+			"A label for related expenses across categories"
+		);
+		expect(
+			screen.getByRole("region", {
+				name: "Make your spending easier to review",
+			})
+		).toHaveTextContent(
+			"You can keep adding expenses even if spending goes over your plan."
+		);
+		const regions = screen.getAllByRole("region");
+		expect(regions.indexOf(terms)).toBeLessThan(
+			regions.indexOf(
+				screen.getByRole("region", {
+					name: "Make your spending easier to review",
+				})
+			)
+		);
+	});
 
 	it("keeps the public canonical URL and a real skip-to-content destination", () => {
 		render(
