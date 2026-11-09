@@ -1,34 +1,16 @@
 import { SignedIn, SignedOut } from "@clerk/nextjs";
-import {
-	CalendarRange,
-	ChartNoAxesColumnIncreasing,
-	Edit3,
-	FolderKanban,
-	Layers3,
-	NotebookPen,
-	Tags,
-} from "lucide-react";
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import CallToAction from "@/components/call-to-action";
 import FooterSection from "@/components/footer";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import {
 	createMarketingMetadata,
 	createSoftwareApplicationJsonLd,
 } from "@/lib/seo";
 
 const featuresDescription =
-	"Explore Spendly features for flexible expense tracking, optional planning, editable history, and cycle comparison built for real-life spending habits.";
+	"Record expenses in the app or CLI, choose date ranges that fit your life, add optional spending plans, compare 2-5 cycles, and correct past entries.";
 
 export const metadata: Metadata = createMarketingMetadata({
 	description: featuresDescription,
@@ -36,121 +18,133 @@ export const metadata: Metadata = createMarketingMetadata({
 	title: "Features",
 });
 
-const featureSections = [
+const coreTerms = [
 	{
-		description: "Use pay periods, trips, semesters, or any custom date range.",
-		icon: CalendarRange,
-		points: [
-			"Custom start and end dates",
-			"Works beyond calendar months",
-			"Past and future cycles stay editable",
-		],
-		title: "Cycles that match your real timeline",
+		description:
+			"A date range for reviewing spending, such as a month, pay period, or trip.",
+		name: "Cycle",
 	},
 	{
-		description: "Add plans only when you want more structure.",
-		icon: Layers3,
-		points: [
-			"Track without planned amounts",
-			"Set plans per cycle",
-			"No hard enforcement",
-		],
-		title: "Planning when it helps, not by default",
+		description:
+			"Something you spent money on, like groceries or a taxi ride. Enter how much you spent and when. Add a note if useful.",
+		name: "Expense",
 	},
 	{
-		description: "Fix records anytime so your history stays useful.",
-		icon: Edit3,
-		points: [
-			"Edit old expenses",
-			"Change categories, tags, and amounts",
-			"Move entries by updating the date",
-		],
-		title: "History stays accurate because it stays editable",
+		description:
+			"A group of similar expenses within a cycle, such as Groceries, Rent, Dining out, or Gifts.",
+		name: "Category",
+	},
+	{
+		description:
+			"Group Groceries and Rent under Needs, or Dining out and Gifts under Wants. You choose the names; Savings is also a label, not a savings-tracking feature.",
+		name: "Category type",
+	},
+	{
+		description:
+			"A label for related expenses across categories. A birthday tag could connect a gift, dinner, and taxi ride.",
+		name: "Tag",
+	},
+	{
+		description: "What you expect to spend in a category for that cycle.",
+		name: "Planned amount",
 	},
 ] as const;
 
-const workflowItems = [
+const featureSections = [
 	{
-		how: "Create any date range that matches how you actually review money.",
-		icon: CalendarRange,
-		name: "Cycle",
-		why: "To group spending around your real timeline.",
+		description:
+			"Filter by category or tag to find related purchases without searching through every expense. Review groceries on their own, or bring the costs of a birthday together.",
+		title: "Find the purchases you want to review",
 	},
 	{
-		how: "Use types like essentials, lifestyle, or anything else you prefer.",
-		icon: FolderKanban,
-		name: "Category Type",
-		why: "To create broad structure without forcing one system.",
+		description:
+			"See how much you spent against each category's planned amount. You can keep adding expenses even if spending goes over your plan.",
+		title: "Compare plans with actual spending",
 	},
 	{
-		how: "Add categories per cycle with optional planned amounts and reorder them anytime.",
-		icon: Layers3,
-		name: "Category",
-		why: "To track spending intent inside a cycle.",
+		description:
+			"Compare 2-5 cycles side by side, including totals and spending by category. Check this month against last month, or compare two trips before planning your next one.",
+		title: "See what changed between date ranges",
 	},
 	{
-		how: "Log amount, date, category, and notes quickly, then edit later if needed.",
-		icon: NotebookPen,
-		name: "Expense",
-		why: "To capture the actual spending record.",
+		description:
+			"Correct amounts, dates, categories, tags, and notes - even after a cycle ends. When changing a date in the app, choose one covered by a cycle.",
+		title: "Keep past expenses accurate",
+	},
+] as const;
+
+const cycleExamples = [
+	{
+		description:
+			"Start on the first day of the month and set the end date to the first day of the next month.",
+		title: "A calendar month",
 	},
 	{
-		how: "Review 2 to 5 cycles side by side and spot movement without judgment.",
-		icon: ChartNoAxesColumnIncreasing,
-		name: "Compare",
-		why: "To understand what changed across cycles.",
+		description: "Start on payday and set the end date to your next payday.",
+		title: "A pay period",
 	},
 	{
-		how: "Use tags like trip, recurring, gift, or project to filter and review patterns.",
-		icon: Tags,
-		name: "Tags",
-		why: "To add extra context when categories are not enough.",
+		description:
+			"Start on your departure date and set the end date to the day after you return.",
+		title: "A trip",
 	},
 ] as const;
 
 const featuresStructuredData = createSoftwareApplicationJsonLd({
 	description: featuresDescription,
 	featureList: [
-		"Custom expense cycles with editable history",
-		"Optional planned amounts and flexible category structures",
-		"Cycle comparison for observational spending review",
-		"Fast expense capture with tags and category context",
+		"Expense entry in the app and CLI",
+		"Custom date ranges called cycles",
+		"Optional categories, category types, tags, notes, and planned amounts",
+		"Side-by-side comparison of 2-5 cycles",
+		"Editable past expenses",
 	],
 	path: "/features",
 });
 
 export default function FeaturesPage() {
 	const signUpHref = "/sign-up" as Route;
+	const signInHref = "/sign-in" as Route;
 	const dashboardHref = "/dashboard" as Route;
-	const overviewHref = "/" as Route;
 	const faqsHref = "/faqs" as Route;
+	const cliDocsHref = "/docs/cli" as Route;
 
 	return (
 		<>
 			<main className="flex-1" id="main-content">
-				<section className="relative overflow-hidden border-b">
-					<div
-						aria-hidden
-						className="absolute inset-x-0 top-0 -z-10 h-80 bg-[radial-gradient(circle_at_top,rgba(15,23,42,0.08),transparent_60%)]"
-					/>
-					<div className="mx-auto flex max-w-6xl flex-col gap-10 px-6 py-16 md:py-24">
-						<div className="flex max-w-4xl flex-col gap-6">
-							<Badge className="rounded-full px-3 py-1" variant="outline">
-								Product Features
-							</Badge>
-							<div className="flex flex-col gap-4">
-								<h1 className="max-w-4xl text-balance font-semibold text-4xl tracking-tight md:text-6xl">
-									Expense tracking designed for observation, not enforcement.
-								</h1>
-								<p className="max-w-2xl text-balance text-base text-muted-foreground md:text-lg">
-									Flexible cycles, optional planning, editable history, and
-									comparison tools for real-life spending.
-								</p>
-							</div>
+				<section aria-labelledby="features-heading" className="border-b">
+					<div className="mx-auto grid max-w-6xl items-center gap-10 px-6 py-16 md:py-24 lg:grid-cols-2 lg:gap-16">
+						<div className="flex flex-col gap-6">
+							<h1
+								className="text-balance font-semibold text-4xl tracking-tight md:text-6xl"
+								id="features-heading"
+							>
+								Record expenses. See what changed.
+							</h1>
+							<p className="text-lg text-muted-foreground leading-relaxed">
+								Spendly groups your expenses into cycles - date ranges you
+								choose. See where your money went in each range and compare
+								spending over time.
+							</p>
+							<p className="text-muted-foreground leading-relaxed">
+								In the app, create a cycle covering your expense date, then
+								enter a positive amount and date to save an expense. You can
+								also add expenses with the{" "}
+								<Link
+									className="underline underline-offset-4"
+									href={cliDocsHref}
+								>
+									Spendly CLI
+								</Link>
+								.
+							</p>
 							<div className="flex flex-wrap gap-3">
 								<SignedOut>
 									<Button asChild size="lg">
-										<Link href={signUpHref}>Get Started Free</Link>
+										<Link href={signUpHref}>Sign up</Link>
+									</Button>
+									<Button asChild size="lg" variant="outline">
+										<Link href={signInHref}>Sign in</Link>
 									</Button>
 								</SignedOut>
 								<SignedIn>
@@ -158,211 +152,107 @@ export default function FeaturesPage() {
 										<Link href={dashboardHref}>Go to Dashboard</Link>
 									</Button>
 								</SignedIn>
-								<Button asChild size="lg" variant="outline">
-									<Link href={overviewHref}>Back to Overview</Link>
-								</Button>
 								<Button asChild size="lg" variant="ghost">
 									<Link href={faqsHref}>Read FAQs</Link>
 								</Button>
 							</div>
 						</div>
 
-						<div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-							<Card className="overflow-hidden border-border/70 bg-card/80">
-								<CardHeader className="gap-4">
-									<Badge className="rounded-full px-3 py-1" variant="secondary">
-										Built for calm clarity
-									</Badge>
-									<CardTitle className="max-w-2xl text-3xl tracking-tight md:text-4xl">
-										Spendly gives you structure when you need it and gets out of
-										the way when you do not.
-									</CardTitle>
-									<CardDescription className="max-w-2xl text-sm md:text-base">
-										Track across your own cycles, add plans only when useful,
-										and keep your history editable enough to stay trustworthy.
-									</CardDescription>
-								</CardHeader>
-								<CardContent>
-									<div className="grid gap-4 sm:grid-cols-3">
-										{[
-											{
-												label: "cycles compared side by side",
-												value: "2-5",
-											},
-											{
-												label: "income tracking requirements",
-												value: "0",
-											},
-											{
-												label: "history can be corrected",
-												value: "Anytime",
-											},
-										].map((stat) => (
-											<div
-												className="rounded-xl border border-border/70 bg-muted/20 p-4"
-												key={stat.label}
-											>
-												<p className="font-semibold text-2xl tracking-tight">
-													{stat.value}
-												</p>
-												<p className="mt-2 text-muted-foreground text-sm">
-													{stat.label}
-												</p>
-											</div>
-										))}
-									</div>
-								</CardContent>
-							</Card>
-
-							<Card className="border-border/70 bg-muted/30">
-								<CardHeader>
-									<CardTitle className="text-xl">
-										What Spendly does not do
-									</CardTitle>
-									<CardDescription>
-										The product stays lightweight by avoiding unnecessary
-										budgeting pressure.
-									</CardDescription>
-								</CardHeader>
-								<CardContent className="flex flex-col gap-4">
-									{[
-										"It does not require income tracking.",
-										"It does not force monthly budgeting.",
-										"It does not lock past records once a cycle ends.",
-									].map((item, index) => (
-										<div className="flex flex-col gap-4" key={item}>
-											<div className="flex items-start gap-3">
-												<Badge
-													className="mt-0.5 rounded-full"
-													variant="outline"
-												>
-													0{index + 1}
-												</Badge>
-												<p className="text-muted-foreground text-sm">{item}</p>
-											</div>
-											{index < 2 ? <Separator /> : null}
-										</div>
-									))}
-								</CardContent>
-							</Card>
-						</div>
-					</div>
-				</section>
-
-				<section className="py-16 md:py-20">
-					<div className="mx-auto flex max-w-6xl flex-col gap-8 px-6">
-						<div className="flex max-w-3xl flex-col gap-4">
-							<Badge className="rounded-full px-3 py-1" variant="secondary">
-								Core Capabilities
-							</Badge>
-							<h2 className="text-balance font-semibold text-3xl tracking-tight md:text-4xl">
-								The key features are simple and practical
+						<div className="rounded-2xl border bg-muted/30 p-6 md:p-8">
+							<h2 className="font-semibold text-2xl tracking-tight">
+								Choose dates that fit your life
 							</h2>
-							<p className="max-w-2xl text-muted-foreground">
-								Each one adds a clear capability instead of repeating the same
-								promise in a different format.
+							<ul className="mt-6 flex flex-col gap-6">
+								{cycleExamples.map((example) => (
+									<li className="flex flex-col gap-1" key={example.title}>
+										<h3 className="font-medium">{example.title}</h3>
+										<p className="text-muted-foreground leading-relaxed">
+											{example.description}
+										</p>
+									</li>
+								))}
+							</ul>
+							<p className="mt-6 text-muted-foreground leading-relaxed">
+								The end date is not included. Cycles cannot overlap, so use a
+								tag for a trip within an existing cycle.
 							</p>
 						</div>
-
-						<div className="grid gap-4 md:grid-cols-3">
-							{featureSections.map((section) => {
-								const Icon = section.icon;
-
-								return (
-									<Card
-										className="h-full border-border/70 bg-background"
-										key={section.title}
-									>
-										<CardHeader className="gap-4">
-											<div className="flex size-11 items-center justify-center rounded-xl border border-border/70 bg-muted/30">
-												<Icon aria-hidden />
-											</div>
-											<div className="flex flex-col gap-2">
-												<CardTitle className="text-2xl tracking-tight">
-													{section.title}
-												</CardTitle>
-												<CardDescription className="text-sm md:text-base">
-													{section.description}
-												</CardDescription>
-											</div>
-										</CardHeader>
-										<CardContent className="flex flex-col gap-4">
-											{section.points.map((point, index) => (
-												<div className="flex flex-col gap-4" key={point}>
-													<div className="flex items-start gap-3">
-														<Badge className="rounded-full" variant="outline">
-															0{index + 1}
-														</Badge>
-														<p className="text-muted-foreground text-sm">
-															{point}
-														</p>
-													</div>
-													{index < section.points.length - 1 ? (
-														<Separator />
-													) : null}
-												</div>
-											))}
-										</CardContent>
-									</Card>
-								);
-							})}
-						</div>
 					</div>
 				</section>
 
-				<section className="py-16 md:py-20">
+				<section
+					aria-labelledby="terms-heading"
+					className="border-b py-16 md:py-20"
+				>
 					<div className="mx-auto flex max-w-6xl flex-col gap-8 px-6">
 						<div className="flex max-w-3xl flex-col gap-4">
-							<Badge className="rounded-full px-3 py-1" variant="secondary">
-								Workflow
-							</Badge>
-							<h2 className="text-balance font-semibold text-3xl tracking-tight md:text-4xl">
-								How the core parts of Spendly work together
+							<h2
+								className="text-balance font-semibold text-3xl tracking-tight md:text-4xl"
+								id="terms-heading"
+							>
+								A few names you'll see in Spendly
 							</h2>
-							<p className="text-muted-foreground">
-								This is the shortest path through the product, from setting up a
-								cycle to reviewing what changed.
+							<p className="text-muted-foreground leading-relaxed">
+								Categories, category types, tags, notes, and planned amounts are
+								optional. Use only what helps you.
 							</p>
 						</div>
+						<dl className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+							{coreTerms.map((term) => (
+								<div className="flex flex-col gap-2" key={term.name}>
+									<dt className="font-semibold text-xl">{term.name}</dt>
+									<dd className="text-muted-foreground leading-relaxed">
+										{term.description}
+									</dd>
+								</div>
+							))}
+						</dl>
+					</div>
+				</section>
 
-						<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-							{workflowItems.map((item) => {
-								const Icon = item.icon;
-
-								return (
-									<Card className="border-border/70" key={item.name}>
-										<CardHeader className="gap-4">
-											<div className="flex size-11 items-center justify-center rounded-xl border border-border/70 bg-muted/30">
-												<Icon aria-hidden />
-											</div>
-											<div className="flex flex-col gap-2">
-												<CardTitle className="text-xl tracking-tight">
-													{item.name}
-												</CardTitle>
-												<CardDescription>
-													<span className="font-medium text-foreground">
-														Why:
-													</span>{" "}
-													{item.why}
-												</CardDescription>
-											</div>
-										</CardHeader>
-										<CardContent>
-											<p className="text-muted-foreground text-sm">
-												<span className="font-medium text-foreground">
-													How:
-												</span>{" "}
-												{item.how}
-											</p>
-										</CardContent>
-									</Card>
-								);
-							})}
+				<section aria-labelledby="review-heading" className="py-16 md:py-20">
+					<div className="mx-auto flex max-w-6xl flex-col gap-8 px-6">
+						<h2
+							className="text-balance font-semibold text-3xl tracking-tight md:text-4xl"
+							id="review-heading"
+						>
+							Make your spending easier to review
+						</h2>
+						<div className="grid gap-8 md:grid-cols-2 md:gap-12">
+							{featureSections.map((section) => (
+								<div className="flex flex-col gap-3" key={section.title}>
+									<h3 className="font-semibold text-xl tracking-tight">
+										{section.title}
+									</h3>
+									<p className="text-muted-foreground leading-relaxed">
+										{section.description}
+									</p>
+								</div>
+							))}
 						</div>
 					</div>
 				</section>
 
-				<CallToAction />
+				<section aria-labelledby="focus-heading" className="border-y py-12">
+					<div className="mx-auto grid max-w-6xl gap-4 px-6 md:grid-cols-[1fr_2fr] md:gap-12">
+						<h2
+							className="font-semibold text-2xl tracking-tight"
+							id="focus-heading"
+						>
+							A focus on expenses
+						</h2>
+						<p className="max-w-2xl text-muted-foreground leading-relaxed">
+							Spendly is built around the spending you record in the app or CLI,
+							rather than bank imports or income tracking. You choose which
+							purchases to record and how much detail to add.
+						</p>
+					</div>
+				</section>
+
+				<CallToAction
+					description="Add your first expense and build a clearer picture of your spending as you go."
+					title="Start with one expense"
+				/>
 				<FooterSection />
 			</main>
 			<script type="application/ld+json">
