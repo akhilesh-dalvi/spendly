@@ -37,6 +37,7 @@ jobs:
         with:
           python-version: "3.15"
       - run: pnpm install --frozen-lockfile
+      - run: pnpm secrets:test
       - run: pnpm test:e2e:tooling
       - run: pnpm --dir packages/e2e check-types
 
@@ -95,7 +96,8 @@ jobs:
         env:
           E2E_SUITE: ${{ github.event_name == 'pull_request' && 'smoke' || inputs.suite || 'full' }}
           SPENDLY_E2E_ENABLED: "true"
-        run: node packages/e2e/run.mjs "$E2E_SUITE"
+          SPENDLY_SECRETS_ENV: e2e
+        run: pnpm "test:e2e:$E2E_SUITE"
       - name: Explain failed or canceled execution without uploading credentials
         if: always()
         env:
