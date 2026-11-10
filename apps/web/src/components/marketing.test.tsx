@@ -6,7 +6,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import AboutPage, {
 	metadata as aboutMetadata,
 } from "../app/(marketing)/about/page";
-import FaqsPage from "../app/(marketing)/faqs/page";
+import { faqPageGroups } from "../app/(marketing)/faqs/faq-page-data";
+import FaqsPage, {
+	metadata as faqsMetadata,
+} from "../app/(marketing)/faqs/page";
 import FeaturesPage from "../app/(marketing)/features/page";
 import MarketingLayout from "../app/(marketing)/layout";
 import LandingPage, { metadata as homeMetadata } from "../app/(marketing)/page";
@@ -23,6 +26,7 @@ const TERMS_HEADING = /terms/i;
 const PRODUCT_TERMS = /expense|spendly/i;
 const SUPPORT_PROMPT = /Still have questions/;
 const PRICING_LINK = /pricing/i;
+const UNSUPPORTED_FAQ_CLAIMS = /forever|unlimited|credit card|MCP|[—–]/i;
 const UNSUPPORTED_ABOUT_CLAIMS =
 	/Many budgeting tools|punishment|forever|zero setup|savings tracking|collaboration|MCP|No setup quiz|add cycles and plans when it helps|[—–]/i;
 const UNSUPPORTED_PRICING_CLAIMS =
@@ -77,7 +81,7 @@ describe("public marketing routes", () => {
 			Page: AboutPage,
 		},
 		{
-			heading: "Answers about how Spendly works in real life.",
+			heading: "Frequently asked questions",
 			name: "faqs",
 			Page: FaqsPage,
 		},
@@ -89,7 +93,10 @@ describe("public marketing routes", () => {
 				screen.getByRole("heading", { level: 1, name: heading })
 			).toBeVisible();
 			for (const link of screen.getAllByRole("link", {
-				name: Page === PricingPage ? "Sign up" : "Get Started Free",
+				name:
+					Page === PricingPage || Page === FaqsPage
+						? "Sign up"
+						: "Get Started Free",
 			})) {
 				expect(link).toHaveAttribute("href", "/sign-up");
 			}
@@ -114,7 +121,7 @@ describe("public marketing routes", () => {
 			auth.signedIn = true;
 			render(<Page />);
 			for (const link of screen.getAllByRole("link", {
-				name: "Go to Dashboard",
+				name: Page === FaqsPage ? "Dashboard" : "Go to Dashboard",
 			})) {
 				expect(link).toHaveAttribute("href", "/dashboard");
 			}
@@ -123,6 +130,185 @@ describe("public marketing routes", () => {
 			).not.toBeInTheDocument();
 		}
 	);
+
+	it("groups FAQ questions with working topic links and no redundant introduction", () => {
+		render(<FaqsPage />);
+		const topics = screen.getByRole("navigation", { name: "FAQ topics" });
+		expect(within(topics).getAllByRole("link")).toHaveLength(5);
+		for (const group of faqPageGroups) {
+			expect(
+				within(topics).getByRole("link", { name: group.title })
+			).toHaveAttribute("href", `#${group.id}`);
+			const section = screen.getByRole("region", { name: group.title });
+			expect(section).toHaveAttribute("id", group.id);
+			expect(within(section).getAllByRole("button")).toHaveLength(
+				group.items.length
+			);
+		}
+		expect(screen.queryByText("A quick way to use this page")).toBeNull();
+	});
+
+	it.each(faqPageGroups.flatMap((group) => group.items))(
+		"opens and closes the page-owned answer to $question by keyboard",
+		async (item) => {
+			const user = userEvent.setup();
+			render(<FaqsPage />);
+			const trigger = screen.getByRole("button", { name: item.question });
+			trigger.focus();
+			await user.keyboard("{Enter}");
+			expect(trigger).toHaveAttribute("aria-expanded", "true");
+			if (item.steps) {
+				const answer = screen.getByRole("region", { name: item.question });
+				const list = within(answer).getByRole("list");
+				expect(within(list).getAllByRole("listitem")).toHaveLength(
+					item.steps.length
+				);
+				for (const step of item.steps) {
+					expect(within(list).getByText(step.text)).toBeVisible();
+					if (step.href) {
+						expect(
+							within(list).getByRole("link", { name: step.text })
+						).toHaveAttribute("href", step.href);
+					}
+				}
+				expect(item.steps.map((step) => step.text).join(" ")).toBe(item.answer);
+			} else {
+				expect(screen.getByText(item.answer)).toBeVisible();
+			}
+			await user.keyboard(" ");
+			expect(trigger).toHaveAttribute("aria-expanded", "false");
+		}
+	);
+
+	it.each([false, true])(
+		"keeps FAQ help public without a signup-as-help CTA (%s)",
+		(signedIn) => {
+			auth.signedIn = signedIn;
+			render(<FaqsPage />);
+			const help = screen.getByRole("region", {
+				name: "Still have a question?",
+			});
+			expect(within(help).getAllByRole("link")).toHaveLength(2);
+			expect(
+				within(help).getByRole("link", { name: "Explore features" })
+			).toHaveAttribute("href", "/features");
+			expect(
+				within(help).getByRole("link", { name: "GitHub repository" })
+			).toHaveAttribute("href", "https://github.com/akhilesh-dalvi/spendly");
+			expect(help).toHaveTextContent("and open Issues");
+			expect(help).toHaveTextContent("Check for an existing report");
+			expect(help).toHaveTextContent("what you expected");
+			expect(help).toHaveTextContent("Bug reports are public.");
+			expect(help).toHaveTextContent(
+				"leave out personal financial details and credentials"
+			);
+			expect(within(help).queryByRole("link", { name: "Sign up" })).toBeNull();
+			expect(screen.getByRole("main")).not.toHaveTextContent("No setup quiz");
+		}
+	);
+
+	it("keeps FAQ structured answers identical to the page-owned content and metadata aligned", () => {
+		const { container } = render(<FaqsPage />);
+		const scripts = Array.from(
+			container.querySelectorAll('script[type="application/ld+json"]'),
+			(script) => JSON.parse(script.textContent ?? "{}")
+		);
+		const items = faqPageGroups.flatMap((group) => group.items);
+		expect(scripts[0]).toEqual({
+			"@context": "https://schema.org",
+			"@type": "FAQPage",
+			mainEntity: items.map((item) => ({
+				"@type": "Question",
+				acceptedAnswer: { "@type": "Answer", text: item.answer },
+				name: item.question,
+			})),
+		});
+		expect(new Set(items.map((item) => item.id)).size).toBe(items.length);
+		const description =
+			"Get practical answers about Spendly setup, cycle dates, optional planning, categories, tags, editable expense history, and comparing cycles.";
+		expect(faqsMetadata).toMatchObject({
+			alternates: { canonical: "https://spendly.example.com/faqs" },
+			description,
+			openGraph: { description, title: "Spendly | FAQs" },
+			title: "Spendly | FAQs",
+			twitter: { description, title: "Spendly | FAQs" },
+		});
+		expect(scripts[1]).toMatchObject({
+			"@type": "WebApplication",
+			description,
+			featureList: [
+				"Flexible, non-overlapping cycles with an exclusive end date",
+				"Optional planned amounts per category, without spending blocks",
+				"Editable past expenses and cycles",
+				"Side-by-side comparison of 2-5 cycles",
+			],
+			url: "https://spendly.example.com/faqs",
+		});
+		expect(JSON.stringify(scripts)).not.toMatch(UNSUPPORTED_FAQ_CLAIMS);
+	});
+
+	it("explains AI actions through the CLI with review and privacy guidance", () => {
+		render(<FaqsPage />);
+		expect(faqPageGroups[1]?.id).toBe("using-ai");
+		const ai = screen.getByRole("region", { name: "Using AI" });
+		expect(
+			within(ai).getByRole("link", {
+				name: "Set up the CLI and Spendly skill",
+			})
+		).toHaveAttribute("href", "/docs/cli/ai-agents");
+		const answers = faqPageGroups[1]?.items
+			.map((item) => item.answer)
+			.join(" ");
+		expect(answers).toContain("not a chat inside the web app");
+		expect(answers).toContain("Do not save it yet.");
+		expect(answers).toContain("read back the result");
+		expect(answers).toContain("may be sent to its AI provider");
+		expect(answers).toContain("check existing records before trying again");
+	});
+
+	it("preserves FAQ date boundaries, optional setup, and organization caveats", () => {
+		const answers = new Map(
+			faqPageGroups
+				.flatMap((group) => group.items)
+				.map((item) => [item.id, item.answer])
+		);
+		expect(answers.get("first-expense")).toContain("then create a cycle");
+		expect(answers.get("first-expense")).toContain("Enter an amount");
+		expect(answers.get("first-expense")).not.toContain("positive amount");
+		expect(
+			faqPageGroups
+				.flatMap((group) => group.items)
+				.find((item) => item.id === "optional-planning")?.question
+		).toBe("Do I need to set planned amounts?");
+		expect(answers.get("optional-setup")).toContain(
+			"Both starting paths require a cycle"
+		);
+		expect(answers.get("optional-setup")).toContain(
+			"Categories, category types, tags, notes, planned amounts, and accounts are optional."
+		);
+		expect(answers.get("cycle-dates")).toContain(
+			"The start date is included; the end date is not."
+		);
+		expect(answers.get("cycle-dates")).toContain(
+			"July 1 as the start and August 1 as the end"
+		);
+		expect(answers.get("trip-cycle")).toContain("use a tag");
+		expect(answers.get("outside-cycle")).toContain("In the web app");
+		expect(answers.get("outside-cycle")).toContain("Past dates are allowed.");
+		expect(answers.get("editable-history")).toContain(
+			"rather than assuming they have moved"
+		);
+		expect(answers.get("categories-and-types")).toContain(
+			"not a savings-tracking feature"
+		);
+		expect(answers.get("changing-categories")).toContain(
+			"it does not delete the expenses"
+		);
+		expect(answers.get("optional-planning")).toContain(
+			"does not block you from saving expenses"
+		);
+		expect(answers.get("comparison")).toContain("Select 2-5 cycles");
+	});
 
 	it("tells About's personal origin, developer motivation, and open-source story", () => {
 		render(<AboutPage />);
