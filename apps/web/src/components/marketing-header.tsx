@@ -59,6 +59,7 @@ export function MarketingHeader() {
 							</Link>
 
 							<div className="flex items-center gap-2 lg:hidden">
+								<ModeToggle />
 								<SignedOut>
 									<Button asChild size="sm">
 										<Link href={"/sign-up" as Route}>Sign up</Link>
@@ -124,12 +125,14 @@ export function MarketingHeader() {
 										<Button asChild size="sm">
 											<Link href={"/dashboard" as Route}>Go to Dashboard</Link>
 										</Button>
-										<ModeToggle />
 										<div className="flex items-center">
 											<UserButton />
 										</div>
 									</div>
 								</SignedIn>
+								<div className="hidden lg:block">
+									<ModeToggle />
+								</div>
 							</div>
 						</div>
 					</div>

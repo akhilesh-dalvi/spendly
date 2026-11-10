@@ -62,7 +62,14 @@ export default function RootLayout({
 	children: React.ReactNode;
 }>) {
 	return (
-		<ClerkProvider>
+		<ClerkProvider
+			appearance={{
+				elements: {
+					modalBackdrop: { padding: "1rem" },
+					modalContent: { margin: "auto 0" },
+				},
+			}}
+		>
 			<html
 				className={`${geistSans.variable} ${geistMono.variable}`}
 				lang="en"

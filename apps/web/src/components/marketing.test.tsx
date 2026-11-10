@@ -887,6 +887,25 @@ describe("marketing navigation and help", () => {
 		).toBeInTheDocument();
 	});
 
+	it.each([
+		{ signedIn: false, toggleIndex: 0 },
+		{ signedIn: false, toggleIndex: 1 },
+		{ signedIn: true, toggleIndex: 0 },
+		{ signedIn: true, toggleIndex: 1 },
+	])(
+		"offers theme control $toggleIndex with signedIn=$signedIn",
+		async ({ signedIn, toggleIndex }) => {
+			auth.signedIn = signedIn;
+			const user = userEvent.setup();
+			render(<MarketingHeader />);
+			const toggles = screen.getAllByRole("button", { name: "Toggle theme" });
+			expect(toggles).toHaveLength(2);
+			await user.click(toggles[toggleIndex]);
+			await user.click(screen.getByRole("menuitem", { name: "Dark" }));
+			expect(auth.setTheme).toHaveBeenCalledWith("dark");
+		}
+	);
+
 	it("shows account controls only for signed-in visitors", () => {
 		auth.signedIn = true;
 		render(<MarketingHeader />);
@@ -894,7 +913,9 @@ describe("marketing navigation and help", () => {
 		expect(
 			screen.queryByRole("button", { name: "Sign in" })
 		).not.toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Toggle theme" })).toBeVisible();
+		expect(
+			screen.getAllByRole("button", { name: "Toggle theme" })
+		).toHaveLength(2);
 	});
 
 	it.each(["Light", "Dark", "System"])(
