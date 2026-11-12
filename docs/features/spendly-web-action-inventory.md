@@ -2,7 +2,7 @@
 
 A page-by-page inventory of what users can view and do in the Spendly web app. Actions available from multiple pages are noted in each relevant section.
 
-**Reviewed:** 2026-11-12 against `origin/master` at `5c6a6b4`. Based on committed source and regression-test inspection, not a signed-in browser test. Uncommitted MCP work is excluded. Known limitations and configuration-dependent behavior are called out separately.
+**Reviewed:** 2026-11-12 against `origin/master` at `5c6a6b4`. Based on committed source and regression-test inspection, not a signed-in browser test. Known limitations and configuration-dependent behavior are called out separately.
 
 **Labels:** **R** = read/view data; **W** = create or change saved Spendly data, including deletion; **R/W** = both. Navigation, draft-only controls, and explanatory notes are left unlabelled.
 
