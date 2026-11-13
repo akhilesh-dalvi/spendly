@@ -7,6 +7,7 @@ import { useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { endOfMonth, format, parseISO, startOfMonth } from "date-fns";
 import { Loader2, Plus, Save } from "lucide-react";
+import posthog from "posthog-js";
 import {
 	type ChangeEvent,
 	type FormEvent,
@@ -239,6 +240,7 @@ export function CycleForm({
 			name: value.name,
 			startDate: value.startDate,
 		});
+		posthog.capture("cycle_updated");
 		toast.success("Cycle updated successfully");
 		onSuccess?.(currentCycleId);
 	};
@@ -266,6 +268,10 @@ export function CycleForm({
 			includePlannedAmounts: value.includePlannedAmounts,
 			name: value.name,
 			startDate: value.startDate,
+		});
+		posthog.capture("cycle_created", {
+			copied_category_count: copyCategoryIds?.length ?? 0,
+			included_planned_amounts: Boolean(value.includePlannedAmounts),
 		});
 		toast.success("Cycle created successfully");
 		if (result?._id) {

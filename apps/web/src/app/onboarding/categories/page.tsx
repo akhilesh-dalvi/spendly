@@ -12,6 +12,7 @@ import {
 	Trash2,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
+import posthog from "posthog-js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CategoryTypeModal } from "@/components/category-type-modal";
 import { EmojiPicker } from "@/components/emoji-picker";
@@ -369,6 +370,9 @@ export default function OnboardingCategoriesPage() {
 		setError(undefined);
 		try {
 			await saveCategories({ categories: submissionCategories, cycleId });
+			posthog.capture("onboarding_categories_saved", {
+				category_count: submissionCategories.length,
+			});
 			router.push(`/onboarding/accounts?cycleId=${cycleId}`);
 		} catch (cause) {
 			reportError(cause, { feature: "onboarding", operation: "create" });
@@ -387,6 +391,7 @@ export default function OnboardingCategoriesPage() {
 		setError(undefined);
 		try {
 			await advanceOnboarding({ step: "account" });
+			posthog.capture("onboarding_category_setup_skipped");
 			router.push(`/onboarding/accounts?cycleId=${cycleId}`);
 		} catch (cause) {
 			reportError(cause, { feature: "onboarding", operation: "skip" });

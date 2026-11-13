@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect } from "react";
+import posthog from "posthog-js";
 import { Button } from "@/components/ui/button";
 import { reportError } from "@/lib/report-error";
 
@@ -16,6 +17,7 @@ export default function GlobalError({
 		[]
 	);
 	useEffect(() => {
+		posthog.captureException(error);
 		reportError(error, { feature: "app", operation: "render" });
 	}, [error]);
 

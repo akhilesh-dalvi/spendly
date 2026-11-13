@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import posthog from "posthog-js";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AccountTypeIcon } from "@/components/account-type-icon";
@@ -619,6 +620,7 @@ function ExpensesPageContent() {
 		async (expenseId: string) => {
 			try {
 				await removeExpense({ id: expenseId as Id<"expenses"> });
+				posthog.capture("expense_deleted");
 				toast.success("Expense deleted");
 			} catch (error) {
 				reportError(error, { feature: "expenses", operation: "delete" });

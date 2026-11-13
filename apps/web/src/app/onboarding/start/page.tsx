@@ -12,6 +12,7 @@ import {
 	Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 import { useCallback, useEffect, useState } from "react";
 import { OnboardingStepControls } from "@/components/onboarding-shell";
 import { Button } from "@/components/ui/button";
@@ -128,6 +129,7 @@ export default function OnboardingStartPage() {
 		setError(undefined);
 		try {
 			await beginOnboarding({ currency, path: selectedPath });
+			posthog.capture("onboarding_started", { setup_path: selectedPath });
 			router.push(`/onboarding/cycle?mode=${selectedPath}`);
 		} catch (cause) {
 			reportError(cause, { feature: "onboarding", operation: "start" });
