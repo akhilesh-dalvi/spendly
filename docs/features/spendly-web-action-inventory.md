@@ -2,7 +2,9 @@
 
 A page-by-page inventory of what users can view and do in the Spendly web app. Actions available from multiple pages are noted in each relevant section.
 
-**Reviewed:** 2026-11-12 against `origin/master` at `5c6a6b4`. Based on committed source and regression-test inspection, not a signed-in browser test. Known limitations and configuration-dependent behavior are called out separately.
+**Reviewed:** Original review: 2026-11-12 against `origin/master` at `5c6a6b4`. Follow-up action-coverage audit against checkout `23df4e5` included route discovery, page/shared-control action searches, and inspection of recovery screens, modal dismissal, provenance, and form controls. A further cross-surface source review checked Web form payloads and shared backend operations against the CLI matrix, including copy-plan clearing, creation versus edits, onboarding, and provenance. Based on source inspection, not a signed-in browser test. Known limitations and configuration-dependent behavior are called out separately.
+
+For a surface-by-surface checklist, see the [Web vs CLI feature matrix](spendly-web-cli-feature-matrix.md).
 
 **Labels:** **R** = read/view data; **W** = create or change saved Spendly data, including deletion; **R/W** = both. Navigation, draft-only controls, and explanatory notes are left unlabelled.
 
@@ -56,7 +58,8 @@ A page-by-page inventory of what users can view and do in the Spendly web app. A
 **Actions**
 - Select a cycle from Current/Upcoming/History or move to an adjacent cycle. Initially uses the current cycle, otherwise the first listed cycle; selection is local, not URL-backed or saved.
 - **W:** Switch between Grouped by Type and Simple List; this preference is saved.
-- Expand/collapse groups and sort categories by spending, plan, remaining amount, or name.
+- Expand/collapse groups and sort categories by spending, plan, remaining amount, or name, ascending or descending. Sorting and group expansion are local controls, unlike the saved grouped/list preference.
+- Hover allocation-chart slices for spending tooltips; recent-activity relative dates also expose a formatted date/time title (derived from the expense date, not its creation timestamp).
 - **W:** Hide a category or restore a hidden category.
 - **W:** Edit a category's name, icon, type, and planned amount.
 - **W:** Create a category type from the Allocation section or category editor.
@@ -70,7 +73,7 @@ A page-by-page inventory of what users can view and do in the Spendly web app. A
 - Recent expenses and the Uncategorized/history links are not restricted to the selected cycle. Add Expense does not pass that cycle's dates.
 - Hidden categories still contribute to totals and allocations.
 - The category editor can show No type incorrectly for a typed category. Selecting No type or clearing a plan does not clear existing saved values; zero updates a plan.
-- Dashboard cycle grouping/status treats the end date as inclusive, unlike backend membership.
+- Dashboard cycle grouping/status treats the end date as inclusive, unlike backend membership. Current-cycle lookup and summary days remaining use server UTC today; grouping/status uses browser-local today, so these can also disagree near midnight.
 - Allocation shows only types with positive spending, omitting planned-only types. Without positive spending it offers Add Expense.
 - With no cycles, the dashboard shows account summary/Create Cycle instead of category/allocation/activity sections.
 - Spending totals do not separate currencies. Account summary can be capped at 1,000 accounts without a visible truncation warning.
@@ -154,7 +157,7 @@ A page-by-page inventory of what users can view and do in the Spendly web app. A
 - Once the date's cycle/categories load, incompatible categories are cleared. Latest-expense category defaults apply only once and only within that cycle; explicit Uncategorized is preserved. Saving is disabled while cycle/categories are unavailable.
 - No account selected can still use/debit the default account. Uncategorized can trigger historical category inference.
 - No currency/exchange-rate field; account amounts may use the user's currency formatter. Expenses have no currency snapshot.
-- Normal page success resets the form and stays here; date-related query state may not reset consistently. Modal success closes/returns unless Add another is enabled.
+- Normal page success resets the form and stays here; the separate selected-date state used for cycle/category queries is not reset with the form, so the lookup date can diverge from the reset date field. Modal success closes/returns unless Add another is enabled.
 
 ### `/expenses/[id]`
 
@@ -169,7 +172,7 @@ A page-by-page inventory of what users can view and do in the Spendly web app. A
 - Date changes resolve the cycle; category must match it. Amount/account changes create compensating balance entries.
 - An existing archived account can remain assigned; switching to another archived account is rejected.
 - **W:** Selecting Uncategorized clears an existing category. Changing dates into another cycle clears an incompatible category and can save in the new cycle. Unlike creation, explicit category clearing does not invoke historical inference.
-- Blank note still does not clear an existing note.
+- Blank note still does not clear an existing note; whitespace-only text is rejected by the backend, not treated as an explicit clear.
 - Created on displays the expense date, not its creation timestamp. Normal page shows non-web change information; modal omits it.
 - Web saves do not require a revision precondition, and missing/unowned records have no page-specific recovery screen.
 
@@ -194,7 +197,9 @@ A page-by-page inventory of what users can view and do in the Spendly web app. A
 **Actions**
 - **W:** Enter cycle name and start/end date range; create the cycle.
 - Optionally choose any existing cycle to copy category configuration from, or Do not copy.
-- Select/deselect source categories, toggle prefilled plans, and override each selected plan.
+- Select/deselect source categories individually or using Select all; toggle prefilled plans and override each selected plan.
+- Clear a selected category's copied plan by blanking its input, even with prefill enabled. This affects the new copy, not the source category, and differs from the ordinary category editor's inability to clear a saved plan.
+- The prefill effect clears draft plans when off and restores source plans when on, replacing custom overrides. It currently reads the form value without a subscription, so the checkbox change can need another parent-state update (such as toggling a category) before those draft amounts refresh. Changing source initializes all its categories as selected.
 - Use the two-month calendar; go back or view all cycles. Success opens the new cycle.
 
 **Rules and effects**
@@ -333,7 +338,7 @@ There is no standalone `/categories` list page. Category lists and management ap
 ### `/accounts/[id]`
 
 **View and actions**
-- **R:** Read account/type/nature/currency/default/archive information, fixed opening balance, and changing current balance.
+- **R:** Read account/type/nature/currency/default/archive information, fixed opening balance, changing current balance, and non-web change provenance.
 - **R:** Review ledger entries: opening balance, expense, adjustment, transfer in/out, date/note, signed amount, balance-after, and provenance.
 - **R:** Load 50 more ledger entries using backend pagination.
 - **W:** Edit name/type, including on archived accounts. Existing archived type can be retained; a different type must be active.
@@ -364,6 +369,7 @@ There is no standalone `/categories` list page. Category lists and management ap
 **View and actions**
 - **R:** List active/archived types in stored order, with account usage and deletion eligibility.
 - **R:** Review Total Types/Active/Liabilities counts; liability count includes archived types.
+- If this route's error boundary is shown, use Try again to retry rendering/loading the screen; this does not intentionally change account data.
 - **W:** Create/edit name, optional icon/color, and Asset/money available or Liability/money owed nature.
 - **W:** Clear custom icon/color; choose presets, native color/hex input, or default styling.
 - **W:** Change nature only when no account references the type, including archived accounts.
@@ -489,8 +495,17 @@ There is no standalone `/categories` list page. Category lists and management ap
 - Choose Light/Dark/System theme.
 - Open Account/profile through Clerk or the app header's separate UserButton; Log out ends the Clerk session without deleting Spendly data.
 - Sidebar name/email prefer saved backend values while avatar and Settings identity come from Clerk; profile edits can therefore appear differently.
-- **R:** Read non-web change information in provenance tooltips.
+- **R:** Read non-web change information in provenance tooltips. Hover or keyboard-focus the icon to distinguish a direct CLI action from an AI-agent action via CLI. Clicking the icon or pressing Enter/Space on it does not activate the containing row/link; web/unspecified sources have no icon.
+- Expense/account indicators prefer the last-modified source, falling back to creation source; ledger indicators describe that entry's recorded source. These are not a complete audit trail: a later Web modification can hide the non-web indicator. Cycle/category pages do not expose equivalent cycle/category provenance icons, even when source metadata exists.
 - Sidebar toggle writes a cookie, but current layout does not use it to restore initial state. No configured nested navigation sections.
+
+### Shared dialog and recovery controls
+
+- Close ordinary dialogs using their Close (×) button; the shared Radix dialog also provides Escape and outside-dismiss behavior unless a caller prevents it. Closing an expense/category route modal returns to the previous page without submitting its draft. Independently created tags/types are not undone.
+- Cancel a destructive confirmation instead of deleting/archiving. This is distinct from the immediate-delete menus noted for tags and category-detail expenses.
+- When the root route error boundary appears, use Try again to retry the failed screen.
+- When the global/root-layout error fallback appears, use Try again or Go to Dashboard; the dashboard action performs a full navigation.
+- On the shared 404 screen, use Go to Dashboard. This does not imply every missing financial record uses that screen; some routes have their own missing-record state.
 
 ## 12. Marketing and help pages
 
@@ -571,7 +586,8 @@ The committed app contains **35 page modules, 32 route patterns, 3 modal variant
 - Forms: `apps/web/src/components/expense-form.tsx`, `cycle-form.tsx`, `category-form.tsx`, `category-type-form.tsx`, `account-form.tsx`, `account-actions.tsx`.
 - Reports/views: `apps/web/src/components/dashboard-summary.tsx`, `category-spending-chart.tsx`, `category-type-chart.tsx`, `recent-activity.tsx`, `account-balance-overview.tsx`, `compare/`.
 - Tables/navigation/setup: `apps/web/src/components/ui/data-table.tsx`, `navigation-config.ts`, `nav-user.tsx`, `mobile-nav.tsx`, `onboarding-guard.tsx`, `onboarding-shell.tsx`, `user-sync.tsx`.
+- Shared dismissal/provenance/recovery: `apps/web/src/components/ui/dialog.tsx`, `action-source-indicator.tsx`, `apps/web/src/app/error.tsx`, `global-error.tsx`, `not-found.tsx`, and `apps/web/src/app/(app)/data/account-types/error.tsx`.
 - Marketing/documentation controls: `apps/web/src/components/marketing-header.tsx`, `landing-demo-strip.tsx`, `docs/code-block.tsx`, `docs/package-manager-code-block.tsx`, and `apps/web/src/app/(marketing)/faqs/faq-page-data.ts`.
-- Backend behavior: `packages/backend/convex/expenses.ts`, `cycles.ts`, `categories.ts`, `accounts.ts`, `accountTypes.ts`, `tags.ts`, `aggregations.ts`, `users.ts`, and their `domain/` operations.
+- Backend behavior: `packages/backend/convex/expenses.ts`, `cycles.ts`, `categories.ts`, `accounts.ts`, `accountTypes.ts`, `tags.ts`, `aggregations.ts`, `users.ts`, and their `domain/` operations. In particular, `domain/cycleOperations.ts` distinguishes an omitted copied-plan override from an explicit override with no amount, while `domain/expenseOperations.ts` distinguishes creation inference from explicit clearing during edits.
 
 Limits and malformed controls above describe source-level findings. Runtime behavior and identity-provider configuration still need signed-in verification.
