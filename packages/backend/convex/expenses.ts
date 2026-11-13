@@ -66,7 +66,22 @@ interface ExpenseListFilters {
 	offset?: number;
 	startDate?: string;
 	tagIds?: Id<"tags">[];
+	unassigned?: boolean;
+	uncategorized?: boolean;
 }
+
+const matchesExpenseListFilters = (
+	expense: Doc<"expenses">,
+	args: ExpenseListFilters
+): boolean =>
+	(!args.cycleId || expense.cycleId === args.cycleId) &&
+	(!args.categoryId || expense.categoryId === args.categoryId) &&
+	(!args.accountId || expense.accountId === args.accountId) &&
+	(!args.unassigned || expense.accountId === undefined) &&
+	(!args.uncategorized || expense.categoryId === undefined) &&
+	(!args.startDate || expense.date >= args.startDate) &&
+	(!args.endDate || expense.date < args.endDate) &&
+	(args.tagIds ?? []).every((tagId) => expense.tagIds?.includes(tagId));
 
 const normalizeRecentLimit = (limit?: number) => {
 	if (limit === undefined) {
@@ -126,6 +141,46 @@ const getCandidateExpenses = async (
 	userId: Id<"users">,
 	args: ExpenseListFilters
 ): Promise<Doc<"expenses">[]> => {
+	if (args.unassigned || args.uncategorized) {
+		const filteredExpenses = ctx.db
+			.query("expenses")
+			.withIndex("by_userId_date_createdAt", (q) => {
+				const userExpenses = q.eq("userId", userId);
+				if (args.startDate && args.endDate) {
+					return userExpenses
+						.gte("date", args.startDate)
+						.lt("date", args.endDate);
+				}
+				if (args.startDate) {
+					return userExpenses.gte("date", args.startDate);
+				}
+				if (args.endDate) {
+					return userExpenses.lt("date", args.endDate);
+				}
+				return userExpenses;
+			})
+			.filter((q) =>
+				q.and(
+					...(args.unassigned ? [q.eq(q.field("accountId"), undefined)] : []),
+					...(args.uncategorized
+						? [q.eq(q.field("categoryId"), undefined)]
+						: [])
+				)
+			)
+			.order("desc");
+		const matches: Doc<"expenses">[] = [];
+		// Cap matching results, not candidates: assigned or categorized
+		// nonmatches must not hide older filtered history.
+		for await (const expense of filteredExpenses) {
+			if (matchesExpenseListFilters(expense, args)) {
+				matches.push(expense);
+				if (matches.length === MAX_EXPENSE_QUERY_RESULTS) {
+					break;
+				}
+			}
+		}
+		return matches;
+	}
 	if (args.accountId) {
 		return await ctx.db
 			.query("expenses")
@@ -224,38 +279,26 @@ export const list = query({
 		offset: v.optional(v.number()),
 		startDate: v.optional(v.string()),
 		tagIds: v.optional(v.array(v.id("tags"))),
+		unassigned: v.optional(v.boolean()),
+		uncategorized: v.optional(v.boolean()),
 	},
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		validateListPagination(args);
+		if (
+			(args.accountId && args.unassigned) ||
+			(args.categoryId && args.uncategorized)
+		) {
+			throw new ConvexError("INVALID_FILTERS");
+		}
 		await validateExpenseListOwnershipFilters(ctx, user._id, args);
 		let expenses = await getCandidateExpenses(ctx, user._id, args);
 
 		expenses = expenses.filter((expense) => expense.userId === user._id);
 
-		if (args.cycleId) {
-			expenses = expenses.filter((e) => e.cycleId === args.cycleId);
-		}
-		if (args.categoryId) {
-			expenses = expenses.filter((e) => e.categoryId === args.categoryId);
-		}
-		if (args.accountId) {
-			expenses = expenses.filter((e) => e.accountId === args.accountId);
-		}
-		if (args.startDate) {
-			const { startDate } = args;
-			expenses = expenses.filter((e) => e.date >= startDate);
-		}
-		if (args.endDate) {
-			const { endDate } = args;
-			expenses = expenses.filter((e) => e.date < endDate);
-		}
-		if (args.tagIds && args.tagIds.length > 0) {
-			const { tagIds } = args;
-			expenses = expenses.filter((e) =>
-				tagIds.every((tid) => e.tagIds?.includes(tid))
-			);
-		}
+		expenses = expenses.filter((expense) =>
+			matchesExpenseListFilters(expense, args)
+		);
 		expenses.sort(
 			(a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt
 		);

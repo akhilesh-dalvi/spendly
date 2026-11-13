@@ -316,7 +316,7 @@ describe("expenses index route", () => {
 		).toBeInTheDocument();
 		expect(mocks.query).toHaveBeenCalledWith(
 			getFunctionName(api.expenses.list),
-			{ accountId: archivedId }
+			{ accountId: archivedId, uncategorized: true }
 		);
 		await userEvent
 			.setup()
@@ -381,6 +381,158 @@ describe("expenses index route", () => {
 		expect(mocks.replace).toHaveBeenLastCalledWith("/expenses", {
 			scroll: false,
 		});
+	});
+
+	it("restores an unassigned URL and removes its pill without dropping other parameters", async () => {
+		mocks.search = new URLSearchParams(
+			"account=unassigned&category=uncategorized&keep=1"
+		);
+		fixture(api.expenses.list, [uncategorized]);
+		render(<ExpensesPage />);
+		expect(combobox("Unassigned")).toBeInTheDocument();
+		expect(screen.getByText("Total spent").parentElement).toHaveTextContent(
+			"$15.00"
+		);
+		expect(screen.queryByText("Lunch lunch")).not.toBeInTheDocument();
+		expect(mocks.query).toHaveBeenCalledWith(
+			getFunctionName(api.expenses.list),
+			{ unassigned: true, uncategorized: true }
+		);
+		await userEvent.setup().click(
+			screen.getByRole("button", {
+				name: "Remove Unassigned account filter",
+			})
+		);
+		expect(combobox("All accounts")).toBeInTheDocument();
+		expect(mocks.replace).toHaveBeenLastCalledWith(
+			"/expenses?category=uncategorized&keep=1",
+			{ scroll: false }
+		);
+		expect(mocks.query).toHaveBeenLastCalledWith(
+			getFunctionName(api.expenses.list),
+			{ uncategorized: true }
+		);
+	});
+
+	it("switches between unassigned and specific accounts and combines other filters", async () => {
+		mocks.search = new URLSearchParams("keep=1");
+		render(<ExpensesPage />);
+		const interaction = userEvent.setup();
+		await interaction.click(combobox("All cycles"));
+		await interaction.click(
+			screen.getByRole("option", { name: "July budget" })
+		);
+		await interaction.click(combobox("All categories"));
+		await interaction.click(screen.getByRole("option", { name: "Food" }));
+		await interaction.click(screen.getByRole("button", { name: "Work" }));
+		await interaction.click(combobox("All accounts"));
+		await interaction.click(screen.getByRole("option", { name: "Unassigned" }));
+		expect(mocks.query).toHaveBeenLastCalledWith(
+			getFunctionName(api.expenses.list),
+			{ categoryId, cycleId, tagIds: [tagId], unassigned: true }
+		);
+		expect(mocks.replace).toHaveBeenLastCalledWith(
+			"/expenses?keep=1&account=unassigned",
+			{ scroll: false }
+		);
+		await interaction.click(combobox("Unassigned"));
+		await interaction.click(
+			screen.getByRole("option", { name: "Cash · Bank" })
+		);
+		expect(mocks.query).toHaveBeenLastCalledWith(
+			getFunctionName(api.expenses.list),
+			{ accountId, categoryId, cycleId, tagIds: [tagId] }
+		);
+		await interaction.click(combobox("Cash"));
+		await interaction.click(screen.getByRole("option", { name: "Unassigned" }));
+		await interaction.click(screen.getByRole("button", { name: "Clear all" }));
+		expect(combobox("All accounts")).toBeInTheDocument();
+		expect(mocks.replace).toHaveBeenLastCalledWith("/expenses?keep=1", {
+			scroll: false,
+		});
+		expect(mocks.query).toHaveBeenLastCalledWith(
+			getFunctionName(api.expenses.list),
+			{}
+		);
+	});
+
+	it("offers unassigned by keyboard even with no accounts or matching expenses", async () => {
+		fixture(api.accounts.list, []);
+		fixture(api.expenses.list, []);
+		render(<ExpensesPage />);
+		const interaction = userEvent.setup();
+		const accountFilter = screen.getByRole("combobox", { name: "Account" });
+		accountFilter.focus();
+		await interaction.keyboard("{Enter}");
+		await interaction.keyboard("{End}{Enter}");
+		expect(combobox("Unassigned")).toBeInTheDocument();
+		expect(screen.getByText("No expenses found")).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Remove Unassigned account filter" })
+		).toBeInTheDocument();
+		expect(mocks.query).toHaveBeenLastCalledWith(
+			getFunctionName(api.expenses.list),
+			{ unassigned: true }
+		);
+	});
+
+	it("restores account URL changes on the mounted page", async () => {
+		mocks.search = new URLSearchParams("account=unassigned");
+		const view = render(<ExpensesPage />);
+		expect(combobox("Unassigned")).toBeInTheDocument();
+		mocks.search = new URLSearchParams("account=archived");
+		view.rerender(<ExpensesPage />);
+		await waitFor(() => expect(combobox("Old account")).toBeInTheDocument());
+		expect(mocks.query).toHaveBeenLastCalledWith(
+			getFunctionName(api.expenses.list),
+			{ accountId: archivedId }
+		);
+		mocks.search = new URLSearchParams("account=unassigned");
+		view.rerender(<ExpensesPage />);
+		await waitFor(() => expect(combobox("Unassigned")).toBeInTheDocument());
+		mocks.search = new URLSearchParams();
+		view.rerender(<ExpensesPage />);
+		await waitFor(() => expect(combobox("All accounts")).toBeInTheDocument());
+		expect(mocks.query).toHaveBeenLastCalledWith(
+			getFunctionName(api.expenses.list),
+			{}
+		);
+	});
+
+	it("does not request unfiltered results while resolving an account URL", () => {
+		mocks.search = new URLSearchParams("account=cash");
+		fixture(api.accounts.list, undefined);
+		const view = render(<ExpensesPage />);
+		expect(screen.queryByText("Lunch lunch")).not.toBeInTheDocument();
+		expect(mocks.query).toHaveBeenLastCalledWith(
+			getFunctionName(api.expenses.list),
+			"skip"
+		);
+		fixture(api.accounts.list, accounts);
+		view.rerender(<ExpensesPage />);
+		expect(combobox("Cash")).toBeInTheDocument();
+		expect(mocks.query).toHaveBeenLastCalledWith(
+			getFunctionName(api.expenses.list),
+			{ accountId }
+		);
+	});
+
+	it("explains an unavailable account URL instead of silently showing all expenses", async () => {
+		mocks.search = new URLSearchParams("account=missing&keep=1");
+		render(<ExpensesPage />);
+		expect(screen.getByText("Account filter unavailable")).toBeInTheDocument();
+		expect(screen.queryByText("Lunch lunch")).not.toBeInTheDocument();
+		expect(mocks.query).toHaveBeenLastCalledWith(
+			getFunctionName(api.expenses.list),
+			"skip"
+		);
+		await userEvent
+			.setup()
+			.click(screen.getByRole("button", { name: "Clear account filter" }));
+		expect(mocks.replace).toHaveBeenLastCalledWith("/expenses?keep=1", {
+			scroll: false,
+		});
+		expect(combobox("All accounts")).toBeInTheDocument();
 	});
 
 	it("toggles quick tags and sends only selected IDs", async () => {

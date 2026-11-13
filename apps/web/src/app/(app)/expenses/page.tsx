@@ -4,6 +4,7 @@ import { api } from "@spendly/backend/convex/_generated/api";
 import type { Id } from "@spendly/backend/convex/_generated/dataModel";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery } from "convex/react";
+import type { FunctionArgs } from "convex/server";
 import { format, parseISO } from "date-fns";
 import {
 	Calendar,
@@ -44,6 +45,8 @@ import { useCurrency } from "@/hooks/use-currency";
 import { reportError } from "@/lib/report-error";
 import { SortHeader } from "../data/sort-header";
 
+const UNASSIGNED_ACCOUNT_FILTER = "unassigned";
+
 interface Filters {
 	accountId: string;
 	categoryId: string;
@@ -83,33 +86,73 @@ interface AccountFilterOption {
 	name: string;
 }
 
+function resolveAccountFilter(
+	accounts: AccountFilterOption[] | undefined,
+	value: string
+) {
+	const account = accounts?.find((option) => option._id === value);
+	const unassigned = value === UNASSIGNED_ACCOUNT_FILTER;
+	return {
+		account,
+		unassigned,
+		unavailable:
+			accounts !== undefined && Boolean(value) && !unassigned && !account,
+	};
+}
+
+function getExpenseQueryArgs(
+	filters: Filters,
+	accountId?: Id<"accounts">
+): FunctionArgs<typeof api.expenses.list> {
+	const args: FunctionArgs<typeof api.expenses.list> = {};
+	if (filters.accountId === UNASSIGNED_ACCOUNT_FILTER) {
+		args.unassigned = true;
+	} else if (accountId) {
+		args.accountId = accountId;
+	}
+	if (filters.cycleId) {
+		args.cycleId = filters.cycleId as Id<"expense_cycles">;
+	}
+	if (filters.categoryId && filters.categoryId !== "uncategorized") {
+		args.categoryId = filters.categoryId as Id<"categories">;
+	}
+	if (filters.includeUncategorized) {
+		args.uncategorized = true;
+	}
+	if (filters.tagIds.length > 0) {
+		args.tagIds = filters.tagIds as Id<"tags">[];
+	}
+	return args;
+}
+
 interface ExpenseAccountFilterProps {
 	accounts: AccountFilterOption[];
 	onValueChange: (accountId: string) => void;
-	selectedAccountId?: Id<"accounts">;
+	value: string;
 }
 
 function ExpenseAccountFilter({
 	accounts,
 	onValueChange,
-	selectedAccountId,
+	value,
 }: ExpenseAccountFilterProps) {
 	const changeAccount = useCallback(
-		(value: string) => onValueChange(value === "all" ? "" : value),
+		(accountId: string) => onValueChange(accountId === "all" ? "" : accountId),
 		[onValueChange]
 	);
 	const activeAccounts = accounts.filter((account) => !account.isArchived);
 	const archivedAccounts = accounts.filter((account) => account.isArchived);
 
 	return (
-		<Select onValueChange={changeAccount} value={selectedAccountId ?? "all"}>
-			<SelectTrigger className="h-10 w-[180px] bg-card/50">
+		<Select onValueChange={changeAccount} value={value || "all"}>
+			<SelectTrigger aria-label="Account" className="h-10 w-[180px] bg-card/50">
 				<Wallet />
 				<SelectValue placeholder="Account" />
 			</SelectTrigger>
 			<SelectContent>
 				<SelectGroup>
 					<SelectItem value="all">All accounts</SelectItem>
+					<SelectItem value={UNASSIGNED_ACCOUNT_FILTER}>Unassigned</SelectItem>
 				</SelectGroup>
 				{activeAccounts.length > 0 ? (
 					<SelectGroup>
@@ -139,13 +182,16 @@ function ExpenseAccountFilter({
 interface ActiveAccountFilterBadgeProps {
 	account?: AccountFilterOption;
 	onClear: () => void;
+	unassigned: boolean;
 }
 
 function ActiveAccountFilterBadge({
 	account,
 	onClear,
+	unassigned,
 }: ActiveAccountFilterBadgeProps) {
-	if (!account) {
+	const label = unassigned ? "Unassigned" : account?.name;
+	if (!label) {
 		return null;
 	}
 
@@ -158,11 +204,11 @@ function ActiveAccountFilterBadge({
 				Account
 			</span>
 			<span className="font-semibold text-xs">
-				{account.name}
-				{account.isArchived ? " (Archived)" : ""}
+				{label}
+				{account?.isArchived ? " (Archived)" : ""}
 			</span>
 			<button
-				aria-label={`Remove ${account.name} account filter`}
+				aria-label={`Remove ${label} account filter`}
 				className="rounded-full p-0.5 hover:bg-primary/20"
 				onClick={onClear}
 				type="button"
@@ -323,8 +369,12 @@ function ExpensesPageContent() {
 		return categories?.find((c) => c._id === filters.categoryId)?.name;
 	}, [categories, filters.categoryId, filters.includeUncategorized]);
 
-	const activeAccount = useMemo(
-		() => accounts?.find((account) => account._id === filters.accountId),
+	const {
+		account: activeAccount,
+		unassigned: unassignedAccount,
+		unavailable: accountFilterUnavailable,
+	} = useMemo(
+		() => resolveAccountFilter(accounts, filters.accountId),
 		[accounts, filters.accountId]
 	);
 	const activeTags = useMemo(
@@ -339,33 +389,17 @@ function ExpensesPageContent() {
 			filters.tagIds.length > 0
 	);
 
-	const expenseQueryArgs = useMemo(() => {
-		const args: {
-			accountId?: Id<"accounts">;
-			cycleId?: Id<"expense_cycles">;
-			categoryId?: Id<"categories">;
-			startDate?: string;
-			endDate?: string;
-			tagIds?: Id<"tags">[];
-		} = {};
+	const expenseQueryArgs = useMemo(
+		() => getExpenseQueryArgs(filters, activeAccount?._id),
+		[activeAccount, filters]
+	);
 
-		if (activeAccount) {
-			args.accountId = activeAccount._id;
-		}
-		if (filters.cycleId) {
-			args.cycleId = filters.cycleId as Id<"expense_cycles">;
-		}
-		if (filters.categoryId && filters.categoryId !== "uncategorized") {
-			args.categoryId = filters.categoryId as Id<"categories">;
-		}
-		if (filters.tagIds.length > 0) {
-			args.tagIds = filters.tagIds as Id<"tags">[];
-		}
-
-		return args;
-	}, [activeAccount, filters]);
-
-	const expenses = useQuery(api.expenses.list, expenseQueryArgs);
+	const expenses = useQuery(
+		api.expenses.list,
+		accounts === undefined || accountFilterUnavailable
+			? "skip"
+			: expenseQueryArgs
+	);
 	const visibleExpenses = useMemo(() => {
 		if (!expenses) {
 			return [];
@@ -671,6 +705,19 @@ function ExpensesPageContent() {
 			})),
 		[]
 	);
+	if (accountFilterUnavailable) {
+		return (
+			<EmptyState
+				action={
+					<Button onClick={clearAccount} variant="outline">
+						Clear account filter
+					</Button>
+				}
+				description="This account could not be found in your accounts. Clear this filter to continue browsing expenses."
+				title="Account filter unavailable"
+			/>
+		);
+	}
 	if (isLoading) {
 		return (
 			<div className="flex h-full w-full items-center justify-center">
@@ -792,7 +839,7 @@ function ExpensesPageContent() {
 						<ExpenseAccountFilter
 							accounts={accounts}
 							onValueChange={updateAccountFilter}
-							selectedAccountId={activeAccount?._id}
+							value={filters.accountId}
 						/>
 					</div>
 
@@ -862,6 +909,7 @@ function ExpensesPageContent() {
 						<ActiveAccountFilterBadge
 							account={activeAccount}
 							onClear={clearAccount}
+							unassigned={unassignedAccount}
 						/>
 						{activeTags.map((tag) => (
 							<ActiveTagBadge key={tag._id} onToggle={toggleTag} tag={tag} />
