@@ -9,13 +9,31 @@ import {
 	type FunctionReturnType,
 	getFunctionName,
 } from "convex/server";
+import { NuqsTestingAdapter, type UrlUpdateEvent } from "nuqs/adapters/testing";
 import { Suspense } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ExpenseDetailPage from "./[id]/page";
 import NewExpensePage from "./new/page";
-import ExpensesPage from "./page";
+import ExpensesIndex from "./page";
 
 const NOTE_LABEL = /Note/;
+
+function onUrlUpdate(event: UrlUpdateEvent) {
+	mocks.urlUpdate(event.queryString);
+	mocks.urlEvent(event);
+}
+
+function ExpensesPage() {
+	return (
+		<NuqsTestingAdapter
+			hasMemory
+			onUrlUpdate={onUrlUpdate}
+			searchParams={mocks.search}
+		>
+			<ExpensesIndex />
+		</NuqsTestingAdapter>
+	);
+}
 
 const mocks = vi.hoisted(() => ({
 	create: vi.fn(),
@@ -30,6 +48,8 @@ const mocks = vi.hoisted(() => ({
 	search: new URLSearchParams(),
 	success: vi.fn(),
 	update: vi.fn(),
+	urlEvent: vi.fn(),
+	urlUpdate: vi.fn(),
 	warning: vi.fn(),
 }));
 vi.mock("convex/react", async () => {
@@ -248,6 +268,276 @@ async function deleteRow(description = "Lunch lunch") {
 }
 
 describe("expenses index route", () => {
+	it("applies preset dates as explicit URL bounds while preserving all other filters", async () => {
+		mocks.search = new URLSearchParams(
+			"cycle=july&category=food&account=unassigned&tag=work&keep=1"
+		);
+		render(<ExpensesPage />);
+		const interaction = userEvent.setup();
+		await interaction.click(screen.getByRole("button", { name: "Date range" }));
+		await interaction.click(screen.getByRole("radio", { name: "Last month" }));
+		expect(mocks.urlUpdate).not.toHaveBeenCalled();
+		expect(mocks.query).toHaveBeenLastCalledWith(
+			getFunctionName(api.expenses.list),
+			{ categoryId, cycleId, tagIds: [tagId], unassigned: true }
+		);
+		await interaction.click(screen.getByRole("button", { name: "Apply" }));
+		expect(mocks.urlUpdate).toHaveBeenLastCalledWith(
+			"?cycle=july&category=food&account=unassigned&tag=work&keep=1&from=2026-06-01&to=2026-06-30"
+		);
+		expect(mocks.query).toHaveBeenLastCalledWith(
+			getFunctionName(api.expenses.list),
+			{
+				categoryId,
+				cycleId,
+				endDate: "2026-07-01",
+				startDate: "2026-06-01",
+				tagIds: [tagId],
+				unassigned: true,
+			}
+		);
+		expect(combobox("July budget")).toBeInTheDocument();
+	});
+
+	it("uses the same 40px control size for search, date and all filter dropdowns", () => {
+		render(<ExpensesPage />);
+		expect(screen.getByPlaceholderText("Search description...")).toHaveClass(
+			"h-10"
+		);
+		expect(screen.getByRole("button", { name: "Date range" })).toHaveClass(
+			"h-10"
+		);
+		for (const label of ["Cycle", "Category", "Account"]) {
+			const trigger = screen.getByRole("combobox", { name: label });
+			expect(trigger).toHaveAttribute("data-size", "lg");
+			expect(trigger).not.toHaveClass("h-10");
+		}
+	});
+
+	it("restores all URL filters and sends inclusive From/Through as the existing half-open backend contract", async () => {
+		const otherTag = "travel" as Id<"tags">;
+		fixture(api.tags.list, [
+			{ _creationTime: 0, _id: tagId, createdAt: 0, name: "Work", userId },
+			{ _creationTime: 0, _id: otherTag, createdAt: 0, name: "Travel", userId },
+		]);
+		mocks.search = new URLSearchParams(
+			"cycle=july&category=food&account=unassigned&tag=work&tag=travel&from=2026-07-10&to=2026-07-10&keep=1"
+		);
+		render(<ExpensesPage />);
+		expect(combobox("July budget")).toBeInTheDocument();
+		expect(combobox("Food")).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Date range" })
+		).toHaveTextContent("Jul 10, 2026");
+		expect(mocks.query).toHaveBeenLastCalledWith(
+			getFunctionName(api.expenses.list),
+			{
+				categoryId,
+				cycleId,
+				endDate: "2026-07-11",
+				startDate: "2026-07-10",
+				tagIds: [tagId, otherTag],
+				unassigned: true,
+			}
+		);
+		await userEvent
+			.setup()
+			.click(screen.getByRole("button", { name: "Remove date filter" }));
+		expect(mocks.query).toHaveBeenLastCalledWith(
+			getFunctionName(api.expenses.list),
+			{ categoryId, cycleId, tagIds: [tagId, otherTag], unassigned: true }
+		);
+		expect(mocks.urlUpdate).toHaveBeenLastCalledWith(
+			"?cycle=july&category=food&account=unassigned&tag=work&tag=travel&keep=1"
+		);
+	});
+
+	it("applies both date bounds in one history entry without changing the selected cycle", async () => {
+		mocks.search = new URLSearchParams("cycle=july&account=unassigned&keep=1");
+		fixture(api.expenses.list, []);
+		render(<ExpensesPage />);
+		const interaction = userEvent.setup();
+		await interaction.click(screen.getByRole("button", { name: "Date range" }));
+		await interaction.type(screen.getByLabelText("From"), "2026-06-01");
+		await interaction.type(screen.getByLabelText("Through"), "2026-06-30");
+		expect(mocks.urlUpdate).not.toHaveBeenCalled();
+		expect(mocks.query).toHaveBeenLastCalledWith(
+			getFunctionName(api.expenses.list),
+			{ cycleId, unassigned: true }
+		);
+		await interaction.click(screen.getByRole("button", { name: "Apply" }));
+		expect(mocks.urlEvent).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({
+				options: { history: "push", scroll: false, shallow: true },
+				queryString:
+					"?cycle=july&account=unassigned&keep=1&from=2026-06-01&to=2026-06-30",
+			})
+		);
+		expect(mocks.query).toHaveBeenLastCalledWith(
+			getFunctionName(api.expenses.list),
+			{
+				cycleId,
+				endDate: "2026-07-01",
+				startDate: "2026-06-01",
+				unassigned: true,
+			}
+		);
+		expect(combobox("July budget")).toBeInTheDocument();
+		expect(screen.getByText("No expenses found")).toBeInTheDocument();
+		await interaction.click(screen.getByRole("button", { name: "Date range" }));
+		await interaction.click(screen.getByRole("button", { name: "Clear" }));
+		expect(mocks.urlUpdate).toHaveBeenLastCalledWith(
+			"?cycle=july&account=unassigned&keep=1"
+		);
+	});
+
+	it("restores changed URLs on navigation including removal of Uncategorized and dates", async () => {
+		mocks.search = new URLSearchParams(
+			"cycle=july&category=uncategorized&from=2026-07-01&to=2026-07-31&tag=work"
+		);
+		const view = render(<ExpensesPage />);
+		expect(mocks.query).toHaveBeenLastCalledWith(
+			getFunctionName(api.expenses.list),
+			{
+				cycleId,
+				endDate: "2026-08-01",
+				startDate: "2026-07-01",
+				tagIds: [tagId],
+				uncategorized: true,
+			}
+		);
+		mocks.search = new URLSearchParams(
+			"cycle=july&category=food&account=archived&to=2026-07-10"
+		);
+		view.rerender(<ExpensesPage />);
+		await waitFor(() =>
+			expect(mocks.query).toHaveBeenLastCalledWith(
+				getFunctionName(api.expenses.list),
+				{ accountId: archivedId, categoryId, cycleId, endDate: "2026-07-11" }
+			)
+		);
+		mocks.search = new URLSearchParams();
+		view.rerender(<ExpensesPage />);
+		await waitFor(() =>
+			expect(mocks.query).toHaveBeenLastCalledWith(
+				getFunctionName(api.expenses.list),
+				{}
+			)
+		);
+		expect(screen.getByText("Lunch lunch")).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "Remove date filter" })
+		).not.toBeInTheDocument();
+	});
+
+	it.each(["from=2026-02-30", "to=bad", "from=2026-07-11&to=2026-07-10"])(
+		"does not silently broaden an invalid date URL: %s",
+		async (query) => {
+			mocks.search = new URLSearchParams(`${query}&keep=1`);
+			render(<ExpensesPage />);
+			expect(
+				screen.getByRole("heading", { name: "Invalid date range" })
+			).toBeInTheDocument();
+			expect(mocks.query).toHaveBeenLastCalledWith(
+				getFunctionName(api.expenses.list),
+				"skip"
+			);
+			expect(screen.queryByText("Lunch lunch")).not.toBeInTheDocument();
+			await userEvent
+				.setup()
+				.click(screen.getByRole("button", { name: "Clear date filter" }));
+			expect(mocks.urlUpdate).toHaveBeenLastCalledWith("?keep=1");
+			expect(screen.getByText("Lunch lunch")).toBeInTheDocument();
+		}
+	);
+
+	it.each([
+		"cycle=missing",
+		"category=food",
+		"cycle=july&category=missing",
+		"tag=missing",
+	])(
+		"guards unavailable resource filters before querying: %s",
+		async (query) => {
+			mocks.search = new URLSearchParams(`${query}&keep=1`);
+			render(<ExpensesPage />);
+			expect(
+				screen.getByRole("heading", { name: "Expense filter unavailable" })
+			).toBeInTheDocument();
+			expect(mocks.query).toHaveBeenLastCalledWith(
+				getFunctionName(api.expenses.list),
+				"skip"
+			);
+			await userEvent
+				.setup()
+				.click(screen.getByRole("button", { name: "Clear all filters" }));
+			expect(mocks.urlUpdate).toHaveBeenLastCalledWith("?keep=1");
+			expect(screen.getByText("Lunch lunch")).toBeInTheDocument();
+		}
+	);
+
+	it("clears incompatible categories atomically when switching or removing cycles", async () => {
+		mocks.search = new URLSearchParams(
+			"cycle=july&category=food&from=2026-07-01"
+		);
+		const view = render(<ExpensesPage />);
+		const interaction = userEvent.setup();
+		await interaction.click(screen.getByRole("combobox", { name: "Cycle" }));
+		await interaction.click(
+			screen.getByRole("option", { name: "August budget" })
+		);
+		expect(mocks.query).toHaveBeenLastCalledWith(
+			getFunctionName(api.expenses.list),
+			{ cycleId: "aug", startDate: "2026-07-01" }
+		);
+		expect(mocks.urlUpdate).toHaveBeenLastCalledWith(
+			"?cycle=aug&from=2026-07-01"
+		);
+		mocks.search = new URLSearchParams(
+			"cycle=july&category=uncategorized&from=2026-07-01"
+		);
+		view.rerender(<ExpensesPage />);
+		await waitFor(() => expect(combobox("July budget")).toBeInTheDocument());
+		await interaction.click(
+			screen.getByRole("button", { name: "Remove cycle filter" })
+		);
+		expect(mocks.query).toHaveBeenLastCalledWith(
+			getFunctionName(api.expenses.list),
+			{ startDate: "2026-07-01" }
+		);
+		expect(mocks.urlUpdate).toHaveBeenLastCalledWith("?from=2026-07-01");
+	});
+
+	it("resets table pagination on a server filter change while keeping search local", async () => {
+		fixture(
+			api.expenses.list,
+			Array.from({ length: 21 }, (_, index) => expense(`row-${index}`))
+		);
+		render(<ExpensesPage />);
+		const interaction = userEvent.setup();
+		await interaction.click(screen.getByRole("button", { name: "Next" }));
+		expect(screen.getByText("Lunch row-10")).toBeInTheDocument();
+		await interaction.click(screen.getByRole("button", { name: "Work" }));
+		expect(screen.getByText("Lunch row-0")).toBeInTheDocument();
+		await interaction.type(
+			screen.getByPlaceholderText("Search description..."),
+			"row-0"
+		);
+		expect(mocks.urlUpdate).toHaveBeenCalledTimes(1);
+	});
+
+	it("makes bounded totals explicit when 500 matching expenses are loaded", () => {
+		fixture(
+			api.expenses.list,
+			Array.from({ length: 500 }, (_, index) => expense(`row-${index}`))
+		);
+		render(<ExpensesPage />);
+		expect(screen.getByRole("status")).toHaveTextContent(
+			"Showing up to 500 expenses."
+		);
+		expect(screen.getByText("Loaded total")).toBeInTheDocument();
+	});
+
 	it("waits for queries and offers expense creation when the list is empty", () => {
 		fixture(api.expenses.list, undefined);
 		const view = render(<ExpensesPage />);
@@ -321,16 +611,14 @@ describe("expenses index route", () => {
 		await userEvent
 			.setup()
 			.click(screen.getByRole("button", { name: "Clear all" }));
-		expect(mocks.replace).toHaveBeenCalledWith("/expenses?keep=1", {
-			scroll: false,
-		});
+		expect(mocks.urlUpdate).toHaveBeenCalledWith("?keep=1");
 		expect(screen.getByText("Lunch lunch")).toBeInTheDocument();
 	});
 
 	it("lists current/upcoming/history cycles and sends category filters to Convex", async () => {
 		render(<ExpensesPage />);
 		const interaction = userEvent.setup();
-		expect(combobox("All categories")).toBeDisabled();
+		expect(combobox("All categories")).toBeEnabled();
 		await interaction.click(combobox("All cycles"));
 		expect(
 			screen.getByRole("option", { name: "August budget" })
@@ -356,7 +644,7 @@ describe("expenses index route", () => {
 		expect(screen.getByText("Taxi")).toBeInTheDocument();
 		await interaction.click(screen.getByRole("button", { name: "Clear all" }));
 		expect(screen.getByText("Lunch lunch")).toBeInTheDocument();
-		expect(mocks.replace).toHaveBeenCalledWith("/expenses", { scroll: false });
+		expect(mocks.urlUpdate).toHaveBeenCalledWith("");
 	});
 
 	it("selects archived accounts, updates the URL and removes the account filter", async () => {
@@ -368,9 +656,7 @@ describe("expenses index route", () => {
 		await interaction.click(
 			screen.getByRole("option", { name: "Old account · Bank (Archived)" })
 		);
-		expect(mocks.replace).toHaveBeenCalledWith("/expenses?account=archived", {
-			scroll: false,
-		});
+		expect(mocks.urlUpdate).toHaveBeenCalledWith("?account=archived");
 		expect(mocks.query).toHaveBeenCalledWith(
 			getFunctionName(api.expenses.list),
 			{ accountId: archivedId }
@@ -378,9 +664,7 @@ describe("expenses index route", () => {
 		await interaction.click(
 			screen.getByRole("button", { name: "Remove Old account account filter" })
 		);
-		expect(mocks.replace).toHaveBeenLastCalledWith("/expenses", {
-			scroll: false,
-		});
+		expect(mocks.urlUpdate).toHaveBeenLastCalledWith("");
 	});
 
 	it("restores an unassigned URL and removes its pill without dropping other parameters", async () => {
@@ -390,7 +674,7 @@ describe("expenses index route", () => {
 		fixture(api.expenses.list, [uncategorized]);
 		render(<ExpensesPage />);
 		expect(combobox("Unassigned")).toBeInTheDocument();
-		expect(screen.getByText("Total spent").parentElement).toHaveTextContent(
+		expect(screen.getByText("Loaded total").parentElement).toHaveTextContent(
 			"$15.00"
 		);
 		expect(screen.queryByText("Lunch lunch")).not.toBeInTheDocument();
@@ -404,9 +688,8 @@ describe("expenses index route", () => {
 			})
 		);
 		expect(combobox("All accounts")).toBeInTheDocument();
-		expect(mocks.replace).toHaveBeenLastCalledWith(
-			"/expenses?category=uncategorized&keep=1",
-			{ scroll: false }
+		expect(mocks.urlUpdate).toHaveBeenLastCalledWith(
+			"?category=uncategorized&keep=1"
 		);
 		expect(mocks.query).toHaveBeenLastCalledWith(
 			getFunctionName(api.expenses.list),
@@ -431,9 +714,8 @@ describe("expenses index route", () => {
 			getFunctionName(api.expenses.list),
 			{ categoryId, cycleId, tagIds: [tagId], unassigned: true }
 		);
-		expect(mocks.replace).toHaveBeenLastCalledWith(
-			"/expenses?keep=1&account=unassigned",
-			{ scroll: false }
+		expect(mocks.urlUpdate).toHaveBeenLastCalledWith(
+			"?keep=1&cycle=july&category=food&tag=work&account=unassigned"
 		);
 		await interaction.click(combobox("Unassigned"));
 		await interaction.click(
@@ -447,9 +729,7 @@ describe("expenses index route", () => {
 		await interaction.click(screen.getByRole("option", { name: "Unassigned" }));
 		await interaction.click(screen.getByRole("button", { name: "Clear all" }));
 		expect(combobox("All accounts")).toBeInTheDocument();
-		expect(mocks.replace).toHaveBeenLastCalledWith("/expenses?keep=1", {
-			scroll: false,
-		});
+		expect(mocks.urlUpdate).toHaveBeenLastCalledWith("?keep=1");
 		expect(mocks.query).toHaveBeenLastCalledWith(
 			getFunctionName(api.expenses.list),
 			{}
@@ -529,9 +809,7 @@ describe("expenses index route", () => {
 		await userEvent
 			.setup()
 			.click(screen.getByRole("button", { name: "Clear account filter" }));
-		expect(mocks.replace).toHaveBeenLastCalledWith("/expenses?keep=1", {
-			scroll: false,
-		});
+		expect(mocks.urlUpdate).toHaveBeenLastCalledWith("?keep=1");
 		expect(combobox("All accounts")).toBeInTheDocument();
 	});
 

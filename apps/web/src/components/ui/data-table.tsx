@@ -59,6 +59,7 @@ interface DataTableProps<TData, TValue> {
 	onExternalSearchChange?: (value: string) => void;
 	onRowClick?: (row: TData) => void;
 	onRowDelete?: (row: TData) => void;
+	paginationResetKey?: string;
 	rowClassName?: string | ((row: TData) => string);
 	showFooter?: boolean;
 }
@@ -169,6 +170,7 @@ export function DataTable<TData, TValue>({
 	showFooter = false,
 	externalSearchValue,
 	onExternalSearchChange,
+	paginationResetKey,
 }: DataTableProps<TData, TValue>) {
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -204,6 +206,12 @@ export function DataTable<TData, TValue>({
 	useEffect(() => {
 		table.setPageSize(pageSize);
 	}, [pageSize, table]);
+
+	useEffect(() => {
+		if (paginationResetKey !== undefined) {
+			table.resetPageIndex();
+		}
+	}, [paginationResetKey, table]);
 
 	const changeFilter = useCallback(
 		(event: React.ChangeEvent<HTMLInputElement>) =>

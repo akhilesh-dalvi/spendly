@@ -4,6 +4,7 @@ import { mutation, type QueryCtx, query } from "./_generated/server";
 import { resolveAccountTypeMetadata } from "./accountTypeHelpers";
 import { nullableResolvedAccountTypeFields } from "./accountTypeValidators";
 import { actionSourceValidator } from "./domain/actionSource";
+import { validateLocalDate } from "./domain/dates";
 import {
 	commitExpenseCreate,
 	commitExpenseDelete,
@@ -141,7 +142,7 @@ const getCandidateExpenses = async (
 	userId: Id<"users">,
 	args: ExpenseListFilters
 ): Promise<Doc<"expenses">[]> => {
-	if (args.unassigned || args.uncategorized) {
+	if (args.unassigned || args.uncategorized || args.startDate || args.endDate) {
 		const filteredExpenses = ctx.db
 			.query("expenses")
 			.withIndex("by_userId_date_createdAt", (q) => {
@@ -169,8 +170,8 @@ const getCandidateExpenses = async (
 			)
 			.order("desc");
 		const matches: Doc<"expenses">[] = [];
-		// Cap matching results, not candidates: assigned or categorized
-		// nonmatches must not hide older filtered history.
+		// Cap matching results, not candidates: other filters must not hide
+		// historical matches inside an explicitly requested date range.
 		for await (const expense of filteredExpenses) {
 			if (matchesExpenseListFilters(expense, args)) {
 				matches.push(expense);
@@ -285,6 +286,15 @@ export const list = query({
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
 		validateListPagination(args);
+		if (args.startDate !== undefined) {
+			validateLocalDate(args.startDate);
+		}
+		if (args.endDate !== undefined) {
+			validateLocalDate(args.endDate);
+		}
+		if (args.startDate && args.endDate && args.startDate > args.endDate) {
+			throw new ConvexError("INVALID_DATE_RANGE");
+		}
 		if (
 			(args.accountId && args.unassigned) ||
 			(args.categoryId && args.uncategorized)

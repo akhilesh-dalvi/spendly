@@ -17,8 +17,9 @@ import {
 	X,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { parseAsNativeArrayOf, parseAsString, useQueryStates } from "nuqs";
+import { Suspense, useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AccountTypeIcon } from "@/components/account-type-icon";
 import {
@@ -44,10 +45,33 @@ import {
 import { useCurrency } from "@/hooks/use-currency";
 import { reportError } from "@/lib/report-error";
 import { SortHeader } from "../data/sort-header";
+import {
+	type ExpenseDateRange,
+	exclusiveExpenseEndDate,
+	expenseDateRangeError,
+	expenseDateRangeLabel,
+} from "./date-range";
+import { ExpenseDateFilter } from "./expense-date-filter";
 
 const UNASSIGNED_ACCOUNT_FILTER = "unassigned";
+const filterParsers = {
+	accountId: parseAsString.withDefault(""),
+	categoryId: parseAsString.withDefault(""),
+	cycleId: parseAsString.withDefault(""),
+	from: parseAsString.withDefault(""),
+	tagIds: parseAsNativeArrayOf(parseAsString),
+	through: parseAsString.withDefault(""),
+};
+const filterUrlKeys = {
+	accountId: "account",
+	categoryId: "category",
+	cycleId: "cycle",
+	from: "from",
+	tagIds: "tag",
+	through: "to",
+};
 
-interface Filters {
+interface Filters extends ExpenseDateRange {
 	accountId: string;
 	categoryId: string;
 	cycleId: string;
@@ -122,7 +146,43 @@ function getExpenseQueryArgs(
 	if (filters.tagIds.length > 0) {
 		args.tagIds = filters.tagIds as Id<"tags">[];
 	}
+	if (filters.from) {
+		args.startDate = filters.from;
+	}
+	if (filters.through && !expenseDateRangeError(filters)) {
+		args.endDate = exclusiveExpenseEndDate(filters.through);
+	}
 	return args;
+}
+
+function otherExpenseFilterUnavailable(
+	filters: Filters,
+	cycles: { _id: string }[] | undefined,
+	categories: { _id: string }[] | undefined,
+	tags: { _id: string }[] | undefined
+) {
+	if (
+		cycles &&
+		filters.cycleId &&
+		!cycles.some((cycle) => cycle._id === filters.cycleId)
+	) {
+		return true;
+	}
+	if (filters.categoryId && !filters.includeUncategorized) {
+		if (!filters.cycleId) {
+			return true;
+		}
+		if (
+			categories &&
+			!categories.some((category) => category._id === filters.categoryId)
+		) {
+			return true;
+		}
+	}
+	return (
+		tags !== undefined &&
+		filters.tagIds.some((id) => !tags.some((tag) => tag._id === id))
+	);
 }
 
 interface ExpenseAccountFilterProps {
@@ -145,7 +205,11 @@ function ExpenseAccountFilter({
 
 	return (
 		<Select onValueChange={changeAccount} value={value || "all"}>
-			<SelectTrigger aria-label="Account" className="h-10 w-[180px] bg-card/50">
+			<SelectTrigger
+				aria-label="Account"
+				className="w-[180px] bg-card/50"
+				size="lg"
+			>
 				<Wallet />
 				<SelectValue placeholder="Account" />
 			</SelectTrigger>
@@ -219,23 +283,62 @@ function ActiveAccountFilterBadge({
 	);
 }
 
+function ActiveDateFilterBadge({
+	value,
+	onClear,
+}: {
+	value: ExpenseDateRange;
+	onClear: () => void;
+}) {
+	if (!(value.from || value.through)) {
+		return null;
+	}
+	return (
+		<Badge className="gap-1" variant="secondary">
+			<span>{expenseDateRangeLabel(value)}</span>
+			<button aria-label="Remove date filter" onClick={onClear} type="button">
+				<X className="size-3" />
+			</button>
+		</Badge>
+	);
+}
+
 interface ExpenseResultsProps {
 	columns: ExpenseColumnDef[];
+	dateError: string | null;
 	expenses: ExpenseRow[];
 	globalSearch: string;
+	onClearDate: () => void;
 	onDelete: (expense: ExpenseRow) => void;
 	onRowClick: (expense: ExpenseRow) => void;
 	onSearchChange: (value: string) => void;
+	paginationResetKey: string;
 }
 
 function ExpenseResults({
 	columns,
+	dateError,
+	onClearDate,
 	expenses,
 	globalSearch,
 	onDelete,
 	onRowClick,
 	onSearchChange,
+	paginationResetKey,
 }: ExpenseResultsProps) {
+	if (dateError) {
+		return (
+			<EmptyState
+				action={
+					<Button onClick={onClearDate} variant="outline">
+						Clear date filter
+					</Button>
+				}
+				description={dateError}
+				title="Invalid date range"
+			/>
+		);
+	}
 	if (expenses.length === 0) {
 		return (
 			<EmptyState
@@ -255,18 +358,27 @@ function ExpenseResults({
 	}
 
 	return (
-		<DataTable
-			columns={columns}
-			data={expenses}
-			deleteDescription="This action cannot be undone. This will permanently remove the expense."
-			deleteTitle="Delete expense?"
-			externalSearchValue={globalSearch}
-			onExternalSearchChange={onSearchChange}
-			onRowClick={onRowClick}
-			onRowDelete={onDelete}
-			rowClassName="hover:bg-muted/50"
-			showFooter={true}
-		/>
+		<>
+			{expenses.length === 500 ? (
+				<p className="text-muted-foreground text-sm" role="status">
+					Showing up to 500 expenses. Narrow your filters to see fewer results.
+					Totals cover loaded expenses only.
+				</p>
+			) : null}
+			<DataTable
+				columns={columns}
+				data={expenses}
+				deleteDescription="This action cannot be undone. This will permanently remove the expense."
+				deleteTitle="Delete expense?"
+				externalSearchValue={globalSearch}
+				onExternalSearchChange={onSearchChange}
+				onRowClick={onRowClick}
+				onRowDelete={onDelete}
+				paginationResetKey={paginationResetKey}
+				rowClassName="hover:bg-muted/50"
+				showFooter={true}
+			/>
+		</>
 	);
 }
 
@@ -315,22 +427,52 @@ function QuickTagButton({
 	);
 }
 
+function QuickTags({
+	tags,
+	selectedIds,
+	onToggle,
+}: {
+	tags: { _id: string; name: string }[] | undefined;
+	selectedIds: string[];
+	onToggle: (id: string) => void;
+}) {
+	if (!tags || tags.length === 0) {
+		return null;
+	}
+	return (
+		<div className="ml-auto flex items-center gap-2">
+			<span className="font-bold text-[10px] text-muted-foreground/40 uppercase tracking-widest">
+				Quick Tags
+			</span>
+			<div className="flex gap-1">
+				{tags
+					.filter((tag) => !selectedIds.includes(tag._id))
+					.slice(0, 5)
+					.map((tag) => (
+						<QuickTagButton key={tag._id} onToggle={onToggle} tag={tag} />
+					))}
+			</div>
+		</div>
+	);
+}
+
 function ExpensesPageContent() {
 	const router = useRouter();
-	const searchParams = useSearchParams();
 	const { format: formatCurrency } = useCurrency();
 	const removeExpense = useMutation(api.expenses.remove);
-	const [filters, setFilters] = useState<Filters>(() => {
-		const categoryId =
-			searchParams.get("category") === "uncategorized" ? "uncategorized" : "";
-		return {
-			accountId: searchParams.get("account") ?? "",
-			categoryId,
-			cycleId: "",
-			includeUncategorized: categoryId === "uncategorized",
-			tagIds: [],
-		};
+	const [urlFilters, setFilters] = useQueryStates(filterParsers, {
+		history: "push",
+		scroll: false,
+		shallow: true,
+		urlKeys: filterUrlKeys,
 	});
+	const filters = useMemo(
+		() => ({
+			...urlFilters,
+			includeUncategorized: urlFilters.categoryId === "uncategorized",
+		}),
+		[urlFilters]
+	);
 	const [globalSearch, setGlobalSearch] = useState("");
 
 	const cycles = useQuery(api.cycles.list);
@@ -350,12 +492,24 @@ function ExpensesPageContent() {
 	}, [cycles]);
 
 	const tags = useQuery(api.tags.list);
+	const selectedCycle = cycles?.find((cycle) => cycle._id === filters.cycleId);
 	const categories = useQuery(
 		api.categories.list,
-		filters.cycleId
-			? { cycleId: filters.cycleId as Id<"expense_cycles"> }
-			: "skip"
+		selectedCycle ? { cycleId: selectedCycle._id } : "skip"
 	);
+	const dateError = expenseDateRangeError(filters);
+	const otherFilterUnavailable = otherExpenseFilterUnavailable(
+		filters,
+		cycles,
+		categories,
+		tags
+	);
+	const resourcesLoading = [
+		accounts,
+		cycles,
+		tags,
+		selectedCycle ? categories : [],
+	].some((resource) => resource === undefined);
 
 	const activeCycleName = useMemo(
 		() => cycles?.find((c) => c._id === filters.cycleId)?.name,
@@ -382,11 +536,8 @@ function ExpensesPageContent() {
 		[tags, filters.tagIds]
 	);
 
-	const hasActiveFilters = Boolean(
-		filters.accountId ||
-			filters.cycleId ||
-			filters.categoryId ||
-			filters.tagIds.length > 0
+	const hasActiveFilters = Object.values(urlFilters).some(
+		(value) => value.length > 0
 	);
 
 	const expenseQueryArgs = useMemo(
@@ -396,7 +547,10 @@ function ExpensesPageContent() {
 
 	const expenses = useQuery(
 		api.expenses.list,
-		accounts === undefined || accountFilterUnavailable
+		resourcesLoading ||
+			accountFilterUnavailable ||
+			otherFilterUnavailable ||
+			dateError
 			? "skip"
 			: expenseQueryArgs
 	);
@@ -409,29 +563,6 @@ function ExpensesPageContent() {
 		}
 		return expenses.filter((expense) => !expense.categoryId);
 	}, [expenses, filters.includeUncategorized]);
-
-	useEffect(() => {
-		const accountId = searchParams.get("account") ?? "";
-		const category = searchParams.get("category");
-		setFilters((current) => {
-			const shouldSelectUncategorized = category === "uncategorized";
-			if (
-				current.accountId === accountId &&
-				(!shouldSelectUncategorized || current.includeUncategorized)
-			) {
-				return current;
-			}
-			return {
-				...current,
-				accountId,
-				categoryId: shouldSelectUncategorized
-					? "uncategorized"
-					: current.categoryId,
-				includeUncategorized:
-					shouldSelectUncategorized || current.includeUncategorized,
-			};
-		});
-	}, [searchParams]);
 
 	const columns = useMemo<ExpenseColumnDef[]>(
 		() => [
@@ -581,73 +712,43 @@ function ExpensesPageContent() {
 		[formatCurrency]
 	);
 
-	const isLoading =
-		expenses === undefined ||
-		accounts === undefined ||
-		cycles === undefined ||
-		tags === undefined ||
-		(filters.cycleId && categories === undefined);
+	const isLoading = resourcesLoading || (!dateError && expenses === undefined);
 
-	const toggleTag = useCallback((tagId: string) => {
-		setFilters((current) => {
-			const exists = current.tagIds.includes(tagId);
-			return {
-				...current,
-				tagIds: exists
+	const toggleTag = useCallback(
+		(tagId: string) => {
+			setFilters((current) => ({
+				tagIds: current.tagIds.includes(tagId)
 					? current.tagIds.filter((id) => id !== tagId)
 					: [...current.tagIds, tagId],
-			};
-		});
-	}, []);
+			}));
+		},
+		[setFilters]
+	);
 
 	const resetFilters = useCallback(() => {
-		setFilters({
-			accountId: "",
-			categoryId: "",
-			cycleId: "",
-			includeUncategorized: false,
-			tagIds: [],
-		});
+		setFilters(null);
 		setGlobalSearch("");
-		const nextSearchParams = new URLSearchParams(searchParams.toString());
-		nextSearchParams.delete("account");
-		nextSearchParams.delete("category");
-		const query = nextSearchParams.toString();
-		router.replace(query ? `/expenses?${query}` : "/expenses", {
-			scroll: false,
-		});
-	}, [router, searchParams]);
+	}, [setFilters]);
 
 	const clearCategoryFilter = useCallback(() => {
-		setFilters((current) => ({
-			...current,
-			categoryId: "",
-			includeUncategorized: false,
-		}));
-		const nextSearchParams = new URLSearchParams(searchParams.toString());
-		nextSearchParams.delete("category");
-		const query = nextSearchParams.toString();
-		router.replace(query ? `/expenses?${query}` : "/expenses", {
-			scroll: false,
-		});
-	}, [router, searchParams]);
+		setFilters({ categoryId: "" });
+	}, [setFilters]);
 
 	const updateAccountFilter = useCallback(
 		(accountId: string) => {
-			setFilters((current) => ({ ...current, accountId }));
-			const nextSearchParams = new URLSearchParams(searchParams.toString());
-			if (accountId) {
-				nextSearchParams.set("account", accountId);
-			} else {
-				nextSearchParams.delete("account");
-			}
-			const query = nextSearchParams.toString();
-			router.replace(query ? `/expenses?${query}` : "/expenses", {
-				scroll: false,
-			});
+			setFilters({ accountId });
 		},
-		[router, searchParams]
+		[setFilters]
 	);
+	const applyDateRange = useCallback(
+		(range: ExpenseDateRange) => {
+			setFilters(range);
+		},
+		[setFilters]
+	);
+	const clearDateRange = useCallback(() => {
+		setFilters({ from: "", through: "" });
+	}, [setFilters]);
 
 	const handleDelete = useCallback(
 		async (expenseId: string) => {
@@ -673,11 +774,9 @@ function ExpensesPageContent() {
 		() => updateAccountFilter(""),
 		[updateAccountFilter]
 	);
-	const clearCycle = useCallback(
-		() =>
-			setFilters((current) => ({ ...current, categoryId: "", cycleId: "" })),
-		[]
-	);
+	const clearCycle = useCallback(() => {
+		setFilters({ categoryId: "", cycleId: "" });
+	}, [setFilters]);
 	const openRow = useCallback(
 		(expense: ExpenseRow) => router.push(`/expenses/${expense._id}`),
 		[router]
@@ -688,22 +787,16 @@ function ExpensesPageContent() {
 	);
 
 	const changeCycle = useCallback(
-		(value: string) =>
-			setFilters((current) => ({
-				...current,
-				categoryId: value === "all" ? "" : current.categoryId,
-				cycleId: value === "all" ? "" : value,
-			})),
-		[]
+		(value: string) => {
+			setFilters({ categoryId: "", cycleId: value === "all" ? "" : value });
+		},
+		[setFilters]
 	);
 	const changeCategory = useCallback(
-		(value: string) =>
-			setFilters((current) => ({
-				...current,
-				categoryId: value === "all" ? "" : value,
-				includeUncategorized: value === "uncategorized",
-			})),
-		[]
+		(value: string) => {
+			setFilters({ categoryId: value === "all" ? "" : value });
+		},
+		[setFilters]
 	);
 	if (accountFilterUnavailable) {
 		return (
@@ -715,6 +808,19 @@ function ExpensesPageContent() {
 				}
 				description="This account could not be found in your accounts. Clear this filter to continue browsing expenses."
 				title="Account filter unavailable"
+			/>
+		);
+	}
+	if (otherFilterUnavailable) {
+		return (
+			<EmptyState
+				action={
+					<Button onClick={resetFilters} variant="outline">
+						Clear all filters
+					</Button>
+				}
+				description="A selected cycle, category, or tag is unavailable. Clear filters to continue browsing expenses."
+				title="Expense filter unavailable"
 			/>
 		);
 	}
@@ -767,12 +873,18 @@ function ExpensesPageContent() {
 							onValueChange={changeCycle}
 							value={filters.cycleId || "all"}
 						>
-							<SelectTrigger className="h-10 w-[160px] bg-card/50">
-								<Calendar className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+							<SelectTrigger
+								aria-label="Cycle"
+								className="w-[160px] bg-card/50"
+								size="lg"
+							>
+								<Calendar />
 								<SelectValue placeholder="Cycle" />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="all">All cycles</SelectItem>
+								<SelectGroup>
+									<SelectItem value="all">All cycles</SelectItem>
+								</SelectGroup>
 								<SelectSeparator />
 
 								{groupedCycles.current !== null && (
@@ -815,12 +927,15 @@ function ExpensesPageContent() {
 						</Select>
 
 						<Select
-							disabled={!filters.cycleId}
 							onValueChange={changeCategory}
 							value={filters.categoryId || "all"}
 						>
-							<SelectTrigger className="h-10 w-[160px] bg-card/50">
-								<Filter className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+							<SelectTrigger
+								aria-label="Category"
+								className="w-[160px] bg-card/50"
+								size="lg"
+							>
+								<Filter />
 								<SelectValue placeholder="Category" />
 							</SelectTrigger>
 							<SelectContent>
@@ -836,8 +951,12 @@ function ExpensesPageContent() {
 							</SelectContent>
 						</Select>
 
+						<ExpenseDateFilter
+							onApply={applyDateRange}
+							value={{ from: filters.from, through: filters.through }}
+						/>
 						<ExpenseAccountFilter
-							accounts={accounts}
+							accounts={accounts ?? []}
 							onValueChange={updateAccountFilter}
 							value={filters.accountId}
 						/>
@@ -846,7 +965,7 @@ function ExpensesPageContent() {
 					<div className="flex items-center gap-4 px-2">
 						<div className="text-right">
 							<p className="text-nowrap font-bold text-[10px] text-muted-foreground/60 uppercase leading-none tracking-widest">
-								Total spent
+								Loaded total
 							</p>
 							<p className="font-bold text-xl tracking-tight">
 								{formatCurrency(
@@ -857,7 +976,7 @@ function ExpensesPageContent() {
 						<div className="hidden h-8 w-px bg-border md:block" />
 						<div className="text-right">
 							<p className="text-nowrap font-bold text-[10px] text-muted-foreground/60 uppercase leading-none tracking-widest">
-								Count
+								Loaded count
 							</p>
 							<p className="font-bold text-xl tracking-tight">
 								{visibleExpenses.length}
@@ -866,8 +985,9 @@ function ExpensesPageContent() {
 					</div>
 				</div>
 
-				{(hasActiveFilters || (tags !== undefined && tags.length > 0)) && (
+				{(hasActiveFilters || Boolean(tags?.length)) && (
 					<div className="flex flex-wrap items-center gap-2 px-1">
+						<ActiveDateFilterBadge onClear={clearDateRange} value={filters} />
 						{filters.cycleId !== "" && (
 							<Badge
 								className="h-7 gap-1 border-primary/20 bg-primary/10 pr-1 pl-1 text-primary"
@@ -878,6 +998,7 @@ function ExpensesPageContent() {
 								</span>
 								<span className="font-semibold text-xs">{activeCycleName}</span>
 								<button
+									aria-label="Remove cycle filter"
 									className="rounded-full p-0.5 hover:bg-primary/20"
 									onClick={clearCycle}
 									type="button"
@@ -898,6 +1019,7 @@ function ExpensesPageContent() {
 									{activeCategoryName}
 								</span>
 								<button
+									aria-label="Remove category filter"
 									className="rounded-full p-0.5 hover:bg-primary/20"
 									onClick={clearCategoryFilter}
 									type="button"
@@ -926,36 +1048,25 @@ function ExpensesPageContent() {
 							</Button>
 						)}
 
-						{tags !== undefined && tags.length > 0 && (
-							<div className="ml-auto flex items-center gap-2">
-								<span className="font-bold text-[10px] text-muted-foreground/40 uppercase tracking-widest">
-									Quick Tags
-								</span>
-								<div className="flex gap-1">
-									{tags
-										.filter((tag) => !filters.tagIds.includes(tag._id))
-										.slice(0, 5)
-										.map((tag) => (
-											<QuickTagButton
-												key={tag._id}
-												onToggle={toggleTag}
-												tag={tag}
-											/>
-										))}
-								</div>
-							</div>
-						)}
+						<QuickTags
+							onToggle={toggleTag}
+							selectedIds={filters.tagIds}
+							tags={tags}
+						/>
 					</div>
 				)}
 			</div>
 
 			<ExpenseResults
 				columns={columns}
+				dateError={dateError}
 				expenses={visibleExpenses}
 				globalSearch={globalSearch}
+				onClearDate={clearDateRange}
 				onDelete={deleteRow}
 				onRowClick={openRow}
 				onSearchChange={setGlobalSearch}
+				paginationResetKey={JSON.stringify(urlFilters)}
 			/>
 		</div>
 	);

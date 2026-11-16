@@ -374,6 +374,158 @@ describe("web expense queries", () => {
 		).toHaveLength(500);
 	});
 
+	it("applies explicit dates and all other predicates before the 500-match cap on every query path", async () => {
+		const {
+			test,
+			owner,
+			stranger,
+			account,
+			category,
+			cycle,
+			tag,
+			secondTag,
+			first,
+		} = await setup();
+		await stranger.mutation(api.expenses.create, {
+			accountId: null,
+			amount: 99,
+			date: "2026-01-05",
+		});
+		await test.run(async (ctx) => {
+			await forEachSequential(Array.from({ length: 510 }), async () => {
+				await ctx.db.insert("expenses", {
+					accountId: account._id,
+					amount: 1,
+					categoryId: category._id,
+					createdAt: 1,
+					cycleId: cycle._id,
+					date: "2026-01-09",
+					tagIds: [tag],
+					userId: first.userId,
+				});
+				await ctx.db.insert("expenses", {
+					accountId: account._id,
+					amount: 1,
+					categoryId: category._id,
+					createdAt: 2,
+					cycleId: cycle._id,
+					date: "2026-02-02",
+					tagIds: [tag],
+					userId: first.userId,
+				});
+			});
+		});
+		await forEachSequential(
+			[
+				{},
+				{ accountId: account._id },
+				{ categoryId: category._id },
+				{ cycleId: cycle._id },
+				{
+					accountId: account._id,
+					categoryId: category._id,
+					cycleId: cycle._id,
+				},
+			],
+			async (filters) => {
+				expect(
+					(
+						await owner.query(api.expenses.list, {
+							...filters,
+							endDate: "2026-01-10",
+							startDate: "2026-01-01",
+							tagIds: [tag, secondTag],
+						})
+					).map((expense) => expense._id)
+				).toEqual([first._id]);
+				expect(
+					(
+						await owner.query(api.expenses.list, {
+							...filters,
+							endDate: "2026-01-06",
+						})
+					).map((expense) => expense._id)
+				).toEqual([first._id]);
+				expect(
+					(
+						await owner.query(api.expenses.list, {
+							...filters,
+							startDate: "2026-01-05",
+							tagIds: [tag, secondTag],
+						})
+					).map((expense) => expense._id)
+				).toEqual([first._id]);
+			}
+		);
+		expect(
+			await owner.query(api.expenses.list, { startDate: "2026-01-01" })
+		).toHaveLength(500);
+		expect(
+			await owner.query(api.expenses.list, {
+				endDate: "2026-01-06",
+				limit: 1,
+				offset: 1,
+				startDate: "2026-01-01",
+			})
+		).toEqual([]);
+	});
+
+	it("validates real date bounds and preserves the exclusive end contract", async () => {
+		const { owner, first, account, cycle } = await setup();
+		await forEachSequential(
+			[
+				"",
+				"bad",
+				"2026-02-29",
+				"2026-04-31",
+				"2026-1-01",
+				"2026-01-01T00:00:00Z",
+			],
+			async (date) => {
+				await expect(
+					owner.query(api.expenses.list, { startDate: date })
+				).rejects.toThrow("INVALID_DATE");
+				await expect(
+					owner.query(api.expenses.list, { endDate: date })
+				).rejects.toThrow("INVALID_DATE");
+			}
+		);
+		await expect(
+			owner.query(api.expenses.list, {
+				endDate: "2026-01-04",
+				startDate: "2026-01-05",
+			})
+		).rejects.toThrow("INVALID_DATE_RANGE");
+		expect(
+			await owner.query(api.expenses.list, {
+				endDate: "2026-01-05",
+				startDate: "2026-01-05",
+			})
+		).toEqual([]);
+		expect(
+			(
+				await owner.query(api.expenses.list, {
+					accountId: account._id,
+					cycleId: cycle._id,
+					endDate: "2026-01-06",
+					startDate: "2026-01-05",
+				})
+			).map((expense) => expense._id)
+		).toEqual([first._id]);
+		expect(
+			await owner.query(api.expenses.list, {
+				cycleId: cycle._id,
+				startDate: "2026-02-01",
+			})
+		).toEqual([]);
+		expect(
+			await owner.query(api.expenses.list, {
+				endDate: "2024-03-01",
+				startDate: "2024-02-29",
+			})
+		).toEqual([]);
+	});
+
 	it("rejects conflicting account filters and validates unassigned filter ownership", async () => {
 		const { test, owner, stranger, account, cycle, category, tag } =
 			await setup();
