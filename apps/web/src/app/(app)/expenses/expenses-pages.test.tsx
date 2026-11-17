@@ -1035,6 +1035,42 @@ describe("new and detail expense routes", () => {
 	);
 
 	it.each([false, true])(
+		"allows clearing a note in an existing cycle-free expense (modal=%s)",
+		async (modal) => {
+			fixture(api.cycles.getCurrent, null);
+			fixture(api.expenses.get, {
+				...lunch,
+				categoryIcon: null,
+				categoryId: undefined,
+				categoryName: null,
+				cycleId: undefined,
+				cycleName: null,
+			});
+			await renderDetail(modal);
+			expect(
+				screen.getByRole("button", { name: "Save Changes" })
+			).toBeEnabled();
+			const interaction = userEvent.setup();
+			await interaction.clear(screen.getByLabelText(NOTE_LABEL));
+			await interaction.click(
+				screen.getByRole("button", { name: "Save Changes" })
+			);
+			await waitFor(() =>
+				expect(mocks.update).toHaveBeenCalledWith({
+					accountId,
+					amount: lunch.amount,
+					categoryId: null,
+					date: lunch.date,
+					id: lunch._id,
+					spentOn: null,
+					tagIds: [tagId],
+				})
+			);
+			expect(mocks.create).not.toHaveBeenCalled();
+		}
+	);
+
+	it.each([false, true])(
 		"cancels a cleared draft without saving and restores the saved note on reopening (modal=%s)",
 		async (modal) => {
 			await renderDetail(modal);

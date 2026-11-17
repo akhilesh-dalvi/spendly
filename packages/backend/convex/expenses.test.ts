@@ -218,6 +218,74 @@ it.each(["", " \t "])(
 	}
 );
 
+it("requires explicit category removal when moving outside all cycles and can later return uncategorized", async () => {
+	const { client, expense } = await fixture();
+	const accountType = await client.mutation(api.accountTypes.create, {
+		balanceNature: "asset",
+		name: "Cycle edit regression cash",
+	});
+	const account = await client.mutation(api.accounts.create, {
+		accountTypeId: accountType._id,
+		name: "Cycle edit wallet",
+		startingBalance: 100,
+	});
+	const tagId = await client.mutation(api.tags.create, {
+		name: "Cycle edit work",
+	});
+	await client.mutation(api.expenses.update, {
+		accountId: account._id,
+		id: expense._id,
+		spentOn: "Saved note",
+		tagIds: [tagId],
+	});
+	const balance = await client.query(api.accounts.get, {
+		accountId: account._id,
+	});
+	const ledger = await client.query(api.accounts.listTransactions, {});
+	const before = await client.query(api.expenses.get, {
+		expenseId: expense._id,
+	});
+	await expect(
+		client.mutation(api.expenses.update, {
+			date: "2026-02-01",
+			id: expense._id,
+		})
+	).rejects.toThrow("CATEGORY_CYCLE_MISMATCH");
+	expect(
+		await client.query(api.expenses.get, { expenseId: expense._id })
+	).toEqual(before);
+	await client.mutation(api.expenses.update, {
+		categoryId: null,
+		date: "2026-02-01",
+		id: expense._id,
+	});
+	const outside = await client.query(api.expenses.get, {
+		expenseId: expense._id,
+	});
+	expect(outside).toMatchObject({ amount: 25, date: "2026-02-01" });
+	expect(outside.categoryId).toBeUndefined();
+	expect(outside.cycleId).toBeUndefined();
+	await client.mutation(api.expenses.update, {
+		date: before.date,
+		id: expense._id,
+	});
+	const restored = await client.query(api.expenses.get, {
+		expenseId: expense._id,
+	});
+	expect(restored.cycleId).toBe(before.cycleId);
+	expect(restored.categoryId).toBeUndefined();
+	expect(restored).toMatchObject({
+		accountId: account._id,
+		amount: before.amount,
+		spentOn: before.spentOn,
+		tagIds: [tagId],
+	});
+	expect(
+		await client.query(api.accounts.get, { accountId: account._id })
+	).toEqual(balance);
+	expect(await client.query(api.accounts.listTransactions, {})).toEqual(ledger);
+});
+
 it("moves an expense across an exclusive cycle boundary while clearing its old category", async () => {
 	const { client, expense } = await fixture();
 	const next = await client.mutation(api.cycles.create, {

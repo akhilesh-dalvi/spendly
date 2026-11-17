@@ -30,6 +30,7 @@ import {
 import { toast } from "sonner";
 import { z } from "zod";
 import { AccountTypeIcon } from "@/components/account-type-icon";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -190,11 +191,105 @@ function stopWheel(event: React.WheelEvent<HTMLDivElement>) {
 	event.stopPropagation();
 }
 
+function getCategoryPlaceholder(
+	categoryId: string,
+	categories: CategoryItem[] | undefined
+) {
+	if (categories === undefined) {
+		return "Loading categories...";
+	}
+	return categoryId ? "Previous category (unavailable)" : "Uncategorized";
+}
+
 function getExpenseNoteUpdate(draft: string, saved: string) {
 	if (draft === saved) {
 		return;
 	}
 	return draft.trim() || null;
+}
+
+type CategorySelectionIssue = "loading" | "missing-cycle" | "incompatible";
+
+const CATEGORY_SELECTION_ERRORS: Record<CategorySelectionIssue, string> = {
+	incompatible: "Resolve the previous category before saving.",
+	loading: "Wait for cycle and categories to finish loading.",
+	"missing-cycle":
+		"No expense cycle found for this date. Please create one first.",
+};
+
+function getExpenseCategorySelection(
+	categoryId: string,
+	cycle: CyclePreviewData | null | undefined,
+	categories: CategoryItem[] | undefined,
+	isEditing: boolean
+): { categoryId?: Id<"categories">; issue: CategorySelectionIssue | null } {
+	if (cycle === undefined || (cycle !== null && categories === undefined)) {
+		return { issue: "loading" };
+	}
+	if (!isEditing && cycle === null) {
+		return { issue: "missing-cycle" };
+	}
+	const category = cycle
+		? categories?.find((item) => item._id === categoryId)
+		: undefined;
+	if (categoryId && !category) {
+		return { issue: "incompatible" };
+	}
+	return { categoryId: category?._id, issue: null };
+}
+
+function MissingCycleNotice({ isEditing }: { isEditing: boolean }) {
+	if (isEditing) {
+		return (
+			<Alert role="status">
+				<Info />
+				<AlertTitle>No cycle for this date</AlertTitle>
+				<AlertDescription>
+					This expense won’t count toward a cycle budget.
+				</AlertDescription>
+			</Alert>
+		);
+	}
+	return (
+		<div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800 text-sm">
+			<AlertCircle className="h-4 w-4 shrink-0" />
+			<div className="flex-1">
+				<p className="font-medium">No cycle for this date</p>
+				<p className="text-amber-700 text-xs">Create a cycle to add expenses</p>
+			</div>
+			<Button asChild size="sm" variant="outline">
+				<Link href="/cycles/new">Create</Link>
+			</Button>
+		</div>
+	);
+}
+
+function IncompatibleCategoryNotice({
+	issue,
+	onChange,
+}: {
+	issue: CategorySelectionIssue | null;
+	onChange: (categoryId: string) => void;
+}) {
+	const remove = useCallback(() => onChange(""), [onChange]);
+	if (issue !== "incompatible") {
+		return null;
+	}
+	return (
+		<Alert>
+			<AlertCircle />
+			<AlertTitle>Previous category unavailable</AlertTitle>
+			<AlertDescription>
+				<p>
+					The selected category isn’t available for this date. Choose another
+					category, remove it, or change the date back.
+				</p>
+				<Button onClick={remove} size="sm" type="button" variant="outline">
+					Remove previous category
+				</Button>
+			</AlertDescription>
+		</Alert>
+	);
 }
 
 function ExpenseNoteField({
@@ -268,10 +363,14 @@ export function ExpenseForm({
 	const defaultCategoryId = recentExpenses?.[0]?.categoryId || "";
 
 	const submitExpense = async (value: ExpenseFormValues) => {
-		if (!cycle) {
-			toast.error(
-				"No expense cycle found for this date. Please create one first."
-			);
+		const selection = getExpenseCategorySelection(
+			value.categoryId,
+			cycle,
+			categories,
+			isEditing
+		);
+		if (selection.issue !== null) {
+			toast.error(CATEGORY_SELECTION_ERRORS[selection.issue]);
 			return false;
 		}
 
@@ -285,9 +384,7 @@ export function ExpenseForm({
 			toast.warning(warning);
 		}
 
-		const resolvedCategoryId = categories?.find(
-			(category) => category._id === value.categoryId
-		)?._id;
+		const resolvedCategoryId = selection.categoryId;
 		const resolvedAccountId = value.accountId
 			? (value.accountId as Id<"accounts">)
 			: undefined;
@@ -367,12 +464,22 @@ export function ExpenseForm({
 	});
 
 	const isSubmitting = useStore(form.store, (state) => state.isSubmitting);
+	const draftCategoryId = useStore(
+		form.store,
+		(state) => state.values.categoryId
+	);
+	const categorySelection = getExpenseCategorySelection(
+		draftCategoryId,
+		cycle,
+		categories,
+		isEditing
+	);
 	const categoryDefaultApplied = useRef(
 		isEditing || Boolean(defaultValues?.categoryId)
 	);
 
 	useEffect(() => {
-		if (categories === undefined) {
+		if (isEditing || categories === undefined) {
 			return;
 		}
 		const selectedCategoryId = form.state.values.categoryId;
@@ -391,7 +498,7 @@ export function ExpenseForm({
 				form.setFieldValue("categoryId", defaultCategoryId);
 			}
 		}
-	}, [categories, defaultCategoryId, recentExpenses, form]);
+	}, [categories, defaultCategoryId, recentExpenses, form, isEditing]);
 
 	useEffect(() => {
 		if (!isEditing && defaultAccountId && !form.state.values.accountId) {
@@ -504,7 +611,9 @@ export function ExpenseForm({
 						<div className="space-y-2">
 							<Label htmlFor={field.name}>Category</Label>
 							<p className="text-muted-foreground text-xs">
-								Search categories or create a new one for this cycle.
+								{isEditing && cycle === null
+									? "Categories are unavailable without a cycle."
+									: "Search categories or create a new one for this cycle."}
 							</p>
 							{cycle === undefined && (
 								<div className="h-10 w-full animate-pulse rounded-md bg-muted" />
@@ -520,20 +629,11 @@ export function ExpenseForm({
 									types={categoryTypes}
 								/>
 							)}
-							{cycle === null && (
-								<div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800 text-sm">
-									<AlertCircle className="h-4 w-4 shrink-0" />
-									<div className="flex-1">
-										<p className="font-medium">No cycle for this date</p>
-										<p className="text-amber-700 text-xs">
-											Create a cycle to add expenses
-										</p>
-									</div>
-									<Button asChild size="sm" variant="outline">
-										<Link href="/cycles/new">Create</Link>
-									</Button>
-								</div>
-							)}
+							{cycle === null && <MissingCycleNotice isEditing={isEditing} />}
+							<IncompatibleCategoryNotice
+								issue={categorySelection.issue}
+								onChange={field.handleChange}
+							/>
 						</div>
 					)}
 				</form.Field>
@@ -587,7 +687,7 @@ export function ExpenseForm({
 					)}
 					<Button
 						className="w-full"
-						disabled={isSubmitting || !cycle || categories === undefined}
+						disabled={isSubmitting || categorySelection.issue !== null}
 						size="lg"
 						type="submit"
 					>
@@ -1123,7 +1223,8 @@ function CategoryCombobox({
 					<span className="inline-flex max-w-[85%] items-center gap-2 truncate">
 						<span>{selectedCategory?.icon || "❓"}</span>
 						<span className="truncate">
-							{selectedCategory ? selectedCategory.name : "Uncategorized"}
+							{selectedCategory?.name ??
+								getCategoryPlaceholder(selectedCategoryId, categories)}
 						</span>
 					</span>
 					<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />

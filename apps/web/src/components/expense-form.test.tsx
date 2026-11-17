@@ -40,6 +40,7 @@ const MONEY_OWED_LABEL = /Money owed/;
 const NO_ACCOUNT_LABEL = /No account selected/;
 const MISC_LABEL = /Misc/;
 const UNCATEGORIZED_LABEL = /Uncategorized/;
+const JULY_10_LABEL = /July 10th, 2026/;
 const JULY_15_LABEL = /July 15th, 2026/;
 const OLD_DATE_WARNING = /This expense is from .* Is this correct\?/;
 const CREATE_LABEL = /Create/;
@@ -300,7 +301,7 @@ describe("ExpenseForm", () => {
 		);
 	});
 
-	it("waits for the new cycle's categories and explicitly clears an old category when editing", async () => {
+	it("waits for categories and requires explicit removal of an incompatible category when editing", async () => {
 		const values = { amount: 24, categoryId };
 		const view = render(
 			<ExpenseForm defaultValues={values} expenseId="edit" />
@@ -317,16 +318,238 @@ describe("ExpenseForm", () => {
 		);
 		fixture(api.categories.list, []);
 		view.rerender(<ExpenseForm defaultValues={values} expenseId="edit" />);
+		expect(
+			screen.getByText("Previous category unavailable")
+		).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Save Changes" })).toBeDisabled();
+		const interaction = userEvent.setup();
+		await interaction.click(
+			screen.getByRole("button", { name: "Remove previous category" })
+		);
 		expect(combobox(UNCATEGORIZED_LABEL)).toBeInTheDocument();
-		await userEvent
-			.setup()
-			.click(screen.getByRole("button", { name: "Save Changes" }));
+		await interaction.click(
+			screen.getByRole("button", { name: "Save Changes" })
+		);
 		await waitFor(() =>
 			expect(mocks.update).toHaveBeenCalledWith(
 				expect.objectContaining({ categoryId: null })
 			)
 		);
 	});
+
+	it("allows note-only edits without a cycle and preserves amount, account, and tags", async () => {
+		fixture(api.cycles.getCurrent, null);
+		render(
+			<ExpenseForm
+				defaultValues={{
+					accountId,
+					amount: 42,
+					date: new Date(2026, 6, 9),
+					spentOn: "Taxi",
+					tagIds: [travelId],
+				}}
+				expenseId="edit-1"
+			/>
+		);
+		expect(
+			screen.getByText("This expense won’t count toward a cycle budget.")
+		).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Save Changes" })).toBeEnabled();
+		expect(
+			screen.queryByRole("button", { name: "Add Expense" })
+		).not.toBeInTheDocument();
+		const interaction = userEvent.setup();
+		await interaction.clear(screen.getByLabelText(NOTE_LABEL));
+		await interaction.click(
+			screen.getByRole("button", { name: "Save Changes" })
+		);
+		await waitFor(() =>
+			expect(mocks.update).toHaveBeenCalledWith({
+				accountId,
+				amount: 42,
+				categoryId: null,
+				date: "2026-07-09",
+				id: "edit-1",
+				spentOn: null,
+				tagIds: [travelId],
+			})
+		);
+		expect(mocks.create).not.toHaveBeenCalled();
+	});
+
+	it("does not silently remove a category when the date has no cycle, and restores it when returning", async () => {
+		fixture(api.cycles.getCurrent, { ...cycle, endDate: "2026-07-15" });
+		const values = {
+			accountId,
+			amount: 42,
+			categoryId,
+			date: new Date(2026, 6, 10),
+			spentOn: "Taxi",
+		};
+		const view = render(
+			<ExpenseForm defaultValues={values} expenseId="edit-1" />
+		);
+		const interaction = userEvent.setup();
+		await interaction.click(
+			screen.getByRole("button", { name: "July 10th, 2026" })
+		);
+		await interaction.click(
+			screen.getByRole("button", { name: JULY_15_LABEL })
+		);
+		await interaction.keyboard("{Escape}");
+		fixture(api.cycles.getCurrent, null);
+		view.rerender(<ExpenseForm defaultValues={values} expenseId="edit-1" />);
+		expect(
+			screen.getByText("Previous category unavailable")
+		).toBeInTheDocument();
+		const save = screen.getByRole("button", { name: "Save Changes" });
+		expect(save).toBeDisabled();
+		const form = save.closest("form");
+		if (!form) {
+			throw new Error("Missing expense form");
+		}
+		fireEvent.submit(form);
+		await waitFor(() =>
+			expect(mocks.error).toHaveBeenCalledWith(
+				"Resolve the previous category before saving."
+			)
+		);
+		expect(mocks.update).not.toHaveBeenCalled();
+		await interaction.click(
+			screen.getByRole("button", { name: "July 15th, 2026" })
+		);
+		await interaction.click(
+			screen.getByRole("button", { name: JULY_10_LABEL })
+		);
+		await interaction.keyboard("{Escape}");
+		fixture(api.cycles.getCurrent, { ...cycle, endDate: "2026-07-15" });
+		view.rerender(<ExpenseForm defaultValues={values} expenseId="edit-1" />);
+		expect(combobox(FOOD_LABEL)).toBeInTheDocument();
+		expect(
+			screen.queryByText("Previous category unavailable")
+		).not.toBeInTheDocument();
+		expect(save).toBeEnabled();
+	});
+
+	it("saves outside all cycles only after explicitly removing the incompatible category", async () => {
+		fixture(api.cycles.getCurrent, null);
+		render(
+			<ExpenseForm
+				defaultValues={{ amount: 42, categoryId, spentOn: "Taxi" }}
+				expenseId="edit-1"
+			/>
+		);
+		const interaction = userEvent.setup();
+		expect(screen.getByRole("button", { name: "Save Changes" })).toBeDisabled();
+		await interaction.click(
+			screen.getByRole("button", { name: "Remove previous category" })
+		);
+		expect(
+			screen.queryByText("Previous category unavailable")
+		).not.toBeInTheDocument();
+		expect(mocks.update).not.toHaveBeenCalled();
+		await interaction.click(
+			screen.getByRole("button", { name: "Save Changes" })
+		);
+		await waitFor(() =>
+			expect(mocks.update).toHaveBeenCalledWith(
+				expect.objectContaining({ categoryId: null, spentOn: undefined })
+			)
+		);
+	});
+
+	it("allows choosing a replacement category instead of removing the old one", async () => {
+		const values = { amount: 42, categoryId };
+		const view = render(
+			<ExpenseForm defaultValues={values} expenseId="edit-1" />
+		);
+		fixture(api.categories.list, [categories[1]]);
+		view.rerender(<ExpenseForm defaultValues={values} expenseId="edit-1" />);
+		const category = screen.getByRole("combobox", { name: "Category" });
+		expect(category).toHaveTextContent("Previous category (unavailable)");
+		const interaction = userEvent.setup();
+		await interaction.click(category);
+		await interaction.click(screen.getByRole("option", { name: MISC_LABEL }));
+		expect(
+			screen.queryByText("Previous category unavailable")
+		).not.toBeInTheDocument();
+		await interaction.click(
+			screen.getByRole("button", { name: "Save Changes" })
+		);
+		await waitFor(() =>
+			expect(mocks.update).toHaveBeenCalledWith(
+				expect.objectContaining({ categoryId: otherCategoryId })
+			)
+		);
+	});
+
+	it("waits for destination categories without assigning recent defaults when moving into a cycle", async () => {
+		fixture(api.cycles.getCurrent, null);
+		const view = render(
+			<ExpenseForm defaultValues={{ amount: 42 }} expenseId="edit-1" />
+		);
+		fixture(api.cycles.getCurrent, cycle);
+		fixture(api.categories.list, undefined);
+		view.rerender(
+			<ExpenseForm defaultValues={{ amount: 42 }} expenseId="edit-1" />
+		);
+		const save = screen.getByRole("button", { name: "Save Changes" });
+		expect(save).toBeDisabled();
+		const form = save.closest("form");
+		if (!form) {
+			throw new Error("Missing expense form");
+		}
+		fireEvent.submit(form);
+		await waitFor(() =>
+			expect(mocks.error).toHaveBeenCalledWith(
+				"Wait for cycle and categories to finish loading."
+			)
+		);
+		expect(mocks.update).not.toHaveBeenCalled();
+		fixture(api.categories.list, categories);
+		view.rerender(
+			<ExpenseForm defaultValues={{ amount: 42 }} expenseId="edit-1" />
+		);
+		expect(combobox(UNCATEGORIZED_LABEL)).toBeInTheDocument();
+		await userEvent.setup().click(save);
+		await waitFor(() =>
+			expect(mocks.update).toHaveBeenCalledWith(
+				expect.objectContaining({ categoryId: null })
+			)
+		);
+	});
+
+	it.each([undefined, null])(
+		"waits for cycle resolution before allowing native or button saves (cycle=%s)",
+		async (cycleResult) => {
+			fixture(api.cycles.getCurrent, undefined);
+			const view = render(
+				<ExpenseForm defaultValues={{ amount: 24 }} expenseId="edit" />
+			);
+			const save = screen.getByRole("button", { name: "Save Changes" });
+			expect(save).toBeDisabled();
+			const form = save.closest("form");
+			if (!form) {
+				throw new Error("Missing expense form");
+			}
+			fireEvent.submit(form);
+			await waitFor(() =>
+				expect(mocks.error).toHaveBeenCalledWith(
+					"Wait for cycle and categories to finish loading."
+				)
+			);
+			expect(mocks.update).not.toHaveBeenCalled();
+			fixture(api.cycles.getCurrent, cycleResult);
+			view.rerender(
+				<ExpenseForm defaultValues={{ amount: 24 }} expenseId="edit" />
+			);
+			if (cycleResult === null) {
+				expect(save).toBeEnabled();
+			} else {
+				expect(save).toBeDisabled();
+			}
+		}
+	);
 
 	it.each([false, true])(
 		"blocks native duplicate submissions until settlement and allows retry after rejection (editing=%s)",
