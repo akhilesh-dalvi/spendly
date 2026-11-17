@@ -774,6 +774,97 @@ describe("ExpenseForm", () => {
 		});
 	});
 
+	it.each(["", "   ", "\t \u00a0"])(
+		"explicitly clears a saved note when the draft is %j without changing other fields",
+		async (draft) => {
+			render(
+				<ExpenseForm
+					defaultValues={{
+						accountId,
+						amount: 42,
+						categoryId,
+						date: new Date(2026, 6, 9),
+						spentOn: "Taxi",
+						tagIds: [travelId],
+					}}
+					expenseId="edit-1"
+				/>
+			);
+			fireEvent.change(screen.getByLabelText(NOTE_LABEL), {
+				target: { value: draft },
+			});
+			await userEvent
+				.setup()
+				.click(screen.getByRole("button", { name: "Save Changes" }));
+			await waitFor(() =>
+				expect(mocks.update).toHaveBeenCalledWith({
+					accountId,
+					amount: 42,
+					categoryId,
+					date: "2026-07-09",
+					id: "edit-1",
+					spentOn: null,
+					tagIds: [travelId],
+				})
+			);
+			expect(mocks.create).not.toHaveBeenCalled();
+		}
+	);
+
+	it("keeps a failed clear draft for retry and disables Cancel while saving", async () => {
+		const pending = pendingMutation();
+		mocks.update.mockReturnValueOnce(pending.promise);
+		const onCancel = vi.fn();
+		render(
+			<ExpenseForm
+				defaultValues={{ amount: 42, spentOn: "Taxi" }}
+				expenseId="edit-1"
+				onCancel={onCancel}
+			/>
+		);
+		const interaction = userEvent.setup();
+		await interaction.clear(screen.getByLabelText(NOTE_LABEL));
+		await interaction.click(
+			screen.getByRole("button", { name: "Save Changes" })
+		);
+		await waitFor(() => expect(mocks.update).toHaveBeenCalledOnce());
+		expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+		await act(() => pending.reject(new Error("offline")));
+		await waitFor(() =>
+			expect(mocks.error).toHaveBeenCalledWith("Failed to update expense")
+		);
+		expect(screen.getByLabelText(NOTE_LABEL)).toHaveValue("");
+		expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
+		expect(onCancel).not.toHaveBeenCalled();
+		await interaction.click(
+			screen.getByRole("button", { name: "Save Changes" })
+		);
+		await waitFor(() => expect(mocks.update).toHaveBeenCalledTimes(2));
+		expect(mocks.update).toHaveBeenLastCalledWith(
+			expect.objectContaining({ spentOn: null })
+		);
+	});
+
+	it.each([undefined, "", "Taxi", " Legacy note "])(
+		"omits an untouched note (%j) rather than rewriting it",
+		async (spentOn) => {
+			render(
+				<ExpenseForm
+					defaultValues={{ amount: 42, spentOn }}
+					expenseId="edit-1"
+				/>
+			);
+			await userEvent
+				.setup()
+				.click(screen.getByRole("button", { name: "Save Changes" }));
+			await waitFor(() =>
+				expect(mocks.update).toHaveBeenCalledWith(
+					expect.objectContaining({ spentOn: undefined })
+				)
+			);
+		}
+	);
+
 	it("edits supplied values rather than smart defaults and explicitly detaches an account", async () => {
 		const onSuccess = vi.fn();
 		render(
@@ -814,7 +905,7 @@ describe("ExpenseForm", () => {
 				categoryId: null,
 				date: "2026-07-09",
 				id: "edit-1",
-				spentOn: "Taxi",
+				spentOn: undefined,
 				tagIds: [travelId],
 			})
 		);

@@ -82,7 +82,7 @@ export default function ExpenseDetailModal({
 
 	return (
 		<Dialog onOpenChange={handleOpenChange} open={open}>
-			<DialogContent className="sm:max-w-[520px]">
+			<DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-[520px]">
 				<DialogHeader>
 					<DialogTitle>Edit Expense</DialogTitle>
 					<DialogDescription>
@@ -107,6 +107,7 @@ export default function ExpenseDetailModal({
 								tagIds: expense.tagIds ?? [],
 							}}
 							expenseId={expense._id}
+							onCancel={close}
 							onSuccess={close}
 						/>
 						<DialogFooter>

@@ -2,7 +2,14 @@
 
 import { api } from "@spendly/backend/convex/_generated/api";
 import type { Id } from "@spendly/backend/convex/_generated/dataModel";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import {
+	act,
+	cleanup,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
 	type FunctionReference,
@@ -12,6 +19,7 @@ import {
 import { NuqsTestingAdapter, type UrlUpdateEvent } from "nuqs/adapters/testing";
 import { Suspense } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import ExpenseDetailModal from "../@modal/(.)expenses/[id]/page";
 import ExpenseDetailPage from "./[id]/page";
 import NewExpensePage from "./new/page";
 import ExpensesIndex from "./page";
@@ -36,6 +44,7 @@ function ExpensesPage() {
 }
 
 const mocks = vi.hoisted(() => ({
+	back: vi.fn(),
 	create: vi.fn(),
 	createTag: vi.fn(),
 	error: vi.fn(),
@@ -72,7 +81,11 @@ vi.mock("@clerk/nextjs", () => ({
 	useAuth: () => ({ isLoaded: true, isSignedIn: true }),
 }));
 vi.mock("next/navigation", () => ({
-	useRouter: () => ({ push: mocks.push, replace: mocks.replace }),
+	useRouter: () => ({
+		back: mocks.back,
+		push: mocks.push,
+		replace: mocks.replace,
+	}),
 	useSearchParams: () => mocks.search,
 }));
 vi.mock("sonner", () => ({
@@ -246,13 +259,17 @@ function combobox(label: string): HTMLElement {
 	}
 	return trigger;
 }
-async function renderDetail() {
+async function renderDetail(modal = false) {
 	const params = Promise.resolve({ id: "lunch" });
 	await act(async () => {
 		await params;
 		render(
 			<Suspense fallback={<p>Resolving route</p>}>
-				<ExpenseDetailPage params={params} />
+				{modal ? (
+					<ExpenseDetailModal params={params} />
+				) : (
+					<ExpenseDetailPage params={params} />
+				)}
 			</Suspense>
 		);
 	});
@@ -985,6 +1002,75 @@ describe("new and detail expense routes", () => {
 		expect(mocks.push).toHaveBeenCalledWith("/expenses");
 	});
 
+	it.each([false, true])(
+		"clears a saved note through the real editor (modal=%s)",
+		async (modal) => {
+			await renderDetail(modal);
+			const interaction = userEvent.setup();
+			const note = screen.getByLabelText(NOTE_LABEL);
+			expect(note).toHaveAccessibleDescription(
+				"Leave blank to clear the saved note."
+			);
+			await interaction.clear(note);
+			await interaction.click(
+				screen.getByRole("button", { name: "Save Changes" })
+			);
+			await waitFor(() =>
+				expect(mocks.update).toHaveBeenCalledWith({
+					accountId,
+					amount: lunch.amount,
+					categoryId,
+					date: lunch.date,
+					id: lunch._id,
+					spentOn: null,
+					tagIds: [tagId],
+				})
+			);
+			if (modal) {
+				expect(mocks.back).toHaveBeenCalledOnce();
+			} else {
+				expect(mocks.push).toHaveBeenCalledWith("/expenses");
+			}
+		}
+	);
+
+	it.each([false, true])(
+		"cancels a cleared draft without saving and restores the saved note on reopening (modal=%s)",
+		async (modal) => {
+			await renderDetail(modal);
+			const interaction = userEvent.setup();
+			await interaction.clear(screen.getByLabelText(NOTE_LABEL));
+			await interaction.click(screen.getByRole("button", { name: "Cancel" }));
+			expect(mocks.update).not.toHaveBeenCalled();
+			expect(mocks.create).not.toHaveBeenCalled();
+			if (modal) {
+				expect(mocks.back).toHaveBeenCalledOnce();
+				expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+			} else {
+				expect(mocks.push).toHaveBeenCalledWith("/expenses");
+			}
+			cleanup();
+			await renderDetail(modal);
+			expect(screen.getByLabelText(NOTE_LABEL)).toHaveValue(lunch.spentOn);
+		}
+	);
+
+	it.each(["Escape", "Close"])(
+		"dismisses a cleared modal draft with %s without saving",
+		async (dismissal) => {
+			await renderDetail(true);
+			const interaction = userEvent.setup();
+			await interaction.clear(screen.getByLabelText(NOTE_LABEL));
+			if (dismissal === "Escape") {
+				await interaction.keyboard("{Escape}");
+			} else {
+				await interaction.click(screen.getByRole("button", { name: "Close" }));
+			}
+			expect(mocks.update).not.toHaveBeenCalled();
+			expect(mocks.back).toHaveBeenCalledOnce();
+		}
+	);
+
 	it("supplies empty optional fields for a legacy uncategorized expense", async () => {
 		fixture(api.expenses.get, {
 			...uncategorized,
@@ -1002,7 +1088,11 @@ describe("new and detail expense routes", () => {
 		await renderDetail();
 		const interaction = userEvent.setup();
 		await interaction.click(screen.getByRole("button", { name: "Delete" }));
-		await interaction.click(screen.getByRole("button", { name: "Cancel" }));
+		await interaction.click(
+			within(screen.getByRole("alertdialog")).getByRole("button", {
+				name: "Cancel",
+			})
+		);
 		expect(mocks.remove).not.toHaveBeenCalled();
 		await interaction.click(screen.getByRole("button", { name: "Delete" }));
 		await interaction.click(

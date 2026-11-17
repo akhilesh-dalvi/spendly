@@ -22,6 +22,7 @@ import {
 	type ComponentProps,
 	useCallback,
 	useEffect,
+	useId,
 	useMemo,
 	useRef,
 	useState,
@@ -40,6 +41,7 @@ import {
 	CommandList,
 } from "@/components/ui/command";
 import { DatePicker } from "@/components/ui/date-picker";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -116,6 +118,7 @@ interface ExpenseFormProps {
 		tagIds: string[];
 	}>;
 	expenseId?: Id<"expenses"> | string;
+	onCancel?: () => void;
 	onSuccess?: () => void;
 }
 
@@ -187,7 +190,42 @@ function stopWheel(event: React.WheelEvent<HTMLDivElement>) {
 	event.stopPropagation();
 }
 
+function getExpenseNoteUpdate(draft: string, saved: string) {
+	if (draft === saved) {
+		return;
+	}
+	return draft.trim() || null;
+}
+
+function ExpenseNoteField({
+	isEditing,
+	...props
+}: Pick<ComponentProps<typeof Input>, "onBlur" | "onChange" | "value"> & {
+	isEditing: boolean;
+}) {
+	const descriptionId = useId();
+	return (
+		<Field>
+			<FieldLabel htmlFor="spentOn">
+				Note <span className="text-muted-foreground">(optional)</span>
+			</FieldLabel>
+			<Input
+				aria-describedby={isEditing ? descriptionId : undefined}
+				id="spentOn"
+				placeholder="What was this for? e.g., Lunch, Uber, Groceries"
+				{...props}
+			/>
+			{Boolean(isEditing) && (
+				<FieldDescription id={descriptionId}>
+					Leave blank to clear the saved note.
+				</FieldDescription>
+			)}
+		</Field>
+	);
+}
+
 export function ExpenseForm({
+	onCancel,
 	onSuccess,
 	className,
 	expenseId,
@@ -199,6 +237,7 @@ export function ExpenseForm({
 	const user = useQuery(api.users.get);
 	const { format: formatCurrency } = useCurrency();
 	const isEditing = Boolean(expenseId);
+	const [initialNote] = useState(() => defaultValues?.spentOn ?? "");
 	const accounts = useQuery(
 		api.accounts.list,
 		isEditing ? { includeArchived: true } : {}
@@ -260,7 +299,7 @@ export function ExpenseForm({
 				categoryId: resolvedCategoryId ?? null,
 				date: format(value.date, "yyyy-MM-dd"),
 				id: expenseId as Id<"expenses">,
-				spentOn: value.spentOn || undefined,
+				spentOn: getExpenseNoteUpdate(value.spentOn, initialNote),
 				tagIds: value.tagIds as Id<"tags">[],
 			});
 			toast.success("Expense updated");
@@ -285,7 +324,7 @@ export function ExpenseForm({
 			amount: defaultValues?.amount ?? (undefined as number | undefined),
 			categoryId: defaultValues?.categoryId ?? "",
 			date: defaultValues?.date ?? new Date(),
-			spentOn: defaultValues?.spentOn ?? "",
+			spentOn: initialNote,
 			tagIds: defaultValues?.tagIds ?? ([] as string[]),
 		},
 		onSubmit: async ({ value }) => {
@@ -501,18 +540,12 @@ export function ExpenseForm({
 
 				<form.Field name="spentOn">
 					{(field) => (
-						<div className="space-y-2">
-							<Label htmlFor={field.name}>
-								Note <span className="text-muted-foreground">(optional)</span>
-							</Label>
-							<Input
-								id={field.name}
-								onBlur={field.handleBlur}
-								onChange={changeNote}
-								placeholder="What was this for? e.g., Lunch, Uber, Groceries"
-								value={field.state.value || ""}
-							/>
-						</div>
+						<ExpenseNoteField
+							isEditing={isEditing}
+							onBlur={field.handleBlur}
+							onChange={changeNote}
+							value={field.state.value || ""}
+						/>
 					)}
 				</form.Field>
 
@@ -574,6 +607,17 @@ export function ExpenseForm({
 							</>
 						)}
 					</Button>
+					{Boolean(onCancel) && (
+						<Button
+							disabled={isSubmitting}
+							onClick={onCancel}
+							size="lg"
+							type="button"
+							variant="outline"
+						>
+							Cancel
+						</Button>
+					)}
 				</div>
 			</form>
 		</div>
