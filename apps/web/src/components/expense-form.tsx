@@ -251,16 +251,18 @@ function MissingCycleNotice({ isEditing }: { isEditing: boolean }) {
 		);
 	}
 	return (
-		<div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800 text-sm">
-			<AlertCircle className="h-4 w-4 shrink-0" />
+		<Alert className="flex items-center gap-3" role="status">
+			<AlertCircle />
 			<div className="flex-1">
-				<p className="font-medium">No cycle for this date</p>
-				<p className="text-amber-700 text-xs">Create a cycle to add expenses</p>
+				<AlertTitle>No cycle for this date</AlertTitle>
+				<AlertDescription>
+					Choose another date or create a cycle to continue.
+				</AlertDescription>
 			</div>
-			<Button asChild size="sm" variant="outline">
-				<Link href="/cycles/new">Create</Link>
+			<Button asChild size="sm">
+				<Link href="/cycles/new">Create cycle</Link>
 			</Button>
-		</div>
+		</Alert>
 	);
 }
 
@@ -600,6 +602,7 @@ export function ExpenseForm({
 							<Label>Date</Label>
 							<DatePicker date={field.state.value} onDateChange={changeDate} />
 							<CyclePreview cycle={cycle} />
+							{cycle === null && <MissingCycleNotice isEditing={isEditing} />}
 						</div>
 					)}
 				</form.Field>
@@ -631,7 +634,7 @@ export function ExpenseForm({
 						<div className="space-y-2">
 							<Label htmlFor={field.name}>Category</Label>
 							<p className="text-muted-foreground text-xs">
-								{isEditing && cycle === null
+								{cycle === null
 									? "Categories are unavailable without a cycle."
 									: "Search categories or create a new one for this cycle."}
 							</p>
@@ -649,7 +652,6 @@ export function ExpenseForm({
 									types={categoryTypes}
 								/>
 							)}
-							{cycle === null && <MissingCycleNotice isEditing={isEditing} />}
 							<IncompatibleCategoryNotice
 								issue={categorySelection.issue}
 								onChange={field.handleChange}

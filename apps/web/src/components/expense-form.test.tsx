@@ -909,6 +909,66 @@ describe("ExpenseForm", () => {
 		expect(mocks.push).toHaveBeenCalledWith("/categories/new?id=july");
 	});
 
+	it.each([false, true])(
+		"places a missing-cycle notice directly below Date without affecting account selection (editing=%s)",
+		(editing) => {
+			fixture(api.cycles.getCurrent, null);
+			const props = {
+				defaultValues: { amount: 12.5 },
+				expenseId: editing ? "edit-1" : undefined,
+			};
+			const view = render(<ExpenseForm {...props} />);
+			const date = screen.getByRole("button", { name: JULY_10_LABEL });
+			const notice = screen.getByRole("status");
+			expect(date.nextElementSibling).toBe(notice);
+			expect(screen.getAllByText("No cycle for this date")).toHaveLength(1);
+			expect(screen.getByLabelText("Account (optional)")).toBeEnabled();
+			expect(
+				screen.getByText("Categories are unavailable without a cycle.")
+					.parentElement
+			).not.toContainElement(notice);
+			expect(screen.queryByRole("combobox", { name: "Category" })).toBeNull();
+			if (editing) {
+				expect(
+					screen.getByRole("button", { name: "Save Changes" })
+				).toBeEnabled();
+			} else {
+				expect(
+					screen.getByRole("button", { name: "Add Expense" })
+				).toBeDisabled();
+				expect(
+					screen.getByRole("link", { name: "Create cycle" })
+				).toHaveAttribute("href", "/cycles/new");
+			}
+			fixture(api.cycles.getCurrent, cycle);
+			view.rerender(<ExpenseForm {...props} />);
+			expect(screen.queryByText("No cycle for this date")).toBeNull();
+			expect(screen.getByRole("combobox", { name: "Category" })).toBeEnabled();
+		}
+	);
+
+	it("uses theme-aware notice and action colors when creation has no cycle", () => {
+		fixture(api.cycles.getCurrent, null);
+		render(<ExpenseForm />);
+		const notice = screen.getByText("No cycle for this date").parentElement
+			?.parentElement;
+		expect(notice).toHaveTextContent("No cycle for this date");
+		expect(notice).toHaveTextContent(
+			"Choose another date or create a cycle to continue."
+		);
+		expect(notice).toHaveClass("bg-card", "text-card-foreground");
+		expect(screen.getByRole("status")).toBe(notice);
+		const create = screen.getByRole("link", { name: "Create cycle" });
+		expect(notice).toContainElement(create);
+		expect(create).toHaveAttribute("href", "/cycles/new");
+		expect(create).toHaveClass(
+			"bg-primary",
+			"text-primary-foreground",
+			"hover:bg-primary/90"
+		);
+		expect(screen.getByRole("button", { name: "Add Expense" })).toBeDisabled();
+	});
+
 	it("disables saving until a cycle loads, then offers creation when no cycle exists", () => {
 		fixture(api.cycles.getCurrent, undefined);
 		const view = render(<ExpenseForm />);
@@ -920,7 +980,7 @@ describe("ExpenseForm", () => {
 		fixture(api.cycles.getCurrent, null);
 		view.rerender(<ExpenseForm />);
 		expect(screen.getByText("No cycle for this date")).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "Create" })).toHaveAttribute(
+		expect(screen.getByRole("link", { name: "Create cycle" })).toHaveAttribute(
 			"href",
 			"/cycles/new"
 		);
