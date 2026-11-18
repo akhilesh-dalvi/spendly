@@ -48,6 +48,85 @@ const fixture = async () => {
 	return { category, client, expense, test };
 };
 
+it.each(["unassigned", "default", "explicit"] as const)(
+	"creates an expense through the Web API with %s account semantics",
+	async (mode) => {
+		const { client, category, expense, test } = await fixture();
+		const accountType = await client.mutation(api.accountTypes.create, {
+			balanceNature: "asset",
+			name: "Creation regression cash",
+		});
+		const defaultAccount = await client.mutation(api.accounts.create, {
+			accountTypeId: accountType._id,
+			name: "Default wallet",
+			startingBalance: 100,
+		});
+		const otherAccount = await client.mutation(api.accounts.create, {
+			accountTypeId: accountType._id,
+			name: "Other wallet",
+			startingBalance: 200,
+		});
+		const tagId = await client.mutation(api.tags.create, { name: "Creation" });
+		const userBefore = await client.query(api.users.get, {});
+		expect(userBefore.defaultAccountId).toBe(defaultAccount._id);
+		const ledgerBefore = await client.query(api.accounts.listTransactions, {});
+		const accountInputs = {
+			default: {},
+			explicit: { accountId: otherAccount._id },
+			unassigned: { accountId: null },
+		};
+		const created = await client.mutation(api.expenses.create, {
+			...accountInputs[mode],
+			amount: 12.5,
+			categoryId: category._id,
+			date: "2026-01-15",
+			spentOn: "Lunch",
+			tagIds: [tagId],
+		});
+		const saved = await test.run((ctx) => ctx.db.get(created._id));
+		expect(saved).toMatchObject({
+			amount: 12.5,
+			categoryId: category._id,
+			createdSource: "web",
+			cycleId: category.cycleId,
+			date: "2026-01-15",
+			spentOn: "Lunch",
+			tagIds: [tagId],
+			userId: category.userId,
+		});
+		const ledgerAfter = await client.query(api.accounts.listTransactions, {});
+		if (mode === "unassigned") {
+			expect(saved).not.toHaveProperty("accountId");
+			expect(ledgerAfter).toEqual(ledgerBefore);
+		} else {
+			expect(saved?.accountId).toBe(
+				mode === "default" ? defaultAccount._id : otherAccount._id
+			);
+			expect(ledgerAfter).toHaveLength(ledgerBefore.length + 1);
+			expect(ledgerAfter).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ amount: -12.5, expenseId: created._id }),
+				])
+			);
+		}
+		expect(
+			(await client.query(api.accounts.get, { accountId: defaultAccount._id }))
+				.currentBalance
+		).toBe(mode === "default" ? 87.5 : 100);
+		expect(
+			(await client.query(api.accounts.get, { accountId: otherAccount._id }))
+				.currentBalance
+		).toBe(mode === "explicit" ? 187.5 : 200);
+		expect(await client.query(api.users.get, {})).toEqual(userBefore);
+		expect(
+			await client.query(api.expenses.list, { cycleId: category.cycleId })
+		).toHaveLength(2);
+		expect(await test.run((ctx) => ctx.db.get(expense._id))).toMatchObject({
+			amount: 25,
+		});
+	}
+);
+
 it("preserves an omitted category and clears an explicitly null category through the Web API", async () => {
 	const { client, category, expense } = await fixture();
 	await client.mutation(api.expenses.update, { amount: 30, id: expense._id });

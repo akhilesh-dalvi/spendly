@@ -37,7 +37,7 @@ const NOTE_LABEL = /Note/;
 const CASH_LABEL = /Cash/;
 const CREDIT_LABEL = /Credit card/;
 const MONEY_OWED_LABEL = /Money owed/;
-const NO_ACCOUNT_LABEL = /No account selected/;
+const NO_ACCOUNT_LABEL = /Unassigned/;
 const MISC_LABEL = /Misc/;
 const UNCATEGORIZED_LABEL = /Uncategorized/;
 const JULY_10_LABEL = /July 10th, 2026/;
@@ -639,7 +639,7 @@ describe("ExpenseForm", () => {
 	it.each([
 		["missing default", undefined, false, "Credit card"],
 		["archived default", accountId, true, "Credit card"],
-		["archived recent", undefined, false, "No account selected"],
+		["archived recent", undefined, false, "Unassigned"],
 	] as const)(
 		"resolves smart defaults for %s",
 		(_label, defaultId, archived, expected) => {
@@ -649,9 +649,7 @@ describe("ExpenseForm", () => {
 				accounts.map((account) => ({
 					...account,
 					isArchived:
-						account._id === accountId
-							? archived
-							: expected === "No account selected",
+						account._id === accountId ? archived : expected === "Unassigned",
 				}))
 			);
 			render(<ExpenseForm />);
@@ -664,20 +662,155 @@ describe("ExpenseForm", () => {
 		fixture(api.accounts.list, undefined);
 		fixture(api.expenses.listRecent, undefined);
 		const view = render(<ExpenseForm />);
-		expect(combobox("No account selected")).toBeInTheDocument();
+		expect(combobox("Unassigned")).toBeInTheDocument();
 		const interaction = userEvent.setup();
-		await interaction.click(combobox("No account selected"));
+		await interaction.click(combobox("Unassigned"));
 		expect(screen.queryByRole("option")).not.toBeInTheDocument();
 		await interaction.keyboard("{Escape}");
 		fixture(api.users.get, { ...user, defaultAccountId: undefined });
 		fixture(api.accounts.list, accounts);
 		view.rerender(<ExpenseForm />);
-		expect(combobox("No account selected")).toBeInTheDocument();
-		await interaction.click(combobox("No account selected"));
+		expect(combobox("Unassigned")).toBeInTheDocument();
+		await interaction.click(combobox("Unassigned"));
 		await interaction.click(screen.getByRole("option", { name: CASH_LABEL }));
 		fixture(api.expenses.listRecent, recent);
 		view.rerender(<ExpenseForm />);
 		expect(combobox("Cash")).toBeInTheDocument();
+	});
+
+	it.each(["user", "recent", "changed-default"] as const)(
+		"keeps an explicit Unassigned choice when %s defaults arrive and submits null",
+		async (source) => {
+			if (source === "user") {
+				fixture(api.users.get, undefined);
+			} else if (source === "recent") {
+				fixture(api.users.get, { ...user, defaultAccountId: undefined });
+				fixture(api.expenses.listRecent, undefined);
+			}
+			const view = render(<ExpenseForm defaultValues={{ tagIds: [workId] }} />);
+			const interaction = await enterAmount();
+			await interaction.type(screen.getByLabelText(NOTE_LABEL), "Lunch");
+			await interaction.click(screen.getByLabelText("Account (optional)"));
+			await interaction.click(
+				screen.getByRole("option", { name: NO_ACCOUNT_LABEL })
+			);
+			if (source === "recent") {
+				fixture(api.expenses.listRecent, recent);
+			} else {
+				fixture(api.users.get, {
+					...user,
+					defaultAccountId: source === "user" ? accountId : cardId,
+				});
+			}
+			view.rerender(<ExpenseForm defaultValues={{ tagIds: [workId] }} />);
+			expect(combobox("Unassigned")).toHaveAccessibleDescription(
+				"Choose where this expense was paid from."
+			);
+			await interaction.click(
+				screen.getByRole("button", { name: "Add Expense" })
+			);
+			await waitFor(() =>
+				expect(mocks.create).toHaveBeenCalledWith({
+					accountId: null,
+					amount: 12.5,
+					categoryId,
+					date: "2026-07-10",
+					spentOn: "Lunch",
+					tagIds: [workId],
+				})
+			);
+		}
+	);
+
+	it("keeps the account helper unchanged and explains balance effects only in the Unassigned option", async () => {
+		render(<ExpenseForm />);
+		const interaction = userEvent.setup();
+		expect(combobox("Cash")).toHaveAccessibleDescription(
+			"Choose where this expense was paid from."
+		);
+		await interaction.click(combobox("Cash"));
+		const unassigned = screen.getByRole("option", { name: NO_ACCOUNT_LABEL });
+		expect(unassigned).toHaveTextContent(
+			"This expense won’t affect any account balance."
+		);
+		expect(
+			screen.getAllByText("This expense won’t affect any account balance.")
+		).toHaveLength(1);
+		await interaction.click(unassigned);
+		expect(combobox("Unassigned")).toHaveAccessibleDescription(
+			"Choose where this expense was paid from."
+		);
+		expect(
+			screen.queryByText("This expense won’t affect any account balance.")
+		).not.toBeInTheDocument();
+	});
+
+	it("preserves an explicitly empty initial account despite available defaults", async () => {
+		render(<ExpenseForm defaultValues={{ accountId: "", amount: 10 }} />);
+		expect(combobox("Unassigned")).toBeInTheDocument();
+		await userEvent
+			.setup()
+			.click(screen.getByRole("button", { name: "Add Expense" }));
+		await waitFor(() =>
+			expect(mocks.create).toHaveBeenCalledWith(
+				expect.objectContaining({ accountId: null })
+			)
+		);
+	});
+
+	it("still applies untouched smart defaults after accounts finish loading", () => {
+		fixture(api.accounts.list, undefined);
+		const view = render(<ExpenseForm />);
+		expect(combobox("Unassigned")).toBeInTheDocument();
+		fixture(api.accounts.list, accounts);
+		view.rerender(<ExpenseForm />);
+		expect(combobox("Cash")).toBeInTheDocument();
+	});
+
+	it("retains Unassigned through a failed save, account refresh, retry, and Add another", async () => {
+		mocks.create.mockRejectedValueOnce(new Error("offline"));
+		const onSuccess = vi.fn();
+		const view = render(<ExpenseForm onSuccess={onSuccess} />);
+		const interaction = await enterAmount();
+		await interaction.click(combobox("Cash"));
+		await interaction.click(
+			screen.getByRole("option", { name: NO_ACCOUNT_LABEL })
+		);
+		await interaction.click(
+			screen.getByRole("switch", { name: "Add another expense" })
+		);
+		await interaction.click(
+			screen.getByRole("button", { name: "Add Expense" })
+		);
+		await waitFor(() =>
+			expect(mocks.error).toHaveBeenCalledWith("Failed to add expense")
+		);
+		fixture(api.accounts.list, undefined);
+		view.rerender(<ExpenseForm onSuccess={onSuccess} />);
+		fixture(api.accounts.list, accounts);
+		fixture(api.users.get, { ...user, defaultAccountId: cardId });
+		view.rerender(<ExpenseForm onSuccess={onSuccess} />);
+		expect(combobox("Unassigned")).toBeInTheDocument();
+		expect(screen.getByLabelText("Amount")).toHaveValue("12.5");
+		await interaction.click(
+			screen.getByRole("button", { name: "Add Expense" })
+		);
+		await waitFor(() =>
+			expect(screen.getByLabelText("Amount")).toHaveValue("")
+		);
+		fixture(api.users.get, user);
+		fixture(api.expenses.listRecent, [{ ...recent[0], accountId: undefined }]);
+		view.rerender(<ExpenseForm onSuccess={onSuccess} />);
+		expect(combobox("Unassigned")).toBeInTheDocument();
+		await enterAmount("9");
+		await interaction.click(
+			screen.getByRole("button", { name: "Add Expense" })
+		);
+		await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(3));
+		for (const [payload] of mocks.create.mock.calls) {
+			expect(payload).toMatchObject({ accountId: null });
+		}
+		expect(onSuccess).not.toHaveBeenCalled();
 	});
 
 	it("filters accounts by type, selects liabilities, and clears an optional account", async () => {
@@ -710,7 +843,7 @@ describe("ExpenseForm", () => {
 		);
 		await waitFor(() =>
 			expect(mocks.create).toHaveBeenCalledWith(
-				expect.objectContaining({ accountId: undefined })
+				expect.objectContaining({ accountId: null })
 			)
 		);
 	});
@@ -719,7 +852,7 @@ describe("ExpenseForm", () => {
 		fixture(api.accounts.list, []);
 		fixture(api.expenses.listRecent, []);
 		render(<ExpenseForm />);
-		await userEvent.setup().click(combobox("No account selected"));
+		await userEvent.setup().click(combobox("Unassigned"));
 		expect(screen.getByText("No accounts yet")).toBeInTheDocument();
 		expect(
 			screen.getByRole("link", { name: "Create account" })

@@ -20,11 +20,13 @@ import { NuqsTestingAdapter, type UrlUpdateEvent } from "nuqs/adapters/testing";
 import { Suspense } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ExpenseDetailModal from "../@modal/(.)expenses/[id]/page";
+import NewExpenseModal from "../@modal/(.)expenses/new/page";
 import ExpenseDetailPage from "./[id]/page";
 import NewExpensePage from "./new/page";
 import ExpensesIndex from "./page";
 
 const NOTE_LABEL = /Note/;
+const UNASSIGNED_LABEL = /Unassigned/;
 
 function onUrlUpdate(event: UrlUpdateEvent) {
 	mocks.urlUpdate(event.queryString);
@@ -104,6 +106,14 @@ const archivedId = "archived" as Id<"accounts">;
 const cycleId = "july" as Id<"expense_cycles">;
 const categoryId = "food" as Id<"categories">;
 const tagId = "work" as Id<"tags">;
+const user: FunctionReturnType<typeof api.users.get> = {
+	_creationTime: 0,
+	_id: userId,
+	clerkId: "clerk",
+	createdAt: 0,
+	currency: "USD",
+	email: "test@example.com",
+};
 const current: NonNullable<FunctionReturnType<typeof api.cycles.getCurrent>> = {
 	_creationTime: 0,
 	_id: cycleId,
@@ -200,14 +210,7 @@ beforeEach(() => {
 	mocks.update.mockReset().mockResolvedValue(lunch);
 	mocks.remove.mockReset().mockResolvedValue({ success: true });
 	mocks.createTag.mockReset().mockResolvedValue("created-tag");
-	fixture(api.users.get, {
-		_creationTime: 0,
-		_id: userId,
-		clerkId: "clerk",
-		createdAt: 0,
-		currency: "USD",
-		email: "test@example.com",
-	});
+	fixture(api.users.get, user);
 	fixture(api.cycles.list, [
 		current,
 		{
@@ -951,6 +954,70 @@ describe("new and detail expense routes", () => {
 		);
 	});
 
+	it.each(["page", "modal"] as const)(
+		"creates an explicitly Unassigned expense from the new %s route",
+		async (surface) => {
+			fixture(api.users.get, { ...user, defaultAccountId: accountId });
+			mocks.search = new URLSearchParams("categoryId=food");
+			render(surface === "page" ? <NewExpensePage /> : <NewExpenseModal />);
+			const interaction = userEvent.setup();
+			await interaction.click(combobox("Cash"));
+			await interaction.click(
+				screen.getByRole("option", {
+					name: UNASSIGNED_LABEL,
+				})
+			);
+			expect(combobox("Unassigned")).toHaveAccessibleDescription(
+				"Choose where this expense was paid from."
+			);
+			await interaction.click(screen.getByLabelText("Amount"));
+			await interaction.paste("12.50");
+			await interaction.type(screen.getByLabelText(NOTE_LABEL), "Lunch");
+			await interaction.click(
+				screen.getByRole("button", { name: "Add Expense" })
+			);
+			await waitFor(() =>
+				expect(mocks.create).toHaveBeenCalledWith({
+					accountId: null,
+					amount: 12.5,
+					categoryId,
+					date: "2026-07-10",
+					spentOn: "Lunch",
+					tagIds: [],
+				})
+			);
+			if (surface === "modal") {
+				await waitFor(() => expect(mocks.back).toHaveBeenCalledOnce());
+			} else {
+				expect(mocks.back).not.toHaveBeenCalled();
+			}
+		}
+	);
+
+	it.each(["Escape", "Close"])(
+		"discards an Unassigned creation draft on modal %s without saving",
+		async (action) => {
+			render(<NewExpenseModal />);
+			const interaction = userEvent.setup();
+			await interaction.click(combobox("Unassigned"));
+			await interaction.click(
+				screen.getByRole("option", {
+					name: UNASSIGNED_LABEL,
+				})
+			);
+			await interaction.click(screen.getByLabelText("Amount"));
+			await interaction.paste("12.50");
+			if (action === "Escape") {
+				await interaction.keyboard("{Escape}");
+			} else {
+				await interaction.click(screen.getByRole("button", { name: "Close" }));
+			}
+			expect(mocks.back).toHaveBeenCalledOnce();
+			expect(mocks.create).not.toHaveBeenCalled();
+			expect(mocks.update).not.toHaveBeenCalled();
+		}
+	);
+
 	it("keeps category optional when the new route has no category parameter", () => {
 		render(<NewExpensePage />);
 		expect(combobox("Uncategorized")).toBeInTheDocument();
@@ -1115,7 +1182,7 @@ describe("new and detail expense routes", () => {
 		});
 		await renderDetail();
 		expect(combobox("Uncategorized")).toBeInTheDocument();
-		expect(combobox("No account selected")).toBeInTheDocument();
+		expect(combobox("Unassigned")).toBeInTheDocument();
 		expect(screen.getByLabelText(NOTE_LABEL)).toHaveValue("");
 		expect(combobox("Add tags...")).toBeInTheDocument();
 	});

@@ -332,6 +332,10 @@ export function ExpenseForm({
 	const user = useQuery(api.users.get);
 	const { format: formatCurrency } = useCurrency();
 	const isEditing = Boolean(expenseId);
+	const accountSelectionExplicit = useRef(
+		defaultValues?.accountId !== undefined
+	);
+	const accountDescriptionId = useId();
 	const [initialNote] = useState(() => defaultValues?.spentOn ?? "");
 	const accounts = useQuery(
 		api.accounts.list,
@@ -404,7 +408,7 @@ export function ExpenseForm({
 		}
 
 		await createExpense({
-			accountId: resolvedAccountId,
+			accountId: resolvedAccountId ?? null,
 			amount: Number(value.amount),
 			categoryId: resolvedCategoryId,
 			date: format(value.date, "yyyy-MM-dd"),
@@ -432,6 +436,8 @@ export function ExpenseForm({
 				}
 
 				if (!isEditing && addAnother) {
+					// Retain the submitted account choice, including Unassigned.
+					accountSelectionExplicit.current = true;
 					form.reset();
 					setTimeout(() => {
 						form.setFieldValue("date", value.date);
@@ -440,6 +446,8 @@ export function ExpenseForm({
 						form.setFieldValue("tagIds", value.tagIds);
 					}, 0);
 				} else {
+					accountSelectionExplicit.current =
+						defaultValues?.accountId !== undefined;
 					form.reset();
 					onSuccess?.();
 				}
@@ -501,7 +509,11 @@ export function ExpenseForm({
 	}, [categories, defaultCategoryId, recentExpenses, form, isEditing]);
 
 	useEffect(() => {
-		if (!isEditing && defaultAccountId && !form.state.values.accountId) {
+		if (
+			!(isEditing || accountSelectionExplicit.current) &&
+			defaultAccountId &&
+			!form.state.values.accountId
+		) {
 			form.setFieldValue("accountId", defaultAccountId);
 		}
 	}, [defaultAccountId, isEditing, form]);
@@ -513,6 +525,13 @@ export function ExpenseForm({
 			if (!form.state.isSubmitting) {
 				return form.handleSubmit();
 			}
+		},
+		[form]
+	);
+	const changeAccount = useCallback(
+		(accountId: string) => {
+			accountSelectionExplicit.current = true;
+			form.setFieldValue("accountId", accountId);
 		},
 		[form]
 	);
@@ -587,22 +606,23 @@ export function ExpenseForm({
 
 				<form.Field name="accountId">
 					{(field) => (
-						<div className="space-y-2">
-							<Label htmlFor={field.name}>
+						<Field className="gap-2">
+							<FieldLabel htmlFor={field.name}>
 								Account{" "}
 								<span className="text-muted-foreground">(optional)</span>
-							</Label>
-							<p className="text-muted-foreground text-xs">
+							</FieldLabel>
+							<FieldDescription id={accountDescriptionId}>
 								Choose where this expense was paid from.
-							</p>
+							</FieldDescription>
 							<AccountCombobox
 								accounts={accounts}
+								descriptionId={accountDescriptionId}
 								formatCurrency={formatCurrency}
 								id={field.name}
-								onChange={field.handleChange}
+								onChange={changeAccount}
 								selectedAccountId={field.state.value}
 							/>
-						</div>
+						</Field>
 					)}
 				</form.Field>
 
@@ -945,6 +965,7 @@ function TagMultiSelect({
 
 interface AccountComboboxProps {
 	accounts: AccountItem[] | undefined;
+	descriptionId: string;
 	formatCurrency: (amount: number) => string;
 	id: string;
 	onChange: (accountId: string) => void;
@@ -953,6 +974,7 @@ interface AccountComboboxProps {
 
 function AccountCombobox({
 	accounts,
+	descriptionId,
 	id,
 	selectedAccountId,
 	onChange,
@@ -990,6 +1012,7 @@ function AccountCombobox({
 		<Popover onOpenChange={setOpen} open={open}>
 			<PopoverTrigger asChild>
 				<Button
+					aria-describedby={descriptionId}
 					aria-expanded={open}
 					className="w-full justify-between"
 					id={id}
@@ -1013,7 +1036,7 @@ function AccountCombobox({
 							<Wallet className="h-4 w-4 shrink-0 text-muted-foreground" />
 						)}
 						<span className="truncate">
-							{selectedAccount ? selectedAccount.name : "No account selected"}
+							{selectedAccount ? selectedAccount.name : "Unassigned"}
 						</span>
 					</span>
 					<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -1049,9 +1072,9 @@ function AccountCombobox({
 											}`}
 										/>
 										<div className="flex min-w-0 flex-col">
-											<span>No account selected</span>
+											<span>Unassigned</span>
 											<span className="text-muted-foreground text-xs">
-												Do not change an account balance
+												This expense won’t affect any account balance.
 											</span>
 										</div>
 									</ExpenseOption>
