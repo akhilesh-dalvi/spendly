@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef, useCallback, useState } from "react";
 import type { DateRange } from "react-day-picker";
@@ -10,6 +10,10 @@ import { Progress } from "./progress";
 
 const SEPTEMBER_16 = /September 16/;
 const SEPTEMBER_18 = /September 18/;
+const AUGUST_31 = /August 31st, 2026/;
+const OCTOBER_1 = /October 1st, 2026/;
+const NOVEMBER_30 = /November 30th, 2026/;
+const JANUARY_1 = /January 1st, 2027/;
 
 function RangePicker({
 	onChange,
@@ -84,6 +88,61 @@ describe("currency entry", () => {
 });
 
 describe("calendar inputs", () => {
+	it("hides adjacent-month dates in the single-date picker used by expense forms", async () => {
+		const onDateChange = vi.fn();
+		render(
+			<DatePicker date={new Date(2026, 8, 15)} onDateChange={onDateChange} />
+		);
+		const interaction = userEvent.setup();
+		await interaction.click(
+			screen.getByRole("button", { name: "September 15th, 2026" })
+		);
+		expect(
+			within(screen.getByRole("grid")).getAllByRole("button")
+		).toHaveLength(30);
+		expect(
+			screen.queryByRole("button", { name: AUGUST_31 })
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: OCTOBER_1 })
+		).not.toBeInTheDocument();
+		await interaction.click(
+			screen.getByRole("button", { name: "Go to the Next Month" })
+		);
+		await interaction.click(screen.getByRole("button", { name: OCTOBER_1 }));
+		expect(onDateChange.mock.calls[0]?.[0]).toEqual(new Date(2026, 9, 1));
+	});
+
+	it.each([1, 2])(
+		"hides adjacent-month dates in the %s-month range picker used by cycle forms and onboarding",
+		async (numberOfMonths) => {
+			render(
+				<DatePickerWithRange
+					date={{ from: new Date(2026, 10, 1), to: new Date(2026, 10, 30) }}
+					numberOfMonths={numberOfMonths}
+					onDateChange={vi.fn()}
+				/>
+			);
+			await userEvent
+				.setup()
+				.click(
+					screen.getByRole("button", { name: "Nov 01, 2026 - Nov 30, 2026" })
+				);
+			const grids = screen.getAllByRole("grid");
+			expect(grids).toHaveLength(numberOfMonths);
+			expect(within(grids[0]).getAllByRole("button")).toHaveLength(30);
+			expect(screen.getAllByRole("button", { name: NOVEMBER_30 })).toHaveLength(
+				1
+			);
+			expect(
+				screen.queryByRole("button", { name: JANUARY_1 })
+			).not.toBeInTheDocument();
+			if (numberOfMonths === 2) {
+				expect(within(grids[1]).getAllByRole("button")).toHaveLength(31);
+			}
+		}
+	);
+
 	it("selects a real calendar day and reports it to the caller", async () => {
 		const onDateChange = vi.fn();
 		const user = userEvent.setup();

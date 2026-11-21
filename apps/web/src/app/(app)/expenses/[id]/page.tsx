@@ -118,6 +118,7 @@ export default function ExpenseDetailPage({
 						tagIds: expense.tagIds ?? [],
 					}}
 					expenseId={expense._id}
+					onCancel={handleSuccess}
 					onSuccess={handleSuccess}
 				/>
 			</div>

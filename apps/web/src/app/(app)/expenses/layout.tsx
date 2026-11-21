@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { createAppMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createAppMetadata({
@@ -10,5 +11,5 @@ export default function ExpensesLayout({
 }: Readonly<{
 	children: React.ReactNode;
 }>) {
-	return children;
+	return <NuqsAdapter>{children}</NuqsAdapter>;
 }

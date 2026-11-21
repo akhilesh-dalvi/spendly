@@ -465,6 +465,52 @@ describe("authenticated CLI cycle CRUD", () => {
 			}
 		}
 	);
+	it.each([
+		{ includePlannedAmounts: true, selection: "omitted" },
+		{ includePlannedAmounts: true, selection: "empty" },
+		{ includePlannedAmounts: false, selection: "empty" },
+	] as const)(
+		"Web creation distinguishes $selection category selection with prefill=$includePlannedAmounts",
+		async ({ selection, includePlannedAmounts }) => {
+			const { client, source, food } = await sourceFixture();
+			await client.mutation(api.categories.update, {
+				id: food._id,
+				plannedAmount: 0,
+			});
+			const before = await client.query(api.categories.list, {
+				cycleId: source._id,
+			});
+			const created = await client.mutation(api.cycles.create, {
+				copyFromCycleId: source._id,
+				endDate: input.endDateExclusive,
+				name: input.name,
+				startDate: input.startDate,
+				...(selection === "empty" ? { copyCategoryIds: [] } : {}),
+				includePlannedAmounts,
+			});
+			if (!created) {
+				throw new Error("Expected created cycle");
+			}
+			const copied = await client.query(api.categories.list, {
+				cycleId: created._id,
+			});
+			if (selection === "empty") {
+				expect(copied).toEqual([]);
+			} else {
+				expect(copied).toHaveLength(2);
+				expect(
+					copied.find((category) => category.name === "Food")
+				).toMatchObject({ plannedAmount: 0 });
+			}
+			expect(
+				await client.query(api.categories.list, { cycleId: source._id })
+			).toEqual(before);
+			expect(
+				await client.query(api.cycles.get, { cycleId: source._id })
+			).toEqual(source);
+		}
+	);
+
 	it("keeps empty copy options without a source compatible with web creation", async () => {
 		const { client } = await setup();
 		const options = {

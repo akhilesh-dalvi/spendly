@@ -22,6 +22,7 @@ import {
 	type ComponentProps,
 	useCallback,
 	useEffect,
+	useId,
 	useMemo,
 	useRef,
 	useState,
@@ -29,6 +30,7 @@ import {
 import { toast } from "sonner";
 import { z } from "zod";
 import { AccountTypeIcon } from "@/components/account-type-icon";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,6 +42,7 @@ import {
 	CommandList,
 } from "@/components/ui/command";
 import { DatePicker } from "@/components/ui/date-picker";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -116,6 +119,7 @@ interface ExpenseFormProps {
 		tagIds: string[];
 	}>;
 	expenseId?: Id<"expenses"> | string;
+	onCancel?: () => void;
 	onSuccess?: () => void;
 }
 
@@ -187,7 +191,138 @@ function stopWheel(event: React.WheelEvent<HTMLDivElement>) {
 	event.stopPropagation();
 }
 
+function getCategoryPlaceholder(
+	categoryId: string,
+	categories: CategoryItem[] | undefined
+) {
+	if (categories === undefined) {
+		return "Loading categories...";
+	}
+	return categoryId ? "Previous category (unavailable)" : "Uncategorized";
+}
+
+function getExpenseNoteUpdate(draft: string, saved: string) {
+	if (draft === saved) {
+		return;
+	}
+	return draft.trim() || null;
+}
+
+type CategorySelectionIssue = "loading" | "missing-cycle" | "incompatible";
+
+const CATEGORY_SELECTION_ERRORS: Record<CategorySelectionIssue, string> = {
+	incompatible: "Resolve the previous category before saving.",
+	loading: "Wait for cycle and categories to finish loading.",
+	"missing-cycle":
+		"No expense cycle found for this date. Please create one first.",
+};
+
+function getExpenseCategorySelection(
+	categoryId: string,
+	cycle: CyclePreviewData | null | undefined,
+	categories: CategoryItem[] | undefined,
+	isEditing: boolean
+): { categoryId?: Id<"categories">; issue: CategorySelectionIssue | null } {
+	if (cycle === undefined || (cycle !== null && categories === undefined)) {
+		return { issue: "loading" };
+	}
+	if (!isEditing && cycle === null) {
+		return { issue: "missing-cycle" };
+	}
+	const category = cycle
+		? categories?.find((item) => item._id === categoryId)
+		: undefined;
+	if (categoryId && !category) {
+		return { issue: "incompatible" };
+	}
+	return { categoryId: category?._id, issue: null };
+}
+
+function MissingCycleNotice({ isEditing }: { isEditing: boolean }) {
+	if (isEditing) {
+		return (
+			<Alert role="status">
+				<Info />
+				<AlertTitle>No cycle for this date</AlertTitle>
+				<AlertDescription>
+					This expense won’t count toward a cycle budget.
+				</AlertDescription>
+			</Alert>
+		);
+	}
+	return (
+		<Alert className="flex items-center gap-3" role="status">
+			<AlertCircle />
+			<div className="flex-1">
+				<AlertTitle>No cycle for this date</AlertTitle>
+				<AlertDescription>
+					Choose another date or create a cycle to continue.
+				</AlertDescription>
+			</div>
+			<Button asChild size="sm">
+				<Link href="/cycles/new">Create cycle</Link>
+			</Button>
+		</Alert>
+	);
+}
+
+function IncompatibleCategoryNotice({
+	issue,
+	onChange,
+}: {
+	issue: CategorySelectionIssue | null;
+	onChange: (categoryId: string) => void;
+}) {
+	const remove = useCallback(() => onChange(""), [onChange]);
+	if (issue !== "incompatible") {
+		return null;
+	}
+	return (
+		<Alert>
+			<AlertCircle />
+			<AlertTitle>Previous category unavailable</AlertTitle>
+			<AlertDescription>
+				<p>
+					The selected category isn’t available for this date. Choose another
+					category, remove it, or change the date back.
+				</p>
+				<Button onClick={remove} size="sm" type="button" variant="outline">
+					Remove previous category
+				</Button>
+			</AlertDescription>
+		</Alert>
+	);
+}
+
+function ExpenseNoteField({
+	isEditing,
+	...props
+}: Pick<ComponentProps<typeof Input>, "onBlur" | "onChange" | "value"> & {
+	isEditing: boolean;
+}) {
+	const descriptionId = useId();
+	return (
+		<Field>
+			<FieldLabel htmlFor="spentOn">
+				Note <span className="text-muted-foreground">(optional)</span>
+			</FieldLabel>
+			<Input
+				aria-describedby={isEditing ? descriptionId : undefined}
+				id="spentOn"
+				placeholder="What was this for? e.g., Lunch, Uber, Groceries"
+				{...props}
+			/>
+			{Boolean(isEditing) && (
+				<FieldDescription id={descriptionId}>
+					Leave blank to clear the saved note.
+				</FieldDescription>
+			)}
+		</Field>
+	);
+}
+
 export function ExpenseForm({
+	onCancel,
 	onSuccess,
 	className,
 	expenseId,
@@ -199,6 +334,11 @@ export function ExpenseForm({
 	const user = useQuery(api.users.get);
 	const { format: formatCurrency } = useCurrency();
 	const isEditing = Boolean(expenseId);
+	const accountSelectionExplicit = useRef(
+		defaultValues?.accountId !== undefined
+	);
+	const accountDescriptionId = useId();
+	const [initialNote] = useState(() => defaultValues?.spentOn ?? "");
 	const accounts = useQuery(
 		api.accounts.list,
 		isEditing ? { includeArchived: true } : {}
@@ -229,10 +369,14 @@ export function ExpenseForm({
 	const defaultCategoryId = recentExpenses?.[0]?.categoryId || "";
 
 	const submitExpense = async (value: ExpenseFormValues) => {
-		if (!cycle) {
-			toast.error(
-				"No expense cycle found for this date. Please create one first."
-			);
+		const selection = getExpenseCategorySelection(
+			value.categoryId,
+			cycle,
+			categories,
+			isEditing
+		);
+		if (selection.issue !== null) {
+			toast.error(CATEGORY_SELECTION_ERRORS[selection.issue]);
 			return false;
 		}
 
@@ -246,9 +390,7 @@ export function ExpenseForm({
 			toast.warning(warning);
 		}
 
-		const resolvedCategoryId = categories?.find(
-			(category) => category._id === value.categoryId
-		)?._id;
+		const resolvedCategoryId = selection.categoryId;
 		const resolvedAccountId = value.accountId
 			? (value.accountId as Id<"accounts">)
 			: undefined;
@@ -260,7 +402,7 @@ export function ExpenseForm({
 				categoryId: resolvedCategoryId ?? null,
 				date: format(value.date, "yyyy-MM-dd"),
 				id: expenseId as Id<"expenses">,
-				spentOn: value.spentOn || undefined,
+				spentOn: getExpenseNoteUpdate(value.spentOn, initialNote),
 				tagIds: value.tagIds as Id<"tags">[],
 			});
 			toast.success("Expense updated");
@@ -268,7 +410,7 @@ export function ExpenseForm({
 		}
 
 		await createExpense({
-			accountId: resolvedAccountId,
+			accountId: resolvedAccountId ?? null,
 			amount: Number(value.amount),
 			categoryId: resolvedCategoryId,
 			date: format(value.date, "yyyy-MM-dd"),
@@ -285,7 +427,7 @@ export function ExpenseForm({
 			amount: defaultValues?.amount ?? (undefined as number | undefined),
 			categoryId: defaultValues?.categoryId ?? "",
 			date: defaultValues?.date ?? new Date(),
-			spentOn: defaultValues?.spentOn ?? "",
+			spentOn: initialNote,
 			tagIds: defaultValues?.tagIds ?? ([] as string[]),
 		},
 		onSubmit: async ({ value }) => {
@@ -296,6 +438,8 @@ export function ExpenseForm({
 				}
 
 				if (!isEditing && addAnother) {
+					// Retain the submitted account choice, including Unassigned.
+					accountSelectionExplicit.current = true;
 					form.reset();
 					setTimeout(() => {
 						form.setFieldValue("date", value.date);
@@ -304,6 +448,8 @@ export function ExpenseForm({
 						form.setFieldValue("tagIds", value.tagIds);
 					}, 0);
 				} else {
+					accountSelectionExplicit.current =
+						defaultValues?.accountId !== undefined;
 					form.reset();
 					onSuccess?.();
 				}
@@ -328,12 +474,22 @@ export function ExpenseForm({
 	});
 
 	const isSubmitting = useStore(form.store, (state) => state.isSubmitting);
+	const draftCategoryId = useStore(
+		form.store,
+		(state) => state.values.categoryId
+	);
+	const categorySelection = getExpenseCategorySelection(
+		draftCategoryId,
+		cycle,
+		categories,
+		isEditing
+	);
 	const categoryDefaultApplied = useRef(
 		isEditing || Boolean(defaultValues?.categoryId)
 	);
 
 	useEffect(() => {
-		if (categories === undefined) {
+		if (isEditing || categories === undefined) {
 			return;
 		}
 		const selectedCategoryId = form.state.values.categoryId;
@@ -352,10 +508,14 @@ export function ExpenseForm({
 				form.setFieldValue("categoryId", defaultCategoryId);
 			}
 		}
-	}, [categories, defaultCategoryId, recentExpenses, form]);
+	}, [categories, defaultCategoryId, recentExpenses, form, isEditing]);
 
 	useEffect(() => {
-		if (!isEditing && defaultAccountId && !form.state.values.accountId) {
+		if (
+			!(isEditing || accountSelectionExplicit.current) &&
+			defaultAccountId &&
+			!form.state.values.accountId
+		) {
 			form.setFieldValue("accountId", defaultAccountId);
 		}
 	}, [defaultAccountId, isEditing, form]);
@@ -367,6 +527,13 @@ export function ExpenseForm({
 			if (!form.state.isSubmitting) {
 				return form.handleSubmit();
 			}
+		},
+		[form]
+	);
+	const changeAccount = useCallback(
+		(accountId: string) => {
+			accountSelectionExplicit.current = true;
+			form.setFieldValue("accountId", accountId);
 		},
 		[form]
 	);
@@ -435,28 +602,30 @@ export function ExpenseForm({
 							<Label>Date</Label>
 							<DatePicker date={field.state.value} onDateChange={changeDate} />
 							<CyclePreview cycle={cycle} />
+							{cycle === null && <MissingCycleNotice isEditing={isEditing} />}
 						</div>
 					)}
 				</form.Field>
 
 				<form.Field name="accountId">
 					{(field) => (
-						<div className="space-y-2">
-							<Label htmlFor={field.name}>
+						<Field className="gap-2">
+							<FieldLabel htmlFor={field.name}>
 								Account{" "}
 								<span className="text-muted-foreground">(optional)</span>
-							</Label>
-							<p className="text-muted-foreground text-xs">
+							</FieldLabel>
+							<FieldDescription id={accountDescriptionId}>
 								Choose where this expense was paid from.
-							</p>
+							</FieldDescription>
 							<AccountCombobox
 								accounts={accounts}
+								descriptionId={accountDescriptionId}
 								formatCurrency={formatCurrency}
 								id={field.name}
-								onChange={field.handleChange}
+								onChange={changeAccount}
 								selectedAccountId={field.state.value}
 							/>
-						</div>
+						</Field>
 					)}
 				</form.Field>
 
@@ -465,7 +634,9 @@ export function ExpenseForm({
 						<div className="space-y-2">
 							<Label htmlFor={field.name}>Category</Label>
 							<p className="text-muted-foreground text-xs">
-								Search categories or create a new one for this cycle.
+								{cycle === null
+									? "Categories are unavailable without a cycle."
+									: "Search categories or create a new one for this cycle."}
 							</p>
 							{cycle === undefined && (
 								<div className="h-10 w-full animate-pulse rounded-md bg-muted" />
@@ -481,38 +652,22 @@ export function ExpenseForm({
 									types={categoryTypes}
 								/>
 							)}
-							{cycle === null && (
-								<div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800 text-sm">
-									<AlertCircle className="h-4 w-4 shrink-0" />
-									<div className="flex-1">
-										<p className="font-medium">No cycle for this date</p>
-										<p className="text-amber-700 text-xs">
-											Create a cycle to add expenses
-										</p>
-									</div>
-									<Button asChild size="sm" variant="outline">
-										<Link href="/cycles/new">Create</Link>
-									</Button>
-								</div>
-							)}
+							<IncompatibleCategoryNotice
+								issue={categorySelection.issue}
+								onChange={field.handleChange}
+							/>
 						</div>
 					)}
 				</form.Field>
 
 				<form.Field name="spentOn">
 					{(field) => (
-						<div className="space-y-2">
-							<Label htmlFor={field.name}>
-								Note <span className="text-muted-foreground">(optional)</span>
-							</Label>
-							<Input
-								id={field.name}
-								onBlur={field.handleBlur}
-								onChange={changeNote}
-								placeholder="What was this for? e.g., Lunch, Uber, Groceries"
-								value={field.state.value || ""}
-							/>
-						</div>
+						<ExpenseNoteField
+							isEditing={isEditing}
+							onBlur={field.handleBlur}
+							onChange={changeNote}
+							value={field.state.value || ""}
+						/>
 					)}
 				</form.Field>
 
@@ -554,7 +709,7 @@ export function ExpenseForm({
 					)}
 					<Button
 						className="w-full"
-						disabled={isSubmitting || !cycle || categories === undefined}
+						disabled={isSubmitting || categorySelection.issue !== null}
 						size="lg"
 						type="submit"
 					>
@@ -574,6 +729,17 @@ export function ExpenseForm({
 							</>
 						)}
 					</Button>
+					{Boolean(onCancel) && (
+						<Button
+							disabled={isSubmitting}
+							onClick={onCancel}
+							size="lg"
+							type="button"
+							variant="outline"
+						>
+							Cancel
+						</Button>
+					)}
 				</div>
 			</form>
 		</div>
@@ -801,6 +967,7 @@ function TagMultiSelect({
 
 interface AccountComboboxProps {
 	accounts: AccountItem[] | undefined;
+	descriptionId: string;
 	formatCurrency: (amount: number) => string;
 	id: string;
 	onChange: (accountId: string) => void;
@@ -809,6 +976,7 @@ interface AccountComboboxProps {
 
 function AccountCombobox({
 	accounts,
+	descriptionId,
 	id,
 	selectedAccountId,
 	onChange,
@@ -846,6 +1014,7 @@ function AccountCombobox({
 		<Popover onOpenChange={setOpen} open={open}>
 			<PopoverTrigger asChild>
 				<Button
+					aria-describedby={descriptionId}
 					aria-expanded={open}
 					className="w-full justify-between"
 					id={id}
@@ -869,7 +1038,7 @@ function AccountCombobox({
 							<Wallet className="h-4 w-4 shrink-0 text-muted-foreground" />
 						)}
 						<span className="truncate">
-							{selectedAccount ? selectedAccount.name : "No account selected"}
+							{selectedAccount ? selectedAccount.name : "Unassigned"}
 						</span>
 					</span>
 					<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -905,9 +1074,9 @@ function AccountCombobox({
 											}`}
 										/>
 										<div className="flex min-w-0 flex-col">
-											<span>No account selected</span>
+											<span>Unassigned</span>
 											<span className="text-muted-foreground text-xs">
-												Do not change an account balance
+												This expense won’t affect any account balance.
 											</span>
 										</div>
 									</ExpenseOption>
@@ -1079,7 +1248,8 @@ function CategoryCombobox({
 					<span className="inline-flex max-w-[85%] items-center gap-2 truncate">
 						<span>{selectedCategory?.icon || "❓"}</span>
 						<span className="truncate">
-							{selectedCategory ? selectedCategory.name : "Uncategorized"}
+							{selectedCategory?.name ??
+								getCategoryPlaceholder(selectedCategoryId, categories)}
 						</span>
 					</span>
 					<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />

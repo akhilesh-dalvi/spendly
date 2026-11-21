@@ -194,6 +194,51 @@ describe("Phase 5 expense mutation commands", () => {
 		});
 	});
 
+	it.each([
+		["--no-account", true],
+		["--without-account", true],
+		["--no-account", false],
+		["--without-account", false],
+	] as const)(
+		"sends explicit null for %s rather than allowing account fallback (dryRun=%s)",
+		async (flag, dryRun) => {
+			const testRuntime = createTestRuntime();
+			const exitCode = await runCli(
+				[
+					"expenses",
+					"add",
+					"--amount",
+					"12.50",
+					"--date",
+					"2026-09-02",
+					flag,
+					"--idempotency-key",
+					"unassigned-regression",
+					"--json",
+					"--non-interactive",
+					...(dryRun ? ["--dry-run"] : []),
+				],
+				testRuntime.runtime
+			);
+			expect(exitCode).toBe(CLI_EXIT_CODE.success);
+			expect(testRuntime.calls).toEqual([
+				{
+					args: {
+						accountId: null,
+						amount: 12.5,
+						date: "2026-09-02",
+						...(dryRun ? {} : { idempotencyKey: "unassigned-regression" }),
+					},
+					kind: dryRun ? "query" : "mutation",
+					name: dryRun
+						? "cli/v1/expenses:previewCreate"
+						: "cli/v1/expenses:create",
+				},
+			]);
+			expect(testRuntime.getStderr()).toBe("");
+		}
+	);
+
 	it("marks only committed agent mutations", async () => {
 		const testRuntime = createTestRuntime();
 		const exitCode = await runCli(

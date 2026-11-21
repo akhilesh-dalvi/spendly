@@ -4,7 +4,7 @@ A page-by-page inventory of what users can view and do in the Spendly web app. A
 
 **Reviewed:** Original review: 2026-11-12 against `origin/master` at `5c6a6b4`. Follow-up action-coverage audit against checkout `23df4e5` included route discovery, page/shared-control action searches, and inspection of recovery screens, modal dismissal, provenance, and form controls. A further cross-surface source review checked Web form payloads and shared backend operations against the CLI matrix, including copy-plan clearing, creation versus edits, onboarding, and provenance. Based on source inspection, not a signed-in browser test. Known limitations and configuration-dependent behavior are called out separately.
 
-For a surface-by-surface checklist, see the [Web vs CLI feature matrix](spendly-web-cli-feature-matrix.md).
+For a surface-by-surface checklist and subsequent local expense follow-ups, see the [Web vs CLI feature matrix](spendly-web-cli-feature-matrix.md). The creation account details below include the local Unassigned fix. Cycle creation also includes the subsequent local zero-category-copy fix. Both are verified with mocked Web/CLI tests and `convex-test`, not live financial writes; cycle browser review covers unsaved form states only.
 
 **Labels:** **R** = read/view data; **W** = create or change saved Spendly data, including deletion; **R/W** = both. Navigation, draft-only controls, and explanatory notes are left unlabelled.
 
@@ -137,14 +137,14 @@ For a surface-by-surface checklist, see the [Web vs CLI feature matrix](spendly-
 | --- | --- |
 | Amount | Positive amount, minimum 0.01; up to two typed decimal places |
 | Date | Calendar; defaults to today; determines the cycle/categories |
-| Account | Search by name/type; active accounts or No account selected |
+| Account | Search by name/type; active accounts or Unassigned |
 | Category | Search/group by type; category or Uncategorized |
 | Note | Optional single-line description |
 | Tags | Searchable multiple selection; remove selected tags or create a tag inline |
 
 **Actions and defaults**
 - **R/W:** Review the cycle containing the selected date and create an expense.
-- Account defaults to active user default, then the single latest expense's active account.
+- Account initially defaults to active user default, then the single latest expense's active account. Choosing Unassigned explicitly prevents default-account assignment; late-loading defaults do not replace that choice. The Unassigned dropdown option explains: This expense won’t affect any account balance. The field helper stays: Choose where this expense was paid from.
 - Category can prefill from `?categoryId=...` or the latest expense.
 - **W:** Create a tag immediately and select it; it remains saved even if the expense is abandoned.
 - Use Add another expense to keep entering expenses; amount/note reset while other selections are retained.
@@ -155,7 +155,7 @@ For a surface-by-surface checklist, see the [Web vs CLI feature matrix](spendly-
 **Notes**
 - Web submission requires a cycle for the date, although the underlying operation supports cycle-less expenses.
 - Once the date's cycle/categories load, incompatible categories are cleared. Latest-expense category defaults apply only once and only within that cycle; explicit Uncategorized is preserved. Saving is disabled while cycle/categories are unavailable.
-- No account selected can still use/debit the default account. Uncategorized can trigger historical category inference.
+- Unassigned submits explicit `accountId: null`: no account assignment, balance debit, or account ledger entry. It remains in expense history and counts toward the date-matching cycle budget. Add another retains Unassigned. Uncategorized can still trigger historical category inference.
 - No currency/exchange-rate field; account amounts may use the user's currency formatter. Expenses have no currency snapshot.
 - Normal page success resets the form and stays here; the separate selected-date state used for cycle/category queries is not reset with the form, so the lookup date can diverge from the reset date field. Modal success closes/returns unless Add another is enabled.
 
@@ -199,7 +199,7 @@ For a surface-by-surface checklist, see the [Web vs CLI feature matrix](spendly-
 - Optionally choose any existing cycle to copy category configuration from, or Do not copy.
 - Select/deselect source categories individually or using Select all; toggle prefilled plans and override each selected plan.
 - Clear a selected category's copied plan by blanking its input, even with prefill enabled. This affects the new copy, not the source category, and differs from the ordinary category editor's inability to clear a saved plan.
-- The prefill effect clears draft plans when off and restores source plans when on, replacing custom overrides. It currently reads the form value without a subscription, so the checkbox change can need another parent-state update (such as toggling a category) before those draft amounts refresh. Changing source initializes all its categories as selected.
+- Prefill immediately clears draft plans when off and restores source plans when on, replacing custom overrides. Choosing a source initially selects all its categories once they load. Query refreshes preserve zero/subset selection and custom plans, remove unavailable selections, and do not silently select newly appearing categories. Creation waits for source categories to load.
 - Use the two-month calendar; go back or view all cycles. Success opens the new cycle.
 
 **Rules and effects**
@@ -210,7 +210,7 @@ For a surface-by-surface checklist, see the [Web vs CLI feature matrix](spendly-
 
 **Notes**
 - Calendar defaults/display look inclusive, but the selected end is stored unchanged as an exclusive boundary.
-- Deselecting every source category currently copies all, not none.
+- Deselecting every source category explicitly copies none while retaining source context and showing “0 of N selected — No categories will be copied.” Navigation or dialog dismissal discards the unsaved draft without changing the source. No Web preview/snapshot guard is added; copied metadata is read at save time.
 - Copy-plan fields show ₹ regardless of preferred currency and accept extra decimal precision.
 - Calendar does not disable overlapping dates before submission.
 
