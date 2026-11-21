@@ -4,7 +4,7 @@ A page-by-page inventory of what users can view and do in the Spendly web app. A
 
 **Reviewed:** Original review: 2026-11-12 against `origin/master` at `5c6a6b4`. Follow-up action-coverage audit against checkout `23df4e5` included route discovery, page/shared-control action searches, and inspection of recovery screens, modal dismissal, provenance, and form controls. A further cross-surface source review checked Web form payloads and shared backend operations against the CLI matrix, including copy-plan clearing, creation versus edits, onboarding, and provenance. Based on source inspection, not a signed-in browser test. Known limitations and configuration-dependent behavior are called out separately.
 
-For a surface-by-surface checklist and subsequent local expense follow-ups, see the [Web vs CLI feature matrix](spendly-web-cli-feature-matrix.md). The creation account details below include the local Unassigned fix, verified with mocked Web/CLI tests and `convex-test`, not live financial writes.
+For a surface-by-surface checklist and subsequent local expense follow-ups, see the [Web vs CLI feature matrix](spendly-web-cli-feature-matrix.md). The creation account details below include the local Unassigned fix. Cycle creation also includes the subsequent local zero-category-copy fix. Both are verified with mocked Web/CLI tests and `convex-test`, not live financial writes; cycle browser review covers unsaved form states only.
 
 **Labels:** **R** = read/view data; **W** = create or change saved Spendly data, including deletion; **R/W** = both. Navigation, draft-only controls, and explanatory notes are left unlabelled.
 
@@ -199,7 +199,7 @@ For a surface-by-surface checklist and subsequent local expense follow-ups, see 
 - Optionally choose any existing cycle to copy category configuration from, or Do not copy.
 - Select/deselect source categories individually or using Select all; toggle prefilled plans and override each selected plan.
 - Clear a selected category's copied plan by blanking its input, even with prefill enabled. This affects the new copy, not the source category, and differs from the ordinary category editor's inability to clear a saved plan.
-- The prefill effect clears draft plans when off and restores source plans when on, replacing custom overrides. It currently reads the form value without a subscription, so the checkbox change can need another parent-state update (such as toggling a category) before those draft amounts refresh. Changing source initializes all its categories as selected.
+- Prefill immediately clears draft plans when off and restores source plans when on, replacing custom overrides. Choosing a source initially selects all its categories once they load. Query refreshes preserve zero/subset selection and custom plans, remove unavailable selections, and do not silently select newly appearing categories. Creation waits for source categories to load.
 - Use the two-month calendar; go back or view all cycles. Success opens the new cycle.
 
 **Rules and effects**
@@ -210,7 +210,7 @@ For a surface-by-surface checklist and subsequent local expense follow-ups, see 
 
 **Notes**
 - Calendar defaults/display look inclusive, but the selected end is stored unchanged as an exclusive boundary.
-- Deselecting every source category currently copies all, not none.
+- Deselecting every source category explicitly copies none while retaining source context and showing “0 of N selected — No categories will be copied.” Navigation or dialog dismissal discards the unsaved draft without changing the source. No Web preview/snapshot guard is added; copied metadata is read at save time.
 - Copy-plan fields show ₹ regardless of preferred currency and accept extra decimal precision.
 - Calendar does not disable overlapping dates before submission.
 

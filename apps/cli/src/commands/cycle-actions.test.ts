@@ -808,6 +808,29 @@ describe("cycle CLI commands", () => {
 			"--copy-category-id",
 			"food",
 		],
+		[
+			...createFlags,
+			"--copy-from-cycle-id",
+			"source",
+			"--without-categories",
+			"--include-planned-amounts",
+		],
+		[
+			...createFlags,
+			"--copy-from-cycle-id",
+			"source",
+			"--without-categories",
+			"--planned-amount",
+			"food=0",
+		],
+		[
+			...createFlags,
+			"--copy-from-cycle-id",
+			"source",
+			"--without-categories",
+			"--clear-planned-amount",
+			"food",
+		],
 	])("rejects invalid cycle creation: %j", async (...args) => {
 		const test = createTestRuntime();
 		const exitCode = await runCli(
@@ -1150,27 +1173,48 @@ describe("cycle CLI commands", () => {
 			"cli/v1/cycles:update"
 		);
 	});
-	it("represents an explicitly empty category selection as an empty array", async () => {
-		const test = createTestRuntime();
-		const exitCode = await runCli(
-			[
-				"cycles",
-				"add",
-				...createFlags,
-				"--copy-from-cycle-id",
-				"source",
-				"--without-categories",
-				"--dry-run",
-				...machine,
-			],
-			test.runtime
-		);
-		expect(exitCode).toBe(CLI_EXIT_CODE.success);
-		expect(test.calls[0]?.args).toMatchObject({
-			copyCategoryIds: [],
-			copyFromCycleId: "source",
-		});
-	});
+	it.each(["preview", "commit"] as const)(
+		"preserves copy-none and its source during %s",
+		async (mode) => {
+			const test = createTestRuntime();
+			const exitCode = await runCli(
+				[
+					"cycles",
+					"add",
+					...createFlags,
+					"--copy-from-cycle-id",
+					"source",
+					"--without-categories",
+					...(mode === "preview"
+						? ["--dry-run"]
+						: ["--idempotency-key", "copy-none-key"]),
+					...machine,
+				],
+				test.runtime
+			);
+			expect(exitCode).toBe(CLI_EXIT_CODE.success);
+			expect(test.calls[0]?.args).toMatchObject({
+				copyCategoryIds: [],
+				copyFromCycleId: "source",
+			});
+			expect(test.calls[0]?.args).not.toHaveProperty("includePlannedAmounts");
+			expect(test.calls[0]?.args).not.toHaveProperty(
+				"categoryPlannedOverrides"
+			);
+			if (mode === "commit") {
+				expect(
+					test.calls.find((call) => call.name === "cli/v1/cycles:create")?.args
+				).toMatchObject({
+					copyCategoryIds: [],
+					copyFromCycleId: "source",
+					expectedCopySnapshot: copySnapshot,
+					idempotencyKey: "copy-none-key",
+				});
+			} else {
+				expect(test.mutationNames).toEqual([]);
+			}
+		}
+	);
 	it("copies selected categories with planned overrides and explicit clearing", async () => {
 		const copiedCategories = [
 			{ name: "Food", plannedAmount: 200, sourceCategoryId: "food" },

@@ -296,6 +296,36 @@ describe("cycles index route", () => {
 });
 
 describe("new and edit cycle routes", () => {
+	it.each(["back", "list"] as const)(
+		"abandons a copy-none draft through %s navigation without saving",
+		async (navigation) => {
+			render(<NewCyclePage />);
+			const interaction = userEvent.setup();
+			await interaction.click(screen.getByRole("combobox"));
+			await interaction.click(
+				screen.getByRole("option", { name: "July budget" })
+			);
+			await interaction.click(
+				screen.getByRole("checkbox", { name: "Select all categories" })
+			);
+			expect(
+				screen.getByText("0 of 1 selected — No categories will be copied.")
+			).toBeVisible();
+			await interaction.click(
+				screen.getByRole("button", {
+					name: navigation === "back" ? "" : "View all cycles",
+				})
+			);
+			if (navigation === "back") {
+				expect(mocks.back).toHaveBeenCalledOnce();
+			} else {
+				expect(mocks.push).toHaveBeenCalledWith("/cycles");
+			}
+			expect(mocks.create).not.toHaveBeenCalled();
+			expect(mocks.update).not.toHaveBeenCalled();
+		}
+	);
+
 	it("creates with the real form and provides back/list navigation", async () => {
 		render(<NewCyclePage />);
 		const interaction = userEvent.setup();

@@ -12,6 +12,7 @@ import {
 	type FormEvent,
 	useCallback,
 	useEffect,
+	useRef,
 	useState,
 } from "react";
 import type { DateRange } from "react-day-picker";
@@ -107,6 +108,45 @@ function IncludePlannedCheckbox({
 	);
 }
 
+function CopySourceNotice({
+	loading,
+	total,
+}: {
+	loading: boolean;
+	total: number | undefined;
+}) {
+	if (loading) {
+		return (
+			<p aria-live="polite" className="text-muted-foreground text-sm">
+				Loading source categories…
+			</p>
+		);
+	}
+	if (total === 0) {
+		return (
+			<p className="text-muted-foreground text-xs">
+				This cycle has no categories to copy.
+			</p>
+		);
+	}
+	return null;
+}
+
+function CopySelectionSummary({
+	selected,
+	total,
+}: {
+	selected: number;
+	total: number;
+}) {
+	return (
+		<p aria-live="polite" className="text-muted-foreground text-sm">
+			{selected} of {total} selected
+			{selected === 0 && " — No categories will be copied."}
+		</p>
+	);
+}
+
 type SourceCategory = FunctionReturnType<typeof api.categories.list>[number];
 
 function SourceCategoryRow({
@@ -175,6 +215,8 @@ export function CycleForm({
 	const [copyFromCycleId, setCopyFromCycleId] = useState<
 		Id<"expense_cycles"> | ""
 	>("");
+	const initializedCopySource = useRef<Id<"expense_cycles"> | null>(null);
+	const previousIncludePlanned = useRef(true);
 	const [selectedCategoryIds, setSelectedCategoryIds] = useState<
 		Id<"categories">[]
 	>([]);
@@ -244,6 +286,9 @@ export function CycleForm({
 	};
 
 	const handleCreateCycle = async (value: CycleFormValues) => {
+		if (isCopyLoading) {
+			return;
+		}
 		const copyCategoryIds = copyFromCycleId ? selectedCategoryIds : undefined;
 		const categoryPlannedOverrides = copyCategoryIds?.map((id) => ({
 			id,
@@ -251,17 +296,10 @@ export function CycleForm({
 		}));
 		const result = await createCycle({
 			categoryPlannedOverrides: categoryPlannedOverrides?.length
-				? categoryPlannedOverrides.map(({ id, plannedAmount }) => ({
-						id: id as Id<"categories">,
-						plannedAmount,
-					}))
+				? categoryPlannedOverrides
 				: undefined,
-			copyCategoryIds: copyCategoryIds?.length
-				? (copyCategoryIds as Id<"categories">[])
-				: undefined,
-			copyFromCycleId: value.copyFromCycleId
-				? (value.copyFromCycleId as Id<"expense_cycles">)
-				: undefined,
+			copyCategoryIds,
+			copyFromCycleId: copyFromCycleId || undefined,
 			endDate: value.endDate,
 			includePlannedAmounts: value.includePlannedAmounts,
 			name: value.name,
@@ -296,48 +334,59 @@ export function CycleForm({
 			: "skip"
 	);
 
+	const isCopyLoading = Boolean(
+		copyFromCycleId &&
+			(sourceCategories === undefined ||
+				initializedCopySource.current !== copyFromCycleId)
+	);
+	const includePlannedAmounts = useStore(
+		form.store,
+		(state) => state.values.includePlannedAmounts
+	);
 	useEffect(() => {
-		if (!sourceCategories) {
+		if (!(copyFromCycleId && sourceCategories)) {
 			return;
 		}
-		const ids = sourceCategories.map((category) => category._id);
-		setSelectedCategoryIds(ids);
-		const defaults: Record<string, number | undefined> = {};
-		for (const category of sourceCategories) {
-			defaults[category._id] = category.plannedAmount;
-		}
-		setPlannedAmounts(defaults);
-		form.setFieldValue("copyCategoryIds" as never, ids as never);
-		form.setFieldValue(
-			"categoryPlannedOverrides" as never,
-			ids.map((id) => ({
-				id,
-				plannedAmount: defaults[id],
-			})) as never
+		const isInitialSelection =
+			initializedCopySource.current !== copyFromCycleId;
+		const availableIds = new Set(
+			sourceCategories.map((category) => category._id)
 		);
-	}, [form, sourceCategories]);
-
-	const includePlannedAmounts = form.getFieldValue("includePlannedAmounts");
-	useEffect(() => {
-		if (!sourceCategories) {
-			return;
+		if (isInitialSelection) {
+			initializedCopySource.current = copyFromCycleId;
+			setSelectedCategoryIds([...availableIds]);
+		} else {
+			// Refreshes may remove unavailable choices, but never select new ones.
+			setSelectedCategoryIds((previous) =>
+				previous.filter((id) => availableIds.has(id))
+			);
 		}
-		if (includePlannedAmounts) {
+		if (
+			isInitialSelection ||
+			previousIncludePlanned.current !== includePlannedAmounts
+		) {
 			const nextAmounts: Record<string, number | undefined> = {};
 			for (const category of sourceCategories) {
-				nextAmounts[category._id] = category.plannedAmount;
+				nextAmounts[category._id] = includePlannedAmounts
+					? category.plannedAmount
+					: undefined;
 			}
 			setPlannedAmounts(nextAmounts);
 		} else {
-			setPlannedAmounts((prev) => {
-				const next = { ...prev };
+			setPlannedAmounts((previous) => {
+				const next = { ...previous };
 				for (const category of sourceCategories) {
-					next[category._id] = undefined;
+					if (!Object.hasOwn(next, category._id)) {
+						next[category._id] = includePlannedAmounts
+							? category.plannedAmount
+							: undefined;
+					}
 				}
 				return next;
 			});
 		}
-	}, [includePlannedAmounts, sourceCategories]);
+		previousIncludePlanned.current = includePlannedAmounts;
+	}, [copyFromCycleId, includePlannedAmounts, sourceCategories]);
 
 	useEffect(() => {
 		form.setFieldValue(
@@ -365,6 +414,9 @@ export function CycleForm({
 		[form]
 	);
 	const handleCopySourceChange = useCallback((value: string) => {
+		initializedCopySource.current = null;
+		setSelectedCategoryIds([]);
+		setPlannedAmounts({});
 		setCopyFromCycleId(value === "none" ? "" : (value as Id<"expense_cycles">));
 	}, []);
 	const handleSelectAllChange = useCallback(
@@ -480,6 +532,11 @@ export function CycleForm({
 										</form.Field>
 									</div>
 
+									<CopySelectionSummary
+										selected={selectedCategoryIds.length}
+										total={sourceCategories.length}
+									/>
+
 									<div className="space-y-3">
 										{sourceCategories.map((category) => (
 											<SourceCategoryRow
@@ -497,19 +554,16 @@ export function CycleForm({
 								</div>
 							)}
 
-						{copyFromCycleId &&
-							sourceCategories &&
-							sourceCategories.length === 0 && (
-								<p className="text-muted-foreground text-xs">
-									This cycle has no categories to copy.
-								</p>
-							)}
+						<CopySourceNotice
+							loading={isCopyLoading}
+							total={sourceCategories?.length}
+						/>
 					</div>
 				)}
 
 				<Button
 					className="w-full"
-					disabled={isSubmitting}
+					disabled={isSubmitting || isCopyLoading}
 					size="lg"
 					type="submit"
 				>

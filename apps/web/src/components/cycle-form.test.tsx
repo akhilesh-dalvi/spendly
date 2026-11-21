@@ -16,6 +16,12 @@ import {
 	getFunctionName,
 } from "convex/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	Dialog,
+	DialogContent,
+	DialogTitle,
+	DialogTrigger,
+} from "@/components/ui/dialog";
 import { CycleForm } from "./cycle-form";
 
 const JULY_31_LABEL = /July 31st, 2026/;
@@ -26,6 +32,7 @@ const JULY_5_LABEL = /July 5th, 2026/;
 const JULY_18_LABEL = /July 18th, 2026/;
 
 const mocks = vi.hoisted(() => ({
+	categoriesByCycle: new Map<string, unknown>(),
 	create: vi.fn(),
 	error: vi.fn(),
 	queries: new Map<string, unknown>(),
@@ -40,6 +47,16 @@ vi.mock("convex/react", async () => {
 			name(ref) === name(api.cycles.create) ? mocks.create : mocks.update,
 		useQuery: (ref: FunctionReference<"query">, args?: unknown) => {
 			mocks.query(name(ref), args);
+			if (
+				name(ref) === name(api.categories.list) &&
+				typeof args === "object" &&
+				args !== null &&
+				"cycleId" in args &&
+				typeof args.cycleId === "string" &&
+				mocks.categoriesByCycle.has(args.cycleId)
+			) {
+				return mocks.categoriesByCycle.get(args.cycleId);
+			}
 			return args === "skip" ? undefined : mocks.queries.get(name(ref));
 		},
 	};
@@ -96,6 +113,7 @@ beforeEach(() => {
 	vi.useFakeTimers({ toFake: ["Date"] });
 	vi.setSystemTime(new Date(2026, 6, 10, 12));
 	mocks.queries.clear();
+	mocks.categoriesByCycle.clear();
 	mocks.create.mockReset().mockResolvedValue({ _id: "new-cycle" });
 	mocks.update.mockReset().mockResolvedValue(null);
 	fixture(api.cycles.list, [source]);
@@ -247,26 +265,23 @@ describe("CycleForm", () => {
 			expect(mocks.create).toHaveBeenCalledWith(
 				expect.objectContaining({
 					categoryPlannedOverrides: undefined,
-					copyCategoryIds: undefined,
+					copyCategoryIds: [],
 					copyFromCycleId: sourceId,
 				})
 			)
 		);
 	});
 
-	it("clears and restores prefills after category selection updates, then sends empty overrides", async () => {
+	it("clears and restores prefills immediately without changing category selection", async () => {
 		render(<CycleForm />);
 		const interaction = await copyPrevious();
 		await interaction.click(
 			screen.getByRole("checkbox", { name: "Prefill planned amounts" })
 		);
-		// The effect needs a parent state update to react.
-		await interaction.click(screen.getByRole("checkbox", { name: "Rent" }));
 		expect(screen.getAllByPlaceholderText("Planned amount")[0]).toHaveValue("");
 		await interaction.click(
 			screen.getByRole("checkbox", { name: "Prefill planned amounts" })
 		);
-		await interaction.click(screen.getByRole("checkbox", { name: "Rent" }));
 		expect(screen.getAllByPlaceholderText("Planned amount")[0]).toHaveValue(
 			"300"
 		);
@@ -285,6 +300,312 @@ describe("CycleForm", () => {
 				})
 			)
 		);
+	});
+
+	it.each(["all", "individual"] as const)(
+		"keeps the source visible when deselecting every category via %s",
+		async (mode) => {
+			render(<CycleForm />);
+			const interaction = await copyPrevious();
+			expect(screen.getByText("2 of 2 selected")).toBeVisible();
+			if (mode === "all") {
+				await interaction.click(
+					screen.getByRole("checkbox", { name: "Select all categories" })
+				);
+			} else {
+				await interaction.click(screen.getByRole("checkbox", { name: "Food" }));
+				await interaction.click(screen.getByRole("checkbox", { name: "Rent" }));
+			}
+			expect(screen.getByRole("combobox")).toHaveTextContent("June budget");
+			expect(
+				screen.getByText("0 of 2 selected — No categories will be copied.")
+			).toHaveAttribute("aria-live", "polite");
+			for (const input of screen.getAllByPlaceholderText("Planned amount")) {
+				expect(input).toBeDisabled();
+			}
+			await interaction.click(
+				screen.getByRole("button", { name: "Create Cycle" })
+			);
+			await waitFor(() =>
+				expect(mocks.create).toHaveBeenCalledWith(
+					expect.objectContaining({
+						categoryPlannedOverrides: undefined,
+						copyCategoryIds: [],
+						copyFromCycleId: sourceId,
+					})
+				)
+			);
+		}
+	);
+
+	it("does not reselect categories after refresh, including new categories and temporary loading", async () => {
+		const view = render(<CycleForm />);
+		const interaction = await copyPrevious();
+		await interaction.click(
+			screen.getByRole("checkbox", { name: "Select all categories" })
+		);
+		fixture(api.categories.list, undefined);
+		view.rerender(<CycleForm />);
+		expect(screen.getByRole("button", { name: "Create Cycle" })).toBeDisabled();
+		fixture(api.categories.list, [
+			...categories.map((category) => ({ ...category })),
+			{
+				...categories[0],
+				_id: "new" as Id<"categories">,
+				name: "New category",
+			},
+		]);
+		view.rerender(<CycleForm />);
+		expect(
+			await screen.findByText("0 of 3 selected — No categories will be copied.")
+		).toBeVisible();
+		expect(
+			screen.getByRole("checkbox", { name: "New category" })
+		).not.toBeChecked();
+		await interaction.click(
+			screen.getByRole("button", { name: "Create Cycle" })
+		);
+		await waitFor(() =>
+			expect(mocks.create).toHaveBeenCalledWith(
+				expect.objectContaining({ copyCategoryIds: [] })
+			)
+		);
+	});
+
+	it("preserves a partial selection and custom plan on refresh, pruning removed categories", async () => {
+		const view = render(<CycleForm />);
+		const interaction = await copyPrevious();
+		await interaction.click(screen.getByRole("checkbox", { name: "Rent" }));
+		const [food] = screen.getAllByPlaceholderText("Planned amount");
+		await interaction.clear(food);
+		await interaction.type(food, "0");
+		fixture(
+			api.categories.list,
+			categories.map((category) => ({ ...category, plannedAmount: 999 }))
+		);
+		view.rerender(<CycleForm />);
+		expect(screen.getByRole("checkbox", { name: "Rent" })).not.toBeChecked();
+		expect(food).toHaveValue("0");
+		await interaction.click(
+			screen.getByRole("button", { name: "Create Cycle" })
+		);
+		await waitFor(() =>
+			expect(mocks.create).toHaveBeenCalledWith(
+				expect.objectContaining({
+					categoryPlannedOverrides: [{ id: foodId, plannedAmount: 0 }],
+					copyCategoryIds: [foodId],
+				})
+			)
+		);
+		fixture(api.categories.list, [categories[1]]);
+		view.rerender(<CycleForm />);
+		expect(
+			screen.getByText("0 of 1 selected — No categories will be copied.")
+		).toBeVisible();
+	});
+
+	it("preserves a cleared plan on refresh and prefills a newly selected category", async () => {
+		const view = render(<CycleForm />);
+		const interaction = await copyPrevious();
+		const [food] = screen.getAllByPlaceholderText("Planned amount");
+		await interaction.clear(food);
+		const newId = "new-food" as Id<"categories">;
+		fixture(api.categories.list, [
+			...categories.map((category) => ({ ...category, plannedAmount: 999 })),
+			{ ...categories[0], _id: newId, name: "New food", plannedAmount: 25 },
+		]);
+		view.rerender(<CycleForm />);
+		expect(food).toHaveValue("");
+		expect(
+			screen.getByRole("checkbox", { name: "New food" })
+		).not.toBeChecked();
+		await interaction.click(screen.getByRole("checkbox", { name: "New food" }));
+		expect(screen.getAllByPlaceholderText("Planned amount")[2]).toHaveValue(
+			"25"
+		);
+		await interaction.click(
+			screen.getByRole("button", { name: "Create Cycle" })
+		);
+		await waitFor(() =>
+			expect(mocks.create).toHaveBeenCalledWith(
+				expect.objectContaining({
+					categoryPlannedOverrides: [
+						{ id: foodId, plannedAmount: undefined },
+						{ id: rentId, plannedAmount: undefined },
+						{ id: newId, plannedAmount: 25 },
+					],
+				})
+			)
+		);
+	});
+
+	it("waits for late source categories before selecting all, even on native submit", async () => {
+		fixture(api.categories.list, undefined);
+		const view = render(<CycleForm />);
+		const interaction = userEvent.setup();
+		await interaction.click(screen.getByRole("combobox"));
+		await interaction.click(
+			screen.getByRole("option", { name: "June budget" })
+		);
+		const submit = screen.getByRole("button", { name: "Create Cycle" });
+		expect(submit).toBeDisabled();
+		expect(screen.getByText("Loading source categories…")).toBeVisible();
+		const form = submit.closest("form");
+		if (!form) {
+			throw new Error("Missing cycle form");
+		}
+		await act(async () => fireEvent.submit(form));
+		expect(mocks.create).not.toHaveBeenCalled();
+		fixture(api.categories.list, categories);
+		view.rerender(<CycleForm />);
+		expect(await screen.findByRole("checkbox", { name: "Food" })).toBeChecked();
+		expect(screen.getByRole("checkbox", { name: "Rent" })).toBeChecked();
+		await interaction.click(submit);
+		await waitFor(() =>
+			expect(mocks.create).toHaveBeenCalledWith(
+				expect.objectContaining({ copyCategoryIds: [foodId, rentId] })
+			)
+		);
+	});
+
+	it("initializes each newly chosen source without carrying a zero selection across sources", async () => {
+		const otherId = "other" as Id<"expense_cycles">;
+		fixture(api.cycles.list, [
+			source,
+			{ ...source, _id: otherId, name: "Other source" },
+		]);
+		mocks.categoriesByCycle.set(otherId, undefined);
+		const view = render(<CycleForm />);
+		const interaction = await copyPrevious();
+		await interaction.click(
+			screen.getByRole("checkbox", { name: "Select all categories" })
+		);
+		await interaction.click(screen.getByRole("combobox"));
+		await interaction.click(
+			screen.getByRole("option", { name: "Other source" })
+		);
+		expect(screen.getByRole("button", { name: "Create Cycle" })).toBeDisabled();
+		mocks.categoriesByCycle.set(otherId, [
+			{
+				...categories[0],
+				_id: "other-food" as Id<"categories">,
+				cycleId: otherId,
+				name: "Other food",
+				plannedAmount: 0,
+			},
+		]);
+		view.rerender(<CycleForm />);
+		expect(
+			await screen.findByRole("checkbox", { name: "Other food" })
+		).toBeChecked();
+		expect(screen.getByPlaceholderText("Planned amount")).toHaveValue("0");
+		await interaction.click(screen.getByRole("combobox"));
+		await interaction.click(
+			screen.getByRole("option", { name: "Do not copy" })
+		);
+		await copyPrevious();
+		expect(screen.getByRole("checkbox", { name: "Food" })).toBeChecked();
+		expect(screen.getByRole("checkbox", { name: "Rent" })).toBeChecked();
+	});
+
+	it("submits an explicit empty selection for an empty source, even after categories arrive", async () => {
+		fixture(api.categories.list, []);
+		const view = render(<CycleForm />);
+		const interaction = userEvent.setup();
+		await interaction.click(screen.getByRole("combobox"));
+		await interaction.click(
+			screen.getByRole("option", { name: "June budget" })
+		);
+		fixture(api.categories.list, categories);
+		view.rerender(<CycleForm />);
+		expect(
+			screen.getByText("0 of 2 selected — No categories will be copied.")
+		).toBeVisible();
+		await interaction.click(
+			screen.getByRole("button", { name: "Create Cycle" })
+		);
+		await waitFor(() =>
+			expect(mocks.create).toHaveBeenCalledWith(
+				expect.objectContaining({
+					copyCategoryIds: [],
+					copyFromCycleId: sourceId,
+				})
+			)
+		);
+	});
+
+	it("retains copy-none on a failed save and retry", async () => {
+		mocks.create.mockRejectedValueOnce(new Error("Offline"));
+		render(<CycleForm />);
+		const interaction = await copyPrevious();
+		await interaction.click(
+			screen.getByRole("checkbox", { name: "Select all categories" })
+		);
+		await interaction.click(
+			screen.getByRole("button", { name: "Create Cycle" })
+		);
+		await waitFor(() => expect(mocks.error).toHaveBeenCalledWith("Offline"));
+		await interaction.click(
+			screen.getByRole("button", { name: "Create Cycle" })
+		);
+		await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(2));
+		for (const [payload] of mocks.create.mock.calls) {
+			expect(payload).toMatchObject({
+				copyCategoryIds: [],
+				copyFromCycleId: sourceId,
+			});
+		}
+	});
+
+	it.each(["Escape", "Close"] as const)(
+		"dismisses a copy-none dialog via %s without saving",
+		async (dismiss) => {
+			render(
+				<Dialog>
+					<DialogTrigger>New Cycle</DialogTrigger>
+					<DialogContent aria-describedby={undefined}>
+						<DialogTitle>Create Cycle</DialogTitle>
+						<CycleForm />
+					</DialogContent>
+				</Dialog>
+			);
+			const interaction = userEvent.setup();
+			await interaction.click(
+				screen.getByRole("button", { name: "New Cycle" })
+			);
+			await copyPrevious();
+			await interaction.click(
+				screen.getByRole("checkbox", { name: "Select all categories" })
+			);
+			if (dismiss === "Escape") {
+				await interaction.keyboard("{Escape}");
+			} else {
+				await interaction.click(screen.getByRole("button", { name: "Close" }));
+			}
+			expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+			expect(mocks.create).not.toHaveBeenCalled();
+			expect(mocks.update).not.toHaveBeenCalled();
+			await interaction.click(
+				screen.getByRole("button", { name: "New Cycle" })
+			);
+			expect(screen.getByRole("combobox")).toHaveTextContent("Do not copy");
+			await copyPrevious();
+			expect(screen.getByRole("checkbox", { name: "Food" })).toBeChecked();
+		}
+	);
+
+	it("discards a zero-selection draft on unmount without mutations", async () => {
+		const view = render(<CycleForm />);
+		const interaction = await copyPrevious();
+		await interaction.click(
+			screen.getByRole("checkbox", { name: "Select all categories" })
+		);
+		view.unmount();
+		expect(mocks.create).not.toHaveBeenCalled();
+		expect(mocks.update).not.toHaveBeenCalled();
+		render(<CycleForm />);
+		await copyPrevious();
+		expect(screen.getByRole("checkbox", { name: "Food" })).toBeChecked();
 	});
 
 	it("handles an empty source cycle and switching back to no-copy", async () => {
