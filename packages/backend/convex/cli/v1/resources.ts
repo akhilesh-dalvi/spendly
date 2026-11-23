@@ -1,7 +1,8 @@
-import { ConvexError, v } from "convex/values";
+import { ConvexError, type Infer, v } from "convex/values";
 import type { Doc, Id } from "../../_generated/dataModel";
-import { query } from "../../_generated/server";
+import { mutation, type QueryCtx, query } from "../../_generated/server";
 import { validateLocalDate } from "../../domain/dates";
+import { executeIdempotentMutation } from "../../domain/idempotency";
 import { listCliTags } from "../../domain/tagOperations";
 import {
 	findCycleForDate,
@@ -65,6 +66,24 @@ export const getCurrentCycle = query({
 	returns: v.union(cycleSummaryValidator, v.null()),
 });
 
+const presentCategoryType = (type: Doc<"category_types"> | null | undefined) =>
+	type ? { color: type.color ?? null, id: type._id, name: type.name } : null;
+
+const presentCategory = (
+	category: Omit<Doc<"categories">, "_creationTime">,
+	type: Doc<"category_types"> | null | undefined
+) => ({
+	categoryType: presentCategoryType(type),
+	createdAt: toIsoTimestamp(category.createdAt),
+	cycleId: category.cycleId,
+	icon: category.icon ?? null,
+	id: category._id,
+	isHidden: category.isHidden ?? false,
+	name: category.name,
+	order: category.order,
+	plannedAmount: category.plannedAmount ?? null,
+});
+
 export const listCategories = query({
 	args: { cycleId: v.id("expense_cycles") },
 	handler: async (ctx, args) =>
@@ -100,26 +119,147 @@ export const listCategories = query({
 					const categoryType = category.categoryTypeId
 						? categoryTypesById.get(category.categoryTypeId)
 						: undefined;
-					return {
-						categoryType: categoryType
-							? {
-									color: categoryType.color ?? null,
-									id: categoryType._id,
-									name: categoryType.name,
-								}
-							: null,
-						createdAt: toIsoTimestamp(category.createdAt),
-						cycleId: category.cycleId,
-						icon: category.icon ?? null,
-						id: category._id,
-						isHidden: category.isHidden ?? false,
-						name: category.name,
-						order: category.order,
-						plannedAmount: category.plannedAmount ?? null,
-					};
+					return presentCategory(category, categoryType);
 				});
 		}),
 	returns: v.array(categorySummaryValidator),
+});
+
+const categoryCreateInput = v.object({
+	categoryTypeId: v.optional(v.string()),
+	cycleId: v.string(),
+	icon: v.optional(v.string()),
+	name: v.string(),
+	plannedAmount: v.optional(v.number()),
+});
+
+const categoryCreatePreviewValidator = v.object({
+	categoryType: categorySummaryValidator.fields.categoryType,
+	cycleId: categorySummaryValidator.fields.cycleId,
+	cycleName: v.string(),
+	icon: categorySummaryValidator.fields.icon,
+	name: categorySummaryValidator.fields.name,
+	plannedAmount: categorySummaryValidator.fields.plannedAmount,
+});
+
+const unsafeTerminalText = /[\p{Cc}\p{Zl}\p{Zp}]/u;
+
+const categoryText = (value: string, maxLength: number): string => {
+	const trimmed = value.trim();
+	if (
+		!trimmed ||
+		trimmed.length > maxLength ||
+		unsafeTerminalText.test(value)
+	) {
+		throw new ConvexError("INVALID_INPUT");
+	}
+	return trimmed;
+};
+
+const prepareCategoryCreate = async (
+	ctx: QueryCtx,
+	userId: Id<"users">,
+	input: Infer<typeof categoryCreateInput>
+) => {
+	const cycleId = ctx.db.normalizeId("expense_cycles", input.cycleId);
+	if (!cycleId) {
+		throw new ConvexError("NOT_FOUND");
+	}
+	const cycle = await validateCycleOwnership(ctx, cycleId, userId);
+	let type: Doc<"category_types"> | null = null;
+	if (input.categoryTypeId !== undefined) {
+		const typeId = ctx.db.normalizeId("category_types", input.categoryTypeId);
+		type = typeId ? await ctx.db.get(typeId) : null;
+		if (type?.userId !== userId) {
+			throw new ConvexError("NOT_FOUND");
+		}
+	}
+	const name = categoryText(input.name, 100);
+	const icon =
+		input.icon === undefined ? undefined : categoryText(input.icon, 32);
+	const { plannedAmount } = input;
+	if (plannedAmount !== undefined) {
+		const cents = Math.round(plannedAmount * 100);
+		// Beyond this bound, adjacent decimal-cent amounts can map to the same float.
+		if (
+			!Number.isSafeInteger(cents) ||
+			plannedAmount < 0 ||
+			plannedAmount >= 2 ** 46 ||
+			cents / 100 !== plannedAmount
+		) {
+			throw new ConvexError("INVALID_INPUT");
+		}
+	}
+	const categories = await ctx.db
+		.query("categories")
+		.withIndex("by_cycleId", (q) => q.eq("cycleId", cycleId))
+		.take(MAXIMUM_CATEGORIES);
+	if (categories.length >= MAXIMUM_CATEGORIES) {
+		throw new ConvexError("RESOURCE_LIMIT_EXCEEDED");
+	}
+	const previousOrder = categories.reduce(
+		(max, category) => Math.max(max, category.order),
+		-1
+	);
+	const order = previousOrder + 1;
+	if (!Number.isFinite(order) || order <= previousOrder) {
+		throw new ConvexError("INVALID_INPUT");
+	}
+	return { cycle, icon, name, order, plannedAmount, type };
+};
+
+export const previewCategoryCreate = query({
+	args: categoryCreateInput.fields,
+	handler: async (ctx, args) =>
+		await withCliErrors(async () => {
+			const user = await getCurrentUser(ctx);
+			const prepared = await prepareCategoryCreate(ctx, user._id, args);
+			return {
+				categoryType: presentCategoryType(prepared.type),
+				cycleId: prepared.cycle._id,
+				cycleName: prepared.cycle.name,
+				icon: prepared.icon ?? null,
+				name: prepared.name,
+				plannedAmount: prepared.plannedAmount ?? null,
+			};
+		}),
+	returns: categoryCreatePreviewValidator,
+});
+
+export const createCategory = mutation({
+	args: {
+		...categoryCreateInput.fields,
+		agent: v.optional(v.boolean()),
+		idempotencyKey: v.string(),
+	},
+	handler: async (ctx, args) =>
+		await withCliErrors(async () => {
+			const user = await getCurrentUser(ctx);
+			const { idempotencyKey, ...input } = args;
+			return await executeIdempotentMutation(ctx, {
+				execute: async () => {
+					const prepared = await prepareCategoryCreate(ctx, user._id, input);
+					const category = {
+						categoryTypeId: prepared.type?._id,
+						createdAt: Date.now(),
+						cycleId: prepared.cycle._id,
+						icon: prepared.icon,
+						isHidden: false,
+						name: prepared.name,
+						order: prepared.order,
+						plannedAmount: prepared.plannedAmount,
+						userId: user._id,
+					};
+					const id = await ctx.db.insert("categories", category);
+					return presentCategory({ ...category, _id: id }, prepared.type);
+				},
+				key: idempotencyKey,
+				operation: "categories.create",
+				request: input,
+				userId: user._id,
+			});
+		}),
+	returns: categorySummaryValidator,
 });
 
 export const listTags = query({

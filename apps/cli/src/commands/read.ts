@@ -105,9 +105,27 @@ export const registerReadCommands = (
 			await runCycleCurrent(options, command, runtime);
 		});
 
-	program
+	const categories = program
 		.command("categories")
-		.description("Read expense categories")
+		.description("List and add expense categories");
+	categories
+		.command("add")
+		.description("Add one category to an existing cycle")
+		.requiredOption("--cycle-id <id>", "stable ID of the target cycle")
+		.requiredOption("--name <name>", "name of the new category")
+		.option("--category-type-id <id>", "stable ID of an existing category type")
+		.option("--icon <icon>", "literal category icon")
+		.option(
+			"--planned-amount <amount>",
+			"optional nonnegative budget, up to two decimal places"
+		)
+		.option("--idempotency-key <key>", "stable key for this intended commit")
+		.option("--dry-run", "validate and preview without saving")
+		.action(async (options, command: Command) => {
+			const { runCategoryAdd } = await import("./category-actions.js");
+			await runCategoryAdd(options, command, runtime);
+		});
+	categories
 		.command("list")
 		.description("List categories in one cycle")
 		.option("--cycle-id <id>", "stable cycle ID")

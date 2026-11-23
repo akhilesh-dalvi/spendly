@@ -242,6 +242,15 @@ try {
 		"Production help exposed development-only commands"
 	);
 
+	const categoryAddHelp = run(binaryPath, ["categories", "add", "--help"], {
+		cwd: verificationDirectory,
+	});
+	assert(
+		categoryAddHelp.includes("--cycle-id") &&
+			categoryAddHelp.includes("--dry-run"),
+		"Installed binary did not expose categories add help"
+	);
+
 	const invalidCommand = spawnSync(binaryPath, ["--json", "unknown"], {
 		cwd: verificationDirectory,
 		encoding: "utf8",

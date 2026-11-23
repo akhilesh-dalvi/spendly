@@ -48,6 +48,24 @@ const revisionSchema = z.number().int().positive();
 const idempotencyKeySchema = z.string().min(8).max(200);
 const noArgumentsSchema = z.object({}).strict();
 
+const categoryCreateFields = {
+	categoryTypeId: idSchema.optional(),
+	cycleId: idSchema,
+	icon: z.string().min(1).optional(),
+	name: z.string().min(1),
+	plannedAmount: z.number().finite().nonnegative().optional(),
+};
+
+const categoryCreatePreviewSchema = categorySchema
+	.pick({
+		categoryType: true,
+		cycleId: true,
+		icon: true,
+		name: true,
+		plannedAmount: true,
+	})
+	.extend({ cycleName: z.string() });
+
 const contextInputSchema = z
 	.object({
 		date: localDateSchema,
@@ -381,6 +399,21 @@ export const operationDefinitions = {
 		inputSchema: z.object({ includeArchived: z.boolean().optional() }).strict(),
 		mode: "query",
 		outputSchema: accountTypeSchema.array(),
+	},
+	"categories.create": {
+		commit: true,
+		functionName: "cli/v1/resources:createCategory",
+		inputSchema: z
+			.object({ ...categoryCreateFields, ...commitFields })
+			.strict(),
+		mode: "mutation",
+		outputSchema: categorySchema,
+	},
+	"categories.previewCreate": {
+		functionName: "cli/v1/resources:previewCategoryCreate",
+		inputSchema: z.object(categoryCreateFields).strict(),
+		mode: "query",
+		outputSchema: categoryCreatePreviewSchema,
 	},
 	"context.get": {
 		functionName: "cli/v1/context:get",

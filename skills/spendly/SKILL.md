@@ -74,10 +74,11 @@ spendly --agent --json --non-interactive account-types list
 ```
 
 Categories belong to a cycle; resolve and use the expense date's cycle. Including archived
-accounts helps spot an existing account before creating another. Categories,
-tags, and account types are currently read-only through the CLI and can be
-managed in Spendly Web. Cycle CRUD requires a version that advertises it in
-`cycles --help`; older releases only list/find cycles.
+accounts helps spot an existing account before creating another. If the user asks
+for a new category, check installed `categories add --help`; otherwise use an
+existing category ID. Tag and account-type commands are read-only. Cycle CRUD
+requires a version that advertises it in `cycles --help`; older releases only
+list/find cycles.
 
 ## Run an action
 

@@ -59,6 +59,10 @@ const examples: Readonly<Record<string, CommandExamples>> = {
 	},
 	"auth logout": { flags: "spendly auth logout" },
 	"auth status": { flags: "spendly auth status" },
+	"categories add": {
+		flags:
+			'spendly categories add --cycle-id cycle_demo --name "Bike repairs" --planned-amount 75.00 --dry-run',
+	},
 	"categories list": {
 		flags: "spendly categories list --cycle-id cycle_demo",
 		guided: "spendly categories list --interactive",

@@ -20,6 +20,205 @@ const setup = async () => {
 	return { cycle, owner, test, userId };
 };
 
+describe("standalone CLI category creation", () => {
+	it("previews without writing and replays a saved category through the same key", async () => {
+		const { owner, cycle } = await setup();
+		const type = await owner.mutation(api.categories.createType, {
+			name: "Repairs",
+		});
+		if (!type) {
+			throw new Error("Expected category type");
+		}
+		const [accountType] = await owner.query(api.cli.v1.accountTypes.list, {});
+		const account = await owner.mutation(api.cli.v1.accounts.create, {
+			accountTypeId: accountType.id,
+			date: "2026-01-10",
+			idempotencyKey: "category-test-account",
+			name: "Synthetic wallet",
+			startingBalance: 100,
+		});
+		const expense = await owner.mutation(api.expenses.create, {
+			accountId: account.id,
+			amount: 15,
+			date: "2026-01-10",
+			spentOn: "Test purchase",
+		});
+		const expenseBefore = await owner.query(api.expenses.get, {
+			expenseId: expense._id,
+		});
+		const input = {
+			categoryTypeId: type._id,
+			cycleId: cycle._id,
+			icon: "🔧",
+			name: "  Bike repairs  ",
+			plannedAmount: 0,
+		};
+		expect(
+			await owner.query(api.cli.v1.resources.previewCategoryCreate, input)
+		).toEqual({
+			categoryType: { color: null, id: type._id, name: "Repairs" },
+			cycleId: cycle._id,
+			cycleName: "January",
+			icon: "🔧",
+			name: "Bike repairs",
+			plannedAmount: 0,
+		});
+		expect(
+			await owner.query(api.categories.list, { cycleId: cycle._id })
+		).toEqual([]);
+
+		const request = { ...input, idempotencyKey: "category-bike-001" };
+		// Discard the first response, as a caller would after a lost reply.
+		await owner.mutation(api.cli.v1.resources.createCategory, request);
+		const [persisted] = await owner.query(api.categories.list, {
+			cycleId: cycle._id,
+		});
+		const saved = await owner.mutation(
+			api.cli.v1.resources.createCategory,
+			request
+		);
+		expect(saved.id).toBe(persisted._id);
+		await expect(
+			owner.mutation(api.cli.v1.resources.createCategory, {
+				...request,
+				plannedAmount: 1,
+			})
+		).rejects.toMatchObject({ data: { code: "IDEMPOTENCY_CONFLICT" } });
+		expect(
+			await owner.query(api.cli.v1.resources.listCategories, {
+				cycleId: cycle._id,
+			})
+		).toEqual([
+			expect.objectContaining({
+				id: saved.id,
+				isHidden: false,
+				name: "Bike repairs",
+				plannedAmount: 0,
+			}),
+		]);
+		expect(
+			await owner.query(api.categories.get, { id: saved.id })
+		).toMatchObject({
+			categoryTypeId: type._id,
+			cycleId: cycle._id,
+			icon: "🔧",
+			plannedAmount: 0,
+		});
+		expect(
+			await owner.query(api.expenses.get, { expenseId: expense._id })
+		).toEqual(expenseBefore);
+		expect(
+			await owner.query(api.cli.v1.accounts.get, { accountId: account.id })
+		).toMatchObject({ currentBalance: 85 });
+	});
+
+	it.each([
+		{ name: "   " },
+		{ name: "control\ncharacter" },
+		{ plannedAmount: -1 },
+		{ plannedAmount: Number.POSITIVE_INFINITY },
+		{ plannedAmount: Number.NaN },
+		{ plannedAmount: 2 ** 46 },
+		{ plannedAmount: 0.001 },
+	])(
+		"rejects invalid input %j on preview and commit without writing",
+		async (invalid) => {
+			const { owner, cycle } = await setup();
+			const input = { cycleId: cycle._id, name: "Repairs", ...invalid };
+			await expect(
+				owner.query(api.cli.v1.resources.previewCategoryCreate, input)
+			).rejects.toMatchObject({
+				data: { code: "INVALID_INPUT" },
+			});
+			await expect(
+				owner.mutation(api.cli.v1.resources.createCategory, {
+					...input,
+					idempotencyKey: "invalid-category",
+				})
+			).rejects.toMatchObject({
+				data: { code: "INVALID_INPUT" },
+			});
+			expect(
+				await owner.query(api.categories.list, { cycleId: cycle._id })
+			).toEqual([]);
+		}
+	);
+
+	it("checks auth, cycle ownership and type ownership, and rechecks a type removed after preview", async () => {
+		const { owner, test, cycle } = await setup();
+		const other = test.withIdentity({ subject: "category-stranger" });
+		await other.mutation(api.users.create, { email: "stranger@example.com" });
+		const [foreignType] = await other.query(api.categories.listTypes, {});
+		const type = await owner.mutation(api.categories.createType, {
+			name: "To remove",
+		});
+		if (!type) {
+			throw new Error("Expected category type");
+		}
+		const input = { cycleId: cycle._id, name: "Repairs" };
+		const commit = { ...input, idempotencyKey: "category-auth-key" };
+		await expect(
+			test.mutation(api.cli.v1.resources.createCategory, commit)
+		).rejects.toMatchObject({ data: { code: "AUTHENTICATION_REQUIRED" } });
+		await expect(
+			other.mutation(api.cli.v1.resources.createCategory, commit)
+		).rejects.toMatchObject({ data: { code: "RESOURCE_NOT_FOUND" } });
+		const foreignInput = { ...input, categoryTypeId: foreignType._id };
+		await expect(
+			owner.query(api.cli.v1.resources.previewCategoryCreate, foreignInput)
+		).rejects.toMatchObject({ data: { code: "RESOURCE_NOT_FOUND" } });
+		await expect(
+			owner.mutation(api.cli.v1.resources.createCategory, {
+				...commit,
+				...foreignInput,
+			})
+		).rejects.toMatchObject({ data: { code: "RESOURCE_NOT_FOUND" } });
+		await owner.query(api.cli.v1.resources.previewCategoryCreate, {
+			...input,
+			categoryTypeId: type._id,
+		});
+		await owner.mutation(api.categories.deleteType, { id: type._id });
+		await expect(
+			owner.mutation(api.cli.v1.resources.createCategory, {
+				...commit,
+				categoryTypeId: type._id,
+			})
+		).rejects.toMatchObject({ data: { code: "RESOURCE_NOT_FOUND" } });
+		expect(
+			await owner.query(api.categories.list, { cycleId: cycle._id })
+		).toEqual([]);
+	});
+
+	it("allows a separate create with the same name and keeps omitted plans unset", async () => {
+		const { owner, cycle } = await setup();
+		await owner.mutation(api.categories.create, {
+			cycleId: cycle._id,
+			name: "Repairs",
+			order: 8,
+		});
+		const saved = await owner.mutation(api.cli.v1.resources.createCategory, {
+			cycleId: cycle._id,
+			idempotencyKey: "category-same-name",
+			name: "Repairs",
+		});
+		expect(saved).toMatchObject({
+			categoryType: null,
+			icon: null,
+			isHidden: false,
+			order: 9,
+			plannedAmount: null,
+		});
+		expect(
+			await owner.query(api.categories.get, { id: saved.id })
+		).not.toHaveProperty("plannedAmount");
+		expect(
+			await owner.query(api.cli.v1.resources.listCategories, {
+				cycleId: cycle._id,
+			})
+		).toHaveLength(2);
+	});
+});
+
 describe("CLI identity and resource queries", () => {
 	it("distinguishes unauthenticated, authenticated-unregistered, and registered identities", async () => {
 		const { test, owner, userId } = await setup();
