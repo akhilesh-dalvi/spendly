@@ -45,7 +45,7 @@ const fromLocalDate = (date: Date): string => {
 };
 
 const renderMultiSelectSummary = <Value extends string>(
-	choices: PromptOption<Value>[],
+	choices: readonly PromptOption<Value>[],
 	values: readonly Value[]
 ): string => {
 	const labels = choices
@@ -55,7 +55,7 @@ const renderMultiSelectSummary = <Value extends string>(
 };
 
 const renderMultiSelectChoices = <Value extends string>(options: {
-	choices: PromptOption<Value>[];
+	choices: readonly PromptOption<Value>[];
 	focusedValue?: Value;
 	selectedValues: readonly Value[];
 }): string =>
@@ -72,7 +72,7 @@ const renderMultiSelectChoices = <Value extends string>(options: {
 		.join("\n");
 
 const renderMultiSelectFrame = <Value extends string>(options: {
-	choices: PromptOption<Value>[];
+	choices: readonly PromptOption<Value>[];
 	error?: string;
 	focusedValue?: Value;
 	message: string;
