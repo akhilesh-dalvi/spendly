@@ -523,6 +523,30 @@ describe("Phase 5 expense mutation commands", () => {
 		expect(testRuntime.getStderr()).toContain("Cancelled; no changes made");
 	});
 
+	it("reports missing save status as unknown without writing", async () => {
+		const testRuntime = createTestRuntime({
+			queryOverrides: {
+				"cli/v1/expenses:saveStatus": { status: "not_recorded" },
+			},
+		});
+		expect(
+			await runCli(
+				["expenses", "save-status", "missing-save-key"],
+				testRuntime.runtime
+			)
+		).toBe(CLI_EXIT_CODE.success);
+		expect(testRuntime.calls).toEqual([
+			{
+				args: { idempotencyKey: "missing-save-key" },
+				kind: "query",
+				name: "cli/v1/expenses:saveStatus",
+			},
+		]);
+		expect(testRuntime.getStdout()).toContain(
+			"outcome is unknown; do not submit again"
+		);
+	});
+
 	it("does not retry an uncertain mutation and returns its recovery key", async () => {
 		let attempts = 0;
 		const testRuntime = createTestRuntime({

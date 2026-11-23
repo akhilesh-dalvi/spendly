@@ -66,7 +66,10 @@ export const validateMutationText = (
 	return value;
 };
 
-const validateIdempotencyKey = (value: string): string => {
+export const validateIdempotencyKey = (
+	value: string,
+	label = "--idempotency-key"
+): string => {
 	const key = value.trim();
 	if (
 		key.length < MINIMUM_IDEMPOTENCY_KEY_LENGTH ||
@@ -74,7 +77,7 @@ const validateIdempotencyKey = (value: string): string => {
 	) {
 		throw new CliError(
 			"INVALID_INPUT",
-			`--idempotency-key must contain ${MINIMUM_IDEMPOTENCY_KEY_LENGTH} to ${MAXIMUM_IDEMPOTENCY_KEY_LENGTH} characters`
+			`${label} must contain ${MINIMUM_IDEMPOTENCY_KEY_LENGTH} to ${MAXIMUM_IDEMPOTENCY_KEY_LENGTH} characters`
 		);
 	}
 	return key;

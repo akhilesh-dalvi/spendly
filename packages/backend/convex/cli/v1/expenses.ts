@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../../_generated/dataModel";
-import { mutation, query } from "../../_generated/server";
+import { type MutationCtx, mutation, query } from "../../_generated/server";
 import { resolveCliActionSource } from "../../domain/actionSource";
 import { validateLocalDate } from "../../domain/dates";
 import {
@@ -14,8 +14,10 @@ import {
 import {
 	DELETION_CONFIRMATION_LIFETIME_MS,
 	executeIdempotentMutation,
+	findIdempotencyRecord,
 } from "../../domain/idempotency";
 import { assertRevision, getRevision } from "../../domain/revisions";
+import { insertOwnedTag, planInlineTags } from "../../domain/tagOperations";
 import {
 	getCurrentUser,
 	validateAccountOwnership,
@@ -257,6 +259,72 @@ export const list = query({
 	}),
 });
 
+const appendInlineTags = async (
+	ctx: MutationCtx,
+	userId: Id<"users">,
+	existingIds: readonly Id<"tags">[],
+	names: readonly string[] | undefined
+): Promise<Id<"tags">[]> => {
+	const planned = await planInlineTags(ctx, userId, names);
+	const tagIds = [...existingIds];
+	await forEachSequential(planned, async (name) => {
+		tagIds.push(await insertOwnedTag(ctx, userId, name));
+	});
+	return tagIds;
+};
+
+export const saveStatus = query({
+	args: { idempotencyKey: v.string() },
+	handler: async (ctx, { idempotencyKey }) =>
+		await withCliErrors(async () => {
+			const user = await getCurrentUser(ctx);
+			const record = await findIdempotencyRecord(ctx, user._id, idempotencyKey);
+			if (
+				!record ||
+				record.expiresAt <= Date.now() ||
+				(record.operation !== "expenses.create" &&
+					record.operation !== "expenses.update")
+			) {
+				return { status: "not_recorded" as const };
+			}
+			const result: unknown = record.result;
+			if (
+				typeof result !== "object" ||
+				result === null ||
+				!("id" in result) ||
+				typeof result.id !== "string" ||
+				!("revision" in result) ||
+				typeof result.revision !== "number" ||
+				!Number.isSafeInteger(result.revision) ||
+				result.revision < 1
+			) {
+				throw new ConvexError("INTERNAL_ERROR");
+			}
+			const expenseId = ctx.db.normalizeId("expenses", result.id);
+			if (!expenseId) {
+				throw new ConvexError("INTERNAL_ERROR");
+			}
+			return {
+				expenseId,
+				operation:
+					record.operation === "expenses.create"
+						? ("add" as const)
+						: ("edit" as const),
+				revision: result.revision,
+				status: "saved" as const,
+			};
+		}),
+	returns: v.union(
+		v.object({ status: v.literal("not_recorded") }),
+		v.object({
+			expenseId: v.id("expenses"),
+			operation: v.union(v.literal("add"), v.literal("edit")),
+			revision: v.number(),
+			status: v.literal("saved"),
+		})
+	),
+});
+
 export const previewCreate = query({
 	args: expenseCreateInputValidator,
 	handler: async (ctx, args) =>
@@ -270,7 +338,12 @@ export const previewCreate = query({
 					? [{ accountId: prepared.accountId, delta: -prepared.amount }]
 					: []
 			);
-			return { ...presentExpenseProposal(prepared), accountEffects };
+			const newTagNames = await planInlineTags(ctx, user._id, args.newTagNames);
+			return {
+				...presentExpenseProposal(prepared),
+				accountEffects,
+				...(newTagNames.length > 0 ? { newTagNames } : {}),
+			};
 		}),
 	returns: expenseProposalValidator,
 });
@@ -296,8 +369,14 @@ export const create = mutation({
 							? [{ accountId: prepared.accountId, delta: -prepared.amount }]
 							: []
 					);
+					const tagIds = await appendInlineTags(
+						ctx,
+						user._id,
+						prepared.tagIds,
+						input.newTagNames
+					);
 					const expense = await commitExpenseCreate(ctx, {
-						prepared,
+						prepared: { ...prepared, tagIds },
 						source,
 						userId: user._id,
 					});
@@ -331,6 +410,11 @@ export const previewUpdate = query({
 				input,
 				user,
 			});
+			const newTagNames = await planInlineTags(
+				ctx,
+				user._id,
+				input.newTagNames
+			);
 			return {
 				accountEffects: await presentAccountEffects(
 					ctx,
@@ -339,12 +423,14 @@ export const previewUpdate = query({
 				),
 				after: await presentExpense(ctx, prepared.after, user),
 				before: await presentExpense(ctx, prepared.before, user),
+				...(newTagNames.length > 0 ? { newTagNames } : {}),
 			};
 		}),
 	returns: v.object({
 		accountEffects: v.array(accountBalanceEffectValidator),
 		after: expenseSummaryValidator,
 		before: expenseSummaryValidator,
+		newTagNames: v.optional(v.array(v.string())),
 	}),
 });
 
@@ -373,6 +459,14 @@ export const update = mutation({
 						user,
 						getUpdateBalanceDeltas(prepared)
 					);
+					if (input.newTagNames?.length) {
+						prepared.after.tagIds = await appendInlineTags(
+							ctx,
+							user._id,
+							prepared.after.tagIds ?? [],
+							input.newTagNames
+						);
+					}
 					const expense = await commitExpenseUpdate(ctx, prepared, source);
 					return {
 						...(await presentExpense(ctx, expense, user)),

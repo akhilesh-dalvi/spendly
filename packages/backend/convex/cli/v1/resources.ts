@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../../_generated/dataModel";
 import { query } from "../../_generated/server";
 import { validateLocalDate } from "../../domain/dates";
+import { listCliTags } from "../../domain/tagOperations";
 import {
 	findCycleForDate,
 	getCurrentUser,
@@ -16,7 +17,6 @@ import {
 
 const MAXIMUM_CYCLES = 1000;
 const MAXIMUM_CATEGORIES = 1000;
-const MAXIMUM_TAGS = 1000;
 const MAXIMUM_SUMMARY_EXPENSES = 10_000;
 
 const toIsoTimestamp = (timestamp: number): string =>
@@ -127,15 +127,7 @@ export const listTags = query({
 	handler: async (ctx) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
-			const tags = await ctx.db
-				.query("tags")
-				.withIndex("by_userId", (queryBuilder) =>
-					queryBuilder.eq("userId", user._id)
-				)
-				.take(MAXIMUM_TAGS + 1);
-			if (tags.length > MAXIMUM_TAGS) {
-				throw new ConvexError("RESOURCE_LIMIT_EXCEEDED");
-			}
+			const tags = await listCliTags(ctx, user._id);
 			return tags
 				.sort((left, right) => left.name.localeCompare(right.name))
 				.map((tag) => ({

@@ -105,6 +105,9 @@ const examples: Readonly<Record<string, CommandExamples>> = {
 		flags: "spendly expenses list --from 2026-09-01 --limit 25",
 		guided: "spendly expenses list --interactive",
 	},
+	"expenses save-status": {
+		flags: "spendly expenses save-status SAVE_REFERENCE",
+	},
 	summary: {
 		flags: "spendly summary --date 2026-09-14",
 		guided: "spendly summary --interactive",

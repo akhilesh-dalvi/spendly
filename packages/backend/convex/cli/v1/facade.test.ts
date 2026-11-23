@@ -1,12 +1,14 @@
 // biome-ignore-all lint/style/useFilenamingConvention: Convex module filenames use camelCase.
 
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { api, internal } from "../../_generated/api";
 import type { Id } from "../../_generated/dataModel";
 import { forEachSequential } from "../../lib/async";
 import schema from "../../schema";
 import { modules } from "../../test.setup";
+// biome-ignore lint/performance/noNamespaceImport: Spy on the presenter to inject a post-write failure.
+import * as presenters from "./presenters";
 
 const createBackendTest = () => convexTest(schema, modules);
 type BackendTest = ReturnType<typeof createBackendTest>;
@@ -80,6 +82,217 @@ const createAccount = async (
 	});
 
 describe("cli/v1 facade", () => {
+	it("previews inline tags without writing and recovers a confirmed add by key", async () => {
+		const test = createBackendTest();
+		const { client, accountType } = await createAuthenticatedUser(
+			test,
+			"inline-owner"
+		);
+		const other = await createAuthenticatedUser(test, "inline-other");
+		const account = await createAccount(client, accountType._id, {
+			key: "inline-wallet-key",
+			name: "Wallet",
+			startingBalance: 100,
+		});
+		const input = {
+			amount: 15,
+			date: "2026-09-01",
+			newTagNames: ["  Pilot  "],
+		};
+		const idempotencyKey = "inline-add-key";
+		const check = { idempotencyKey };
+		const status = () => client.query(api.cli.v1.expenses.saveStatus, check);
+
+		expect(await status()).toEqual({ status: "not_recorded" });
+		expect(
+			await client.query(api.cli.v1.expenses.previewCreate, input)
+		).toMatchObject({
+			newTagNames: ["Pilot"],
+			tagIds: [],
+		});
+		expect(await client.query(api.tags.list, {})).toEqual([]);
+		expect((await client.query(api.cli.v1.expenses.list, {})).items).toEqual(
+			[]
+		);
+		expect(await status()).toEqual({ status: "not_recorded" });
+
+		// Simulate the caller losing the commit response; recover without the draft.
+		await client.mutation(api.cli.v1.expenses.create, { ...input, ...check });
+		const [saved] = (await client.query(api.cli.v1.expenses.list, {})).items;
+		expect(saved?.tags).toMatchObject([{ name: "Pilot" }]);
+		expect(await status()).toEqual({
+			expenseId: saved?.id,
+			operation: "add",
+			revision: 1,
+			status: "saved",
+		});
+		expect(
+			await other.client.query(api.cli.v1.expenses.saveStatus, check)
+		).toEqual({ status: "not_recorded" });
+		await expectCliError(
+			test.query(api.cli.v1.expenses.saveStatus, check),
+			"AUTHENTICATION_REQUIRED"
+		);
+		expect(
+			await client.mutation(api.cli.v1.expenses.create, { ...input, ...check })
+		).toMatchObject({ id: saved?.id });
+		expect(await client.query(api.tags.list, {})).toHaveLength(1);
+		expect(
+			(await client.query(api.cli.v1.expenses.list, {})).items
+		).toHaveLength(1);
+		expect(
+			await client.query(api.cli.v1.accounts.get, { accountId: account.id })
+		).toMatchObject({ currentBalance: 85 });
+	});
+
+	it("edits with existing and new tags, rechecks conflicts, and leaves balances and ledger unchanged", async () => {
+		const test = createBackendTest();
+		const { client, accountType } = await createAuthenticatedUser(
+			test,
+			"inline-edit"
+		);
+		const account = await createAccount(client, accountType._id, {
+			key: "inline-edit-wallet",
+			name: "Wallet",
+			startingBalance: 100,
+		});
+		const priorTag = await client.mutation(api.tags.create, { name: "Work" });
+		const expense = await client.mutation(api.cli.v1.expenses.create, {
+			amount: 15,
+			date: "2026-09-01",
+			idempotencyKey: "inline-edit-seed",
+			tagIds: [priorTag],
+		});
+		const ledger = () =>
+			client.query(api.cli.v1.accounts.listTransactions, {
+				accountId: account.id,
+			});
+		const originalLedger = await ledger();
+		const input = {
+			expectedRevision: expense.revision,
+			expenseId: expense.id,
+			tagIds: [priorTag],
+		};
+		const preview = await client.query(api.cli.v1.expenses.previewUpdate, {
+			...input,
+			newTagNames: ["Pilot"],
+		});
+		expect(preview).toMatchObject({
+			accountEffects: [],
+			newTagNames: ["Pilot"],
+		});
+		expect(await client.query(api.tags.list, {})).toHaveLength(1);
+
+		await client.mutation(api.tags.create, { name: "pILOT" });
+		const duplicateKey = "inline-conflict-key";
+		await expectCliError(
+			client.mutation(api.cli.v1.expenses.update, {
+				...input,
+				idempotencyKey: duplicateKey,
+				newTagNames: ["Different", "Pilot"],
+			}),
+			"TAG_NAME_CONFLICT"
+		);
+		await expectCliError(
+			client.mutation(api.cli.v1.expenses.update, {
+				...input,
+				idempotencyKey: "inline-invalid-name",
+				newTagNames: ["\u0007Pilot"],
+			}),
+			"INVALID_INPUT"
+		);
+		expect(
+			await client.query(api.cli.v1.expenses.saveStatus, {
+				idempotencyKey: duplicateKey,
+			})
+		).toEqual({ status: "not_recorded" });
+		expect(
+			await client.query(api.cli.v1.expenses.get, { expenseId: expense.id })
+		).toMatchObject({ revision: 1, tags: [{ id: priorTag, name: "Work" }] });
+
+		const idempotencyKey = "inline-edit-key";
+		const request = { ...input, idempotencyKey, newTagNames: ["Conference"] };
+		const edited = await client.mutation(api.cli.v1.expenses.update, request);
+		expect(edited).toMatchObject({
+			accountEffects: [],
+			revision: 2,
+			tags: [{ id: priorTag, name: "Work" }, { name: "Conference" }],
+		});
+		expect(
+			await client.query(api.cli.v1.expenses.saveStatus, { idempotencyKey })
+		).toEqual({
+			expenseId: expense.id,
+			operation: "edit",
+			revision: 2,
+			status: "saved",
+		});
+		expect(await client.mutation(api.cli.v1.expenses.update, request)).toEqual(
+			edited
+		);
+		await expectCliError(
+			client.mutation(api.cli.v1.expenses.update, {
+				...input,
+				idempotencyKey: "inline-stale-edit",
+				newTagNames: ["Stale"],
+			}),
+			"EXPENSE_REVISION_CONFLICT"
+		);
+		expect(
+			(await client.query(api.tags.list, {})).map((tag) => tag.name).sort()
+		).toEqual(["Conference", "Work", "pILOT"]);
+		expect(await ledger()).toEqual(originalLedger);
+		expect(
+			await client.query(api.cli.v1.accounts.get, { accountId: account.id })
+		).toMatchObject({ currentBalance: 85 });
+	});
+
+	it("rolls back tags, expense, balance, ledger, and save status on late failure", async () => {
+		const test = createBackendTest();
+		const { client, accountType } = await createAuthenticatedUser(
+			test,
+			"inline-rollback"
+		);
+		const account = await createAccount(client, accountType._id, {
+			key: "rollback-wallet",
+			name: "Wallet",
+			startingBalance: 100,
+		});
+		const ledger = () =>
+			client.query(api.cli.v1.accounts.listTransactions, {
+				accountId: account.id,
+			});
+		const originalLedger = await ledger();
+		const idempotencyKey = "inline-rollback-key";
+		const lateFailure = vi
+			.spyOn(presenters, "presentExpense")
+			.mockRejectedValueOnce(new Error("Simulated late failure"));
+		try {
+			await expectCliError(
+				client.mutation(api.cli.v1.expenses.create, {
+					accountId: account.id,
+					amount: 15,
+					date: "2026-09-01",
+					idempotencyKey,
+					newTagNames: ["Pilot"],
+				}),
+				"INTERNAL_ERROR"
+			);
+		} finally {
+			lateFailure.mockRestore();
+		}
+		expect(
+			await client.query(api.cli.v1.expenses.saveStatus, { idempotencyKey })
+		).toEqual({ status: "not_recorded" });
+		expect(await client.query(api.tags.list, {})).toEqual([]);
+		expect((await client.query(api.cli.v1.expenses.list, {})).items).toEqual(
+			[]
+		);
+		expect(await ledger()).toEqual(originalLedger);
+		expect(
+			await client.query(api.cli.v1.accounts.get, { accountId: account.id })
+		).toMatchObject({ currentBalance: 100 });
+	});
+
 	it("returns stable authentication and cross-user ownership errors", async () => {
 		const test = createBackendTest();
 		await expectCliError(

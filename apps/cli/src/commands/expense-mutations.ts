@@ -113,6 +113,17 @@ export const registerExpenseMutationCommands = (
 		);
 
 	expenses
+		.command("save-status")
+		.description("Check whether an expense add or edit was recorded")
+		.argument("<key>", "idempotency key from the save attempt")
+		.action(async (key: string, _options, command: Command) => {
+			const { runExpenseSaveStatus } = await import(
+				"./expense-mutation-actions.js"
+			);
+			await runExpenseSaveStatus(key, command, runtime);
+		});
+
+	expenses
 		.command("delete")
 		.description("Permanently delete an expense using a confirmation preview")
 		.argument("[expense-id]", "stable expense ID")

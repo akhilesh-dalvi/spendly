@@ -176,6 +176,19 @@ describe("accessible prompts", () => {
 		expect(streams.getRendered()).not.toContain("\u001b[");
 	});
 
+	it("lets a user explicitly clear preselected tags", async () => {
+		const streams = createStreams();
+		const answer = createAccessiblePrompter(streams).multiselect({
+			initialValues: ["pending"],
+			message: "Choose tags",
+			options: [{ label: "Pilot (new, not saved)", value: "pending" }],
+			required: false,
+		});
+		await reply(streams.input, "none");
+		await expect(answer).resolves.toEqual([]);
+		expect(streams.getRendered()).toContain("type none to clear it");
+	});
+
 	it("uses comma-separated checkbox selection without redrawing", async () => {
 		const streams = createStreams();
 		const prompter = createAccessiblePrompter(streams);

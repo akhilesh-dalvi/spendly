@@ -22,6 +22,7 @@ export const expenseProposalSchema = z.object({
 	currency: z.string().min(1),
 	cycleId: idSchema.nullable(),
 	date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
+	newTagNames: z.array(z.string()).optional(),
 	revision: z.number().int().positive(),
 	spentOn: z.string().nullable(),
 	tagIds: z.array(idSchema),
@@ -40,7 +41,18 @@ export const expenseUpdatePreviewSchema = z.object({
 	accountEffects: z.array(accountBalanceEffectSchema),
 	after: expenseSchema,
 	before: expenseSchema,
+	newTagNames: z.array(z.string()).optional(),
 });
+
+export const expenseSaveStatusSchema = z.discriminatedUnion("status", [
+	z.object({ status: z.literal("not_recorded") }),
+	z.object({
+		expenseId: idSchema,
+		operation: z.enum(["add", "edit"]),
+		revision: z.number().int().positive(),
+		status: z.literal("saved"),
+	}),
+]);
 
 export const expenseDeletePreviewSchema = z.object({
 	accountEffects: z.array(accountBalanceEffectSchema),

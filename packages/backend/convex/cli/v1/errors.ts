@@ -18,6 +18,7 @@ export type CliDomainErrorCode =
 	| "INVALID_INPUT"
 	| "RESOURCE_LIMIT_EXCEEDED"
 	| "RESOURCE_NOT_FOUND"
+	| "TAG_NAME_CONFLICT"
 	| "TRANSFER_CURRENCY_MISMATCH"
 	| "TRANSFER_SAME_ACCOUNT";
 
@@ -42,6 +43,8 @@ const ERROR_MESSAGES: Record<CliDomainErrorCode, string> = {
 	RESOURCE_LIMIT_EXCEEDED:
 		"The requested summary is too large to calculate safely",
 	RESOURCE_NOT_FOUND: "The requested resource was not found",
+	TAG_NAME_CONFLICT:
+		"A tag with that name already exists; reopen the tag picker and choose the existing tag",
 	TRANSFER_CURRENCY_MISMATCH:
 		"Transfers require accounts with the same currency",
 	TRANSFER_SAME_ACCOUNT: "Transfer accounts must be different",
@@ -78,9 +81,11 @@ const DOMAIN_CODE_MAP: Record<string, CliDomainErrorCode> = {
 	INVALID_LIMIT: "INVALID_INPUT",
 	INVALID_STARTING_BALANCE: "INVALID_INPUT",
 	INVALID_TAG_FILTERS: "INVALID_INPUT",
+	INVALID_TAG_NAME: "INVALID_INPUT",
 	INVALID_TRANSFER_AMOUNT: "INVALID_INPUT",
 	NOT_FOUND: "RESOURCE_NOT_FOUND",
 	RESOURCE_LIMIT_EXCEEDED: "RESOURCE_LIMIT_EXCEEDED",
+	TAG_NAME_CONFLICT: "TAG_NAME_CONFLICT",
 	TAG_NOT_FOUND: "RESOURCE_NOT_FOUND",
 	TRANSFER_CURRENCY_MISMATCH: "TRANSFER_CURRENCY_MISMATCH",
 	TRANSFER_SAME_ACCOUNT: "TRANSFER_SAME_ACCOUNT",

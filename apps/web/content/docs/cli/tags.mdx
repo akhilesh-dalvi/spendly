@@ -11,9 +11,9 @@ work-related spending later.
 
 - **Required:** Install the CLI and sign in. Follow [Quick start](/docs/cli)
   if you have not done that yet.
-- **Required for this example:** a saved Lunch expense and an existing Work tag.
-  No tag yet? Open [Tags in Spendly Web](/data/tags), choose **New Tag**, enter
-  **Work**, and choose **Create Tag**. The CLI does not create tags.
+- **Required for this example:** a saved Lunch expense. If Work doesn’t exist,
+  create it while editing Lunch below. To create a tag without an expense,
+  use [Tags in Spendly Web](/data/tags).
 - **Optional:** Tags themselves are optional. New expenses have no tags unless
   you choose them.
 
@@ -35,10 +35,13 @@ preview:
 spendly expenses edit --interactive --dry-run
 ```
 
-Choose Lunch, select Tags as the field to change, and choose Work. Include any
-other tags you want to keep: changing tags replaces the expense's whole tag list.
+Choose Lunch, select **Tags**, and choose Work. If it doesn’t exist, select
+**Add a new tag**, confirm the picker, and enter `Work`. The picker lists the new
+tag as selected but not yet saved. Deselect it if you change your mind. Keep every
+other tag you want on Lunch: the final selection replaces its whole tag list.
+New tags are saved with the expense; canceling or running `--dry-run` saves neither.
 
-If you already know the expense ID, you can preview the change directly instead:
+If Work already exists and you know the expense ID, you can preview the change directly instead:
 
 ```bash
 spendly expenses list

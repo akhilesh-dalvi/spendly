@@ -44,7 +44,7 @@ interface BackendCall {
 interface ScriptedAnswers {
 	confirms?: Record<string, boolean>;
 	dates?: Record<string, string>;
-	multiselects?: Record<string, string[]>;
+	multiselects?: Record<string, string[] | string[][]>;
 	selects?: Record<string, string | string[]>;
 	texts?: Record<string, string>;
 }
@@ -66,6 +66,7 @@ const createScriptedPrompter = (
 	selectOptions: Map<string, Array<{ label: string; value: string }>>
 ): InteractivePrompter => {
 	const selectIndexes = new Map<string, number>();
+	const multiselectIndexes = new Map<string, number>();
 	return {
 		confirm: async ({ message }) => {
 			messages.push(message);
@@ -79,9 +80,19 @@ const createScriptedPrompter = (
 			options: MultiSelectPromptOptions<Value>
 		) => {
 			messages.push(options.message);
-			return await Promise.resolve(
-				requireAnswer(answers.multiselects, options.message) as Value[]
-			);
+			const scripted = requireAnswer(answers.multiselects, options.message);
+			if (typeof scripted[0] === "string" || scripted.length === 0) {
+				return await Promise.resolve(scripted as Value[]);
+			}
+			const index = multiselectIndexes.get(options.message) ?? 0;
+			multiselectIndexes.set(options.message, index + 1);
+			const answer = scripted[index];
+			if (!Array.isArray(answer)) {
+				throw new Error(
+					`Missing scripted multiselect response: ${options.message}`
+				);
+			}
+			return await Promise.resolve(answer as Value[]);
 		},
 		select: async <Value extends string>(
 			options: SelectPromptOptions<Value>
@@ -545,6 +556,198 @@ describe("Phase 8.8 guided interactive inputs", () => {
 		expect(testRuntime.getStderr()).toContain("Account: Daily Wallet");
 		expect(testRuntime.getStderr()).toContain("Tags: Essential");
 		expect(testRuntime.getStderr()).not.toContain("Tag IDs:");
+	});
+
+	it.each(["--dry-run", "cancel", "confirm"])(
+		"stages a first tag in guided add: %s",
+		async (mode) => {
+			const testRuntime = createTestRuntime(
+				{
+					confirms: { "Add this expense?": mode === "confirm" },
+					multiselects: {
+						"Choose tags": [
+							["__spendly_add_tag__"],
+							["__spendly_pending_tag_0__"],
+						],
+					},
+					texts: { "New tag name (blank to go back)": "  Pilot  " },
+				},
+				{
+					"cli/v1/expenses:previewCreate": {
+						...(expenseMutationsFixture.createProposal as object),
+						newTagNames: ["Pilot"],
+						tagIds: [],
+					},
+					"cli/v1/resources:listTags": [],
+				}
+			);
+			const args = [
+				"expenses",
+				"add",
+				"--interactive",
+				"--amount",
+				"250",
+				"--date",
+				"2026-09-02",
+				"--spent-on",
+				"Lunch",
+				"--category-id",
+				"category-food",
+				"--without-account",
+			];
+			if (mode === "--dry-run") {
+				args.push(mode);
+			}
+			expect(await runCli(args, testRuntime.runtime)).toBe(
+				CLI_EXIT_CODE.success
+			);
+			expect(
+				testRuntime.calls.find(
+					(call) => call.name === "cli/v1/expenses:previewCreate"
+				)?.args
+			).toMatchObject({ newTagNames: ["Pilot"] });
+			const writes = testRuntime.calls.filter(
+				(call) => call.kind === "mutation"
+			);
+			if (mode === "confirm") {
+				expect(writes).toEqual([
+					expect.objectContaining({
+						args: expect.objectContaining({ newTagNames: ["Pilot"] }),
+						name: "cli/v1/expenses:create",
+					}),
+				]);
+				expect(testRuntime.getStderr()).toContain(
+					"Save reference: generated-interactive-key"
+				);
+			} else {
+				expect(writes).toEqual([]);
+				expect(testRuntime.getStderr()).not.toContain("Save reference");
+			}
+			expect(testRuntime.getStderr() + testRuntime.getStdout()).toContain(
+				"Pilot (will be created)"
+			);
+		}
+	);
+
+	it("uses an existing matching tag only after explicit selection", async () => {
+		const testRuntime = createTestRuntime({
+			multiselects: {
+				"Choose tags": [["__spendly_add_tag__"], ["tag-essential"]],
+			},
+			selects: {
+				"This tag name already exists. Choose an existing tag or go back":
+					"tag-essential",
+			},
+			texts: { "New tag name (blank to go back)": " essential " },
+		});
+		expect(
+			await runCli(
+				[
+					"expenses",
+					"add",
+					"--interactive",
+					"--dry-run",
+					"--amount",
+					"250",
+					"--date",
+					"2026-09-02",
+					"--spent-on",
+					"Lunch",
+					"--category-id",
+					"category-food",
+					"--without-account",
+				],
+				testRuntime.runtime
+			)
+		).toBe(CLI_EXIT_CODE.success);
+		const preview = testRuntime.calls.find(
+			(call) => call.name === "cli/v1/expenses:previewCreate"
+		);
+		expect(preview?.args).toMatchObject({ tagIds: ["tag-essential"] });
+		expect(preview?.args).not.toHaveProperty("newTagNames");
+	});
+
+	it("keeps a planned tag when revising a guided edit and recovers a lost response by key", async () => {
+		const testRuntime = createTestRuntime(
+			{
+				multiselects: {
+					"New tags": [
+						["tag-essential", "__spendly_add_tag__"],
+						["tag-essential", "__spendly_pending_tag_0__"],
+						["tag-essential", "__spendly_pending_tag_0__"],
+					],
+					"What would you like to change?": [["tags"], ["tags"]],
+				},
+				selects: { "Save these expense changes?": ["edit", "confirm"] },
+				texts: { "New tag name (blank to go back)": "Private draft tag" },
+			},
+			{
+				"cli/v1/expenses:previewUpdate": {
+					...(expenseMutationsFixture.updatePreview as object),
+					newTagNames: ["Private draft tag"],
+				},
+			}
+		);
+		let committed = false;
+		const originalQuery = testRuntime.runtime.backendQuery;
+		const backendQuery: BackendQuery = async <Result>(name, args) => {
+			if (name === "cli/v1/expenses:saveStatus") {
+				expect(args).toEqual({ idempotencyKey: "generated-interactive-key" });
+				expect(committed).toBe(true);
+				return {
+					expenseId: "expense-lunch",
+					operation: "edit",
+					revision: 3,
+					status: "saved",
+				} as Result;
+			}
+			if (!originalQuery) {
+				throw new Error("Test backend query required");
+			}
+			return await originalQuery<Result>(name, args);
+		};
+		const backendMutation: BackendMutation = (name, args) => {
+			expect(name).toBe("cli/v1/expenses:update");
+			expect(args).toMatchObject({
+				idempotencyKey: "generated-interactive-key",
+				newTagNames: ["Private draft tag"],
+				tagIds: ["tag-essential"],
+			});
+			expect(testRuntime.getStderr()).toContain(
+				"Save reference: generated-interactive-key"
+			);
+			expect(committed).toBe(false);
+			committed = true;
+			return Promise.reject(new TypeError("fetch failed"));
+		};
+		const runtime = { ...testRuntime.runtime, backendMutation, backendQuery };
+		expect(await runCli(["expenses", "edit", "expense-lunch"], runtime)).toBe(
+			CLI_EXIT_CODE.temporary
+		);
+		expect(testRuntime.getStderr()).toContain("save-status <key>");
+		const previews = testRuntime.calls.filter(
+			(call) => call.name === "cli/v1/expenses:previewUpdate"
+		);
+		expect(previews).toHaveLength(2);
+		expect(previews[0]?.args).toEqual(previews[1]?.args);
+
+		let statusOutput = "";
+		const statusExit = await runCli(
+			["expenses", "save-status", "generated-interactive-key", "--json"],
+			{
+				...runtime,
+				stdout: {
+					write: (value) => {
+						statusOutput += value;
+					},
+				},
+			}
+		);
+		expect(statusExit, statusOutput).toBe(CLI_EXIT_CODE.success);
+		expect(JSON.parse(statusOutput)).toMatchObject({
+			data: { expenseId: "expense-lunch", revision: 3, status: "saved" },
+		});
+		expect(statusOutput).not.toContain("Private draft tag");
 	});
 
 	it("cancels a previewed expense without committing", async () => {

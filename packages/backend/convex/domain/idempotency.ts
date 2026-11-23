@@ -1,6 +1,6 @@
 import { ConvexError } from "convex/values";
 import type { Id } from "../_generated/dataModel";
-import type { MutationCtx } from "../_generated/server";
+import type { MutationCtx, QueryCtx } from "../_generated/server";
 
 export const IDEMPOTENCY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 export const DELETION_CONFIRMATION_LIFETIME_MS = 5 * 60 * 1000;
@@ -60,6 +60,20 @@ const validateIdempotencyKey = (key: string): string => {
 	return normalizedKey;
 };
 
+export const findIdempotencyRecord = async (
+	ctx: QueryCtx,
+	userId: Id<"users">,
+	key: string
+) => {
+	const normalizedKey = validateIdempotencyKey(key);
+	return await ctx.db
+		.query("cli_idempotency")
+		.withIndex("by_userId_key", (q) =>
+			q.eq("userId", userId).eq("key", normalizedKey)
+		)
+		.unique();
+};
+
 export const executeIdempotentMutation = async <Result>(
 	ctx: MutationCtx,
 	options: {
@@ -77,12 +91,7 @@ export const executeIdempotentMutation = async <Result>(
 		operation: options.operation,
 		request: options.request,
 	});
-	const existing = await ctx.db
-		.query("cli_idempotency")
-		.withIndex("by_userId_key", (queryBuilder) =>
-			queryBuilder.eq("userId", options.userId).eq("key", key)
-		)
-		.unique();
+	const existing = await findIdempotencyRecord(ctx, options.userId, key);
 
 	if (existing && existing.expiresAt > now) {
 		if (

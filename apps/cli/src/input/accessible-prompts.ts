@@ -115,16 +115,24 @@ const chooseMany = async <Value extends string>(options: {
 		options.prompt.initialValues,
 		true
 	);
+	const initial = options.prompt.initialValues ?? [];
+	const optionalHint =
+		initial.length > 0
+			? "; press Enter to keep the selection, or type none to clear it"
+			: "; press Enter for none";
+	const hint = options.prompt.required ? "" : optionalHint;
 	for await (const answer of repeatAsync(() =>
 		ask({
 			input: options.input,
-			message:
-				"Enter option numbers separated by commas; press Enter for none: ",
+			message: `Enter option numbers separated by commas${hint}: `,
 			output: options.output,
 		})
 	)) {
+		if (!options.prompt.required && answer.toLowerCase() === "none") {
+			writeSelected(options.output, options.prompt.options, []);
+			return [];
+		}
 		if (!answer) {
-			const initial = options.prompt.initialValues ?? [];
 			if (!(options.prompt.required && initial.length === 0)) {
 				writeSelected(options.output, options.prompt.options, initial);
 				return initial;

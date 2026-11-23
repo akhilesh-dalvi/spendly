@@ -12,9 +12,9 @@ For example, record 18.75 for Lunch, paid from Daily checking, in Food, with the
 - **Required:** finish the [Quick start](/docs/cli), including account setup and sign-in.
   Use an interactive terminal for the guided examples below.
 - **Required for a new expense:** a positive amount of at least 0.01, in your Spendly currency.
-- **Optional:** a description, account, category, and tags. To choose Daily checking,
-  Food, or Work, those records must already exist in your own Spendly data.
-  Otherwise, use your own names or leave them unassigned.
+- **Optional:** a description, account, category, and tags. To choose Daily checking
+  or Food, those records must already exist. You can select Work if it exists or
+  create it in the guided tag picker.
 - **Automatic:** the date defaults to today. Account and category defaults are
   explained under **Things to know**.
 
@@ -33,7 +33,9 @@ spendly expenses add --interactive --dry-run
 
 Enter `18.75` for the amount and `Lunch` for the description. Review the date,
 then choose Daily checking, Food, and Work if you have them. The preview shows
-the proposed expense and its effect on your balance.
+the proposed expense and its effect on your balance. If Work doesn’t exist,
+choose **Add a new tag** in the tag picker. New tags appear in the preview and
+are saved with the expense, not on cancel or `--dry-run`.
 
 <details className="docs-disclosure">
 <summary>Alternative: enter the details as flags</summary>
@@ -72,6 +74,21 @@ You can also find it with `spendly expenses list --limit 25`.
 For the direct alternative, run the same command without `--dry-run` to save.
 A fully specified direct add does not open a confirmation prompt, so check its
 preview first. Choose one save method; running both creates two expenses.
+
+## Check an interrupted save
+
+Guided adds and edits display a save reference just before sending the write.
+If the result is uncertain, check that reference without entering the expense again:
+
+```bash
+spendly expenses save-status SAVE_REFERENCE
+```
+
+If you supplied `--idempotency-key`, use that key. A saved result shows the
+expense ID and the revision saved by that write, which may not be its current
+revision. A missing result is **not** proof the write failed; check again or
+inspect expense history before starting a new save. The lookup is read-only and
+uses your own account’s save records, which expire after 30 days.
 
 ## Other things you can do
 

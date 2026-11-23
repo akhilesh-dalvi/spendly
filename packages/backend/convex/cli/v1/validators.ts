@@ -222,6 +222,7 @@ export const expenseProposalValidator = v.object({
 	currency: v.string(),
 	cycleId: v.union(v.id("expense_cycles"), v.null()),
 	date: v.string(),
+	newTagNames: v.optional(v.array(v.string())),
 	revision: v.number(),
 	spentOn: v.union(v.string(), v.null()),
 	tagIds: v.array(v.id("tags")),
@@ -232,6 +233,7 @@ export const expenseCreateInputValidator = {
 	amount: v.number(),
 	categoryId: v.optional(v.union(v.id("categories"), v.null())),
 	date: v.string(),
+	newTagNames: v.optional(v.array(v.string())),
 	spentOn: v.optional(v.string()),
 	tagIds: v.optional(v.array(v.id("tags"))),
 } as const;
@@ -242,6 +244,7 @@ export const expenseUpdateInputValidator = {
 	categoryId: v.optional(v.union(v.id("categories"), v.null())),
 	date: v.optional(v.string()),
 	expectedRevision: v.optional(v.number()),
+	newTagNames: v.optional(v.array(v.string())),
 	spentOn: v.optional(v.union(v.string(), v.null())),
 	tagIds: v.optional(v.array(v.id("tags"))),
 } as const;

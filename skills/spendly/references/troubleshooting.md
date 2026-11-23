@@ -18,8 +18,11 @@ Use the JSON `error.code` and details to find the relevant next step.
 
 ## Connection lost while saving
 
-A timeout may occur after a write has saved. Read the affected record or account
-history to check the outcome. Do not retry a write automatically. If the user
+A timeout may occur after a write has saved. For an expense add or edit, check
+`spendly --json --non-interactive expenses save-status SAVE_REFERENCE` using the
+original idempotency key. `saved` confirms the write; `not_recorded` does not prove
+it failed. If status is unavailable or inconclusive, read the affected record or
+account history. Do not retry a write automatically. If the user
 explicitly asks to recover the same intended write and the result is still
 uncertain, repeat the identical command with its original idempotency key; this
 lets the CLI replay an existing result without duplicating the write. If that

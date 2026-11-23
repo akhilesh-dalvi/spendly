@@ -19,6 +19,7 @@ const completionWords = [
 	"get",
 	"add",
 	"edit",
+	"save-status",
 	"delete",
 	"transactions",
 	"adjust-balance",

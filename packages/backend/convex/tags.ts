@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { nextRevision } from "./domain/revisions";
+import { insertOwnedTag } from "./domain/tagOperations";
 import { getCurrentUser } from "./helpers";
 import { forEachSequential } from "./lib/async";
 
@@ -63,11 +64,7 @@ export const create = mutation({
 			return existing._id;
 		}
 
-		return await ctx.db.insert("tags", {
-			createdAt: Date.now(),
-			name: args.name,
-			userId: user._id,
-		});
+		return await insertOwnedTag(ctx, user._id, args.name);
 	},
 });
 

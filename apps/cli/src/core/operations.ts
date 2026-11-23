@@ -23,6 +23,7 @@ import {
 	expenseDeleteResultSchema,
 	expenseMutationResultSchema,
 	expenseProposalSchema,
+	expenseSaveStatusSchema,
 	expenseUpdatePreviewSchema,
 } from "../domain/mutation-schemas.js";
 import {
@@ -76,6 +77,7 @@ const expenseCreateInputSchema = z
 		amount: z.number().finite().positive(),
 		categoryId: idSchema.nullable().optional(),
 		date: localDateSchema,
+		newTagNames: z.array(z.string()).max(20).optional(),
 		spentOn: z.string().optional(),
 		tagIds: z.array(idSchema).optional(),
 	})
@@ -87,6 +89,7 @@ const expenseUpdateFields = {
 	categoryId: idSchema.nullable().optional(),
 	date: localDateSchema.optional(),
 	expectedRevision: revisionSchema.optional(),
+	newTagNames: z.array(z.string()).max(20).optional(),
 	spentOn: z.string().nullable().optional(),
 	tagIds: z.array(idSchema).optional(),
 } as const;
@@ -505,6 +508,12 @@ export const operationDefinitions = {
 		mode: "mutation",
 		outputSchema: expenseDeleteResultSchema,
 	},
+	"expenses.saveStatus": {
+		functionName: "cli/v1/expenses:saveStatus",
+		inputSchema: z.object({ idempotencyKey: idempotencyKeySchema }).strict(),
+		mode: "query",
+		outputSchema: expenseSaveStatusSchema,
+	},
 	"expenses.update": {
 		commit: true,
 		functionName: "cli/v1/expenses:update",
@@ -608,15 +617,24 @@ interface RuntimeOperationDefinition {
 	outputSchema: z.ZodType<unknown>;
 }
 
+const uncertainMutationAdvice = (name: OperationName, key?: string): string => {
+	if (!key) {
+		return "repeat the preview command";
+	}
+	if (name === "expenses.create" || name === "expenses.update") {
+		return "check with spendly expenses save-status <key> before starting a new save";
+	}
+	return "repeat the same command with the same idempotency key";
+};
+
 const toUncertainMutationError = (
 	error: CliError,
+	name: OperationName,
 	idempotencyKey: string | undefined
 ): CliError =>
 	new CliError(
 		"NETWORK_ERROR",
-		idempotencyKey
-			? "The mutation outcome is uncertain; repeat the same command with the same idempotency key"
-			: "The mutation outcome is uncertain; repeat the preview command",
+		`The mutation outcome is uncertain; ${uncertainMutationAdvice(name, idempotencyKey)}`,
 		{
 			cause: error,
 			details: {
@@ -709,6 +727,7 @@ export const createSpendlyOperations = (
 			) {
 				throw toUncertainMutationError(
 					error,
+					name,
 					typeof parsedInput.idempotencyKey === "string"
 						? parsedInput.idempotencyKey
 						: undefined

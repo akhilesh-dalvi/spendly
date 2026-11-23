@@ -8,7 +8,7 @@ Based on [Spendly web features and actions](spendly-web-action-inventory.md), wi
 
 **Cycle-copy parity follow-up:** Local Web cycle creation now supports explicit zero-category copying while retaining the selected source. Mocked form/navigation/dialog regressions and `convex-test` public Web API tests distinguish omitted selection (all) from `[]` (none). Browser review is limited to unsaved form states; no live cycle was created, no backend sync was needed, and no production build is claimed. The cycle-copy notes below supersede the original inventory limitations.
 
-**Overall:** Web (129/151) · CLI (81/151). Counts show supported feature rows out of rows available on at least one surface; table headers show section counts. The 17 rows in Unsupported on both are excluded from overall counts. Rows include product actions and surface-specific controls, so these counts are a checklist, not a weighted feature-parity score.
+**Overall:** Web (129/151) · CLI (82/151). Counts show supported feature rows out of rows available on at least one surface; table headers show section counts. The 17 rows in Unsupported on both are excluded from overall counts. Rows include product actions and surface-specific controls, so these counts are a checklist, not a weighted feature-parity score.
 
 **Implementation priorities:** **P1** = first (core entry/editing, assignment correctness, and essential CLI creation); **P2** = next (reporting, lifecycle management, workflow improvements, and broader feature coverage); **P3** = last (polish, advanced/destructive operations, integrations, and monetization). Within each priority, implement Web gaps before CLI gaps: **P1 Web → P1 CLI → P2 Web → P2 CLI → P3 Web → P3 CLI**. Existing features use **—**; **N/A** means an intentionally surface-specific control, not a proposed implementation gap. Availability counts reflect the source-level ✅/❌ markers, including N/A rows, not deployment state.
 
@@ -20,10 +20,10 @@ Counts include only missing features assigned P1–P3, including Unsupported on 
 
 | Priority | Web | CLI | Total |
 | --- | ---: | ---: | ---: |
-| P1 | 0 | 9 | 9 |
+| P1 | 0 | 8 | 8 |
 | P2 | 9 | 41 | 50 |
 | P3 | 12 | 15 | 27 |
-| **Total** | **21** | **65** | **86** |
+| **Total** | **21** | **64** | **85** |
 
 A feature missing on both surfaces counts once per surface; Total counts implementation gaps, not unique features.
 
@@ -45,7 +45,7 @@ A feature missing on both surfaces counts once per surface; Total counts impleme
 
 ## Expenses
 
-| Feature | Web (27/30) | CLI (21/30) | Web priority | CLI priority |
+| Feature | Web (27/30) | CLI (22/30) | Web priority | CLI priority |
 | --- | :---: | :---: | :---: | :---: |
 | List expenses and view an individual expense | ✅ | ✅ | — | — |
 | Filter by cycle, category, or Uncategorized | ✅ | ✅ | — | — |
@@ -72,7 +72,7 @@ A feature missing on both surfaces counts once per surface; Total counts impleme
 | Create an expense without a cycle for its date | ❌ | ✅ | P2 | — |
 | Preview a normalized expense and its projected account-balance effects before saving | ❌ | ✅ | P2 | — |
 | Read whether creation used an explicit/default account or explicit/history-inferred category | ❌ | ✅ | P3 | — |
-| Create a new tag inline while entering/editing an expense | ✅ | ❌ | — | P1 |
+| Create a new tag inline while entering/editing an expense | ✅ | ✅ | — | — |
 | Keep entering expenses with retained form selections using Add another | ✅ | ❌ | — | P2 |
 | Delete an expense, refunding its account and retaining compensating ledger history | ✅ | ✅ | — | — |
 | Read non-web change/provenance information | ✅ | ❌ | — | P2 |
@@ -289,6 +289,7 @@ A feature missing on both surfaces counts once per surface; Total counts impleme
 - CLI sign-in uses browser-based authentication and requires an initialized Spendly user; if absent, it asks the user to open Web once. `auth login --no-browser` prints a same-machine authorization URL, not a device-code/headless login, and cannot combine with `--json`. Login rejects `--non-interactive`. `auth status` verifies/refreshes the stored session, not just local file presence. Logout removes local credentials and reports whether remote revocation was confirmed; it is not a Web-session logout.
 - CLI has no onboarding wizard/path/currency mutation, but can create ordinary cycles/accounts. `context` reads optional account-setup status; `accounts add` marks that account step completed without completing the whole Web wizard. Web onboarding-only category clearing/order/removal capabilities should not be inferred for ordinary category editors.
 - `--json` emits one versioned success/error document; it is not a dedicated export workflow or arbitrary field/CSV formatter. `--agent` marks committed writes but does not imply JSON. Agent, JSON, and non-interactive modes never prompt; `--interactive` conflicts with them. `--accessible` (or `ACCESSIBLE=1`, or `TERM=dumb`) selects static prompts; `--no-color`/`NO_COLOR`, `--no-retry`, and `--debug` control terminal output/read retries/diagnostics. Plaintext credential fallback requires explicit `--allow-file-storage`; it does not force bypassing a working keychain.
+- Inline tag creation is guided-only in the CLI. CLI tags save with the expense, unlike Web’s immediate tag creation. The CLI can check a recent expense add/edit by its save reference after an interrupted write.
 - CLI delete dry runs do not delete financial records, but mint confirmation tokens. Non-interactive expense/cycle deletion requires the token, revision, and idempotency key; supported edits require revision preconditions in that mode. Running multiple commands and post-processing results does not count as built-in comparison, bulk editing, or reporting support. Completion scripts offer static words, not live account/category completion. Development-only auth canaries are excluded from this user-facing matrix.
 - Web source: [full action inventory](spendly-web-action-inventory.md), including its limitations and review coverage.
 - CLI sources: `apps/cli/src/commands/` registrations and `*-actions.ts`, especially `read-actions.ts` and `interactive-support.ts`; `apps/cli/src/input/prompts.ts`, `accessible-prompts.ts`, `apps/cli/src/cli.ts`, `options.ts`, `domain/read-schemas.ts`, and `output/`.

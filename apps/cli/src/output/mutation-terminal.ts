@@ -36,7 +36,8 @@ const renderAccountEffects = (effects: AccountBalanceEffect[]): string => {
 
 const renderChangedFields = (
 	before: ExpenseUpdatePreview["before"],
-	after: ExpenseUpdatePreview["after"]
+	after: ExpenseUpdatePreview["after"],
+	newTagNames: readonly string[] = []
 ): string => {
 	const changes = [
 		["Date", before.date, after.date],
@@ -59,7 +60,10 @@ const renderChangedFields = (
 		[
 			"Tags",
 			before.tags.map((tag) => tag.name).join(", ") || "none",
-			after.tags.map((tag) => tag.name).join(", ") || "none",
+			renderPreviewTags(
+				after.tags.map((tag) => tag.name),
+				newTagNames
+			),
 		],
 	].filter(([, beforeValue, afterValue]) => beforeValue !== afterValue);
 	return changes.length > 0
@@ -71,6 +75,14 @@ const renderChangedFields = (
 				.join("\n")
 		: "- No visible field changes";
 };
+
+const renderPreviewTags = (
+	existing: readonly string[],
+	pending: readonly string[] = []
+): string =>
+	[...existing, ...pending.map((name) => `${name} (will be created)`)].join(
+		", "
+	) || "none";
 
 export const renderExpenseProposal = (
 	proposal: ExpenseProposal,
@@ -89,7 +101,7 @@ export const renderExpenseProposal = (
 		`Category: ${presentation.category}`,
 		`Account: ${presentation.account}`,
 		`Cycle: ${presentation.cycle}`,
-		`Tags: ${presentation.tags.join(", ") || "none"}`,
+		`Tags: ${renderPreviewTags(presentation.tags, proposal.newTagNames)}`,
 		`Revision: ${proposal.revision}`,
 		"",
 		renderAccountEffects(proposal.accountEffects),
@@ -126,7 +138,7 @@ export const renderExpenseEditPreview = (
 		"Edit expense preview",
 		`Expense: ${preview.before.date} · ${preview.before.spentOn ?? "No description"} · ${formatMoney(preview.before.amount, preview.before.currency)}`,
 		"Changes:",
-		renderChangedFields(preview.before, preview.after),
+		renderChangedFields(preview.before, preview.after, preview.newTagNames),
 		"",
 		renderAccountEffects(preview.accountEffects),
 	].join("\n");
