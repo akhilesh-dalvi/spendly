@@ -28,9 +28,6 @@ Guided commands provide searchable choices, validated fields, previews, and
 confirmations. For static numbered prompts, use `--accessible`, `ACCESSIBLE=1`,
 or `TERM=dumb`.
 
-Create a reusable tag without editing an expense: `spendly tags add --name "Work" --interactive`.
-See [Tags](https://spendly.akhileshdalvi.com/docs/cli/tags) for preview and scripting.
-
 Shell completion: `spendly completion zsh` (also supports `bash` and `fish`).
 
 ## Scripts and agents
