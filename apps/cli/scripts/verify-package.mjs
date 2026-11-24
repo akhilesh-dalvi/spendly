@@ -261,6 +261,18 @@ try {
 		"Installed binary did not expose categories edit help"
 	);
 
+	const categoryTypeAddHelp = run(
+		binaryPath,
+		["category-types", "add", "--help"],
+		{ cwd: verificationDirectory }
+	);
+	assert(
+		categoryTypeAddHelp.includes("--color") &&
+			categoryTypeAddHelp.includes("--dry-run") &&
+			categoryTypeAddHelp.includes("--idempotency-key"),
+		"Installed binary did not expose category-types add help"
+	);
+
 	const invalidCommand = spawnSync(binaryPath, ["--json", "unknown"], {
 		cwd: verificationDirectory,
 		encoding: "utf8",

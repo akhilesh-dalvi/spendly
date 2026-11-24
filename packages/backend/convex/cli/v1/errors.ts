@@ -8,6 +8,8 @@ export type CliDomainErrorCode =
 	| "CATEGORY_CYCLE_MISMATCH"
 	| "CATEGORY_EDIT_CONFLICT"
 	| "CATEGORY_PLAN_REPAIR_REQUIRED"
+	| "CATEGORY_TYPE_LIMIT_REACHED"
+	| "CATEGORY_TYPE_NAME_CONFLICT"
 	| "CYCLE_COPY_CONFLICT"
 	| "CYCLE_OVERLAP"
 	| "CYCLE_HAS_EXPENSES"
@@ -34,6 +36,9 @@ const ERROR_MESSAGES: Record<CliDomainErrorCode, string> = {
 		"The category edit no longer matches the reviewed preview; review a fresh preview",
 	CATEGORY_PLAN_REPAIR_REQUIRED:
 		"The saved category plan is invalid; use --clear-planned-amount or supply a valid --planned-amount",
+	CATEGORY_TYPE_LIMIT_REACHED: "The category type limit has been reached",
+	CATEGORY_TYPE_NAME_CONFLICT:
+		"A category type with that name already exists; use the existing type ID or choose another name",
 	CYCLE_COPY_CONFLICT:
 		"The category copy changed after preview; review a fresh preview",
 	CYCLE_HAS_EXPENSES: "The cycle has linked expenses and cannot be deleted",
@@ -68,6 +73,8 @@ const DOMAIN_CODE_MAP: Record<string, CliDomainErrorCode> = {
 	CATEGORY_CYCLE_MISMATCH: "CATEGORY_CYCLE_MISMATCH",
 	CATEGORY_EDIT_CONFLICT: "CATEGORY_EDIT_CONFLICT",
 	CATEGORY_PLAN_REPAIR_REQUIRED: "CATEGORY_PLAN_REPAIR_REQUIRED",
+	CATEGORY_TYPE_LIMIT_REACHED: "CATEGORY_TYPE_LIMIT_REACHED",
+	CATEGORY_TYPE_NAME_CONFLICT: "CATEGORY_TYPE_NAME_CONFLICT",
 	CYCLE_COPY_CONFLICT: "CYCLE_COPY_CONFLICT",
 	CYCLE_HAS_EXPENSES: "CYCLE_HAS_EXPENSES",
 	CYCLE_OVERLAP: "CYCLE_OVERLAP",

@@ -20,6 +20,157 @@ const setup = async () => {
 	return { cycle, owner, test, userId };
 };
 
+describe("standalone CLI category type creation", () => {
+	const preview = api.cli.v1.resources.previewCategoryTypeCreate;
+	const create = api.cli.v1.resources.createCategoryType;
+
+	it("previews without writing and returns a type ID usable by category add", async () => {
+		const { cycle, owner } = await setup();
+		const before = await owner.query(api.categories.listTypes, {});
+		const input = { name: "  Travel  " };
+		const proposal = { color: "#3b82f6", name: "Travel" };
+		expect(await owner.query(preview, input)).toEqual(proposal);
+		expect(await owner.query(api.categories.listTypes, {})).toEqual(before);
+		const request = { ...input, idempotencyKey: "travel-type-001" };
+		const type = await owner.mutation(create, request);
+		expect(type).toEqual({ ...proposal, id: expect.any(String) });
+		expect(await owner.mutation(create, request)).toEqual(type);
+		await expect(
+			owner.mutation(create, { ...request, color: "#14b8a6" })
+		).rejects.toMatchObject({ data: { code: "IDEMPOTENCY_CONFLICT" } });
+		expect(await owner.query(api.categories.listTypes, {})).toEqual([
+			...before,
+			expect.objectContaining({ ...proposal, _id: type.id, order: 3 }),
+		]);
+		expect(
+			await owner.query(api.cli.v1.resources.listCategories, {
+				cycleId: cycle._id,
+			})
+		).toEqual([]);
+		expect(
+			await owner.query(api.cli.v1.resources.getSummary, {
+				cycleId: cycle._id,
+				today: "2026-01-10",
+			})
+		).toMatchObject({
+			totalPlanned: 0,
+			totalSpent: 0,
+			types: expect.arrayContaining([
+				{
+					categories: [],
+					totalPlanned: 0,
+					totalSpent: 0,
+					typeId: type.id,
+					typeName: "Travel",
+				},
+			]),
+		});
+		expect(
+			await owner.mutation(api.cli.v1.resources.createCategory, {
+				categoryTypeId: type.id,
+				cycleId: cycle._id,
+				idempotencyKey: "flights-category-001",
+				name: "Flights",
+			})
+		).toMatchObject({ categoryType: type });
+	});
+
+	it("rechecks duplicates at commit and keeps names and keys scoped to the user", async () => {
+		const { owner, test } = await setup();
+		const other = test.withIdentity({ subject: "another-category-type-owner" });
+		await other.mutation(api.users.create, { email: "another@example.com" });
+		const input = { color: "#14B8A6", name: "Travel" };
+		const request = { ...input, idempotencyKey: "same-type-key" };
+		await expect(test.query(preview, input)).rejects.toMatchObject({
+			data: { code: "AUTHENTICATION_REQUIRED" },
+		});
+		await expect(test.mutation(create, request)).rejects.toMatchObject({
+			data: { code: "AUTHENTICATION_REQUIRED" },
+		});
+		expect(await owner.query(preview, input)).toEqual(input);
+		const webType = await owner.mutation(api.categories.createType, {
+			name: input.name,
+			order: 20,
+		});
+		await expect(owner.mutation(create, request)).rejects.toMatchObject({
+			data: { code: "CATEGORY_TYPE_NAME_CONFLICT" },
+		});
+		await expect(owner.query(preview, input)).rejects.toMatchObject({
+			data: { code: "CATEGORY_TYPE_NAME_CONFLICT" },
+		});
+		const otherType = await other.mutation(create, request);
+		const lowercase = await owner.mutation(create, {
+			...request,
+			name: "travel",
+		});
+		expect(otherType).toMatchObject(input);
+		expect(otherType.id).not.toBe(webType?._id);
+		expect(await owner.query(api.categories.listTypes, {})).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ _id: lowercase.id, order: 21 }),
+			])
+		);
+		expect(await owner.query(api.categories.listTypes, {})).not.toEqual(
+			expect.arrayContaining([expect.objectContaining({ _id: otherType.id })])
+		);
+	});
+
+	it.each([
+		{ name: "   " },
+		{ name: "a".repeat(101) },
+		{ name: "\nTravel" },
+		{ name: "Tra\u001bvel" },
+		{ color: "red", name: "Travel" },
+		{ color: "#123456\n", name: "Travel" },
+	])(
+		"rejects invalid type fields in both preview and save: %j",
+		async (input) => {
+			const { owner } = await setup();
+			await expect(owner.query(preview, input)).rejects.toMatchObject({
+				data: { code: "INVALID_INPUT" },
+			});
+			await expect(
+				owner.mutation(create, { ...input, idempotencyKey: "invalid-type" })
+			).rejects.toMatchObject({
+				data: { code: "INVALID_INPUT" },
+			});
+			expect(await owner.query(api.categories.listTypes, {})).toHaveLength(3);
+		}
+	);
+
+	it("allows the last usable type, rejects overflow, and still permits replay", async () => {
+		const { cycle, owner, test, userId } = await setup();
+		await test.run(async (ctx) => {
+			const orders = Array.from({ length: 996 }, (_, index) => index + 3);
+			await forEachSequential(orders, async (order) => {
+				await ctx.db.insert("category_types", {
+					createdAt: 0,
+					name: `Type ${order}`,
+					order,
+					userId,
+				});
+			});
+		});
+		const input = { name: "Last type" };
+		const request = { ...input, idempotencyKey: "last-type-key" };
+		const type = await owner.mutation(create, request);
+		const overflow = { name: "Overflow" };
+		await expect(owner.query(preview, overflow)).rejects.toMatchObject({
+			data: { code: "CATEGORY_TYPE_LIMIT_REACHED" },
+		});
+		await expect(
+			owner.mutation(create, { ...overflow, idempotencyKey: "overflow-key" })
+		).rejects.toMatchObject({ data: { code: "CATEGORY_TYPE_LIMIT_REACHED" } });
+		expect(await owner.mutation(create, request)).toEqual(type);
+		expect(await owner.query(api.categories.listTypes, {})).toHaveLength(1000);
+		expect(
+			await owner.query(api.cli.v1.resources.listCategories, {
+				cycleId: cycle._id,
+			})
+		).toEqual([]);
+	});
+});
+
 describe("standalone CLI category creation", () => {
 	it("previews without writing and replays a saved category through the same key", async () => {
 		const { owner, cycle } = await setup();

@@ -22,6 +22,7 @@ import {
 
 const MAXIMUM_CYCLES = 1000;
 const MAXIMUM_CATEGORIES = 1000;
+const MAXIMUM_CATEGORY_TYPES = 1000;
 const MAXIMUM_SUMMARY_EXPENSES = 10_000;
 
 const toIsoTimestamp = (timestamp: number): string =>
@@ -106,11 +107,11 @@ export const listCategories = query({
 					.withIndex("by_userId", (queryBuilder) =>
 						queryBuilder.eq("userId", user._id)
 					)
-					.take(MAXIMUM_CATEGORIES + 1),
+					.take(MAXIMUM_CATEGORY_TYPES + 1),
 			]);
 			if (
 				categories.length > MAXIMUM_CATEGORIES ||
-				categoryTypes.length > MAXIMUM_CATEGORIES
+				categoryTypes.length > MAXIMUM_CATEGORY_TYPES
 			) {
 				throw new ConvexError("RESOURCE_LIMIT_EXCEEDED");
 			}
@@ -159,6 +160,96 @@ const categoryText = (value: string, maxLength: number): string => {
 	}
 	return trimmed;
 };
+
+const categoryTypeCreateInput = v.object({
+	color: v.optional(v.string()),
+	name: v.string(),
+});
+const categoryTypePreviewValidator = v.object({
+	color: v.string(),
+	name: v.string(),
+});
+const hexColor = /^#[\da-f]{6}$/iu;
+
+const prepareCategoryTypeCreate = async (
+	ctx: QueryCtx,
+	userId: Id<"users">,
+	input: Infer<typeof categoryTypeCreateInput>
+) => {
+	const name = categoryText(input.name, 100);
+	const color = input.color ?? "#3b82f6";
+	if (color.length !== 7 || !hexColor.test(color)) {
+		throw new ConvexError("INVALID_INPUT");
+	}
+	const types = await ctx.db
+		.query("category_types")
+		.withIndex("by_userId_order", (q) => q.eq("userId", userId))
+		.order("desc")
+		.take(MAXIMUM_CATEGORY_TYPES);
+	if (types.some((type) => type.name === name)) {
+		throw new ConvexError("CATEGORY_TYPE_NAME_CONFLICT");
+	}
+	if (types.length >= MAXIMUM_CATEGORY_TYPES) {
+		throw new ConvexError("CATEGORY_TYPE_LIMIT_REACHED");
+	}
+	const previousOrder = types[0]?.order ?? -1;
+	const order = previousOrder + 1;
+	if (!Number.isFinite(order) || order <= previousOrder) {
+		throw new ConvexError("INVALID_INPUT");
+	}
+	return { color, name, order };
+};
+
+export const previewCategoryTypeCreate = query({
+	args: categoryTypeCreateInput.fields,
+	handler: async (ctx, args) =>
+		await withCliErrors(async () => {
+			const user = await getCurrentUser(ctx);
+			const { color, name } = await prepareCategoryTypeCreate(
+				ctx,
+				user._id,
+				args
+			);
+			return { color, name };
+		}),
+	returns: categoryTypePreviewValidator,
+});
+
+export const createCategoryType = mutation({
+	args: {
+		...categoryTypeCreateInput.fields,
+		agent: v.optional(v.boolean()),
+		idempotencyKey: v.string(),
+	},
+	handler: async (ctx, args) =>
+		await withCliErrors(async () => {
+			const user = await getCurrentUser(ctx);
+			const { idempotencyKey, ...input } = args;
+			return await executeIdempotentMutation(ctx, {
+				execute: async () => {
+					const prepared = await prepareCategoryTypeCreate(
+						ctx,
+						user._id,
+						input
+					);
+					const id = await ctx.db.insert("category_types", {
+						...prepared,
+						createdAt: Date.now(),
+						userId: user._id,
+					});
+					return { color: prepared.color, id, name: prepared.name };
+				},
+				key: idempotencyKey,
+				operation: "categoryTypes.create",
+				request: input,
+				userId: user._id,
+			});
+		}),
+	returns: v.object({
+		...categoryTypePreviewValidator.fields,
+		id: v.id("category_types"),
+	}),
+});
 
 const validateCategoryPlan = (plannedAmount: number): void => {
 	const cents = Math.round(plannedAmount * 100);
@@ -556,12 +647,12 @@ export const getSummary = query({
 					.withIndex("by_userId", (queryBuilder) =>
 						queryBuilder.eq("userId", user._id)
 					)
-					.take(MAXIMUM_CATEGORIES + 1),
+					.take(MAXIMUM_CATEGORY_TYPES + 1),
 			]);
 			if (
 				expenses.length > MAXIMUM_SUMMARY_EXPENSES ||
 				categories.length > MAXIMUM_CATEGORIES ||
-				categoryTypes.length > MAXIMUM_CATEGORIES
+				categoryTypes.length > MAXIMUM_CATEGORY_TYPES
 			) {
 				throw new ConvexError("RESOURCE_LIMIT_EXCEEDED");
 			}

@@ -169,6 +169,20 @@ export const registerReadCommands = (
 		});
 
 	program
+		.command("category-types")
+		.description("Create reusable category types")
+		.command("add")
+		.description("Create a reusable category type without assigning it")
+		.requiredOption("--name <name>", "name of the new category type")
+		.option("--color <hex>", "color as #RRGGBB (default: #3b82f6)")
+		.option("--idempotency-key <key>", "stable key for this intended commit")
+		.option("--dry-run", "validate and preview without saving")
+		.action(async (options, command: Command) => {
+			const { runCategoryTypeAdd } = await import("./category-type-actions.js");
+			await runCategoryTypeAdd(options, command, runtime);
+		});
+
+	program
 		.command("tags")
 		.description("Read expense tags")
 		.command("list")

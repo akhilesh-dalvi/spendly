@@ -5,8 +5,8 @@ description: Find, add, or edit categories for an expense cycle and use them to 
 
 Categories group expenses within a cycle, such as Food or Transport. A cycle is
 the date range you use to track spending. The CLI lists a cycle’s categories and
-can add or edit one category at a time. Use Spendly Web to create category types
-or add multiple categories in one form.
+can add or edit one category at a time and create reusable category types.
+Use Spendly Web to add multiple categories in one form.
 
 For example, put Lunch in Food so you can review your food spending later.
 
@@ -117,7 +117,8 @@ spendly categories add --cycle-id CYCLE_ID --name "Food" --dry-run
 `--planned-amount 125.50` is an optional budget, not an expense. Omit it for no
 budget, or pass `0` for a zero budget. You can also pass a literal `--icon` and
 an existing `--category-type-id`. To find a type ID, inspect `data.types` in
-`spendly summary --cycle-id CYCLE_ID --json`.
+`spendly summary --cycle-id CYCLE_ID --json`, or [create a type](#create-a-category-type)
+and use the ID it returns.
 
 After review, rerun without `--dry-run`. In a terminal, confirm the preview;
 without prompts, supply `--idempotency-key` for this intended save. The command
@@ -127,6 +128,30 @@ repeat the identical inputs with the original key and `--non-interactive` (keep
 `--agent` if used). Keys are retained for 30 days; don't replay an expired key
 or generate a new key for a replay. Category names can repeat, so use the
 returned ID to identify the saved category.
+
+</details>
+
+<details className="docs-disclosure">
+<summary id="create-a-category-type">Create a category type</summary>
+
+A type groups categories across cycles. Check `spendly category-types add --help`
+to see whether your installed CLI supports this command. If not, use
+[Spendly Web](/data/types). Otherwise, preview a new type:
+
+```bash
+spendly category-types add --name "Travel" --color "#14b8a6" --dry-run
+```
+
+Omit `--color` to use the default blue. To save, rerun without `--dry-run` and
+confirm in a terminal, or pass `--idempotency-key` for a scripted save. Use the
+returned ID (`data.id` in JSON) as `--category-type-id` with `categories add` or
+`categories edit`. These are separate saves: if you cancel the category command
+or it fails, the type remains available for later.
+
+If the exact name already exists, use its existing ID or choose another name.
+If the save outcome is unknown, check current state first. For an authorized
+replay within the 30-day retention window, use the same inputs and the original
+key with `--non-interactive` (keep `--agent` if used).
 
 </details>
 

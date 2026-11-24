@@ -71,6 +71,10 @@ const examples: Readonly<Record<string, CommandExamples>> = {
 		flags: "spendly categories list --cycle-id cycle_demo",
 		guided: "spendly categories list --interactive",
 	},
+	"category-types add": {
+		flags:
+			'spendly category-types add --name "Travel" --color "#14b8a6" --dry-run',
+	},
 	"cycles add": {
 		flags:
 			'spendly cycles add --name "September" --start-date 2026-09-01 --end-date-exclusive 2026-10-01 --dry-run',
@@ -128,6 +132,7 @@ const rootHelpGroups: Readonly<Record<string, string>> = {
 	accounts: "Accounts",
 	auth: "Authentication",
 	categories: "Planning data",
+	"category-types": "Planning data",
 	completion: "Shell setup",
 	context: "Quick start",
 	cycles: "Planning data",

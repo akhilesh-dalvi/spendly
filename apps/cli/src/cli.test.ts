@@ -114,6 +114,7 @@ describe("CLI foundation", () => {
 
 		expect(exitCode).toBe(CLI_EXIT_CODE.success);
 		expect(testRuntime.getStdout()).toContain("#compdef spendly");
+		expect(testRuntime.getStdout()).toContain("category-types");
 		expect(testRuntime.getStdout()).toContain("--interactive");
 		expect(testRuntime.getStderr()).toBe("");
 	});

@@ -211,6 +211,122 @@ it("does not save when the terminal user declines the preview", async () => {
 	expect(mutation).not.toHaveBeenCalled();
 });
 
+describe("category-types add", () => {
+	const typeArgs = ["category-types", "add", "--name", "Travel"];
+	const typePreview = { color: "#3b82f6", name: "Travel" };
+	const saved = { ...typePreview, id: "type-demo" };
+	const createFunction = "cli/v1/resources:createCategoryType";
+	const makePrompter = (confirmed: boolean): InteractivePrompter => ({
+		confirm: vi.fn().mockResolvedValue(confirmed),
+		date: vi.fn(),
+		multiselect: vi.fn(),
+		select: vi.fn(),
+		text: vi.fn(),
+	});
+
+	it("previews without mutating or requiring a key or cycle", async () => {
+		const { runtime, query, mutation, stdout } = createRuntime();
+		query.mockResolvedValueOnce(typePreview);
+		expect(await runCli([...typeArgs, "--dry-run", "--json"], runtime)).toBe(0);
+		expect(query).toHaveBeenCalledExactlyOnceWith(
+			"cli/v1/resources:previewCategoryTypeCreate",
+			{ name: "Travel" }
+		);
+		expect(mutation).not.toHaveBeenCalled();
+		expect(JSON.parse(stdout())).toMatchObject({
+			data: typePreview,
+			meta: { dryRun: true },
+		});
+	});
+
+	it("requires a key for scripts and returns the saved ID with custom color", async () => {
+		const { runtime, query, mutation, stdout } = createRuntime();
+		expect(await runCli([...typeArgs, "--non-interactive"], runtime)).toBe(2);
+		expect(mutation).not.toHaveBeenCalled();
+		const custom = { ...saved, color: "#14B8A6" };
+		mutation.mockResolvedValueOnce(custom);
+		expect(
+			await runCli(
+				[
+					...typeArgs,
+					"--color",
+					custom.color,
+					"--agent",
+					"--json",
+					"--idempotency-key",
+					"create-travel",
+				],
+				runtime
+			)
+		).toBe(0);
+		expect(query).not.toHaveBeenCalled();
+		expect(mutation).toHaveBeenCalledExactlyOnceWith(createFunction, {
+			agent: true,
+			color: custom.color,
+			idempotencyKey: "create-travel",
+			name: "Travel",
+		});
+		expect(JSON.parse(stdout())).toMatchObject({
+			data: custom,
+			meta: { dryRun: false, idempotencyKey: "create-travel" },
+		});
+	});
+
+	it("does not save when terminal confirmation is declined", async () => {
+		const prompter = makePrompter(false);
+		const { runtime, query, mutation } = createRuntime(prompter);
+		query.mockResolvedValueOnce(typePreview);
+		expect(await runCli(typeArgs, runtime)).toBe(0);
+		expect(prompter.confirm).toHaveBeenCalledExactlyOnceWith({
+			initialValue: false,
+			message: "Create this category type?",
+		});
+		expect(runtime.stderr.write).toHaveBeenCalledWith(
+			expect.stringContaining("Color: #3b82f6")
+		);
+		expect(mutation).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		{
+			advice: "--idempotency-key generated-category-key",
+			extraArgs: [],
+			key: "generated-category-key",
+		},
+		{
+			advice: "the original --idempotency-key",
+			extraArgs: ["--idempotency-key", "supplied-key"],
+			key: "supplied-key",
+		},
+	])(
+		"directs terminal users to replay without preview after a lost reply: $key",
+		async ({ extraArgs, key, advice }) => {
+			const { runtime, query, mutation, stdout } = createRuntime(
+				makePrompter(true)
+			);
+			query.mockResolvedValueOnce(typePreview);
+			mutation.mockRejectedValueOnce(
+				new CliError("NETWORK_ERROR", "lost reply")
+			);
+			expect(await runCli([...typeArgs, ...extraArgs], runtime)).toBe(7);
+			expect(runtime.stderr.write).toHaveBeenCalledWith(
+				expect.stringContaining(`--non-interactive and ${advice}`)
+			);
+			mutation.mockResolvedValueOnce(saved);
+			expect(
+				await runCli(
+					[...typeArgs, "--non-interactive", "--idempotency-key", key],
+					runtime
+				)
+			).toBe(0);
+			const request = [createFunction, { idempotencyKey: key, name: "Travel" }];
+			expect(mutation.mock.calls).toEqual([request, request]);
+			expect(query).toHaveBeenCalledTimes(1);
+			expect(stdout()).toContain("ID: type-demo");
+		}
+	);
+});
+
 describe("categories edit", () => {
 	const editArgs = ["categories", "edit", category.id];
 	const editSnapshot = "a".repeat(64);

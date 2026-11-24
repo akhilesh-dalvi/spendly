@@ -11,6 +11,7 @@ const completionWords = [
 	"summary",
 	"cycles",
 	"categories",
+	"category-types",
 	"tags",
 	"account-types",
 	"auth",

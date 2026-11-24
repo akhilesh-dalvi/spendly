@@ -48,6 +48,23 @@ const revisionSchema = z.number().int().positive();
 const idempotencyKeySchema = z.string().min(8).max(200);
 const noArgumentsSchema = z.object({}).strict();
 
+const categoryTypeColorSchema = z
+	.string()
+	.length(7)
+	.regex(/^#[\da-f]{6}$/iu);
+const categoryTypeCreateFields = {
+	color: categoryTypeColorSchema.optional(),
+	name: z.string().min(1),
+};
+const categoryTypePreviewSchema = z.object({
+	color: categoryTypeColorSchema,
+	name: z
+		.string()
+		.min(1)
+		.max(100)
+		.regex(/^[^\p{Cc}\p{Zl}\p{Zp}]+$/u),
+});
+
 const categoryCreateFields = {
 	categoryTypeId: idSchema.optional(),
 	cycleId: idSchema,
@@ -452,6 +469,21 @@ export const operationDefinitions = {
 			cycleName: z.string(),
 			editSnapshot: categoryEditSnapshotSchema,
 		}),
+	},
+	"categoryTypes.create": {
+		commit: true,
+		functionName: "cli/v1/resources:createCategoryType",
+		inputSchema: z
+			.object({ ...categoryTypeCreateFields, ...commitFields })
+			.strict(),
+		mode: "mutation",
+		outputSchema: categoryTypePreviewSchema.extend({ id: idSchema }),
+	},
+	"categoryTypes.previewCreate": {
+		functionName: "cli/v1/resources:previewCategoryTypeCreate",
+		inputSchema: z.object(categoryTypeCreateFields).strict(),
+		mode: "query",
+		outputSchema: categoryTypePreviewSchema,
 	},
 	"context.get": {
 		functionName: "cli/v1/context:get",

@@ -117,6 +117,23 @@ describe("Convex read client", () => {
 		expect(attempts).toBe(1);
 	});
 
+	it.each(["CATEGORY_TYPE_NAME_CONFLICT", "CATEGORY_TYPE_LIMIT_REACHED"])(
+		"exposes category type conflict %s to the CLI",
+		(code) => {
+			const error = new ConvexError({
+				code,
+				details: {},
+				message: "Could not create the category type",
+				retryable: false,
+			});
+			expect(toBackendCliError(error)).toMatchObject({
+				code,
+				exitCode: 5,
+				retryable: false,
+			});
+		}
+	);
+
 	it("preserves stable backend error codes and details", () => {
 		const error = new ConvexError({
 			code: "RESOURCE_NOT_FOUND",
