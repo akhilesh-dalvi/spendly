@@ -116,8 +116,27 @@ export const normalizeAccountTypeColor = (
 	return color.toUpperCase();
 };
 
+export const assertAccountTypeNameAvailable = async (
+	ctx: QueryCtx,
+	args: {
+		excludeAccountTypeId?: Id<"account_types">;
+		normalizedName: string;
+		userId: Id<"users">;
+	}
+): Promise<void> => {
+	const matchingTypes = await ctx.db
+		.query("account_types")
+		.withIndex("by_userId_normalizedName", (q) =>
+			q.eq("userId", args.userId).eq("normalizedName", args.normalizedName)
+		)
+		.take(2);
+	if (matchingTypes.some((type) => type._id !== args.excludeAccountTypeId)) {
+		throw new ConvexError("ACCOUNT_TYPE_NAME_TAKEN");
+	}
+};
+
 export const assertAccountTypeCapacity = async (
-	ctx: MutationCtx,
+	ctx: QueryCtx,
 	userId: Id<"users">,
 	additionalCount = 1
 ): Promise<void> => {
@@ -140,6 +159,52 @@ export const getNextAccountTypeOrder = async (
 		.order("desc")
 		.first();
 	return (lastAccountType?.order ?? -1) + 1;
+};
+
+export const getAccountTypeAfterWrite = async (
+	ctx: MutationCtx,
+	accountTypeId: Id<"account_types">
+): Promise<Doc<"account_types">> => {
+	const accountType = await ctx.db.get(accountTypeId);
+	if (!accountType) {
+		throw new Error("Account type was not found after write");
+	}
+	return accountType;
+};
+
+export const prepareAccountTypeCreate = async (
+	ctx: QueryCtx,
+	userId: Id<"users">,
+	input: string
+): Promise<NormalizedAccountTypeName> => {
+	const name = normalizeAccountTypeName(input);
+	await assertAccountTypeNameAvailable(ctx, {
+		normalizedName: name.normalizedName,
+		userId,
+	});
+	await assertAccountTypeCapacity(ctx, userId);
+	return name;
+};
+
+export const createAccountType = async (
+	ctx: MutationCtx,
+	userId: Id<"users">,
+	input: Pick<Doc<"account_types">, "balanceNature" | "color" | "icon" | "name">
+): Promise<Doc<"account_types">> => {
+	const name = await prepareAccountTypeCreate(ctx, userId, input.name);
+	const now = Date.now();
+	const accountTypeId = await ctx.db.insert("account_types", {
+		...name,
+		balanceNature: input.balanceNature,
+		color: normalizeAccountTypeColor(input.color),
+		createdAt: now,
+		icon: normalizeAccountTypeIcon(input.icon),
+		isArchived: false,
+		order: await getNextAccountTypeOrder(ctx, userId),
+		updatedAt: now,
+		userId,
+	});
+	return await getAccountTypeAfterWrite(ctx, accountTypeId);
 };
 
 export const seedDefaultAccountTypes = async (

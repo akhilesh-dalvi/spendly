@@ -1,6 +1,12 @@
 // biome-ignore-all lint/style/useFilenamingConvention: Convex module filenames use camelCase.
 import { ConvexError, v } from "convex/values";
-import { query } from "../../_generated/server";
+import { mutation, query } from "../../_generated/server";
+import {
+	createAccountType,
+	prepareAccountTypeCreate,
+} from "../../accountTypeHelpers";
+import { accountTypeBalanceNatureValidator } from "../../accountTypeValidators";
+import { executeIdempotentMutation } from "../../domain/idempotency";
 import { getCurrentUser } from "../../helpers";
 import { withCliErrors } from "./errors";
 import { accountTypeMetadataValidator } from "./validators";
@@ -48,4 +54,64 @@ export const list = query({
 				}));
 		}),
 	returns: v.array(accountTypeValidator),
+});
+
+const createInput = {
+	balanceNature: accountTypeBalanceNatureValidator,
+	name: v.string(),
+};
+
+const unsafeTerminalText = /[\p{Cc}\p{Zl}\p{Zp}]/u;
+
+const validateCreateName = (name: string): string => {
+	if (unsafeTerminalText.test(name)) {
+		throw new ConvexError("INVALID_INPUT");
+	}
+	return name;
+};
+
+export const previewCreate = query({
+	args: createInput,
+	handler: async (ctx, args) =>
+		await withCliErrors(async () => {
+			const user = await getCurrentUser(ctx);
+			const { name } = await prepareAccountTypeCreate(
+				ctx,
+				user._id,
+				validateCreateName(args.name)
+			);
+			return { balanceNature: args.balanceNature, name };
+		}),
+	returns: v.object(createInput),
+});
+
+export const create = mutation({
+	args: {
+		...createInput,
+		agent: v.optional(v.boolean()),
+		idempotencyKey: v.string(),
+	},
+	handler: async (ctx, args) =>
+		await withCliErrors(async () => {
+			const { idempotencyKey, ...input } = args;
+			const user = await getCurrentUser(ctx);
+			return await executeIdempotentMutation(ctx, {
+				execute: async () => {
+					const type = await createAccountType(ctx, user._id, {
+						balanceNature: input.balanceNature,
+						name: validateCreateName(input.name),
+					});
+					return {
+						balanceNature: type.balanceNature,
+						id: type._id,
+						name: type.name,
+					};
+				},
+				key: idempotencyKey,
+				operation: "accountTypes.create",
+				request: input,
+				userId: user._id,
+			});
+		}),
+	returns: v.object({ ...createInput, id: v.id("account_types") }),
 });

@@ -173,7 +173,7 @@ const launcherActions: Readonly<
 		},
 		{ hint: "Browse expense tags", label: "List tags", value: "tags list" },
 		{
-			hint: "Browse read-only account types",
+			hint: "Browse active and archived account types",
 			label: "List account types",
 			value: "account-types list",
 		},

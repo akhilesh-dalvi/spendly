@@ -48,6 +48,15 @@ const revisionSchema = z.number().int().positive();
 const idempotencyKeySchema = z.string().min(8).max(200);
 const noArgumentsSchema = z.object({}).strict();
 
+const unsafeTerminalText = /[\p{Cc}\p{Zl}\p{Zp}]/u;
+const accountTypeCreateSchema = z.object({
+	balanceNature: accountTypeSchema.shape.balanceNature,
+	name: z
+		.string()
+		.min(1)
+		.refine((name) => !unsafeTerminalText.test(name)),
+});
+
 const categoryTypeColorSchema = z
 	.string()
 	.length(7)
@@ -420,11 +429,24 @@ export const operationDefinitions = {
 		mode: "mutation",
 		outputSchema: accountSchema,
 	},
+	"accountTypes.create": {
+		commit: true,
+		functionName: "cli/v1/accountTypes:create",
+		inputSchema: accountTypeCreateSchema.extend(commitFields).strict(),
+		mode: "mutation",
+		outputSchema: accountTypeCreateSchema.extend({ id: idSchema }),
+	},
 	"accountTypes.list": {
 		functionName: "cli/v1/accountTypes:list",
 		inputSchema: z.object({ includeArchived: z.boolean().optional() }).strict(),
 		mode: "query",
 		outputSchema: accountTypeSchema.array(),
+	},
+	"accountTypes.previewCreate": {
+		functionName: "cli/v1/accountTypes:previewCreate",
+		inputSchema: accountTypeCreateSchema.strict(),
+		mode: "query",
+		outputSchema: accountTypeCreateSchema,
 	},
 	"categories.create": {
 		commit: true,

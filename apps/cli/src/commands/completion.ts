@@ -33,6 +33,7 @@ const completionWords = [
 	"status",
 	"logout",
 	"--accessible",
+	"--balance-nature",
 	"--help",
 	"--version",
 	"--interactive",

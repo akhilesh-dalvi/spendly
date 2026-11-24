@@ -6,6 +6,10 @@ interface CommandExamples {
 }
 
 const examples: Readonly<Record<string, CommandExamples>> = {
+	"account-types add": {
+		flags:
+			'spendly account-types add --name "Mortgage" --balance-nature liability --dry-run',
+	},
 	"account-types list": {
 		flags: "spendly account-types list --include-archived",
 		guided: "spendly account-types list --interactive",

@@ -247,11 +247,26 @@ export const registerReadCommands = (
 		});
 	registerAccountMutationCommands(accounts, runtime);
 
-	program
+	const accountTypes = program
 		.command("account-types")
-		.description("Read account types")
+		.description("Browse or create account types");
+	accountTypes
+		.command("add")
+		.description("Create a standalone account type without creating an account")
+		.requiredOption("--name <name>", "name of the new account type")
+		.requiredOption(
+			"--balance-nature <nature>",
+			"asset (money available) or liability (money owed)"
+		)
+		.option("--idempotency-key <key>", "stable key for this intended commit")
+		.option("--dry-run", "validate and preview without saving")
+		.action(async (options, command: Command) => {
+			const { runAccountTypeAdd } = await import("./account-type-actions.js");
+			await runAccountTypeAdd(options, command, runtime);
+		});
+	accountTypes
 		.command("list")
-		.description("List read-only account types")
+		.description("List account types")
 		.option("--include-archived", "include archived account types")
 		.action(
 			async (options: { includeArchived?: boolean }, command: Command) => {

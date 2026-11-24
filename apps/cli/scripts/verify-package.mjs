@@ -273,6 +273,18 @@ try {
 		"Installed binary did not expose category-types add help"
 	);
 
+	const accountTypeAddHelp = run(
+		binaryPath,
+		["account-types", "add", "--help"],
+		{ cwd: verificationDirectory }
+	);
+	assert(
+		accountTypeAddHelp.includes("--balance-nature") &&
+			accountTypeAddHelp.includes("--dry-run") &&
+			accountTypeAddHelp.includes("--idempotency-key"),
+		"Installed binary did not expose account-types add help"
+	);
+
 	const invalidCommand = spawnSync(binaryPath, ["--json", "unknown"], {
 		cwd: verificationDirectory,
 		encoding: "utf8",

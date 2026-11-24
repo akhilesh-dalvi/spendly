@@ -4,8 +4,9 @@ import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import {
-	assertAccountTypeCapacity,
-	getNextAccountTypeOrder,
+	assertAccountTypeNameAvailable,
+	createAccountType,
+	getAccountTypeAfterWrite,
 	MAX_ACCOUNT_TYPES_PER_USER,
 	normalizeAccountTypeColor,
 	normalizeAccountTypeIcon,
@@ -33,39 +34,6 @@ const getUserAccountTypes = async (
 		.query("account_types")
 		.withIndex("by_userId_order", (q) => q.eq("userId", userId))
 		.take(MAX_ACCOUNT_TYPES_PER_USER);
-
-const assertAccountTypeNameAvailable = async (
-	ctx: MutationCtx,
-	args: {
-		excludeAccountTypeId?: Id<"account_types">;
-		normalizedName: string;
-		userId: Id<"users">;
-	}
-): Promise<void> => {
-	const matchingTypes = await ctx.db
-		.query("account_types")
-		.withIndex("by_userId_normalizedName", (q) =>
-			q.eq("userId", args.userId).eq("normalizedName", args.normalizedName)
-		)
-		.take(2);
-	const conflictingType = matchingTypes.find(
-		(accountType) => accountType._id !== args.excludeAccountTypeId
-	);
-	if (conflictingType) {
-		throw new ConvexError("ACCOUNT_TYPE_NAME_TAKEN");
-	}
-};
-
-const getAccountTypeAfterWrite = async (
-	ctx: MutationCtx,
-	accountTypeId: Id<"account_types">
-): Promise<Doc<"account_types">> => {
-	const accountType = await ctx.db.get(accountTypeId);
-	if (!accountType) {
-		throw new Error("Account type was not found after write");
-	}
-	return accountType;
-};
 
 export const list = query({
 	args: {
@@ -133,27 +101,7 @@ export const create = mutation({
 	},
 	handler: async (ctx, args) => {
 		const user = await getCurrentUser(ctx);
-		const { name, normalizedName } = normalizeAccountTypeName(args.name);
-		await assertAccountTypeNameAvailable(ctx, {
-			normalizedName,
-			userId: user._id,
-		});
-		await assertAccountTypeCapacity(ctx, user._id);
-
-		const now = Date.now();
-		const accountTypeId = await ctx.db.insert("account_types", {
-			balanceNature: args.balanceNature,
-			color: normalizeAccountTypeColor(args.color),
-			createdAt: now,
-			icon: normalizeAccountTypeIcon(args.icon),
-			isArchived: false,
-			name,
-			normalizedName,
-			order: await getNextAccountTypeOrder(ctx, user._id),
-			updatedAt: now,
-			userId: user._id,
-		});
-		return await getAccountTypeAfterWrite(ctx, accountTypeId);
+		return await createAccountType(ctx, user._id, args);
 	},
 	returns: accountTypeValidator,
 });

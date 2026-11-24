@@ -4,6 +4,8 @@ export type CliDomainErrorCode =
 	| "ACCOUNT_ARCHIVED"
 	| "ACCOUNT_REVISION_CONFLICT"
 	| "ACCOUNT_SETUP_REQUIRED"
+	| "ACCOUNT_TYPE_LIMIT_REACHED"
+	| "ACCOUNT_TYPE_NAME_CONFLICT"
 	| "AUTHENTICATION_REQUIRED"
 	| "CATEGORY_CYCLE_MISMATCH"
 	| "CATEGORY_EDIT_CONFLICT"
@@ -30,6 +32,10 @@ const ERROR_MESSAGES: Record<CliDomainErrorCode, string> = {
 	ACCOUNT_ARCHIVED: "The account is archived",
 	ACCOUNT_REVISION_CONFLICT: "The account changed after it was read",
 	ACCOUNT_SETUP_REQUIRED: "Open Spendly Web once to finish account setup",
+	ACCOUNT_TYPE_LIMIT_REACHED:
+		"The account type limit has been reached; it includes archived types",
+	ACCOUNT_TYPE_NAME_CONFLICT:
+		"An account type with that name already exists; run spendly account-types list --include-archived or choose another name",
 	AUTHENTICATION_REQUIRED: "Authentication is required",
 	CATEGORY_CYCLE_MISMATCH: "The category does not belong to the expense cycle",
 	CATEGORY_EDIT_CONFLICT:
@@ -68,6 +74,9 @@ const DOMAIN_CODE_MAP: Record<string, CliDomainErrorCode> = {
 	ACCOUNT_REVISION_CONFLICT: "ACCOUNT_REVISION_CONFLICT",
 	ACCOUNT_SETUP_REQUIRED: "ACCOUNT_SETUP_REQUIRED",
 	ACCOUNT_TYPE_ARCHIVED: "INVALID_INPUT",
+	ACCOUNT_TYPE_LIMIT_REACHED: "ACCOUNT_TYPE_LIMIT_REACHED",
+	ACCOUNT_TYPE_NAME_REQUIRED: "INVALID_INPUT",
+	ACCOUNT_TYPE_NAME_TAKEN: "ACCOUNT_TYPE_NAME_CONFLICT",
 	ACCOUNT_TYPE_NOT_FOUND: "RESOURCE_NOT_FOUND",
 	AUTHENTICATION_REQUIRED: "AUTHENTICATION_REQUIRED",
 	CATEGORY_CYCLE_MISMATCH: "CATEGORY_CYCLE_MISMATCH",

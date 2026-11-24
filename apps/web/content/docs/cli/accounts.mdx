@@ -13,7 +13,7 @@ and see how much money remains.
 
 - **Required:** install the CLI and sign in using [Quick start](/docs/cli).
 - **Required to add an account:** choose a name, an opening balance, and an
-  active account type. Account types are managed in Spendly Web.
+  active account type. List existing types or [create a custom one](#create-an-account-type).
 - **Automatic:** new accounts use your Spendly currency. When you omit a date,
   the CLI uses today's date in your computer's timezone.
 - **Default account:** if you have no default, saving a new account makes it the
@@ -37,6 +37,37 @@ spendly account-types list
 ```
 
 Use your own names and amounts. Checking below must be a type from your list.
+
+<details className="docs-disclosure">
+<summary id="create-an-account-type">Create an account type</summary>
+
+If no existing type fits, check `spendly account-types add --help` to see
+whether your installed CLI supports creation. If not, use
+[Spendly Web](/data/account-types). Otherwise, preview the new type:
+
+```bash
+spendly account-types add --name "Mortgage" --balance-nature liability --dry-run
+```
+
+Choose `asset` for money available or `liability` for money owed. The choice
+does not change or restrict the sign of any balance. Use Spendly Web to
+customize the icon or color.
+
+To save, rerun without `--dry-run` and confirm in a terminal. For a scripted
+save, pass `--non-interactive --json --idempotency-key` with a stable key for
+this save. Use the returned ID (`data.id` in JSON) as `--account-type-id` with
+`accounts add`. These are separate saves: a saved type remains available if you
+cancel account creation or it fails.
+
+Names are compared ignoring surrounding whitespace and capitalization. If a
+name is taken, run `spendly account-types list --include-archived`. Reuse the ID
+only if the existing type is active and fits; otherwise choose another name.
+
+If the save outcome is unknown, check current state first. To replay within the
+30-day retry window, use the same inputs and original key with
+`--non-interactive` (keep `--agent` if used). Don't use a new key to retry.
+
+</details>
 
 ## Try adding an account
 
@@ -238,8 +269,9 @@ Review every selected account before confirming.
 
 - **An account name is not found or is ambiguous:** list accounts again. Use
   the exact name or the account ID, or choose it with `--interactive`.
-- **No account type is available:** check `spendly account-types list` and manage
-  active types in Spendly Web before trying to add the account again.
+- **No account type is available:** check `spendly account-types list`, then
+  [create an account type](#create-an-account-type) or manage existing types in
+  Spendly Web before trying to add the account again.
 - **An account changed after you read it:** read it again and rerun the preview
   before saving. Do not force an outdated change through.
 - **You do not know whether a change saved:** inspect the account and its
