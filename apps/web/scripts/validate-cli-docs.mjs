@@ -28,6 +28,7 @@ const COMMAND_GROUPS = new Set([
 	"accounts",
 	"auth",
 	"categories",
+	"category-types",
 	"cycles",
 	"expenses",
 	"tags",
@@ -72,6 +73,7 @@ const REQUIRED_COMMAND_PATHS = [
 	"cycles delete",
 	"categories list",
 	"tags list",
+	"tags add",
 	"account-types list",
 ];
 const LEAKAGE_PATTERNS = [

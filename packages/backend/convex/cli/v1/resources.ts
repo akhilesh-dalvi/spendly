@@ -6,7 +6,11 @@ import {
 	executeIdempotentMutation,
 	fingerprintRequest,
 } from "../../domain/idempotency";
-import { listCliTags } from "../../domain/tagOperations";
+import {
+	insertOwnedTag,
+	listCliTags,
+	planStandaloneTag,
+} from "../../domain/tagOperations";
 import {
 	findCycleForDate,
 	getCurrentUser,
@@ -556,6 +560,42 @@ export const listTags = query({
 				}));
 		}),
 	returns: v.array(tagSummaryValidator),
+});
+
+const tagCreateFields = { name: v.string() };
+
+export const previewTagCreate = query({
+	args: tagCreateFields,
+	handler: async (ctx, args) =>
+		await withCliErrors(async () => {
+			const user = await getCurrentUser(ctx);
+			const name = await planStandaloneTag(ctx, user._id, args.name);
+			return { name };
+		}),
+	returns: v.object(tagCreateFields),
+});
+
+export const createTag = mutation({
+	args: {
+		...tagCreateFields,
+		agent: v.optional(v.boolean()),
+		idempotencyKey: v.string(),
+	},
+	handler: async (ctx, { idempotencyKey, agent, ...input }) =>
+		await withCliErrors(async () => {
+			const user = await getCurrentUser(ctx);
+			return await executeIdempotentMutation(ctx, {
+				execute: async () => {
+					const name = await planStandaloneTag(ctx, user._id, input.name);
+					return { id: await insertOwnedTag(ctx, user._id, name), name };
+				},
+				key: idempotencyKey,
+				operation: "tags.create",
+				request: { ...input, agent },
+				userId: user._id,
+			});
+		}),
+	returns: v.object({ ...tagCreateFields, id: v.id("tags") }),
 });
 
 const categoryStatValidator = v.object({

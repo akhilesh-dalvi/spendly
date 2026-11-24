@@ -86,6 +86,43 @@ test("CLI expense can be edited in Web and read by a fresh CLI process", {
 	await expect(page.getByLabel("Amount", { exact: true })).toHaveValue("25");
 });
 
+test("a tag created by the CLI appears unused in Web", async ({
+	page,
+	user,
+}) => {
+	await seedUser(user);
+	await user.loginCli();
+	const name = "Cross-surface errands";
+	const args = ["tags", "add", "--name", `  ${name}  `];
+	const preview = await user.runCli([...args, "--dry-run"]);
+	expect(preview.exitCode).toBe(0);
+	expect(success.parse(JSON.parse(preview.stdout)).data).toEqual({ name });
+	expect(await user.query(api.tags.list, {})).toEqual([]);
+
+	const result = await user.runCli([
+		...args,
+		"--idempotency-key",
+		randomUUID(),
+	]);
+	expect(result.exitCode).toBe(0);
+	expect(result.stderr).toBe("");
+	const tag = success
+		.extend({ data: z.object({ id: z.string(), name: z.string() }) })
+		.parse(JSON.parse(result.stdout)).data;
+	expect(tag.name).toBe(name);
+	expect(await user.query(api.tags.listWithUsage, {})).toEqual([
+		expect.objectContaining({ _id: tag.id, name, usageCount: 0 }),
+	]);
+
+	await page.setViewportSize({ height: 900, width: 1280 });
+	await page.goto("/data/tags");
+	const row = page.getByRole("row").filter({
+		has: page.getByText(name, { exact: true }),
+	});
+	await expect(row.getByText("0 expenses", { exact: true })).toBeVisible();
+	await expect(row.getByText("Unused", { exact: true })).toBeVisible();
+});
+
 test("CLI edits a referenced account type and Web shows the new metadata without financial changes", async ({
 	page,
 	user,

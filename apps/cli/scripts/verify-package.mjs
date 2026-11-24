@@ -300,6 +300,16 @@ try {
 		"Installed binary did not expose account-types edit help"
 	);
 
+	const tagAddHelp = run(binaryPath, ["tags", "add", "--help"], {
+		cwd: verificationDirectory,
+	});
+	assert(
+		tagAddHelp.includes("--name") &&
+			tagAddHelp.includes("--dry-run") &&
+			tagAddHelp.includes("--idempotency-key"),
+		"Installed binary did not expose tags add help"
+	);
+
 	const invalidCommand = spawnSync(binaryPath, ["--json", "unknown"], {
 		cwd: verificationDirectory,
 		encoding: "utf8",

@@ -20,6 +20,187 @@ const setup = async () => {
 	return { cycle, owner, test, userId };
 };
 
+describe("standalone CLI tag creation", () => {
+	const preview = api.cli.v1.resources.previewTagCreate;
+	const create = api.cli.v1.resources.createTag;
+
+	it("previews without saving and creates an unused tag without changing financial state", async () => {
+		const { owner } = await setup();
+		const [type] = await owner.query(api.accountTypes.list, {});
+		if (!type) {
+			throw new Error("Expected an account type");
+		}
+		const { id: accountId } = await owner.mutation(api.cli.v1.accounts.create, {
+			accountTypeId: type._id,
+			date: "2026-01-01",
+			idempotencyKey: "seed-tag-test-account",
+			name: "Wallet",
+			startingBalance: 100,
+		});
+		const { id: expenseId } = await owner.mutation(api.cli.v1.expenses.create, {
+			accountId,
+			amount: 5,
+			date: "2026-01-02",
+			idempotencyKey: "seed-tag-test-expense",
+		});
+		const readState = () =>
+			Promise.all([
+				owner.query(api.cli.v1.expenses.get, { expenseId }),
+				owner.query(api.cli.v1.accounts.get, { accountId }),
+				owner.query(api.cli.v1.accounts.listTransactions, { accountId }),
+			]);
+		const before = await readState();
+		const input = { name: "  Work  " };
+		expect(await owner.query(preview, input)).toEqual({ name: "Work" });
+		expect(await owner.query(api.tags.list, {})).toEqual([]);
+
+		const tag = await owner.mutation(create, {
+			...input,
+			idempotencyKey: "create-work-tag",
+		});
+		expect(tag).toEqual({ id: expect.any(String), name: "Work" });
+		expect(await owner.query(api.tags.listWithUsage, {})).toEqual([
+			expect.objectContaining({ _id: tag.id, name: "Work", usageCount: 0 }),
+		]);
+		expect(await readState()).toEqual(before);
+	});
+
+	it("rechecks case and whitespace on commit and scopes names and keys to the signed-in user", async () => {
+		const { owner, test } = await setup();
+		const other = test.withIdentity({ subject: "another-tag-owner" });
+		await other.mutation(api.users.create, { email: "another@example.com" });
+		const input = { name: "Work" };
+		const request = { ...input, idempotencyKey: "same-tag-key" };
+		await expect(test.query(preview, input)).rejects.toMatchObject({
+			data: { code: "AUTHENTICATION_REQUIRED" },
+		});
+		await expect(test.mutation(create, request)).rejects.toMatchObject({
+			data: { code: "AUTHENTICATION_REQUIRED" },
+		});
+
+		expect(await owner.query(preview, input)).toEqual(input);
+		const webId = await owner.mutation(api.tags.create, { name: " wOrK " });
+		const conflict = { data: { code: "TAG_NAME_CONFLICT", retryable: false } };
+		await expect(owner.mutation(create, request)).rejects.toMatchObject(
+			conflict
+		);
+		await expect(owner.query(preview, input)).rejects.toMatchObject(conflict);
+		await expect(
+			owner.mutation(create, { ...request, name: "wOrK" })
+		).rejects.toMatchObject(conflict);
+		expect(await owner.query(api.tags.list, {})).toEqual([
+			expect.objectContaining({ _id: webId, name: " wOrK " }),
+		]);
+
+		await owner.mutation(create, { ...request, name: "Travel" });
+		const otherTag = await other.mutation(create, request);
+		expect(otherTag).toMatchObject(input);
+		expect(otherTag.id).not.toBe(webId);
+		expect(await other.query(api.tags.list, {})).toEqual([
+			expect.objectContaining({ _id: otherTag.id, name: "Work" }),
+		]);
+	});
+
+	it("replays the same request and rejects a new key for the same name", async () => {
+		const { owner } = await setup();
+		const request = { idempotencyKey: "replay-tag-key", name: "Work" };
+		const [first, second] = await Promise.all([
+			owner.mutation(create, request),
+			owner.mutation(create, request),
+		]);
+		expect(second).toEqual(first);
+		await expect(
+			owner.mutation(create, { ...request, name: "Other" })
+		).rejects.toMatchObject({ data: { code: "IDEMPOTENCY_CONFLICT" } });
+		await expect(
+			owner.mutation(create, { ...request, idempotencyKey: "new-work-key" })
+		).rejects.toMatchObject({ data: { code: "TAG_NAME_CONFLICT" } });
+		expect(await owner.query(api.tags.list, {})).toHaveLength(1);
+	});
+
+	it.each(["standalone", "inline"])(
+		"creates only one tag when a competing %s request uses a case variant",
+		async (competitor) => {
+			const { owner } = await setup();
+			const outcomes = await Promise.allSettled([
+				owner.mutation(create, {
+					idempotencyKey: "race-tag-key",
+					name: "Work",
+				}),
+				competitor === "inline"
+					? owner.mutation(api.cli.v1.expenses.create, {
+							amount: 5,
+							date: "2026-01-02",
+							idempotencyKey: "race-expense-key",
+							newTagNames: [" work "],
+						})
+					: owner.mutation(create, {
+							idempotencyKey: "race-tag-variant-key",
+							name: " work ",
+						}),
+			]);
+			expect(outcomes).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ status: "fulfilled" }),
+					expect.objectContaining({
+						reason: expect.objectContaining({
+							data: expect.objectContaining({ code: "TAG_NAME_CONFLICT" }),
+						}),
+						status: "rejected",
+					}),
+				])
+			);
+			expect(await owner.query(api.tags.list, {})).toHaveLength(1);
+		}
+	);
+
+	it.each(["   ", "x".repeat(101), "Work\u0007", "\nWork", "Work\u2028tag"])(
+		"rejects invalid tag name %j during preview and save",
+		async (name) => {
+			const { owner } = await setup();
+			const error = { data: { code: "INVALID_INPUT" } };
+			await expect(owner.query(preview, { name })).rejects.toMatchObject(error);
+			await expect(
+				owner.mutation(create, { idempotencyKey: "invalid-tag-key", name })
+			).rejects.toMatchObject(error);
+			expect(await owner.query(api.tags.list, {})).toEqual([]);
+		}
+	);
+
+	it("allows the last listable tag and preserves replay at the cap", async () => {
+		const { owner, test, userId } = await setup();
+		await test.run(async (ctx) => {
+			await forEachSequential(
+				Array.from({ length: 999 }, (_, index) => index),
+				async (index) => {
+					await ctx.db.insert("tags", {
+						createdAt: 0,
+						name: `Tag ${index}`,
+						userId,
+					});
+				}
+			);
+		});
+		const name = "🌱".repeat(100);
+		const request = { idempotencyKey: "last-tag-key", name };
+		expect(await owner.query(preview, { name })).toEqual({ name });
+		const saved = await owner.mutation(create, request);
+		const overflow = { name: "Overflow" };
+		const error = { data: { code: "RESOURCE_LIMIT_EXCEEDED" } };
+		await expect(owner.query(preview, overflow)).rejects.toMatchObject(error);
+		await expect(
+			owner.mutation(create, {
+				...overflow,
+				idempotencyKey: "overflow-tag-key",
+			})
+		).rejects.toMatchObject(error);
+		expect(await owner.mutation(create, request)).toEqual(saved);
+		expect(await owner.query(api.cli.v1.resources.listTags, {})).toHaveLength(
+			1000
+		);
+	});
+});
+
 describe("standalone CLI category type creation", () => {
 	const preview = api.cli.v1.resources.previewCategoryTypeCreate;
 	const create = api.cli.v1.resources.createCategoryType;
@@ -1118,7 +1299,7 @@ describe("CLI identity and resource queries", () => {
 		).rejects.toMatchObject({
 			data: {
 				code: "RESOURCE_LIMIT_EXCEEDED",
-				message: "The requested summary is too large to calculate safely",
+				message: "The request exceeds the supported resource limit",
 				retryable: false,
 			},
 		});

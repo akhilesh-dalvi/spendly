@@ -69,11 +69,10 @@ const ERROR_MESSAGES: Record<CliDomainErrorCode, string> = {
 	INVALID_ACCOUNT_TYPE_ICON:
 		"Use a supported account type icon key; clearing is not supported",
 	INVALID_INPUT: "The request input is invalid",
-	RESOURCE_LIMIT_EXCEEDED:
-		"The requested summary is too large to calculate safely",
+	RESOURCE_LIMIT_EXCEEDED: "The request exceeds the supported resource limit",
 	RESOURCE_NOT_FOUND: "The requested resource was not found",
 	TAG_NAME_CONFLICT:
-		"A tag with that name already exists; reopen the tag picker and choose the existing tag",
+		"A tag with that name already exists; run spendly tags list or choose the existing tag in the expense tag picker",
 	TRANSFER_CURRENCY_MISMATCH:
 		"Transfers require accounts with the same currency",
 	TRANSFER_SAME_ACCOUNT: "Transfer accounts must be different",

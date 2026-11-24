@@ -1,6 +1,6 @@
 ---
 title: Tags
-description: Find tags, attach them to expenses, and filter by them.
+description: Create and find tags, attach them to expenses, and filter by them.
 ---
 
 Tags are extra labels for expenses. An expense can have several tags, alongside
@@ -12,8 +12,7 @@ work-related spending later.
 - **Required:** Install the CLI and sign in. Follow [Quick start](/docs/cli)
   if you have not done that yet.
 - **Required for this example:** a saved Lunch expense. If Work doesn’t exist,
-  create it while editing Lunch below. To create a tag without an expense,
-  use [Tags in Spendly Web](/data/tags).
+  create it on its own or while editing Lunch below.
 - **Optional:** Tags themselves are optional. New expenses have no tags unless
   you choose them.
 
@@ -25,6 +24,22 @@ spendly tags list
 
 The list shows each tag's name and ID. Use a name from your own list wherever
 an example says `Work`.
+
+## Create a tag without an expense
+
+If Work isn't already in your list, preview the tag, then confirm the save in
+your terminal:
+
+```bash
+spendly tags add --name "Work" --dry-run
+spendly tags add --name "Work" --interactive
+```
+
+Creating a tag returns its ID and does not change any expense. Leading and
+trailing whitespace is trimmed. Use 1–100 characters with no control characters
+or line breaks. If the name already exists, even with different capitalization,
+the command does not create or reuse it. Run `spendly tags list` to find the
+existing ID. The CLI supports up to 1,000 tags per user.
 
 ## Try tagging Lunch
 
@@ -158,8 +173,8 @@ with `spendly expenses get EXPENSE_ID`.
 
 - Leaving out tag options when directly editing another field keeps the existing
   tags unchanged.
-- Tag names must match an existing tag. Passing a new name does not create it.
-- Creating, renaming, or deleting a tag itself happens in Spendly Web.
+- The expense `--tag` option only selects an existing tag; it does not create one.
+- Rename or delete a tag in [Spendly Web](/data/tags).
 
 </details>
 
@@ -169,7 +184,7 @@ with `spendly expenses get EXPENSE_ID`.
 <summary>Common problems and fixes</summary>
 
 - **Tag not found:** The name does not match an existing tag. Run
-  `spendly tags list` and copy the name, or create the tag in Spendly Web first.
+  `spendly tags list` and copy the name, or create the tag with `spendly tags add`.
 - **Name matches more than one tag:** Use its ID with `--tag-id` instead of `--tag`.
 - **Expense changed since you reviewed it:** Read it again with
   `spendly expenses get EXPENSE_ID`, then make a fresh preview before saving.
@@ -186,6 +201,17 @@ You can skip this reference when using guided commands.
 
 <details className="docs-disclosure">
 <summary>Optional: automation and technical reference</summary>
+
+To create a tag without prompts, use a fresh idempotency key for the intended
+save:
+
+```bash
+spendly tags add --name "Work" --json --non-interactive --idempotency-key TAG_ADD_KEY
+```
+
+If the save outcome is uncertain, check `spendly tags list` first. If you need
+to recover the result, repeat the exact save with the original key (and
+`--agent` if used). Don't use a new key or preview again to recover a save.
 
 Use stable tag IDs with repeatable `--tag-id` rather than names in
 `--non-interactive` mode; name selectors are rejected there. Repeated tag IDs

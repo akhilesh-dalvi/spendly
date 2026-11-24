@@ -21,28 +21,23 @@ export const listCliTags = async (ctx: QueryCtx, userId: Id<"users">) => {
 	return tags;
 };
 
-export const planInlineTags = async (
-	ctx: QueryCtx,
-	userId: Id<"users">,
-	names: readonly string[] | undefined
-): Promise<string[]> => {
-	if (!names?.length) {
-		return [];
-	}
-	if (names.length > MAXIMUM_PENDING_TAGS) {
+const normalizeTagName = (raw: string): string => {
+	const name = raw.trim();
+	if (
+		!name ||
+		[...name].length > MAXIMUM_TAG_NAME_LENGTH ||
+		unsafeTagName.test(raw)
+	) {
 		throw new ConvexError("INVALID_TAG_NAME");
 	}
-	const normalized = names.map((raw) => {
-		const name = raw.trim();
-		if (
-			!name ||
-			[...name].length > MAXIMUM_TAG_NAME_LENGTH ||
-			unsafeTagName.test(raw)
-		) {
-			throw new ConvexError("INVALID_TAG_NAME");
-		}
-		return name;
-	});
+	return name;
+};
+
+const checkNewTagNames = async (
+	ctx: QueryCtx,
+	userId: Id<"users">,
+	normalized: readonly string[]
+): Promise<void> => {
 	const existing = await listCliTags(ctx, userId);
 	const usedNames = new Set(existing.map((tag) => matchKey(tag.name)));
 	for (const name of normalized) {
@@ -55,6 +50,31 @@ export const planInlineTags = async (
 	if (existing.length + normalized.length > MAXIMUM_TAGS) {
 		throw new ConvexError("RESOURCE_LIMIT_EXCEEDED");
 	}
+};
+
+export const planStandaloneTag = async (
+	ctx: QueryCtx,
+	userId: Id<"users">,
+	raw: string
+): Promise<string> => {
+	const name = normalizeTagName(raw);
+	await checkNewTagNames(ctx, userId, [name]);
+	return name;
+};
+
+export const planInlineTags = async (
+	ctx: QueryCtx,
+	userId: Id<"users">,
+	names: readonly string[] | undefined
+): Promise<string[]> => {
+	if (!names?.length) {
+		return [];
+	}
+	if (names.length > MAXIMUM_PENDING_TAGS) {
+		throw new ConvexError("INVALID_TAG_NAME");
+	}
+	const normalized = names.map(normalizeTagName);
+	await checkNewTagNames(ctx, userId, normalized);
 	return normalized;
 };
 

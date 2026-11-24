@@ -724,6 +724,19 @@ export const operationDefinitions = {
 		mode: "query",
 		outputSchema: tagSchema.array(),
 	},
+	"tags.create": {
+		commit: true,
+		functionName: "cli/v1/resources:createTag",
+		inputSchema: z.object({ name: z.string(), ...commitFields }).strict(),
+		mode: "mutation",
+		outputSchema: z.object({ id: idSchema, name: z.string() }),
+	},
+	"tags.previewCreate": {
+		functionName: "cli/v1/resources:previewTagCreate",
+		inputSchema: z.object({ name: z.string() }).strict(),
+		mode: "query",
+		outputSchema: z.object({ name: z.string() }),
+	},
 } as const;
 
 export type OperationName = keyof typeof operationDefinitions;

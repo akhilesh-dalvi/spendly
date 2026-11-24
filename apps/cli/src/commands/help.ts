@@ -132,6 +132,10 @@ const examples: Readonly<Record<string, CommandExamples>> = {
 		flags: "spendly summary --date 2026-09-14",
 		guided: "spendly summary --interactive",
 	},
+	"tags add": {
+		flags: 'spendly tags add --name "Work" --dry-run',
+		guided: 'spendly tags add --name "Work" --interactive',
+	},
 	"tags list": { flags: "spendly tags list" },
 };
 

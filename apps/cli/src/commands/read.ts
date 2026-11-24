@@ -182,14 +182,25 @@ export const registerReadCommands = (
 			await runCategoryTypeAdd(options, command, runtime);
 		});
 
-	program
+	const tags = program
 		.command("tags")
-		.description("Read expense tags")
+		.description("List and create expense tags");
+	tags
 		.command("list")
 		.description("List tags")
 		.action(async (_options, command: Command) => {
 			const { runTagList } = await import("./read-actions.js");
 			await runTagList(command, runtime);
+		});
+	tags
+		.command("add")
+		.description("Create a reusable tag without assigning it to an expense")
+		.requiredOption("--name <name>", "name of the new tag")
+		.option("--idempotency-key <key>", "stable key for this intended commit")
+		.option("--dry-run", "validate and preview without saving")
+		.action(async (options, command: Command) => {
+			const { runTagAdd } = await import("./tag-actions.js");
+			await runTagAdd(options, command, runtime);
 		});
 
 	program
