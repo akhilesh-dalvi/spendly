@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { runCli } from "../cli.js";
 import { CliError } from "../errors.js";
 import type { InteractivePrompter } from "../input/types.js";
@@ -209,6 +209,258 @@ it("does not save when the terminal user declines the preview", async () => {
 		message: "Create this category?",
 	});
 	expect(mutation).not.toHaveBeenCalled();
+});
+
+describe("categories edit", () => {
+	const editArgs = ["categories", "edit", category.id];
+	const editSnapshot = "a".repeat(64);
+	const editPreview = {
+		after: { ...category, name: "Repairs" },
+		before: {
+			...category,
+			categoryType: { color: null, id: "type-demo", name: "Needs" },
+			plannedAmount: 75,
+		},
+		cycleName: proposal.cycleName,
+		editSnapshot,
+	};
+	const editFlags = [
+		"--name",
+		"Repairs",
+		"--clear-category-type",
+		"--planned-amount",
+		"0",
+	];
+	const dryRunInput = {
+		categoryId: category.id,
+		categoryTypeId: null,
+		name: "Repairs",
+		plannedAmount: 0,
+	};
+	const commitFlags = [
+		"--non-interactive",
+		"--if-edit-snapshot",
+		editSnapshot,
+		"--idempotency-key",
+		"category-edit-001",
+	];
+	const approvedPrompter = () => ({
+		confirm: vi.fn<InteractivePrompter["confirm"]>().mockResolvedValue(true),
+		date: vi.fn(),
+		multiselect: vi.fn(),
+		select: vi.fn(),
+		text: vi.fn(),
+	});
+
+	it("previews from the stable ID and sends only the requested patch", async () => {
+		const { runtime, query, mutation, stdout } = createRuntime();
+		query.mockResolvedValueOnce(editPreview);
+		expect(
+			await runCli([...editArgs, ...editFlags, "--dry-run", "--json"], runtime)
+		).toBe(0);
+		expect(query).toHaveBeenCalledExactlyOnceWith(
+			"cli/v1/resources:previewCategoryEdit",
+			dryRunInput
+		);
+		expect(mutation).not.toHaveBeenCalled();
+		expect(JSON.parse(stdout())).toMatchObject({
+			data: editPreview,
+			meta: { dryRun: true },
+			schemaVersion: 1,
+		});
+	});
+
+	it("labels an invalid stored plan separately from a cleared plan", async () => {
+		const { runtime, query, mutation, stdout } = createRuntime();
+		query.mockResolvedValueOnce({
+			...editPreview,
+			after: { ...editPreview.after, plannedAmount: null },
+			before: { ...editPreview.before, plannedAmount: "Infinity" },
+		});
+		expect(
+			await runCli(
+				[...editArgs, "--clear-planned-amount", "--dry-run"],
+				runtime
+			)
+		).toBe(0);
+		expect(stdout()).toContain("Planned amount: Invalid (Infinity)");
+		expect(stdout()).toContain("Planned amount: None");
+		expect(mutation).not.toHaveBeenCalled();
+	});
+
+	it("commits or replays the exact guarded patch in agent mode without re-previewing", async () => {
+		const { runtime, query, mutation, stdout } = createRuntime();
+		mutation.mockResolvedValueOnce({
+			...editPreview.after,
+			plannedAmount: null,
+		});
+		expect(
+			await runCli(
+				[
+					...editArgs,
+					...commitFlags,
+					"--clear-planned-amount",
+					"--agent",
+					"--json",
+				],
+				runtime
+			)
+		).toBe(0);
+		expect(query).not.toHaveBeenCalled();
+		expect(mutation).toHaveBeenCalledExactlyOnceWith(
+			"cli/v1/resources:editCategory",
+			{
+				agent: true,
+				categoryId: category.id,
+				expectedEditSnapshot: editSnapshot,
+				idempotencyKey: "category-edit-001",
+				plannedAmount: null,
+			}
+		);
+		expect(JSON.parse(stdout())).toMatchObject({
+			data: { id: category.id, plannedAmount: null },
+			meta: { dryRun: false },
+		});
+	});
+
+	it.each([false, true])(
+		"commits only after terminal confirmation (%s)",
+		async (confirmed) => {
+			const prompter = approvedPrompter();
+			prompter.confirm.mockResolvedValueOnce(confirmed);
+			const { runtime, query, mutation } = createRuntime(prompter);
+			query.mockResolvedValueOnce({
+				...editPreview,
+				before: { ...editPreview.before, name: "Old\u001b[2J name" },
+			});
+			mutation.mockResolvedValueOnce(editPreview.after);
+			expect(await runCli([...editArgs, ...editFlags], runtime)).toBe(0);
+			expect(runtime.stderr.write).toHaveBeenCalledWith(
+				expect.stringContaining("Name: Old [2J name")
+			);
+			expect(runtime.stderr.write).toHaveBeenCalledWith(
+				expect.stringContaining("Type: None")
+			);
+			expect(runtime.stderr.write).toHaveBeenCalledWith(
+				expect.stringContaining("Planned amount: 0")
+			);
+			expect(prompter.confirm).toHaveBeenCalledWith({
+				initialValue: false,
+				message: "Save these category changes?",
+			});
+			if (confirmed) {
+				expect(mutation).toHaveBeenCalledExactlyOnceWith(
+					"cli/v1/resources:editCategory",
+					{
+						...dryRunInput,
+						expectedEditSnapshot: editSnapshot,
+						idempotencyKey: "generated-category-key",
+					}
+				);
+			} else {
+				expect(mutation).not.toHaveBeenCalled();
+			}
+		}
+	);
+
+	it("reports the original terminal snapshot and key after an uncertain save", async () => {
+		const { runtime, query, mutation } = createRuntime(approvedPrompter());
+		query.mockResolvedValueOnce(editPreview);
+		mutation.mockRejectedValueOnce(new CliError("NETWORK_ERROR", "lost reply"));
+		expect(await runCli([...editArgs, ...editFlags], runtime)).toBe(7);
+		expect(runtime.stderr.write).toHaveBeenCalledWith(
+			expect.stringContaining(
+				`--non-interactive --if-edit-snapshot ${editSnapshot} --idempotency-key generated-category-key`
+			)
+		);
+		const [save] = mutation.mock.calls;
+		mutation.mockResolvedValueOnce(editPreview.after);
+		expect(
+			await runCli(
+				[
+					...editArgs,
+					...editFlags,
+					"--non-interactive",
+					"--if-edit-snapshot",
+					editSnapshot,
+					"--idempotency-key",
+					"generated-category-key",
+				],
+				runtime
+			)
+		).toBe(0);
+		expect(mutation.mock.calls).toEqual([save, save]);
+		expect(query).toHaveBeenCalledTimes(1);
+	});
+
+	it("returns the stale-preview conflict without retrying or reading a fresh preview", async () => {
+		const { runtime, query, mutation, stdout } = createRuntime();
+		mutation.mockRejectedValueOnce(
+			new CliError("CATEGORY_EDIT_CONFLICT", "Review a fresh preview")
+		);
+		expect(
+			await runCli(
+				[...editArgs, ...editFlags, ...commitFlags, "--json"],
+				runtime
+			)
+		).toBe(5);
+		expect(mutation).toHaveBeenCalledTimes(1);
+		expect(query).not.toHaveBeenCalled();
+		expect(JSON.parse(stdout())).toMatchObject({
+			error: { code: "CATEGORY_EDIT_CONFLICT", retryable: false },
+		});
+	});
+
+	it.each([
+		{ code: "INVALID_INPUT", flags: ["--dry-run"] },
+		{
+			code: "INVALID_COMMAND",
+			flags: [
+				"--clear-category-type",
+				"--category-type-id",
+				"type-demo",
+				"--dry-run",
+			],
+		},
+		{
+			code: "INVALID_COMMAND",
+			flags: ["--clear-planned-amount", "--planned-amount", "0", "--dry-run"],
+		},
+		{
+			code: "INVALID_INPUT",
+			flags: ["--planned-amount", "0.001", "--dry-run"],
+		},
+		{
+			code: "INVALID_INPUT",
+			flags: ["--name", "Repairs", "--if-edit-snapshot", "invalid"],
+		},
+		{
+			code: "INVALID_INPUT",
+			flags: [
+				"--name",
+				"Repairs",
+				"--if-edit-snapshot",
+				editSnapshot,
+				"--dry-run",
+			],
+		},
+		{
+			code: "NON_INTERACTIVE_INPUT_REQUIRED",
+			flags: ["--name", "Repairs", "--idempotency-key", "category-edit-001"],
+		},
+		{
+			code: "NON_INTERACTIVE_INPUT_REQUIRED",
+			flags: ["--name", "Repairs", "--if-edit-snapshot", editSnapshot],
+		},
+	])("fails locally with $code for $flags", async ({ code, flags }) => {
+		const { runtime, query, mutation, stdout } = createRuntime();
+		expect(await runCli([...editArgs, ...flags, "--json"], runtime)).not.toBe(
+			0
+		);
+		expect(query).not.toHaveBeenCalled();
+		expect(mutation).not.toHaveBeenCalled();
+		expect(JSON.parse(stdout())).toMatchObject({ error: { code } });
+	});
 });
 
 it.each([

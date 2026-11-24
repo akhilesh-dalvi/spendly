@@ -66,6 +66,15 @@ const categoryCreatePreviewSchema = categorySchema
 	})
 	.extend({ cycleName: z.string() });
 
+const categoryEditFields = {
+	categoryId: idSchema,
+	categoryTypeId: categoryCreateFields.categoryTypeId.nullable(),
+	icon: categoryCreateFields.icon,
+	name: categoryCreateFields.name.optional(),
+	plannedAmount: categoryCreateFields.plannedAmount.nullable(),
+};
+const categoryEditSnapshotSchema = z.string().regex(/^[a-f0-9]{64}$/u);
+
 const contextInputSchema = z
 	.object({
 		date: localDateSchema,
@@ -409,11 +418,40 @@ export const operationDefinitions = {
 		mode: "mutation",
 		outputSchema: categorySchema,
 	},
+	"categories.edit": {
+		commit: true,
+		functionName: "cli/v1/resources:editCategory",
+		inputSchema: z
+			.object({
+				...categoryEditFields,
+				...commitFields,
+				expectedEditSnapshot: categoryEditSnapshotSchema,
+			})
+			.strict(),
+		mode: "mutation",
+		outputSchema: categorySchema,
+	},
 	"categories.previewCreate": {
 		functionName: "cli/v1/resources:previewCategoryCreate",
 		inputSchema: z.object(categoryCreateFields).strict(),
 		mode: "query",
 		outputSchema: categoryCreatePreviewSchema,
+	},
+	"categories.previewEdit": {
+		functionName: "cli/v1/resources:previewCategoryEdit",
+		inputSchema: z.object(categoryEditFields).strict(),
+		mode: "query",
+		outputSchema: z.object({
+			after: categorySchema,
+			before: categorySchema.extend({
+				plannedAmount: z.union([
+					categorySchema.shape.plannedAmount,
+					z.enum(["NaN", "Infinity", "-Infinity"]),
+				]),
+			}),
+			cycleName: z.string(),
+			editSnapshot: categoryEditSnapshotSchema,
+		}),
 	},
 	"context.get": {
 		functionName: "cli/v1/context:get",
@@ -656,6 +694,9 @@ const uncertainMutationAdvice = (name: OperationName, key?: string): string => {
 	}
 	if (name === "expenses.create" || name === "expenses.update") {
 		return "check with spendly expenses save-status <key> before starting a new save";
+	}
+	if (name === "categories.edit") {
+		return "check the category before replaying the exact edit with the original snapshot and idempotency key";
 	}
 	return "repeat the same command with the same idempotency key";
 };

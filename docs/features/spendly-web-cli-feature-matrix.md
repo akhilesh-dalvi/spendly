@@ -8,7 +8,7 @@ Based on [Spendly web features and actions](spendly-web-action-inventory.md), wi
 
 **Cycle-copy parity follow-up:** Local Web cycle creation now supports explicit zero-category copying while retaining the selected source. Mocked form/navigation/dialog regressions and `convex-test` public Web API tests distinguish omitted selection (all) from `[]` (none). Browser review is limited to unsaved form states; no live cycle was created, no backend sync was needed, and no production build is claimed. The cycle-copy notes below supersede the original inventory limitations.
 
-**Overall:** Web (129/151) · CLI (82/151). Counts show supported feature rows out of rows available on at least one surface; table headers show section counts. The 17 rows in Unsupported on both are excluded from overall counts. Rows include product actions and surface-specific controls, so these counts are a checklist, not a weighted feature-parity score.
+**Overall:** Web (129/151) · CLI (83/151). Counts show supported feature rows out of rows available on at least one surface; table headers show section counts. The 17 rows in Unsupported on both are excluded from overall counts. Rows include product actions and surface-specific controls, so these counts are a checklist, not a weighted feature-parity score.
 
 **Implementation priorities:** **P1** = first (core entry/editing, assignment correctness, and essential CLI creation); **P2** = next (reporting, lifecycle management, workflow improvements, and broader feature coverage); **P3** = last (polish, advanced/destructive operations, integrations, and monetization). Within each priority, implement Web gaps before CLI gaps: **P1 Web → P1 CLI → P2 Web → P2 CLI → P3 Web → P3 CLI**. Existing features use **—**; **N/A** means an intentionally surface-specific control, not a proposed implementation gap. Availability counts reflect the source-level ✅/❌ markers, including N/A rows, not deployment state.
 
@@ -20,10 +20,10 @@ Counts include only missing features assigned P1–P3, including Unsupported on 
 
 | Priority | Web | CLI | Total |
 | --- | ---: | ---: | ---: |
-| P1 | 0 | 8 | 8 |
+| P1 | 0 | 7 | 7 |
 | P2 | 9 | 41 | 50 |
 | P3 | 12 | 15 | 27 |
-| **Total** | **21** | **64** | **85** |
+| **Total** | **21** | **63** | **84** |
 
 A feature missing on both surfaces counts once per surface; Total counts implementation gaps, not unique features.
 
@@ -101,13 +101,13 @@ A feature missing on both surfaces counts once per surface; Total counts impleme
 
 ## Categories
 
-| Feature | Web (11/11) | CLI (4/11) | Web priority | CLI priority |
+| Feature | Web (11/11) | CLI (5/11) | Web priority | CLI priority |
 | --- | :---: | :---: | :---: | :---: |
 | List a cycle's categories, including names, icons, types, plans, and hidden state | ✅ | ✅ | — | — |
 | View a category's expenses | ✅ | ✅ | — | — |
 | View category spending, planned, remaining, and utilization metrics | ✅ | ✅ | — | — |
 | Create standalone categories, individually or with multiple draft rows | ✅ | ❌ (single-category creation only) | — | P1 |
-| Edit an existing category's name, icon, type, or plan | ✅ | ❌ | — | P1 |
+| Edit an existing category's name, icon, type, or plan | ✅ | ✅ | — | — |
 | Fill a category plan from previous-cycle actual spending | ✅ | ❌ | — | P2 |
 | Populate new category drafts from previous-cycle suggestions | ✅ | ❌ | — | P3 |
 | Hide or restore a category | ✅ | ❌ | — | P2 |

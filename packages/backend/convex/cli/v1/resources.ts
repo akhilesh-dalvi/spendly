@@ -2,11 +2,15 @@ import { ConvexError, type Infer, v } from "convex/values";
 import type { Doc, Id } from "../../_generated/dataModel";
 import { mutation, type QueryCtx, query } from "../../_generated/server";
 import { validateLocalDate } from "../../domain/dates";
-import { executeIdempotentMutation } from "../../domain/idempotency";
+import {
+	executeIdempotentMutation,
+	fingerprintRequest,
+} from "../../domain/idempotency";
 import { listCliTags } from "../../domain/tagOperations";
 import {
 	findCycleForDate,
 	getCurrentUser,
+	validateCategoryOwnership,
 	validateCycleOwnership,
 } from "../../helpers";
 import { withCliErrors } from "./errors";
@@ -156,6 +160,32 @@ const categoryText = (value: string, maxLength: number): string => {
 	return trimmed;
 };
 
+const validateCategoryPlan = (plannedAmount: number): void => {
+	const cents = Math.round(plannedAmount * 100);
+	// Beyond this bound, adjacent decimal-cent amounts can map to the same float.
+	if (
+		!Number.isSafeInteger(cents) ||
+		plannedAmount < 0 ||
+		plannedAmount >= 2 ** 46 ||
+		cents / 100 !== plannedAmount
+	) {
+		throw new ConvexError("INVALID_INPUT");
+	}
+};
+
+const getOwnedCategoryType = async (
+	ctx: QueryCtx,
+	userId: Id<"users">,
+	id: string
+) => {
+	const typeId = ctx.db.normalizeId("category_types", id);
+	const type = typeId ? await ctx.db.get(typeId) : null;
+	if (type?.userId !== userId) {
+		throw new ConvexError("NOT_FOUND");
+	}
+	return type;
+};
+
 const prepareCategoryCreate = async (
 	ctx: QueryCtx,
 	userId: Id<"users">,
@@ -166,29 +196,16 @@ const prepareCategoryCreate = async (
 		throw new ConvexError("NOT_FOUND");
 	}
 	const cycle = await validateCycleOwnership(ctx, cycleId, userId);
-	let type: Doc<"category_types"> | null = null;
-	if (input.categoryTypeId !== undefined) {
-		const typeId = ctx.db.normalizeId("category_types", input.categoryTypeId);
-		type = typeId ? await ctx.db.get(typeId) : null;
-		if (type?.userId !== userId) {
-			throw new ConvexError("NOT_FOUND");
-		}
-	}
+	const type =
+		input.categoryTypeId === undefined
+			? null
+			: await getOwnedCategoryType(ctx, userId, input.categoryTypeId);
 	const name = categoryText(input.name, 100);
 	const icon =
 		input.icon === undefined ? undefined : categoryText(input.icon, 32);
 	const { plannedAmount } = input;
 	if (plannedAmount !== undefined) {
-		const cents = Math.round(plannedAmount * 100);
-		// Beyond this bound, adjacent decimal-cent amounts can map to the same float.
-		if (
-			!Number.isSafeInteger(cents) ||
-			plannedAmount < 0 ||
-			plannedAmount >= 2 ** 46 ||
-			cents / 100 !== plannedAmount
-		) {
-			throw new ConvexError("INVALID_INPUT");
-		}
+		validateCategoryPlan(plannedAmount);
 	}
 	const categories = await ctx.db
 		.query("categories")
@@ -256,6 +273,177 @@ export const createCategory = mutation({
 				key: idempotencyKey,
 				operation: "categories.create",
 				request: input,
+				userId: user._id,
+			});
+		}),
+	returns: categorySummaryValidator,
+});
+
+const categoryEditInput = v.object({
+	categoryId: v.string(),
+	categoryTypeId: v.optional(v.union(v.string(), v.null())),
+	icon: v.optional(v.string()),
+	name: v.optional(v.string()),
+	plannedAmount: v.optional(v.union(v.number(), v.null())),
+});
+
+const editSnapshotPattern = /^[a-f0-9]{64}$/u;
+
+const storedCategoryPlanValidator = v.union(
+	categorySummaryValidator.fields.plannedAmount,
+	v.literal("NaN"),
+	v.literal("Infinity"),
+	v.literal("-Infinity")
+);
+
+const presentStoredPlan = (
+	amount: number | undefined
+): Infer<typeof storedCategoryPlanValidator> => {
+	if (amount === undefined || Number.isFinite(amount)) {
+		return amount ?? null;
+	}
+	if (Number.isNaN(amount)) {
+		return "NaN";
+	}
+	return amount > 0 ? "Infinity" : "-Infinity";
+};
+
+const resolveCategoryEditPatch = async (
+	ctx: QueryCtx,
+	userId: Id<"users">,
+	input: Omit<Infer<typeof categoryEditInput>, "categoryId">
+) => {
+	const patch: Partial<
+		Pick<
+			Doc<"categories">,
+			"categoryTypeId" | "icon" | "name" | "plannedAmount"
+		>
+	> = {};
+	if (input.name !== undefined) {
+		patch.name = categoryText(input.name, 100);
+	}
+	if (input.icon !== undefined) {
+		patch.icon = categoryText(input.icon, 32);
+	}
+	if (input.categoryTypeId !== undefined) {
+		patch.categoryTypeId =
+			input.categoryTypeId === null
+				? undefined
+				: (await getOwnedCategoryType(ctx, userId, input.categoryTypeId))._id;
+	}
+	if (input.plannedAmount !== undefined) {
+		if (input.plannedAmount !== null) {
+			validateCategoryPlan(input.plannedAmount);
+		}
+		patch.plannedAmount = input.plannedAmount ?? undefined;
+	}
+	if (Object.keys(patch).length === 0) {
+		throw new ConvexError("INVALID_INPUT");
+	}
+	return patch;
+};
+
+const prepareCategoryEdit = async (
+	ctx: QueryCtx,
+	userId: Id<"users">,
+	input: Infer<typeof categoryEditInput>
+) => {
+	const categoryId = ctx.db.normalizeId("categories", input.categoryId);
+	if (!categoryId) {
+		throw new ConvexError("NOT_FOUND");
+	}
+	const category = await validateCategoryOwnership(ctx, categoryId, userId);
+	const cycle = await validateCycleOwnership(ctx, category.cycleId, userId);
+	const storedPlan = presentStoredPlan(category.plannedAmount);
+	if (typeof storedPlan === "string" && input.plannedAmount === undefined) {
+		throw new ConvexError("CATEGORY_PLAN_REPAIR_REQUIRED");
+	}
+	const patch = await resolveCategoryEditPatch(ctx, userId, input);
+	const edited = { ...category, ...patch };
+	const [oldType, newType] = await Promise.all([
+		category.categoryTypeId ? ctx.db.get(category.categoryTypeId) : null,
+		edited.categoryTypeId ? ctx.db.get(edited.categoryTypeId) : null,
+	]);
+	const before = {
+		...presentCategory(category, oldType?.userId === userId ? oldType : null),
+		plannedAmount: storedPlan,
+	};
+	const after = presentCategory(
+		edited,
+		newType?.userId === userId ? newType : null
+	);
+	// Compare actual stored values so changes from any writer, including Web,
+	// invalidate a stale preview without requiring a category revision migration.
+	const editSnapshot = await fingerprintRequest({
+		afterType: after.categoryType,
+		before: {
+			categoryType: before.categoryType,
+			categoryTypeId: category.categoryTypeId,
+			cycleId: category.cycleId,
+			icon: category.icon,
+			name: category.name,
+			plannedAmount: storedPlan,
+		},
+		cycleName: cycle.name,
+		input,
+	});
+	return {
+		after,
+		before,
+		categoryId,
+		cycleName: cycle.name,
+		editSnapshot,
+		patch,
+	};
+};
+
+export const previewCategoryEdit = query({
+	args: categoryEditInput.fields,
+	handler: async (ctx, args) =>
+		await withCliErrors(async () => {
+			const user = await getCurrentUser(ctx);
+			const { after, before, cycleName, editSnapshot } =
+				await prepareCategoryEdit(ctx, user._id, args);
+			return { after, before, cycleName, editSnapshot };
+		}),
+	returns: v.object({
+		after: categorySummaryValidator,
+		before: v.object({
+			...categorySummaryValidator.fields,
+			plannedAmount: storedCategoryPlanValidator,
+		}),
+		cycleName: v.string(),
+		editSnapshot: v.string(),
+	}),
+});
+
+export const editCategory = mutation({
+	args: {
+		...categoryEditInput.fields,
+		agent: v.optional(v.boolean()),
+		expectedEditSnapshot: v.string(),
+		idempotencyKey: v.string(),
+	},
+	handler: async (ctx, args) =>
+		await withCliErrors(async () => {
+			const user = await getCurrentUser(ctx);
+			const { agent, expectedEditSnapshot, idempotencyKey, ...input } = args;
+			if (!editSnapshotPattern.test(expectedEditSnapshot)) {
+				throw new ConvexError("INVALID_INPUT");
+			}
+			return await executeIdempotentMutation(ctx, {
+				execute: async () => {
+					const { after, categoryId, editSnapshot, patch } =
+						await prepareCategoryEdit(ctx, user._id, input);
+					if (editSnapshot !== expectedEditSnapshot) {
+						throw new ConvexError("CATEGORY_EDIT_CONFLICT");
+					}
+					await ctx.db.patch(categoryId, patch);
+					return after;
+				},
+				key: idempotencyKey,
+				operation: "categories.edit",
+				request: { ...input, agent, expectedEditSnapshot },
 				userId: user._id,
 			});
 		}),

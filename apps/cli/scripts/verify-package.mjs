@@ -251,6 +251,16 @@ try {
 		"Installed binary did not expose categories add help"
 	);
 
+	const categoryEditHelp = run(binaryPath, ["categories", "edit", "--help"], {
+		cwd: verificationDirectory,
+	});
+	assert(
+		categoryEditHelp.includes("--if-edit-snapshot") &&
+			categoryEditHelp.includes("--clear-category-type") &&
+			categoryEditHelp.includes("--clear-planned-amount"),
+		"Installed binary did not expose categories edit help"
+	);
+
 	const invalidCommand = spawnSync(binaryPath, ["--json", "unknown"], {
 		cwd: verificationDirectory,
 		encoding: "utf8",

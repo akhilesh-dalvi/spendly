@@ -56,6 +56,8 @@ export const writeTerminalError = (options: {
 		AUTHORIZATION_EXPIRED: "spendly auth login",
 		CATEGORY_CYCLE_MISMATCH:
 			"Choose a category from the expense date's cycle, or clear the category.",
+		CATEGORY_EDIT_CONFLICT:
+			"Review a fresh category edit preview; do not retry with the stale snapshot.",
 		CREDENTIALS_INVALID: "spendly auth login",
 		CYCLE_COPY_CONFLICT:
 			"Review a fresh category-copy preview before committing; do not retry with the stale snapshot.",

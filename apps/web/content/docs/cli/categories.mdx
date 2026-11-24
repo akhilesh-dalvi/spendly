@@ -1,12 +1,12 @@
 ---
 title: Categories
-description: Find or add categories for an expense cycle and use them to organize expenses.
+description: Find, add, or edit categories for an expense cycle and use them to organize expenses.
 ---
 
 Categories group expenses within a cycle, such as Food or Transport. A cycle is
-the date range you use to track spending. Use the CLI to list categories or add
-one to an existing cycle. Use Spendly Web to edit categories, create category
-types, or add multiple categories in one form.
+the date range you use to track spending. The CLI lists a cycle’s categories and
+can add or edit one category at a time. Use Spendly Web to create category types
+or add multiple categories in one form.
 
 For example, put Lunch in Food so you can review your food spending later.
 
@@ -131,6 +131,36 @@ returned ID to identify the saved category.
 </details>
 
 <details className="docs-disclosure">
+<summary id="edit-a-category">Edit a category</summary>
+
+Find the stable category ID with `spendly categories list --cycle-id CYCLE_ID`.
+Use `spendly categories edit --help` to check whether your installed CLI supports
+editing. Preview an edit before saving:
+
+```bash
+spendly categories edit CATEGORY_ID --name "Bike repairs" --planned-amount 0 --dry-run
+```
+
+Omitted fields stay unchanged. Use `--clear-planned-amount` for no plan, not
+`0`. Use `--category-type-id TYPE_ID` to assign an existing type or
+`--clear-category-type` to remove it. To change the icon, use `--icon`.
+Existing expenses stay linked; plan and type changes affect cycle summaries,
+not recorded spending or account balances. If a saved plan is invalid, include an
+explicit clear or replacement in the edit. If the CLI list cannot display the
+category, use its ID from the category details URL in Spendly Web.
+
+In a terminal, rerun with the same edit flags but without `--dry-run`, then
+review and confirm the preview. Without prompts, get `data.editSnapshot` from
+the JSON dry run and pass it as `--if-edit-snapshot` with the same edit flags
+and a fresh `--idempotency-key`. If the preview no longer matches, review a
+fresh one before saving. If the outcome is unknown, check the category first.
+For an authorized replay, keep the original edit flags, snapshot, and key and
+use `--non-interactive` (keep `--agent` if used). Do not replay after the
+30-day key retention period.
+
+</details>
+
+<details className="docs-disclosure">
 <summary id="add-a-new-categorized-expense">Add a new categorized expense</summary>
 
 Use this only for a purchase you have not recorded. It creates a new expense,
@@ -159,7 +189,8 @@ spendly expenses edit EXPENSE_ID --clear-category --dry-run
 ```
 
 Repeat without `--dry-run` to save immediately. Verify with
-`spendly expenses get EXPENSE_ID`. Manage the category itself in Spendly Web.
+`spendly expenses get EXPENSE_ID`. To change the category itself, use the
+[category edit command](#edit-a-category) instead.
 
 </details>
 
@@ -214,7 +245,7 @@ categories with `spendly categories list --cycle-id CYCLE_ID`, then use
 `--category-id CATEGORY_ID` when adding, editing, or filtering expenses. Replace
 both placeholders with returned IDs.
 
-Non-interactive edits require `--if-revision REVISION`, including previews.
+Non-interactive **expense** edits require `--if-revision REVISION`, including previews.
 Read the expense with `expenses get` to obtain its current revision (the version
 number used to detect changes). Non-interactive saves also require
 `--idempotency-key KEY`: use a fresh key for each intended change. After an

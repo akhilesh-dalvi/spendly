@@ -63,6 +63,10 @@ const examples: Readonly<Record<string, CommandExamples>> = {
 		flags:
 			'spendly categories add --cycle-id cycle_demo --name "Bike repairs" --planned-amount 75.00 --dry-run',
 	},
+	"categories edit": {
+		flags:
+			'spendly categories edit category_demo --name "Bike repairs" --clear-planned-amount --dry-run',
+	},
 	"categories list": {
 		flags: "spendly categories list --cycle-id cycle_demo",
 		guided: "spendly categories list --interactive",

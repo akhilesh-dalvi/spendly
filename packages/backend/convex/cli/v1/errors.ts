@@ -6,6 +6,8 @@ export type CliDomainErrorCode =
 	| "ACCOUNT_SETUP_REQUIRED"
 	| "AUTHENTICATION_REQUIRED"
 	| "CATEGORY_CYCLE_MISMATCH"
+	| "CATEGORY_EDIT_CONFLICT"
+	| "CATEGORY_PLAN_REPAIR_REQUIRED"
 	| "CYCLE_COPY_CONFLICT"
 	| "CYCLE_OVERLAP"
 	| "CYCLE_HAS_EXPENSES"
@@ -28,6 +30,10 @@ const ERROR_MESSAGES: Record<CliDomainErrorCode, string> = {
 	ACCOUNT_SETUP_REQUIRED: "Open Spendly Web once to finish account setup",
 	AUTHENTICATION_REQUIRED: "Authentication is required",
 	CATEGORY_CYCLE_MISMATCH: "The category does not belong to the expense cycle",
+	CATEGORY_EDIT_CONFLICT:
+		"The category edit no longer matches the reviewed preview; review a fresh preview",
+	CATEGORY_PLAN_REPAIR_REQUIRED:
+		"The saved category plan is invalid; use --clear-planned-amount or supply a valid --planned-amount",
 	CYCLE_COPY_CONFLICT:
 		"The category copy changed after preview; review a fresh preview",
 	CYCLE_HAS_EXPENSES: "The cycle has linked expenses and cannot be deleted",
@@ -60,6 +66,8 @@ const DOMAIN_CODE_MAP: Record<string, CliDomainErrorCode> = {
 	ACCOUNT_TYPE_NOT_FOUND: "RESOURCE_NOT_FOUND",
 	AUTHENTICATION_REQUIRED: "AUTHENTICATION_REQUIRED",
 	CATEGORY_CYCLE_MISMATCH: "CATEGORY_CYCLE_MISMATCH",
+	CATEGORY_EDIT_CONFLICT: "CATEGORY_EDIT_CONFLICT",
+	CATEGORY_PLAN_REPAIR_REQUIRED: "CATEGORY_PLAN_REPAIR_REQUIRED",
 	CYCLE_COPY_CONFLICT: "CYCLE_COPY_CONFLICT",
 	CYCLE_HAS_EXPENSES: "CYCLE_HAS_EXPENSES",
 	CYCLE_OVERLAP: "CYCLE_OVERLAP",

@@ -107,7 +107,7 @@ export const registerReadCommands = (
 
 	const categories = program
 		.command("categories")
-		.description("List and add expense categories");
+		.description("List, add, and edit expense categories");
 	categories
 		.command("add")
 		.description("Add one category to an existing cycle")
@@ -124,6 +124,37 @@ export const registerReadCommands = (
 		.action(async (options, command: Command) => {
 			const { runCategoryAdd } = await import("./category-actions.js");
 			await runCategoryAdd(options, command, runtime);
+		});
+	categories
+		.command("edit")
+		.argument("<category-id>", "stable ID of the existing category")
+		.description("Edit one category without moving its expenses")
+		.option("--name <name>", "new category name")
+		.option("--icon <icon>", "new literal category icon")
+		.option("--category-type-id <id>", "stable ID of an existing category type")
+		.addOption(
+			new Option("--clear-category-type", "remove the category type").conflicts(
+				"categoryTypeId"
+			)
+		)
+		.option(
+			"--planned-amount <amount>",
+			"new nonnegative budget, up to two decimal places"
+		)
+		.addOption(
+			new Option("--clear-planned-amount", "remove the budget").conflicts(
+				"plannedAmount"
+			)
+		)
+		.option(
+			"--if-edit-snapshot <snapshot>",
+			"snapshot from the identical dry-run patch"
+		)
+		.option("--idempotency-key <key>", "stable key for this intended commit")
+		.option("--dry-run", "validate and preview without saving")
+		.action(async (categoryId: string, options, command: Command) => {
+			const { runCategoryEdit } = await import("./category-actions.js");
+			await runCategoryEdit(categoryId, options, command, runtime);
 		});
 	categories
 		.command("list")
