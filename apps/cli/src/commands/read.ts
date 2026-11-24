@@ -184,7 +184,7 @@ export const registerReadCommands = (
 
 	const tags = program
 		.command("tags")
-		.description("List and create expense tags");
+		.description("List, create, and rename expense tags");
 	tags
 		.command("list")
 		.description("List tags")
@@ -201,6 +201,17 @@ export const registerReadCommands = (
 		.action(async (options, command: Command) => {
 			const { runTagAdd } = await import("./tag-actions.js");
 			await runTagAdd(options, command, runtime);
+		});
+	tags
+		.command("rename <tag-id>")
+		.description("Rename a tag without changing its expense links")
+		.requiredOption("--name <name>", "new name for the tag")
+		.option("--if-edit-snapshot <snapshot>", "reviewed snapshot from --dry-run")
+		.option("--idempotency-key <key>", "stable key for this intended commit")
+		.option("--dry-run", "validate and preview without saving")
+		.action(async (tagId: string, options, command: Command) => {
+			const { runTagRename } = await import("./tag-actions.js");
+			await runTagRename(tagId, options, command, runtime);
 		});
 
 	program

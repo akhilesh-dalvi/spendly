@@ -149,7 +149,7 @@ export const renderTags = (
 ): string =>
 	renderHumanTable(
 		["NAME", "ID"],
-		tags.map((tag) => [tag.name, tag.id]),
+		tags.map((tag) => [escapeTerminalText(tag.name), tag.id]),
 		{
 			...options,
 			emptyMessage: "No tags yet. Expenses can continue without tags.",

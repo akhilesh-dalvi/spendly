@@ -277,6 +277,8 @@ recognized rather than applied twice.
   preview and pass it with `--if-copy-snapshot` using identical source, selection,
   and plan inputs. On `CYCLE_COPY_CONFLICT`, stop and obtain approval for a fresh
   preview before a new commit. See [Cycles](/docs/cli/cycles).
+- For standalone tag renames, use the tag ID and the `data.editSnapshot` from
+  the approved preview. See [Tags](/docs/cli/tags) for commit and recovery steps.
 - A stale revision, unknown selector, or ambiguous selector performs no write.
 - Write commands are never retried automatically. After an uncertain result,
   inspect current state first. Only an explicitly requested recovery may repeat

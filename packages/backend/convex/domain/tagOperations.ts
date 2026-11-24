@@ -3,6 +3,7 @@
 import { ConvexError } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
+import { fingerprintRequest } from "./idempotency";
 
 const MAXIMUM_TAGS = 1000;
 const MAXIMUM_PENDING_TAGS = 20;
@@ -60,6 +61,41 @@ export const planStandaloneTag = async (
 	const name = normalizeTagName(raw);
 	await checkNewTagNames(ctx, userId, [name]);
 	return name;
+};
+
+export const planTagRename = async (
+	ctx: QueryCtx,
+	userId: Id<"users">,
+	input: { name: string; tagId: string },
+	expectedEditSnapshot?: string
+) => {
+	const tagId = ctx.db.normalizeId("tags", input.tagId);
+	const tag = tagId ? await ctx.db.get(tagId) : null;
+	if (tag?.userId !== userId) {
+		throw new ConvexError("TAG_NOT_FOUND");
+	}
+
+	const name = normalizeTagName(input.name);
+	const beforeName = tag.name;
+	const editSnapshot = await fingerprintRequest({ beforeName, input });
+	if (
+		expectedEditSnapshot !== undefined &&
+		expectedEditSnapshot !== editSnapshot
+	) {
+		throw new ConvexError("TAG_RENAME_CONFLICT");
+	}
+	if (name === beforeName) {
+		throw new ConvexError("TAG_RENAME_NO_CHANGE");
+	}
+
+	const tags = await listCliTags(ctx, userId);
+	const key = matchKey(name);
+	if (
+		tags.some((other) => other._id !== tag._id && matchKey(other.name) === key)
+	) {
+		throw new ConvexError("TAG_NAME_CONFLICT");
+	}
+	return { beforeName, editSnapshot, id: tag._id, name };
 };
 
 export const planInlineTags = async (

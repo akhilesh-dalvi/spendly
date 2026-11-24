@@ -29,6 +29,8 @@ export type CliDomainErrorCode =
 	| "RESOURCE_LIMIT_EXCEEDED"
 	| "RESOURCE_NOT_FOUND"
 	| "TAG_NAME_CONFLICT"
+	| "TAG_RENAME_CONFLICT"
+	| "TAG_RENAME_NO_CHANGE"
 	| "TRANSFER_CURRENCY_MISMATCH"
 	| "TRANSFER_SAME_ACCOUNT";
 
@@ -73,6 +75,9 @@ const ERROR_MESSAGES: Record<CliDomainErrorCode, string> = {
 	RESOURCE_NOT_FOUND: "The requested resource was not found",
 	TAG_NAME_CONFLICT:
 		"A tag with that name already exists; run spendly tags list or choose the existing tag in the expense tag picker",
+	TAG_RENAME_CONFLICT:
+		"The tag no longer matches the reviewed preview; review a fresh preview",
+	TAG_RENAME_NO_CHANGE: "The tag already has that exact name",
 	TRANSFER_CURRENCY_MISMATCH:
 		"Transfers require accounts with the same currency",
 	TRANSFER_SAME_ACCOUNT: "Transfer accounts must be different",
@@ -126,6 +131,8 @@ const DOMAIN_CODE_MAP: Record<string, CliDomainErrorCode> = {
 	RESOURCE_LIMIT_EXCEEDED: "RESOURCE_LIMIT_EXCEEDED",
 	TAG_NAME_CONFLICT: "TAG_NAME_CONFLICT",
 	TAG_NOT_FOUND: "RESOURCE_NOT_FOUND",
+	TAG_RENAME_CONFLICT: "TAG_RENAME_CONFLICT",
+	TAG_RENAME_NO_CHANGE: "TAG_RENAME_NO_CHANGE",
 	TRANSFER_CURRENCY_MISMATCH: "TRANSFER_CURRENCY_MISMATCH",
 	TRANSFER_SAME_ACCOUNT: "TRANSFER_SAME_ACCOUNT",
 	UNAUTHENTICATED: "AUTHENTICATION_REQUIRED",

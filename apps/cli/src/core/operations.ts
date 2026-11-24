@@ -116,6 +116,9 @@ const categoryEditFields = {
 	plannedAmount: categoryCreateFields.plannedAmount.nullable(),
 };
 const editSnapshotSchema = z.string().regex(/^[a-f0-9]{64}$/u);
+// The backend normalizes IDs so all invalid or inaccessible targets are not found.
+const tagRenameFields = { name: z.string(), tagId: z.string() };
+const tagWriteSchema = z.object({ id: idSchema, name: z.string() });
 
 const contextInputSchema = z
 	.object({
@@ -729,13 +732,35 @@ export const operationDefinitions = {
 		functionName: "cli/v1/resources:createTag",
 		inputSchema: z.object({ name: z.string(), ...commitFields }).strict(),
 		mode: "mutation",
-		outputSchema: z.object({ id: idSchema, name: z.string() }),
+		outputSchema: tagWriteSchema,
 	},
 	"tags.previewCreate": {
 		functionName: "cli/v1/resources:previewTagCreate",
 		inputSchema: z.object({ name: z.string() }).strict(),
 		mode: "query",
 		outputSchema: z.object({ name: z.string() }),
+	},
+	"tags.previewRename": {
+		functionName: "cli/v1/resources:previewTagRename",
+		inputSchema: z.object(tagRenameFields).strict(),
+		mode: "query",
+		outputSchema: tagWriteSchema.extend({
+			beforeName: z.string(),
+			editSnapshot: editSnapshotSchema,
+		}),
+	},
+	"tags.rename": {
+		commit: true,
+		functionName: "cli/v1/resources:renameTag",
+		inputSchema: z
+			.object({
+				...tagRenameFields,
+				...commitFields,
+				expectedEditSnapshot: editSnapshotSchema,
+			})
+			.strict(),
+		mode: "mutation",
+		outputSchema: tagWriteSchema,
 	},
 } as const;
 
@@ -806,6 +831,9 @@ const uncertainMutationAdvice = (name: OperationName, key?: string): string => {
 	}
 	if (name === "categories.edit") {
 		return "check the category before replaying the exact edit with the original snapshot and idempotency key";
+	}
+	if (name === "tags.rename") {
+		return "check spendly tags list before replaying the exact rename with the original snapshot and idempotency key";
 	}
 	return "repeat the same command with the same idempotency key";
 };

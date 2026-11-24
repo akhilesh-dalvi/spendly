@@ -89,6 +89,8 @@ export const writeTerminalError = (options: {
 			"List the relevant resources or use --interactive to choose one.",
 		REVISION_CONFLICT:
 			"Read the current resource, review a new preview, and then retry.",
+		TAG_RENAME_CONFLICT:
+			"Review a fresh tag rename preview; do not reuse the stale snapshot.",
 		TRANSFER_CURRENCY_MISMATCH:
 			"Choose source and destination accounts with the same currency.",
 		TRANSFER_SAME_ACCOUNT: "Choose two different accounts.",

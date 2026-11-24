@@ -74,6 +74,7 @@ const REQUIRED_COMMAND_PATHS = [
 	"categories list",
 	"tags list",
 	"tags add",
+	"tags rename",
 	"account-types list",
 ];
 const LEAKAGE_PATTERNS = [

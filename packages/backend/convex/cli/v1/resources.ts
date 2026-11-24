@@ -10,6 +10,7 @@ import {
 	insertOwnedTag,
 	listCliTags,
 	planStandaloneTag,
+	planTagRename,
 } from "../../domain/tagOperations";
 import {
 	findCycleForDate,
@@ -563,6 +564,7 @@ export const listTags = query({
 });
 
 const tagCreateFields = { name: v.string() };
+const tagWriteValidator = v.object({ ...tagCreateFields, id: v.id("tags") });
 
 export const previewTagCreate = query({
 	args: tagCreateFields,
@@ -595,7 +597,59 @@ export const createTag = mutation({
 				userId: user._id,
 			});
 		}),
-	returns: v.object({ ...tagCreateFields, id: v.id("tags") }),
+	returns: tagWriteValidator,
+});
+
+const tagRenameFields = { ...tagCreateFields, tagId: v.string() };
+
+export const previewTagRename = query({
+	args: tagRenameFields,
+	handler: async (ctx, input) =>
+		await withCliErrors(async () => {
+			const user = await getCurrentUser(ctx);
+			return await planTagRename(ctx, user._id, input);
+		}),
+	returns: v.object({
+		...tagWriteValidator.fields,
+		beforeName: v.string(),
+		editSnapshot: v.string(),
+	}),
+});
+
+export const renameTag = mutation({
+	args: {
+		...tagRenameFields,
+		agent: v.optional(v.boolean()),
+		expectedEditSnapshot: v.string(),
+		idempotencyKey: v.string(),
+	},
+	handler: async (
+		ctx,
+		{ agent, expectedEditSnapshot, idempotencyKey, ...input }
+	) =>
+		await withCliErrors(async () => {
+			const user = await getCurrentUser(ctx);
+			if (!editSnapshotPattern.test(expectedEditSnapshot)) {
+				throw new ConvexError("INVALID_INPUT");
+			}
+			return await executeIdempotentMutation(ctx, {
+				execute: async () => {
+					const { id, name } = await planTagRename(
+						ctx,
+						user._id,
+						input,
+						expectedEditSnapshot
+					);
+					await ctx.db.patch(id, { name });
+					return { id, name };
+				},
+				key: idempotencyKey,
+				operation: "tags.rename",
+				request: { ...input, agent, expectedEditSnapshot },
+				userId: user._id,
+			});
+		}),
+	returns: tagWriteValidator,
 });
 
 const categoryStatValidator = v.object({

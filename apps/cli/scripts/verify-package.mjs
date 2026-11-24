@@ -310,6 +310,18 @@ try {
 		"Installed binary did not expose tags add help"
 	);
 
+	const tagRenameHelp = run(binaryPath, ["tags", "rename", "--help"], {
+		cwd: verificationDirectory,
+	});
+	assert(
+		tagRenameHelp.includes("<tag-id>") &&
+			tagRenameHelp.includes("--name") &&
+			tagRenameHelp.includes("--if-edit-snapshot") &&
+			tagRenameHelp.includes("--idempotency-key") &&
+			tagRenameHelp.includes("--dry-run"),
+		"Installed binary did not expose tags rename help"
+	);
+
 	const invalidCommand = spawnSync(binaryPath, ["--json", "unknown"], {
 		cwd: verificationDirectory,
 		encoding: "utf8",

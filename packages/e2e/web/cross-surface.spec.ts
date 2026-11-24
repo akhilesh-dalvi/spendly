@@ -123,6 +123,72 @@ test("a tag created by the CLI appears unused in Web", async ({
 	await expect(row.getByText("Unused", { exact: true })).toBeVisible();
 });
 
+test("CLI renames a linked tag in Web without changing its expense links or ledger", async ({
+	page,
+	user,
+}) => {
+	const seed = await seedUser(user);
+	await user.loginCli();
+	const tagId = await user.mutation(api.tags.create, {
+		name: "Cross-surface errands",
+	});
+	const expense = await user.mutation(api.expenses.create, {
+		accountId: seed.accountId,
+		amount: 5,
+		date: seed.date,
+		tagIds: [tagId],
+	});
+	const accountArgs = { accountId: seed.accountId };
+	const readFinancialState = () =>
+		Promise.all([
+			user.query(api.accounts.get, accountArgs),
+			user.query(api.accounts.listTransactions, { ...accountArgs, limit: 10 }),
+		]);
+	const beforeFinancial = await readFinancialState();
+	const expenseArgs = { expenseId: expense._id };
+	const beforeExpense = await user.query(api.expenses.get, expenseArgs);
+	const readUsage = () => user.query(api.tags.listWithUsage, {});
+	const beforeUsage = await readUsage();
+	const name = "Cross-surface travel";
+	const args = ["tags", "rename", tagId, "--name", name];
+	const preview = await user.runCli([...args, "--dry-run"]);
+	expect(preview.exitCode).toBe(0);
+	const { editSnapshot } = success
+		.extend({
+			data: z.object({ editSnapshot: z.string() }),
+		})
+		.parse(JSON.parse(preview.stdout)).data;
+	expect(await readUsage()).toEqual(beforeUsage);
+
+	const commit = await user.runCli([
+		...args,
+		"--if-edit-snapshot",
+		editSnapshot,
+		"--idempotency-key",
+		randomUUID(),
+	]);
+	expect(commit.exitCode).toBe(0);
+	expect(success.parse(JSON.parse(commit.stdout)).data).toEqual({
+		id: tagId,
+		name,
+	});
+	await page.setViewportSize({ height: 900, width: 1280 });
+	await page.goto("/data/tags");
+	const row = page.getByRole("row").filter({
+		has: page.getByText(name, { exact: true }),
+	});
+	await expect(row.getByText("1 expense", { exact: true })).toBeVisible();
+	expect(await readUsage()).toEqual([
+		{ ...beforeUsage[0], _id: tagId, name, usageCount: 1 },
+	]);
+	expect(await user.query(api.expenses.get, expenseArgs)).toEqual({
+		...beforeExpense,
+		tagIds: [tagId],
+		tagNames: [name],
+	});
+	expect(await readFinancialState()).toEqual(beforeFinancial);
+});
+
 test("CLI edits a referenced account type and Web shows the new metadata without financial changes", async ({
 	page,
 	user,

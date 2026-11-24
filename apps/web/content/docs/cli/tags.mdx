@@ -1,6 +1,6 @@
 ---
 title: Tags
-description: Create and find tags, attach them to expenses, and filter by them.
+description: Create, find, and rename tags, attach them to expenses, and filter by them.
 ---
 
 Tags are extra labels for expenses. An expense can have several tags, alongside
@@ -40,6 +40,23 @@ trailing whitespace is trimmed. Use 1–100 characters with no control character
 or line breaks. If the name already exists, even with different capitalization,
 the command does not create or reuse it. Run `spendly tags list` to find the
 existing ID. The CLI supports up to 1,000 tags per user.
+
+## Rename a tag
+
+Run `spendly tags list` and copy the ID of the tag you want to rename. Run
+`spendly tags rename --help` to check support in your installed CLI. Replace
+`TAG_ID` with that ID:
+
+```bash
+spendly tags rename TAG_ID --name "Work travel" --dry-run
+spendly tags rename TAG_ID --name "Work travel" --interactive
+```
+
+Review the old and new names before confirming. The tag keeps its ID and all
+its expense links; expense amounts and balances do not change. The CLI trims
+the new name and rejects an unchanged name or a name that matches another tag
+ignoring case and surrounding whitespace. Case-only changes are allowed if
+no other tag matches. Use the ID even when legacy tags share a name.
 
 ## Try tagging Lunch
 
@@ -174,7 +191,7 @@ with `spendly expenses get EXPENSE_ID`.
 - Leaving out tag options when directly editing another field keeps the existing
   tags unchanged.
 - The expense `--tag` option only selects an existing tag; it does not create one.
-- Rename or delete a tag in [Spendly Web](/data/tags).
+- You can also rename a tag in [Spendly Web](/data/tags). Tag deletion is Web-only.
 
 </details>
 
@@ -212,6 +229,22 @@ spendly tags add --name "Work" --json --non-interactive --idempotency-key TAG_AD
 If the save outcome is uncertain, check `spendly tags list` first. If you need
 to recover the result, repeat the exact save with the original key (and
 `--agent` if used). Don't use a new key or preview again to recover a save.
+
+For a rename, review `data.beforeName` and `data.name` in the JSON preview, then
+pass its `data.editSnapshot` as `EDIT_SNAPSHOT`. Keep the exact tag ID and name
+input used for the preview, and supply a fresh key for the intended save:
+
+```bash
+spendly tags rename TAG_ID --name "Work travel" --json --non-interactive --dry-run
+spendly tags rename TAG_ID --name "Work travel" --json --non-interactive --if-edit-snapshot EDIT_SNAPSHOT --idempotency-key TAG_RENAME_KEY
+```
+
+On a stale snapshot (`TAG_RENAME_CONFLICT`), read the tag again and review a
+fresh preview before starting a new save. If the outcome is unknown, check
+`spendly tags list` first. Within 30 days you can recover the original result
+with the exact save inputs, snapshot, key, and `--agent` setting. Replay returns
+the original result, not the current tag. Don't get a new snapshot or key to
+recover a save; stop if the result remains uncertain.
 
 Use stable tag IDs with repeatable `--tag-id` rather than names in
 `--non-interactive` mode; name selectors are rejected there. Repeated tag IDs
