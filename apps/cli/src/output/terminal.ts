@@ -52,6 +52,8 @@ export const writeTerminalError = (options: {
 			"Read the account again, review a new preview, and then retry.",
 		ACCOUNT_SETUP_REQUIRED:
 			"Finish Spendly account setup in the Web app, then run this command again.",
+		ACCOUNT_TYPE_EDIT_CONFLICT:
+			"Review a fresh account type edit preview; do not reuse the stale snapshot.",
 		AUTHENTICATION_REQUIRED: "spendly auth login",
 		AUTHORIZATION_EXPIRED: "spendly auth login",
 		CATEGORY_CYCLE_MISMATCH:

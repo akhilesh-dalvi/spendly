@@ -6,7 +6,7 @@ import { forEachSequential } from "../../lib/async";
 import schema from "../../schema";
 import { modules } from "../../test.setup";
 
-const { create, previewCreate } = api.cli.v1.accountTypes;
+const { create, edit, previewCreate, previewEdit } = api.cli.v1.accountTypes;
 
 const setup = async () => {
 	const test = convexTest(schema, modules);
@@ -203,5 +203,268 @@ describe("standalone CLI account type creation", () => {
 			})
 		).rejects.toMatchObject({ data: { code: "ACCOUNT_TYPE_LIMIT_REACHED" } });
 		expect(await owner.mutation(create, request)).toEqual(type);
+	});
+});
+
+const editFixture = async () => {
+	const fixture = await setup();
+	const type = await fixture.owner.mutation(api.accountTypes.create, {
+		balanceNature: "asset",
+		color: "#1199aa",
+		icon: "wallet",
+		name: "Travel cash",
+	});
+	return { ...fixture, accountTypeId: type._id, type };
+};
+
+describe("guarded CLI account type edit", () => {
+	it("previews and updates an unused archived type by ID while preserving omitted styling and state", async () => {
+		const { accountTypeId, owner, test } = await editFixture();
+		await owner.mutation(api.accountTypes.archive, {
+			accountTypeId,
+			isArchived: true,
+		});
+		const input = {
+			accountTypeId,
+			balanceNature: "liability",
+			icon: " VAULT ",
+			name: "  TRAVEL CASH  ",
+		} as const;
+		const before = await owner.query(api.accountTypes.get, { accountTypeId });
+		const preview = await owner.query(previewEdit, input);
+		expect(preview.before).toMatchObject({
+			balanceNature: "asset",
+			icon: "wallet",
+			name: "Travel cash",
+		});
+		expect(preview.after).toEqual({
+			balanceNature: "liability",
+			color: "#1199AA",
+			icon: "vault",
+			id: accountTypeId,
+			isArchived: true,
+			name: "TRAVEL CASH",
+		});
+		expect(await owner.query(api.accountTypes.get, { accountTypeId })).toEqual(
+			before
+		);
+		expect(
+			await test.run(
+				async (ctx) => await ctx.db.query("cli_idempotency").collect()
+			)
+		).toEqual([]);
+		const result = await owner.mutation(edit, {
+			...input,
+			expectedEditSnapshot: preview.editSnapshot,
+			idempotencyKey: "edit-archived-type",
+		});
+		expect(result).toMatchObject(preview.after);
+		expect(
+			await owner.query(api.accountTypes.get, { accountTypeId })
+		).toMatchObject({
+			_id: accountTypeId,
+			balanceNature: "liability",
+			isArchived: true,
+			normalizedName: "travel cash",
+		});
+	});
+
+	it("rejects a name claimed by an archived type after preview", async () => {
+		const { accountTypeId, owner, type } = await editFixture();
+		const input = { accountTypeId, name: "Offshore cash" };
+		const { editSnapshot } = await owner.query(previewEdit, input);
+		const duplicate = await owner.mutation(api.accountTypes.create, {
+			balanceNature: "asset",
+			name: "  OFFSHORE CASH  ",
+		});
+		await owner.mutation(api.accountTypes.archive, {
+			accountTypeId: duplicate._id,
+			isArchived: true,
+		});
+		await expect(
+			owner.mutation(edit, {
+				...input,
+				expectedEditSnapshot: editSnapshot,
+				idempotencyKey: "blocked-name-edit",
+			})
+		).rejects.toMatchObject({ data: { code: "ACCOUNT_TYPE_NAME_CONFLICT" } });
+		await expect(owner.query(previewEdit, input)).rejects.toMatchObject({
+			data: { code: "ACCOUNT_TYPE_NAME_CONFLICT" },
+		});
+		expect(await owner.query(api.accountTypes.get, { accountTypeId })).toEqual(
+			type
+		);
+	});
+
+	it("blocks a nature change if a reference appeared after preview, even when the account is archived", async () => {
+		const { accountTypeId, owner, type } = await editFixture();
+		const input = {
+			accountTypeId,
+			balanceNature: "liability",
+			color: "#aabbcc",
+		} as const;
+		const { editSnapshot } = await owner.query(previewEdit, input);
+		const account = await owner.mutation(api.accounts.create, {
+			accountTypeId,
+			name: "Holiday wallet",
+			startingBalance: 80,
+		});
+		await owner.mutation(api.accounts.archive, {
+			accountId: account._id,
+			isArchived: true,
+		});
+
+		await expect(
+			owner.mutation(edit, {
+				...input,
+				expectedEditSnapshot: editSnapshot,
+				idempotencyKey: "blocked-nature-edit",
+			})
+		).rejects.toMatchObject({
+			data: { code: "ACCOUNT_TYPE_BALANCE_NATURE_IN_USE" },
+		});
+		await expect(owner.query(previewEdit, input)).rejects.toMatchObject({
+			data: { code: "ACCOUNT_TYPE_BALANCE_NATURE_IN_USE" },
+		});
+		expect(await owner.query(api.accountTypes.get, { accountTypeId })).toEqual(
+			type
+		);
+
+		const metadataEdit = {
+			accountTypeId,
+			balanceNature: "asset",
+			color: "#aabbcc",
+			name: "Travel wallet",
+		} as const;
+		const beforeAccount = await owner.query(api.accounts.get, {
+			accountId: account._id,
+		});
+		const ledger = () =>
+			owner.query(api.cli.v1.accounts.listTransactions, {
+				accountId: account._id,
+			});
+		const beforeLedger = await ledger();
+		const preview = await owner.query(previewEdit, metadataEdit);
+		await owner.mutation(edit, {
+			...metadataEdit,
+			expectedEditSnapshot: preview.editSnapshot,
+			idempotencyKey: "metadata-only-edit",
+		});
+		expect(
+			await owner.query(api.accounts.get, { accountId: account._id })
+		).toEqual({
+			...beforeAccount,
+			accountTypeColor: "#AABBCC",
+			accountTypeName: "Travel wallet",
+		});
+		expect(await ledger()).toEqual(beforeLedger);
+	});
+
+	it("binds preview to the exact target and patch and rejects stale Web changes", async () => {
+		const { accountTypeId, owner } = await editFixture();
+		const input = { accountTypeId, name: "Travel wallet" };
+		const { editSnapshot } = await owner.query(previewEdit, input);
+		const request = {
+			...input,
+			expectedEditSnapshot: editSnapshot,
+			idempotencyKey: "stale-account-type-edit",
+		};
+		const other = await owner.mutation(api.accountTypes.create, {
+			balanceNature: "asset",
+			name: "Other wallet",
+		});
+		await forEachSequential(
+			[{ name: "Summer wallet" }, { accountTypeId: other._id }],
+			async (change) => {
+				await expect(
+					owner.mutation(edit, { ...request, ...change })
+				).rejects.toMatchObject({
+					data: { code: "ACCOUNT_TYPE_EDIT_CONFLICT", retryable: false },
+				});
+			}
+		);
+		const updated = await owner.mutation(api.accountTypes.update, {
+			accountTypeId,
+			color: null,
+		});
+		await expect(owner.mutation(edit, request)).rejects.toMatchObject({
+			data: { code: "ACCOUNT_TYPE_EDIT_CONFLICT" },
+		});
+		expect(await owner.query(api.accountTypes.get, { accountTypeId })).toEqual(
+			updated
+		);
+		expect(updated.color).toBeUndefined();
+	});
+
+	it("replays the original result after a subsequent edit without writing again", async () => {
+		const { accountTypeId, owner } = await editFixture();
+		const input = { accountTypeId, color: "#123456" };
+		const { editSnapshot } = await owner.query(previewEdit, input);
+		const request = {
+			...input,
+			agent: true,
+			expectedEditSnapshot: editSnapshot,
+			idempotencyKey: "retry-account-type-edit",
+		};
+		const result = await owner.mutation(edit, request);
+		const later = await owner.mutation(api.accountTypes.update, {
+			accountTypeId,
+			color: "#654321",
+		});
+		expect(await owner.mutation(edit, request)).toEqual(result);
+		await expect(
+			owner.mutation(edit, { ...request, color: "#111111" })
+		).rejects.toMatchObject({ data: { code: "IDEMPOTENCY_CONFLICT" } });
+		expect(await owner.query(api.accountTypes.get, { accountTypeId })).toEqual(
+			later
+		);
+	});
+
+	it("does not disclose foreign targets through preview or commit", async () => {
+		const { accountTypeId, owner, test } = await editFixture();
+		const stranger = test.withIdentity({
+			subject: "other-cli-account-type-owner",
+		});
+		await stranger.mutation(api.users.create, {
+			email: "stranger@example.com",
+		});
+		const input = { accountTypeId, name: "Private wallet" };
+		const { editSnapshot } = await owner.query(previewEdit, input);
+		await expect(stranger.query(previewEdit, input)).rejects.toMatchObject({
+			data: { code: "RESOURCE_NOT_FOUND" },
+		});
+		await expect(
+			stranger.mutation(edit, {
+				...input,
+				expectedEditSnapshot: editSnapshot,
+				idempotencyKey: "foreign-type-edit",
+			})
+		).rejects.toMatchObject({ data: { code: "RESOURCE_NOT_FOUND" } });
+	});
+
+	it.each([
+		{ code: "INVALID_INPUT", fields: {} },
+		{ code: "INVALID_INPUT", fields: { name: "  " } },
+		{ code: "INVALID_INPUT", fields: { name: "Bad\nName" } },
+		{ code: "INVALID_ACCOUNT_TYPE_ICON", fields: { icon: "  " } },
+		{ code: "INVALID_ACCOUNT_TYPE_ICON", fields: { icon: "unsupported" } },
+		{ code: "INVALID_ACCOUNT_TYPE_COLOR", fields: { color: "  " } },
+		{ code: "INVALID_ACCOUNT_TYPE_COLOR", fields: { color: "#fff" } },
+	])("rejects invalid or empty patches: $fields", async ({ fields, code }) => {
+		const { accountTypeId, owner, type } = await editFixture();
+		const input = { accountTypeId, ...fields };
+		await expect(owner.query(previewEdit, input)).rejects.toMatchObject({
+			data: { code },
+		});
+		await expect(
+			owner.mutation(edit, {
+				...input,
+				expectedEditSnapshot: "a".repeat(64),
+				idempotencyKey: "invalid-type-edit",
+			})
+		).rejects.toMatchObject({ data: { code } });
+		expect(await owner.query(api.accountTypes.get, { accountTypeId })).toEqual(
+			type
+		);
 	});
 });

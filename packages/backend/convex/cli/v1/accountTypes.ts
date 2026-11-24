@@ -1,24 +1,52 @@
 // biome-ignore-all lint/style/useFilenamingConvention: Convex module filenames use camelCase.
-import { ConvexError, v } from "convex/values";
+import { ConvexError, type Infer, v } from "convex/values";
+import type { Doc, Id } from "../../_generated/dataModel";
+import type { QueryCtx } from "../../_generated/server";
 import { mutation, query } from "../../_generated/server";
 import {
 	createAccountType,
+	getAccountTypeAfterWrite,
 	prepareAccountTypeCreate,
+	prepareAccountTypeUpdate,
+	validateAccountTypeOwnership,
 } from "../../accountTypeHelpers";
 import { accountTypeBalanceNatureValidator } from "../../accountTypeValidators";
-import { executeIdempotentMutation } from "../../domain/idempotency";
+import {
+	executeIdempotentMutation,
+	fingerprintRequest,
+} from "../../domain/idempotency";
 import { getCurrentUser } from "../../helpers";
 import { withCliErrors } from "./errors";
 import { accountTypeMetadataValidator } from "./validators";
 
 const MAXIMUM_ACCOUNT_TYPES = 1000;
 
-const accountTypeValidator = v.object({
-	...accountTypeMetadataValidator.fields,
-	createdAt: v.string(),
+const accountTypeEditViewValidator = accountTypeMetadataValidator.extend({
 	isArchived: v.boolean(),
+});
+
+const accountTypeValidator = accountTypeEditViewValidator.extend({
+	createdAt: v.string(),
 	order: v.number(),
 	updatedAt: v.string(),
+});
+
+const presentEditView = (accountType: Doc<"account_types">) => ({
+	balanceNature: accountType.balanceNature,
+	color: accountType.color ?? null,
+	icon: accountType.icon ?? null,
+	id: accountType._id,
+	isArchived: accountType.isArchived ?? false,
+	name: accountType.name,
+});
+
+const presentAccountType = (accountType: Doc<"account_types">) => ({
+	...presentEditView(accountType),
+	createdAt: new Date(accountType.createdAt).toISOString(),
+	order: accountType.order,
+	updatedAt: new Date(
+		accountType.updatedAt ?? accountType.createdAt
+	).toISOString(),
 });
 
 export const list = query({
@@ -39,19 +67,7 @@ export const list = query({
 				.filter(
 					(accountType) => args.includeArchived || !accountType.isArchived
 				)
-				.map((accountType) => ({
-					balanceNature: accountType.balanceNature,
-					color: accountType.color ?? null,
-					createdAt: new Date(accountType.createdAt).toISOString(),
-					icon: accountType.icon ?? null,
-					id: accountType._id,
-					isArchived: accountType.isArchived ?? false,
-					name: accountType.name,
-					order: accountType.order,
-					updatedAt: new Date(
-						accountType.updatedAt ?? accountType.createdAt
-					).toISOString(),
-				}));
+				.map(presentAccountType);
 		}),
 	returns: v.array(accountTypeValidator),
 });
@@ -63,7 +79,7 @@ const createInput = {
 
 const unsafeTerminalText = /[\p{Cc}\p{Zl}\p{Zp}]/u;
 
-const validateCreateName = (name: string): string => {
+const validateAccountTypeNameText = (name: string): string => {
 	if (unsafeTerminalText.test(name)) {
 		throw new ConvexError("INVALID_INPUT");
 	}
@@ -78,7 +94,7 @@ export const previewCreate = query({
 			const { name } = await prepareAccountTypeCreate(
 				ctx,
 				user._id,
-				validateCreateName(args.name)
+				validateAccountTypeNameText(args.name)
 			);
 			return { balanceNature: args.balanceNature, name };
 		}),
@@ -99,7 +115,7 @@ export const create = mutation({
 				execute: async () => {
 					const type = await createAccountType(ctx, user._id, {
 						balanceNature: input.balanceNature,
-						name: validateCreateName(input.name),
+						name: validateAccountTypeNameText(input.name),
 					});
 					return {
 						balanceNature: type.balanceNature,
@@ -114,4 +130,124 @@ export const create = mutation({
 			});
 		}),
 	returns: v.object({ ...createInput, id: v.id("account_types") }),
+});
+
+const editInput = v.object({
+	accountTypeId: v.string(),
+	balanceNature: v.optional(accountTypeBalanceNatureValidator),
+	color: v.optional(v.string()),
+	icon: v.optional(v.string()),
+	name: v.optional(v.string()),
+});
+
+const editSnapshotPattern = /^[a-f0-9]{64}$/u;
+
+const prepareEdit = async (
+	ctx: QueryCtx,
+	userId: Id<"users">,
+	input: Infer<typeof editInput>
+) => {
+	const accountTypeId = ctx.db.normalizeId(
+		"account_types",
+		input.accountTypeId
+	);
+	if (!accountTypeId) {
+		throw new ConvexError("ACCOUNT_TYPE_NOT_FOUND");
+	}
+	const current = await validateAccountTypeOwnership(
+		ctx,
+		accountTypeId,
+		userId
+	);
+	const { balanceNature, color, icon, name } = input;
+	if (
+		[balanceNature, color, icon, name].every((value) => value === undefined)
+	) {
+		throw new ConvexError("INVALID_INPUT");
+	}
+	if (icon !== undefined && !icon.trim()) {
+		throw new ConvexError("INVALID_ACCOUNT_TYPE_ICON");
+	}
+	if (color !== undefined && !color.trim()) {
+		throw new ConvexError("INVALID_ACCOUNT_TYPE_COLOR");
+	}
+	const patch = await prepareAccountTypeUpdate(ctx, current, {
+		balanceNature,
+		color,
+		icon,
+		name: name === undefined ? undefined : validateAccountTypeNameText(name),
+	});
+	const before = presentEditView(current);
+	const editSnapshot = await fingerprintRequest({
+		before,
+		input,
+		updatedAt: current.updatedAt,
+	});
+	return {
+		accountTypeId,
+		after: presentEditView({ ...current, ...patch }),
+		before,
+		editSnapshot,
+		patch,
+	};
+};
+
+export const previewEdit = query({
+	args: editInput.fields,
+	handler: async (ctx, args) =>
+		await withCliErrors(async () => {
+			const user = await getCurrentUser(ctx);
+			const { after, before, editSnapshot } = await prepareEdit(
+				ctx,
+				user._id,
+				args
+			);
+			return { after, before, editSnapshot };
+		}),
+	returns: v.object({
+		after: accountTypeEditViewValidator,
+		before: accountTypeEditViewValidator,
+		editSnapshot: v.string(),
+	}),
+});
+
+export const edit = mutation({
+	args: {
+		...editInput.fields,
+		agent: v.optional(v.boolean()),
+		expectedEditSnapshot: v.string(),
+		idempotencyKey: v.string(),
+	},
+	handler: async (ctx, args) =>
+		await withCliErrors(async () => {
+			const user = await getCurrentUser(ctx);
+			const { agent, expectedEditSnapshot, idempotencyKey, ...input } = args;
+			if (!editSnapshotPattern.test(expectedEditSnapshot)) {
+				throw new ConvexError("INVALID_INPUT");
+			}
+			return await executeIdempotentMutation(ctx, {
+				execute: async () => {
+					const { accountTypeId, editSnapshot, patch } = await prepareEdit(
+						ctx,
+						user._id,
+						input
+					);
+					if (editSnapshot !== expectedEditSnapshot) {
+						throw new ConvexError("ACCOUNT_TYPE_EDIT_CONFLICT");
+					}
+					await ctx.db.patch(accountTypeId, {
+						...patch,
+						updatedAt: Date.now(),
+					});
+					return presentAccountType(
+						await getAccountTypeAfterWrite(ctx, accountTypeId)
+					);
+				},
+				key: idempotencyKey,
+				operation: "accountTypes.edit",
+				request: { ...input, agent, expectedEditSnapshot },
+				userId: user._id,
+			});
+		}),
+	returns: accountTypeValidator,
 });

@@ -4,13 +4,10 @@ import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import {
-	assertAccountTypeNameAvailable,
 	createAccountType,
 	getAccountTypeAfterWrite,
 	MAX_ACCOUNT_TYPES_PER_USER,
-	normalizeAccountTypeColor,
-	normalizeAccountTypeIcon,
-	normalizeAccountTypeName,
+	prepareAccountTypeUpdate,
 	seedDefaultAccountTypes,
 	validateAccountTypeOwnership,
 } from "./accountTypeHelpers";
@@ -121,43 +118,11 @@ export const update = mutation({
 			args.accountTypeId,
 			user._id
 		);
-		const updates: Partial<Doc<"account_types">> = {
+		const updates = await prepareAccountTypeUpdate(ctx, accountType, args);
+		await ctx.db.patch(args.accountTypeId, {
+			...updates,
 			updatedAt: Date.now(),
-		};
-
-		if (args.name !== undefined) {
-			const { name, normalizedName } = normalizeAccountTypeName(args.name);
-			await assertAccountTypeNameAvailable(ctx, {
-				excludeAccountTypeId: args.accountTypeId,
-				normalizedName,
-				userId: user._id,
-			});
-			updates.name = name;
-			updates.normalizedName = normalizedName;
-		}
-		if (args.icon !== undefined) {
-			updates.icon = normalizeAccountTypeIcon(args.icon);
-		}
-		if (args.color !== undefined) {
-			updates.color = normalizeAccountTypeColor(args.color);
-		}
-		if (
-			args.balanceNature !== undefined &&
-			args.balanceNature !== accountType.balanceNature
-		) {
-			const accountUsingType = await ctx.db
-				.query("accounts")
-				.withIndex("by_accountTypeId", (q) =>
-					q.eq("accountTypeId", args.accountTypeId)
-				)
-				.first();
-			if (accountUsingType) {
-				throw new ConvexError("ACCOUNT_TYPE_BALANCE_NATURE_IN_USE");
-			}
-			updates.balanceNature = args.balanceNature;
-		}
-
-		await ctx.db.patch(args.accountTypeId, updates);
+		});
 		return await getAccountTypeAfterWrite(ctx, args.accountTypeId);
 	},
 	returns: accountTypeValidator,

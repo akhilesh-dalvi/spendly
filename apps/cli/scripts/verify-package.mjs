@@ -285,6 +285,21 @@ try {
 		"Installed binary did not expose account-types add help"
 	);
 
+	const accountTypeEditHelp = run(
+		binaryPath,
+		["account-types", "edit", "--help"],
+		{ cwd: verificationDirectory }
+	);
+	assert(
+		accountTypeEditHelp.includes("--icon") &&
+			accountTypeEditHelp.includes("--color") &&
+			accountTypeEditHelp.includes("--balance-nature") &&
+			accountTypeEditHelp.includes("--if-edit-snapshot") &&
+			accountTypeEditHelp.includes("--idempotency-key") &&
+			accountTypeEditHelp.includes("--dry-run"),
+		"Installed binary did not expose account-types edit help"
+	);
+
 	const invalidCommand = spawnSync(binaryPath, ["--json", "unknown"], {
 		cwd: verificationDirectory,
 		encoding: "utf8",

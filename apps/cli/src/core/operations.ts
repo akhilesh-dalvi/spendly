@@ -57,6 +57,22 @@ const accountTypeCreateSchema = z.object({
 		.refine((name) => !unsafeTerminalText.test(name)),
 });
 
+const accountTypeEditFields = {
+	accountTypeId: idSchema,
+	balanceNature: accountTypeCreateSchema.shape.balanceNature.optional(),
+	color: z.string().optional(),
+	icon: z.string().optional(),
+	name: accountTypeCreateSchema.shape.name.optional(),
+} as const;
+const accountTypeEditViewSchema = accountTypeSchema.pick({
+	balanceNature: true,
+	color: true,
+	icon: true,
+	id: true,
+	isArchived: true,
+	name: true,
+});
+
 const categoryTypeColorSchema = z
 	.string()
 	.length(7)
@@ -99,7 +115,7 @@ const categoryEditFields = {
 	name: categoryCreateFields.name.optional(),
 	plannedAmount: categoryCreateFields.plannedAmount.nullable(),
 };
-const categoryEditSnapshotSchema = z.string().regex(/^[a-f0-9]{64}$/u);
+const editSnapshotSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 
 const contextInputSchema = z
 	.object({
@@ -436,6 +452,19 @@ export const operationDefinitions = {
 		mode: "mutation",
 		outputSchema: accountTypeCreateSchema.extend({ id: idSchema }),
 	},
+	"accountTypes.edit": {
+		commit: true,
+		functionName: "cli/v1/accountTypes:edit",
+		inputSchema: z
+			.object({
+				...accountTypeEditFields,
+				...commitFields,
+				expectedEditSnapshot: editSnapshotSchema,
+			})
+			.strict(),
+		mode: "mutation",
+		outputSchema: accountTypeSchema,
+	},
 	"accountTypes.list": {
 		functionName: "cli/v1/accountTypes:list",
 		inputSchema: z.object({ includeArchived: z.boolean().optional() }).strict(),
@@ -447,6 +476,16 @@ export const operationDefinitions = {
 		inputSchema: accountTypeCreateSchema.strict(),
 		mode: "query",
 		outputSchema: accountTypeCreateSchema,
+	},
+	"accountTypes.previewEdit": {
+		functionName: "cli/v1/accountTypes:previewEdit",
+		inputSchema: z.object(accountTypeEditFields).strict(),
+		mode: "query",
+		outputSchema: z.object({
+			after: accountTypeEditViewSchema,
+			before: accountTypeEditViewSchema,
+			editSnapshot: editSnapshotSchema,
+		}),
 	},
 	"categories.create": {
 		commit: true,
@@ -464,7 +503,7 @@ export const operationDefinitions = {
 			.object({
 				...categoryEditFields,
 				...commitFields,
-				expectedEditSnapshot: categoryEditSnapshotSchema,
+				expectedEditSnapshot: editSnapshotSchema,
 			})
 			.strict(),
 		mode: "mutation",
@@ -489,7 +528,7 @@ export const operationDefinitions = {
 				]),
 			}),
 			cycleName: z.string(),
-			editSnapshot: categoryEditSnapshotSchema,
+			editSnapshot: editSnapshotSchema,
 		}),
 	},
 	"categoryTypes.create": {
@@ -748,6 +787,9 @@ const uncertainMutationAdvice = (name: OperationName, key?: string): string => {
 	}
 	if (name === "expenses.create" || name === "expenses.update") {
 		return "check with spendly expenses save-status <key> before starting a new save";
+	}
+	if (name === "accountTypes.edit") {
+		return "check the account type before replaying the exact edit with the original snapshot and idempotency key";
 	}
 	if (name === "categories.edit") {
 		return "check the category before replaying the exact edit with the original snapshot and idempotency key";

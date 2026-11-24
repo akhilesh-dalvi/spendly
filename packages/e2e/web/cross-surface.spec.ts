@@ -86,6 +86,74 @@ test("CLI expense can be edited in Web and read by a fresh CLI process", {
 	await expect(page.getByLabel("Amount", { exact: true })).toHaveValue("25");
 });
 
+test("CLI edits a referenced account type and Web shows the new metadata without financial changes", async ({
+	page,
+	user,
+}) => {
+	const seed = await seedUser(user);
+	await user.loginCli();
+	const accountArgs = { accountId: seed.accountId };
+	const beforeAccount = await user.query(api.accounts.get, accountArgs);
+	const readLedger = () =>
+		user.query(api.accounts.listTransactions, {
+			...accountArgs,
+			limit: 10,
+		});
+	const beforeLedger = await readLedger();
+	const typeArgs = { accountTypeId: seed.assetTypeId };
+	const beforeType = await user.query(api.accountTypes.get, typeArgs);
+	const args = [
+		"account-types",
+		"edit",
+		seed.assetTypeId,
+		"--name",
+		"Cross-surface reserve",
+		"--color",
+		"#14b8a6",
+		"--icon",
+		"vault",
+	];
+	const preview = await user.runCli([...args, "--dry-run"]);
+	expect(preview.exitCode).toBe(0);
+	const { editSnapshot } = success
+		.extend({
+			data: z.object({ editSnapshot: z.string() }),
+		})
+		.parse(JSON.parse(preview.stdout)).data;
+	expect(await user.query(api.accountTypes.get, typeArgs)).toEqual(beforeType);
+
+	const commit = await user.runCli([
+		...args,
+		"--if-edit-snapshot",
+		editSnapshot,
+		"--idempotency-key",
+		randomUUID(),
+	]);
+	expect(commit.exitCode).toBe(0);
+	expect(commit.stderr).toBe("");
+	await page.goto("/data/account-types");
+	await expect(
+		page.getByRole("button", {
+			exact: true,
+			name: "Manage Cross-surface reserve",
+		})
+	).toBeVisible();
+	expect(await user.query(api.accountTypes.get, typeArgs)).toMatchObject({
+		_id: seed.assetTypeId,
+		balanceNature: beforeType.balanceNature,
+		color: "#14B8A6",
+		icon: "vault",
+		name: "Cross-surface reserve",
+	});
+	expect(await user.query(api.accounts.get, accountArgs)).toEqual({
+		...beforeAccount,
+		accountTypeColor: "#14B8A6",
+		accountTypeIcon: "vault",
+		accountTypeName: "Cross-surface reserve",
+	});
+	expect(await readLedger()).toEqual(beforeLedger);
+});
+
 test("Web expense can be confirmed and deleted by CLI with one balance reversal", async ({
 	page,
 	user,

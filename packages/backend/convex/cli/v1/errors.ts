@@ -4,6 +4,8 @@ export type CliDomainErrorCode =
 	| "ACCOUNT_ARCHIVED"
 	| "ACCOUNT_REVISION_CONFLICT"
 	| "ACCOUNT_SETUP_REQUIRED"
+	| "ACCOUNT_TYPE_BALANCE_NATURE_IN_USE"
+	| "ACCOUNT_TYPE_EDIT_CONFLICT"
 	| "ACCOUNT_TYPE_LIMIT_REACHED"
 	| "ACCOUNT_TYPE_NAME_CONFLICT"
 	| "AUTHENTICATION_REQUIRED"
@@ -21,6 +23,8 @@ export type CliDomainErrorCode =
 	| "EXPENSE_REVISION_CONFLICT"
 	| "IDEMPOTENCY_CONFLICT"
 	| "INTERNAL_ERROR"
+	| "INVALID_ACCOUNT_TYPE_COLOR"
+	| "INVALID_ACCOUNT_TYPE_ICON"
 	| "INVALID_INPUT"
 	| "RESOURCE_LIMIT_EXCEEDED"
 	| "RESOURCE_NOT_FOUND"
@@ -32,6 +36,10 @@ const ERROR_MESSAGES: Record<CliDomainErrorCode, string> = {
 	ACCOUNT_ARCHIVED: "The account is archived",
 	ACCOUNT_REVISION_CONFLICT: "The account changed after it was read",
 	ACCOUNT_SETUP_REQUIRED: "Open Spendly Web once to finish account setup",
+	ACCOUNT_TYPE_BALANCE_NATURE_IN_USE:
+		"Balance nature cannot change while any account, including an archived account, uses this type",
+	ACCOUNT_TYPE_EDIT_CONFLICT:
+		"The account type edit no longer matches the reviewed preview; review a fresh preview",
 	ACCOUNT_TYPE_LIMIT_REACHED:
 		"The account type limit has been reached; it includes archived types",
 	ACCOUNT_TYPE_NAME_CONFLICT:
@@ -56,6 +64,10 @@ const ERROR_MESSAGES: Record<CliDomainErrorCode, string> = {
 	IDEMPOTENCY_CONFLICT:
 		"The idempotency key was already used for another request",
 	INTERNAL_ERROR: "The backend request failed unexpectedly",
+	INVALID_ACCOUNT_TYPE_COLOR:
+		"Use a six-digit hex color (for example #14B8A6); clearing is not supported",
+	INVALID_ACCOUNT_TYPE_ICON:
+		"Use a supported account type icon key; clearing is not supported",
 	INVALID_INPUT: "The request input is invalid",
 	RESOURCE_LIMIT_EXCEEDED:
 		"The requested summary is too large to calculate safely",
@@ -74,6 +86,8 @@ const DOMAIN_CODE_MAP: Record<string, CliDomainErrorCode> = {
 	ACCOUNT_REVISION_CONFLICT: "ACCOUNT_REVISION_CONFLICT",
 	ACCOUNT_SETUP_REQUIRED: "ACCOUNT_SETUP_REQUIRED",
 	ACCOUNT_TYPE_ARCHIVED: "INVALID_INPUT",
+	ACCOUNT_TYPE_BALANCE_NATURE_IN_USE: "ACCOUNT_TYPE_BALANCE_NATURE_IN_USE",
+	ACCOUNT_TYPE_EDIT_CONFLICT: "ACCOUNT_TYPE_EDIT_CONFLICT",
 	ACCOUNT_TYPE_LIMIT_REACHED: "ACCOUNT_TYPE_LIMIT_REACHED",
 	ACCOUNT_TYPE_NAME_REQUIRED: "INVALID_INPUT",
 	ACCOUNT_TYPE_NAME_TAKEN: "ACCOUNT_TYPE_NAME_CONFLICT",
@@ -94,6 +108,8 @@ const DOMAIN_CODE_MAP: Record<string, CliDomainErrorCode> = {
 	EXPENSE_NOT_FOUND: "RESOURCE_NOT_FOUND",
 	EXPENSE_REVISION_CONFLICT: "EXPENSE_REVISION_CONFLICT",
 	IDEMPOTENCY_CONFLICT: "IDEMPOTENCY_CONFLICT",
+	INVALID_ACCOUNT_TYPE_COLOR: "INVALID_ACCOUNT_TYPE_COLOR",
+	INVALID_ACCOUNT_TYPE_ICON: "INVALID_ACCOUNT_TYPE_ICON",
 	INVALID_BALANCE: "INVALID_INPUT",
 	INVALID_DATE: "INVALID_INPUT",
 	INVALID_DATE_RANGE: "INVALID_INPUT",

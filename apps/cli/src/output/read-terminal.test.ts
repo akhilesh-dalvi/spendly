@@ -149,6 +149,17 @@ describe("human read output widths", () => {
 		expect(output).toContain("-");
 		expect(output).not.toContain("null");
 	});
+	it("escapes control characters in account type names shown during ID lookup", () => {
+		const [type] = accountTypeSchema
+			.array()
+			.parse(readFixture("accounts").accountTypes);
+		const output = renderAccountTypes([
+			{ ...type, name: "Stored\u001b[2J\nType" },
+		]);
+		expect(output).toContain("Stored\\u{1b}[2J\\u{a}Type");
+		expect(output).not.toContain("\u001b");
+	});
+
 	it("normalizes the legacy Kolkata timezone alias for human output", () => {
 		const context = contextSchema.parse({
 			...readFixture("context"),

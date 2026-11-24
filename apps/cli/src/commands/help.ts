@@ -10,6 +10,10 @@ const examples: Readonly<Record<string, CommandExamples>> = {
 		flags:
 			'spendly account-types add --name "Mortgage" --balance-nature liability --dry-run',
 	},
+	"account-types edit": {
+		flags:
+			'spendly account-types edit TYPE_ID --name "Mortgage reserve" --color "#14B8A6" --dry-run',
+	},
 	"account-types list": {
 		flags: "spendly account-types list --include-archived",
 		guided: "spendly account-types list --interactive",

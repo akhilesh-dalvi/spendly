@@ -21,6 +21,12 @@ interface HumanTableOptions extends HumanRenderOptions {
 	rightAlign?: readonly number[];
 }
 
+export const escapeTerminalText = (value: string): string =>
+	value.replace(
+		/[\p{Cc}\p{Zl}\p{Zp}\p{Bidi_Control}]/gu,
+		(character) => `\\u{${character.charCodeAt(0).toString(16)}}`
+	);
+
 const stripAnsiSequences = (value: string): string => {
 	let result = "";
 	let index = 0;

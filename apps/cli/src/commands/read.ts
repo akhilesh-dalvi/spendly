@@ -249,7 +249,7 @@ export const registerReadCommands = (
 
 	const accountTypes = program
 		.command("account-types")
-		.description("Browse or create account types");
+		.description("Browse, create, or edit account types");
 	accountTypes
 		.command("add")
 		.description("Create a standalone account type without creating an account")
@@ -263,6 +263,32 @@ export const registerReadCommands = (
 		.action(async (options, command: Command) => {
 			const { runAccountTypeAdd } = await import("./account-type-actions.js");
 			await runAccountTypeAdd(options, command, runtime);
+		});
+	accountTypes
+		.command("edit")
+		.description(
+			"Edit a standalone account type without changing its assigned accounts"
+		)
+		.argument("<id>", "stable account type ID from account-types list")
+		.option("--name <name>", "new name")
+		.option(
+			"--icon <key>",
+			"supported account type icon key, such as wallet or vault"
+		)
+		.option("--color <hex>", "six-digit hex color, such as #14B8A6")
+		.option(
+			"--balance-nature <nature>",
+			"asset or liability; only changes on unused types"
+		)
+		.option(
+			"--if-edit-snapshot <snapshot>",
+			"snapshot from a reviewed dry run (required for scripts)"
+		)
+		.option("--idempotency-key <key>", "stable key for this intended commit")
+		.option("--dry-run", "validate and preview without saving")
+		.action(async (id: string, options, command: Command) => {
+			const { runAccountTypeEdit } = await import("./account-type-actions.js");
+			await runAccountTypeEdit(id, options, command, runtime);
 		});
 	accountTypes
 		.command("list")

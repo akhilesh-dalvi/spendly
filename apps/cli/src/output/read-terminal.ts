@@ -10,6 +10,7 @@ import type {
 	Transaction,
 } from "../domain/read-schemas.js";
 import {
+	escapeTerminalText,
 	formatInclusiveDateRange,
 	formatMoney,
 	type HumanRenderOptions,
@@ -258,7 +259,7 @@ export const renderAccountTypes = (
 	renderHumanTable(
 		["NAME", "NATURE", "STATE", "ID"],
 		accountTypes.map((accountType) => [
-			accountType.name,
+			escapeTerminalText(accountType.name),
 			accountType.balanceNature === "asset" ? "Asset" : "Liability",
 			accountType.isArchived ? "Archived" : "Active",
 			accountType.id,

@@ -135,6 +135,60 @@ export const assertAccountTypeNameAvailable = async (
 	}
 };
 
+interface AccountTypeUpdate {
+	balanceNature?: Doc<"account_types">["balanceNature"];
+	color?: string | null;
+	icon?: string | null;
+	name?: string;
+}
+
+export const prepareAccountTypeUpdate = async (
+	ctx: QueryCtx,
+	accountType: Doc<"account_types">,
+	input: AccountTypeUpdate
+) => {
+	const updates: Partial<
+		Pick<
+			Doc<"account_types">,
+			"balanceNature" | "color" | "icon" | "name" | "normalizedName"
+		>
+	> = {};
+
+	if (input.name !== undefined) {
+		const { name, normalizedName } = normalizeAccountTypeName(input.name);
+		await assertAccountTypeNameAvailable(ctx, {
+			excludeAccountTypeId: accountType._id,
+			normalizedName,
+			userId: accountType.userId,
+		});
+		updates.name = name;
+		updates.normalizedName = normalizedName;
+	}
+	if (input.icon !== undefined) {
+		updates.icon = normalizeAccountTypeIcon(input.icon);
+	}
+	if (input.color !== undefined) {
+		updates.color = normalizeAccountTypeColor(input.color);
+	}
+	if (
+		input.balanceNature !== undefined &&
+		input.balanceNature !== accountType.balanceNature
+	) {
+		// Archived accounts still reference the type and must also block a change.
+		const reference = await ctx.db
+			.query("accounts")
+			.withIndex("by_accountTypeId", (q) =>
+				q.eq("accountTypeId", accountType._id)
+			)
+			.first();
+		if (reference) {
+			throw new ConvexError("ACCOUNT_TYPE_BALANCE_NATURE_IN_USE");
+		}
+		updates.balanceNature = input.balanceNature;
+	}
+	return updates;
+};
+
 export const assertAccountTypeCapacity = async (
 	ctx: QueryCtx,
 	userId: Id<"users">,

@@ -50,8 +50,8 @@ spendly account-types add --name "Mortgage" --balance-nature liability --dry-run
 ```
 
 Choose `asset` for money available or `liability` for money owed. The choice
-does not change or restrict the sign of any balance. Use Spendly Web to
-customize the icon or color.
+does not change or restrict the sign of any balance. To set an icon or color
+after creation, see [Edit an account type](#edit-an-account-type).
 
 To save, rerun without `--dry-run` and confirm in a terminal. For a scripted
 save, pass `--non-interactive --json --idempotency-key` with a stable key for
@@ -68,6 +68,32 @@ If the save outcome is unknown, check current state first. To replay within the
 `--non-interactive` (keep `--agent` if used). Don't use a new key to retry.
 
 </details>
+
+## Edit an account type
+
+Run `spendly account-types edit --help` to check support in your installed CLI.
+Find the stable type ID with `spendly account-types list --include-archived`,
+then preview the fields you want to change:
+
+```bash
+spendly account-types edit TYPE_ID --name "Mortgage reserve" --color "#14B8A6" --dry-run
+```
+
+Use `--icon` with an icon key such as `wallet` or `vault`, and `--color` with
+a six-digit hex value. Omitted fields stay unchanged. Use
+[Spendly Web](/data/account-types) to clear styling. Names must be unique
+ignoring whitespace at the ends and capitalization, even among archived types.
+
+`--balance-nature asset|liability` can change the classification only if no
+account, including an archived account, uses the type. Editing a type does not
+change account assignments, balances, or ledger history.
+
+To save in a terminal, rerun without `--dry-run`, review the before/after, and
+confirm. In scripts, capture `data.editSnapshot` from a JSON dry run, then
+rerun with the same fields, `--non-interactive --json --if-edit-snapshot` and
+`--idempotency-key`. If the edit conflicts, review a fresh preview. If the
+save outcome is unknown, check current state first. Replay within 30 days only
+with the original inputs, snapshot, idempotency key, and `--agent` if used.
 
 ## Try adding an account
 
