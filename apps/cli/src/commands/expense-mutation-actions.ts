@@ -6,7 +6,9 @@ import { parseDate, resolveCommandDate } from "../domain/dates.js";
 import {
 	parseAmount,
 	parseRevision,
+	preferredCurrencyCommitFields,
 	resolveIdempotencyKey,
+	validateIdempotencyKey,
 	validateMutationText,
 } from "../domain/mutation-input.js";
 import {
@@ -16,6 +18,7 @@ import {
 	expenseDeleteResultSchema,
 	expenseMutationResultSchema,
 	expenseProposalSchema,
+	expenseSaveStatusSchema,
 	expenseUpdatePreviewSchema,
 } from "../domain/mutation-schemas.js";
 import {
@@ -45,6 +48,10 @@ import {
 import { renderExpense } from "../output/read-terminal.js";
 import type { CliRuntime } from "../runtime.js";
 import {
+	type ExpenseTagDraft,
+	promptExpenseTags,
+} from "./expense-tag-draft.js";
+import {
 	confirmMutation,
 	getPrompter,
 	listVisibleCategories,
@@ -55,7 +62,6 @@ import {
 	selectAccountMode,
 	selectCategoryMode,
 	selectExpenseId,
-	selectTags,
 } from "./interactive-support.js";
 import {
 	assertNamesAllowed,
@@ -75,6 +81,7 @@ interface ExpenseAddOptions {
 	date?: string;
 	dryRun?: boolean;
 	idempotencyKey?: string;
+	ifPreferredCurrency?: string;
 	spentOn?: string;
 	tag?: string[];
 	tagId?: string[];
@@ -94,7 +101,9 @@ interface ExpenseEditOptions {
 	date?: string;
 	dryRun?: boolean;
 	idempotencyKey?: string;
+	ifPreferredCurrency?: string;
 	ifRevision?: string;
+	inlineTags?: ExpenseTagDraft;
 	spentOn?: string;
 	tag?: string[];
 	tagId?: string[];
@@ -104,6 +113,7 @@ interface ExpenseDeleteOptions {
 	confirmationToken?: string;
 	dryRun?: boolean;
 	idempotencyKey?: string;
+	ifPreferredCurrency?: string;
 	ifRevision?: string;
 }
 
@@ -316,25 +326,66 @@ const buildExpenseAddInput = async (options: {
 	if (accountId !== undefined) {
 		result.accountId = accountId;
 	}
-	const hasExplicitTags =
-		(options.input.tagId?.length ?? 0) > 0 ||
-		(options.input.tag?.length ?? 0) > 0;
-	const tagIds =
-		options.prompter && !hasExplicitTags
-			? await selectTags({
+	const existingIds = await resolveTagIds(
+		options.context,
+		options.input.tagId ?? [],
+		options.input.tag ?? []
+	);
+	const tags =
+		options.prompter && existingIds.length === 0
+			? await promptExpenseTags({
 					context: options.context,
 					message: "Choose tags",
 					prompter: options.prompter,
 				})
-			: await resolveTagIds(
-					options.context,
-					options.input.tagId ?? [],
-					options.input.tag ?? []
-				);
-	if (tagIds.length > 0) {
-		result.tagIds = tagIds;
+			: { newTagNames: [], tagIds: existingIds };
+	if (tags.tagIds.length > 0) {
+		result.tagIds = tags.tagIds;
+	}
+	if (tags.newTagNames.length > 0) {
+		result.newTagNames = tags.newTagNames;
 	}
 	return result;
+};
+
+const showSaveRecoveryKey = (options: {
+	key: string | undefined;
+	provided: boolean;
+	prompter: InteractivePrompter | undefined;
+	runtime: CliRuntime;
+}): void => {
+	if (options.prompter && options.key) {
+		const display = options.provided
+			? "your supplied idempotency key"
+			: options.key;
+		options.runtime.stderr.write(`Save reference: ${display}\n`);
+	}
+};
+
+export const runExpenseSaveStatus = async (
+	key: string,
+	command: Command,
+	runtime: CliRuntime
+): Promise<void> => {
+	const idempotencyKey = validateIdempotencyKey(key, "Save reference");
+	await withBackend(command, runtime, async (context) => {
+		const status = await queryParsed(
+			context,
+			"expenses.saveStatus",
+			{ idempotencyKey },
+			expenseSaveStatusSchema
+		);
+		writeMutationSuccess({
+			context,
+			data: status,
+			human:
+				status.status === "saved"
+					? `Expense ${status.operation} was saved: ${status.expenseId} (revision ${status.revision}).`
+					: "No expense save was recorded for this key. The outcome is unknown; do not submit again without verifying.",
+			meta: {},
+			runtime,
+		});
+	});
 };
 
 export const runExpenseAdd = async (
@@ -419,12 +470,19 @@ export const runExpenseAdd = async (
 			spentOn,
 		});
 
+		let currencyGuard = preferredCurrencyCommitFields(
+			options.ifPreferredCurrency
+		);
 		if (dryRun || prompter) {
 			const proposal = await queryParsed(
 				context,
 				"expenses.previewCreate",
 				input,
 				expenseProposalSchema
+			);
+			currencyGuard = preferredCurrencyCommitFields(
+				options.ifPreferredCurrency,
+				proposal.preferredCurrency
 			);
 			const presentation = context.globalOptions.json
 				? undefined
@@ -447,8 +505,14 @@ export const runExpenseAdd = async (
 			});
 		}
 
+		showSaveRecoveryKey({
+			key: idempotencyKey,
+			prompter,
+			provided: options.idempotencyKey !== undefined,
+			runtime,
+		});
 		const result = await commitParsed({
-			args: { ...input, idempotencyKey },
+			args: { ...input, ...currencyGuard, idempotencyKey },
 			context,
 			idempotencyKey,
 			name: "expenses.create",
@@ -477,6 +541,7 @@ const hasEditInput = (options: ExpenseEditOptions): boolean =>
 	options.clearAccount === true ||
 	(options.tagId?.length ?? 0) > 0 ||
 	(options.tag?.length ?? 0) > 0 ||
+	options.inlineTags !== undefined ||
 	options.clearTags === true;
 
 const assertDateCategoryCompatibility = async (
@@ -540,6 +605,9 @@ const resolveEditTagIds = async (
 	context: BackendCommandContext,
 	options: ExpenseEditOptions
 ): Promise<string[] | undefined> => {
+	if (options.inlineTags) {
+		return options.inlineTags.tagIds;
+	}
 	if (options.clearTags) {
 		return [];
 	}
@@ -595,6 +663,9 @@ const buildEditInput = async (options: {
 	const tagIds = await resolveEditTagIds(options.context, options.input);
 	if (tagIds !== undefined) {
 		result.tagIds = tagIds;
+	}
+	if (options.input.inlineTags?.newTagNames.length) {
+		result.newTagNames = options.input.inlineTags.newTagNames;
 	}
 	return result;
 };
@@ -687,17 +758,15 @@ const promptExpenseEditInputs = async (options: {
 		}
 	}
 	if (fields.includes("tags")) {
-		const tagIds = await selectTags({
+		result.inlineTags = await promptExpenseTags({
 			context: options.context,
-			initialIds: options.current.tags.map((tag) => tag.id),
+			initial: result.inlineTags ?? {
+				newTagNames: [],
+				tagIds: options.current.tags.map((tag) => tag.id),
+			},
 			message: "New tags",
 			prompter: options.prompter,
 		});
-		if (tagIds.length === 0) {
-			result.clearTags = true;
-		} else {
-			result.tagId = tagIds;
-		}
 	}
 	return result;
 };
@@ -708,11 +777,13 @@ const resolveExpenseEditRequest = async (options: {
 	input: ExpenseEditOptions;
 	prompter?: InteractivePrompter;
 	providedRevision?: number;
+	revising: boolean;
 	runtime: CliRuntime;
 }): Promise<{
 	expectedRevision: number;
 	expenseId: string;
 	input: Record<string, unknown>;
+	inlineTags?: ExpenseTagDraft;
 }> => {
 	const expenseId =
 		options.expenseId ??
@@ -728,7 +799,7 @@ const resolveExpenseEditRequest = async (options: {
 		expenseSchema
 	);
 	const resolvedOptions =
-		options.prompter && !hasEditInput(options.input)
+		options.prompter && (options.revising || !hasEditInput(options.input))
 			? await promptExpenseEditInputs({
 					context: options.context,
 					current,
@@ -759,6 +830,7 @@ const resolveExpenseEditRequest = async (options: {
 	return {
 		expectedRevision,
 		expenseId,
+		inlineTags: resolvedOptions.inlineTags,
 		input: await buildEditInput({
 			amount,
 			context: options.context,
@@ -809,15 +881,20 @@ export const runExpenseEdit = async (
 	await withBackend(command, runtime, async (context) => {
 		let selectedExpenseId = expenseId;
 		let editOptions = options;
-		let expectedRevision = providedRevision ?? 0;
+		let expectedRevision = providedRevision;
 		let input: Record<string, unknown> = {};
+		let currencyGuard = preferredCurrencyCommitFields(
+			options.ifPreferredCurrency
+		);
+		let revising = false;
 		for await (const resolved of repeatAsync(() =>
 			resolveExpenseEditRequest({
 				context,
 				expenseId: selectedExpenseId,
 				input: editOptions,
 				prompter,
-				providedRevision,
+				providedRevision: expectedRevision,
+				revising,
 				runtime,
 			})
 		)) {
@@ -831,6 +908,10 @@ export const runExpenseEdit = async (
 				"expenses.previewUpdate",
 				input,
 				expenseUpdatePreviewSchema
+			);
+			currencyGuard = preferredCurrencyCommitFields(
+				options.ifPreferredCurrency,
+				preview.preferredCurrency
 			);
 			if (dryRun) {
 				writeMutationSuccess({
@@ -852,12 +933,19 @@ export const runExpenseEdit = async (
 			if (reviewAction === "confirm") {
 				break;
 			}
-			editOptions = {};
+			editOptions = { inlineTags: resolved.inlineTags };
+			revising = true;
 		}
 
+		showSaveRecoveryKey({
+			key: idempotencyKey,
+			prompter,
+			provided: options.idempotencyKey !== undefined,
+			runtime,
+		});
 		try {
 			const result = await commitParsed({
-				args: { ...input, idempotencyKey },
+				args: { ...input, ...currencyGuard, idempotencyKey },
 				context,
 				idempotencyKey,
 				name: "expenses.update",
@@ -898,18 +986,17 @@ const resolveHumanDeleteConfirmation = async (options: {
 	confirmationToken: string;
 	expectedRevision: number;
 	message: string;
+	preferredCurrency?: string;
 }> => {
 	if (options.confirmationToken && options.expectedRevision) {
-		const expense = await queryParsed(
-			options.context,
-			"expenses.get",
-			{ expenseId: options.expenseId },
-			expenseSchema
-		);
+		const expense = await options.context.operations.invoke("expenses.get", {
+			expenseId: options.expenseId,
+		});
 		return {
 			confirmationToken: options.confirmationToken,
 			expectedRevision: options.expectedRevision,
 			message: `${renderExpense(expense)}\nPermanently delete this expense?`,
+			preferredCurrency: expense.preferredCurrency,
 		};
 	}
 	const preview = await mutationParsed({
@@ -922,6 +1009,7 @@ const resolveHumanDeleteConfirmation = async (options: {
 		confirmationToken: preview.confirmationToken,
 		expectedRevision: preview.revision,
 		message: `${renderExpenseDeletePreview(preview)}\nPermanently delete this expense?`,
+		preferredCurrency: preview.preferredCurrency,
 	};
 };
 
@@ -971,6 +1059,10 @@ export const runExpenseDelete = async (
 				name: "expenses.previewDelete",
 				schema: expenseDeletePreviewSchema,
 			});
+			preferredCurrencyCommitFields(
+				options.ifPreferredCurrency,
+				preview.preferredCurrency
+			);
 			writeMutationSuccess({
 				context,
 				data: preview,
@@ -1002,6 +1094,9 @@ export const runExpenseDelete = async (
 
 		let { confirmationToken } = options;
 		let expectedRevision = providedRevision;
+		let currencyGuard = preferredCurrencyCommitFields(
+			options.ifPreferredCurrency
+		);
 		if (!globalOptions.nonInteractive) {
 			const confirmation = await resolveHumanDeleteConfirmation({
 				confirmationToken,
@@ -1010,6 +1105,10 @@ export const runExpenseDelete = async (
 				expenseId: resolvedExpenseId,
 			});
 			({ confirmationToken, expectedRevision } = confirmation);
+			currencyGuard = preferredCurrencyCommitFields(
+				options.ifPreferredCurrency,
+				confirmation.preferredCurrency
+			);
 			const confirmed = runtime.confirm
 				? await runtime.confirm(confirmation.message)
 				: await (await getPrompter(globalOptions, runtime, true)).confirm({
@@ -1030,6 +1129,7 @@ export const runExpenseDelete = async (
 		const result = await commitParsed({
 			args: {
 				confirmationToken,
+				...currencyGuard,
 				expectedRevision,
 				expenseId: resolvedExpenseId,
 				idempotencyKey,

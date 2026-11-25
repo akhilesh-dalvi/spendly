@@ -10,6 +10,7 @@ import type {
 	Transaction,
 } from "../domain/read-schemas.js";
 import {
+	escapeTerminalText,
 	formatInclusiveDateRange,
 	formatMoney,
 	type HumanRenderOptions,
@@ -148,7 +149,7 @@ export const renderTags = (
 ): string =>
 	renderHumanTable(
 		["NAME", "ID"],
-		tags.map((tag) => [tag.name, tag.id]),
+		tags.map((tag) => [escapeTerminalText(tag.name), tag.id]),
 		{
 			...options,
 			emptyMessage: "No tags yet. Expenses can continue without tags.",
@@ -258,7 +259,7 @@ export const renderAccountTypes = (
 	renderHumanTable(
 		["NAME", "NATURE", "STATE", "ID"],
 		accountTypes.map((accountType) => [
-			accountType.name,
+			escapeTerminalText(accountType.name),
 			accountType.balanceNature === "asset" ? "Asset" : "Liability",
 			accountType.isArchived ? "Archived" : "Active",
 			accountType.id,

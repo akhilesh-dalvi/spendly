@@ -1,6 +1,6 @@
 ---
 name: spendly
-description: Use the local Spendly CLI to read or manage expenses, expense cycles, accounts, balances, and transfers, including categorizing expenses, setting default accounts, and reconciling balances.
+description: Use the local Spendly CLI to track and categorize expenses, manage cycles and accounts, reconcile balances, record transfers, or change preferred currency.
 ---
 
 # Spendly CLI
@@ -19,12 +19,13 @@ failure; do not substitute an unrelated package.
 ```bash
 spendly --version
 spendly --agent --json --non-interactive auth status
-spendly --agent --json --non-interactive auth login
 spendly --agent --json --non-interactive context
 ```
 
-`auth login` opens a browser when sign-in is needed. Context gives the currency,
-local date, timezone, cycle, and default account for interpreting the request.
+If sign-in is required, ask the user to run `spendly auth login` on this
+computer and finish in the browser before you rerun status and context.
+Context gives the currency, local date, timezone, cycle, and default account
+for interpreting the request.
 
 ## Find commands and flags
 
@@ -74,22 +75,34 @@ spendly --agent --json --non-interactive account-types list
 ```
 
 Categories belong to a cycle; resolve and use the expense date's cycle. Including archived
-accounts helps spot an existing account before creating another. Categories,
-tags, and account types are currently read-only through the CLI and can be
-managed in Spendly Web. Cycle CRUD requires a version that advertises it in
-`cycles --help`; older releases only list/find cycles.
+accounts helps spot an existing account before creating another. If the user asks
+for a new category, check installed `categories add --help`; otherwise use an
+existing category ID. If the user needs a new type, check
+`category-types add --help`: type creation is a separate save that persists
+even if the category save is canceled. Cycle writes require a version that
+advertises them in `cycles --help`.
 
 ## Run an action
 
 `--agent --json --non-interactive` declares agent use, gives structured output,
-and disables prompts. List and get commands provide the IDs and revisions used
-by write commands. `--dry-run`
-previews a change; removing it applies the change. For separately reviewed cycle
-copying, capture `data.copySnapshot` and commit with `--if-copy-snapshot` using
-identical source, selection, and plan inputs; follow [Cycles](references/cycle-workflows.md)
-for snapshot guards and uncertain-write replay. Stop on `CYCLE_COPY_CONFLICT`
-(exit 5) and obtain fresh preview approval before a new commit.
-Several requested changes can be handled as separate commands.
+and disables prompts. List and get commands provide stable IDs. Preview with
+`--dry-run`; commit only after approval, using the same inputs, a fresh
+idempotency key, and the guards shown in installed help. Account-type and
+category edits and tag renames use the preview's `data.editSnapshot` with
+`--if-edit-snapshot`, not a revision. See
+[Accounts](https://spendly.akhileshdalvi.com/docs/cli/accounts),
+[Categories](https://spendly.akhileshdalvi.com/docs/cli/categories), or
+[Tags](https://spendly.akhileshdalvi.com/docs/cli/tags) for the relevant save.
+For cycle-copy snapshot guards and replay, follow [Cycles](references/cycle-workflows.md).
+For a currency change, check `settings set-currency --help` and follow
+[Preferred currency](https://spendly.akhileshdalvi.com/docs/cli/settings).
+For separately reviewed financial saves with `--if-preferred-currency`, use
+`data.preferredCurrency` from the preview, not the transaction currency.
+For account creation, also pass preview `data.currencyMode` as
+`--if-account-currency-mode` and `data.accountType.balanceNature` as
+`--if-balance-nature`. If a needed guard or preview value is missing, stop and
+suggest an update or completing the operation in Spendly Web. On conflict,
+get approval for a fresh preview.
 
 Apply only writes the user requested. Stop on ambiguity, a stale revision, an
 unexpected warning, or a result that remains uncertain. Never retry a write
@@ -107,7 +120,7 @@ Use the reference that fits the task:
 - [Accounts](references/account-workflows.md): add, edit, archive,
   reconcile, transfer, and inspect history.
 - [Troubleshooting](references/troubleshooting.md): login, conflicts,
-  confirmation tokens, and uncertain network results.
+  confirmation tokens, expense save references, and uncertain writes.
 
 Summarize what changed and the resulting balances. Returned IDs and revisions
 are useful for follow-up commands.

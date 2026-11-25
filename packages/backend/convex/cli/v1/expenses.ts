@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../../_generated/dataModel";
-import { mutation, query } from "../../_generated/server";
+import { type MutationCtx, mutation, query } from "../../_generated/server";
 import { resolveCliActionSource } from "../../domain/actionSource";
 import { validateLocalDate } from "../../domain/dates";
 import {
@@ -14,8 +14,10 @@ import {
 import {
 	DELETION_CONFIRMATION_LIFETIME_MS,
 	executeIdempotentMutation,
+	findIdempotencyRecord,
 } from "../../domain/idempotency";
 import { assertRevision, getRevision } from "../../domain/revisions";
+import { insertOwnedTag, planInlineTags } from "../../domain/tagOperations";
 import {
 	getCurrentUser,
 	validateAccountOwnership,
@@ -24,6 +26,10 @@ import {
 } from "../../helpers";
 import { forEachSequential } from "../../lib/async";
 import { withCliErrors } from "./errors";
+import {
+	assertExpectedPreferredCurrency,
+	getEffectivePreferredCurrency,
+} from "./financialCurrency";
 import {
 	presentAccount,
 	presentExpense,
@@ -190,9 +196,15 @@ export const get = query({
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
 			const expense = await requireOwnedExpense(ctx, args.expenseId, user._id);
-			return await presentExpense(ctx, expense, user);
+			return {
+				...(await presentExpense(ctx, expense, user)),
+				preferredCurrency: getEffectivePreferredCurrency(user.currency),
+			};
 		}),
-	returns: expenseSummaryValidator,
+	returns: v.object({
+		...expenseSummaryValidator.fields,
+		preferredCurrency: v.string(),
+	}),
 });
 
 export const list = query({
@@ -257,6 +269,72 @@ export const list = query({
 	}),
 });
 
+const appendInlineTags = async (
+	ctx: MutationCtx,
+	userId: Id<"users">,
+	existingIds: readonly Id<"tags">[],
+	names: readonly string[] | undefined
+): Promise<Id<"tags">[]> => {
+	const planned = await planInlineTags(ctx, userId, names);
+	const tagIds = [...existingIds];
+	await forEachSequential(planned, async (name) => {
+		tagIds.push(await insertOwnedTag(ctx, userId, name));
+	});
+	return tagIds;
+};
+
+export const saveStatus = query({
+	args: { idempotencyKey: v.string() },
+	handler: async (ctx, { idempotencyKey }) =>
+		await withCliErrors(async () => {
+			const user = await getCurrentUser(ctx);
+			const record = await findIdempotencyRecord(ctx, user._id, idempotencyKey);
+			if (
+				!record ||
+				record.expiresAt <= Date.now() ||
+				(record.operation !== "expenses.create" &&
+					record.operation !== "expenses.update")
+			) {
+				return { status: "not_recorded" as const };
+			}
+			const result: unknown = record.result;
+			if (
+				typeof result !== "object" ||
+				result === null ||
+				!("id" in result) ||
+				typeof result.id !== "string" ||
+				!("revision" in result) ||
+				typeof result.revision !== "number" ||
+				!Number.isSafeInteger(result.revision) ||
+				result.revision < 1
+			) {
+				throw new ConvexError("INTERNAL_ERROR");
+			}
+			const expenseId = ctx.db.normalizeId("expenses", result.id);
+			if (!expenseId) {
+				throw new ConvexError("INTERNAL_ERROR");
+			}
+			return {
+				expenseId,
+				operation:
+					record.operation === "expenses.create"
+						? ("add" as const)
+						: ("edit" as const),
+				revision: result.revision,
+				status: "saved" as const,
+			};
+		}),
+	returns: v.union(
+		v.object({ status: v.literal("not_recorded") }),
+		v.object({
+			expenseId: v.id("expenses"),
+			operation: v.union(v.literal("add"), v.literal("edit")),
+			revision: v.number(),
+			status: v.literal("saved"),
+		})
+	),
+});
+
 export const previewCreate = query({
 	args: expenseCreateInputValidator,
 	handler: async (ctx, args) =>
@@ -270,7 +348,13 @@ export const previewCreate = query({
 					? [{ accountId: prepared.accountId, delta: -prepared.amount }]
 					: []
 			);
-			return { ...presentExpenseProposal(prepared), accountEffects };
+			const newTagNames = await planInlineTags(ctx, user._id, args.newTagNames);
+			return {
+				...presentExpenseProposal(prepared),
+				accountEffects,
+				...(newTagNames.length > 0 ? { newTagNames } : {}),
+				preferredCurrency: getEffectivePreferredCurrency(user.currency),
+			};
 		}),
 	returns: expenseProposalValidator,
 });
@@ -279,15 +363,21 @@ export const create = mutation({
 	args: {
 		...expenseCreateInputValidator,
 		agent: v.optional(v.boolean()),
+		expectedPreferredCurrency: v.optional(v.string()),
 		idempotencyKey: v.string(),
 	},
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
-			const { agent, idempotencyKey, ...input } = args;
+			const { agent, expectedPreferredCurrency, idempotencyKey, ...input } =
+				args;
 			const source = resolveCliActionSource(agent);
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
+					assertExpectedPreferredCurrency(
+						user.currency,
+						expectedPreferredCurrency
+					);
 					const prepared = await prepareExpenseCreate(ctx, { input, user });
 					const accountEffects = await presentAccountEffects(
 						ctx,
@@ -296,8 +386,14 @@ export const create = mutation({
 							? [{ accountId: prepared.accountId, delta: -prepared.amount }]
 							: []
 					);
+					const tagIds = await appendInlineTags(
+						ctx,
+						user._id,
+						prepared.tagIds,
+						input.newTagNames
+					);
 					const expense = await commitExpenseCreate(ctx, {
-						prepared,
+						prepared: { ...prepared, tagIds },
 						source,
 						userId: user._id,
 					});
@@ -310,7 +406,7 @@ export const create = mutation({
 				},
 				key: idempotencyKey,
 				operation: "expenses.create",
-				request: { ...input, source },
+				request: { ...input, expectedPreferredCurrency, source },
 				userId: user._id,
 			});
 		}),
@@ -331,6 +427,11 @@ export const previewUpdate = query({
 				input,
 				user,
 			});
+			const newTagNames = await planInlineTags(
+				ctx,
+				user._id,
+				input.newTagNames
+			);
 			return {
 				accountEffects: await presentAccountEffects(
 					ctx,
@@ -339,12 +440,16 @@ export const previewUpdate = query({
 				),
 				after: await presentExpense(ctx, prepared.after, user),
 				before: await presentExpense(ctx, prepared.before, user),
+				...(newTagNames.length > 0 ? { newTagNames } : {}),
+				preferredCurrency: getEffectivePreferredCurrency(user.currency),
 			};
 		}),
 	returns: v.object({
 		accountEffects: v.array(accountBalanceEffectValidator),
 		after: expenseSummaryValidator,
 		before: expenseSummaryValidator,
+		newTagNames: v.optional(v.array(v.string())),
+		preferredCurrency: v.string(),
 	}),
 });
 
@@ -352,6 +457,7 @@ export const update = mutation({
 	args: {
 		...expenseUpdateInputValidator,
 		agent: v.optional(v.boolean()),
+		expectedPreferredCurrency: v.optional(v.string()),
 		expectedRevision: v.number(),
 		expenseId: v.id("expenses"),
 		idempotencyKey: v.string(),
@@ -359,10 +465,20 @@ export const update = mutation({
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
-			const { agent, expenseId, idempotencyKey, ...input } = args;
+			const {
+				agent,
+				expectedPreferredCurrency,
+				expenseId,
+				idempotencyKey,
+				...input
+			} = args;
 			const source = resolveCliActionSource(agent);
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
+					assertExpectedPreferredCurrency(
+						user.currency,
+						expectedPreferredCurrency
+					);
 					const prepared = await prepareExpenseUpdate(ctx, {
 						expenseId,
 						input,
@@ -373,6 +489,14 @@ export const update = mutation({
 						user,
 						getUpdateBalanceDeltas(prepared)
 					);
+					if (input.newTagNames?.length) {
+						prepared.after.tagIds = await appendInlineTags(
+							ctx,
+							user._id,
+							prepared.after.tagIds ?? [],
+							input.newTagNames
+						);
+					}
 					const expense = await commitExpenseUpdate(ctx, prepared, source);
 					return {
 						...(await presentExpense(ctx, expense, user)),
@@ -381,7 +505,7 @@ export const update = mutation({
 				},
 				key: idempotencyKey,
 				operation: "expenses.update",
-				request: { expenseId, ...input, source },
+				request: { expenseId, ...input, expectedPreferredCurrency, source },
 				userId: user._id,
 			});
 		}),
@@ -419,6 +543,7 @@ export const previewDelete = mutation({
 				confirmationToken,
 				expense: await presentExpense(ctx, expense, user),
 				expiresAt: new Date(expiresAt).toISOString(),
+				preferredCurrency: getEffectivePreferredCurrency(user.currency),
 				revision,
 			};
 		}),
@@ -427,6 +552,7 @@ export const previewDelete = mutation({
 		confirmationToken: v.id("cli_deletion_confirmations"),
 		expense: expenseSummaryValidator,
 		expiresAt: v.string(),
+		preferredCurrency: v.string(),
 		revision: v.number(),
 	}),
 });
@@ -435,6 +561,7 @@ export const remove = mutation({
 	args: {
 		agent: v.optional(v.boolean()),
 		confirmationToken: v.id("cli_deletion_confirmations"),
+		expectedPreferredCurrency: v.optional(v.string()),
 		expectedRevision: v.number(),
 		expenseId: v.id("expenses"),
 		idempotencyKey: v.string(),
@@ -445,6 +572,10 @@ export const remove = mutation({
 			const source = resolveCliActionSource(args.agent);
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
+					assertExpectedPreferredCurrency(
+						user.currency,
+						args.expectedPreferredCurrency
+					);
 					const confirmation = await ctx.db.get(args.confirmationToken);
 					if (
 						!confirmation ||
@@ -494,6 +625,7 @@ export const remove = mutation({
 				operation: "expenses.delete",
 				request: {
 					confirmationToken: args.confirmationToken,
+					expectedPreferredCurrency: args.expectedPreferredCurrency,
 					expectedRevision: args.expectedRevision,
 					expenseId: args.expenseId,
 					source,

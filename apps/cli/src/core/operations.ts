@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
 	accountCreateProposalSchema,
 	accountCreateResultSchema,
+	accountCurrencyModeSchema,
 	accountUpdatePreviewArraySchema,
 	accountUpdatePreviewSchema,
 	balanceAdjustmentPreviewSchema,
@@ -23,7 +24,9 @@ import {
 	expenseDeleteResultSchema,
 	expenseMutationResultSchema,
 	expenseProposalSchema,
+	expenseSaveStatusSchema,
 	expenseUpdatePreviewSchema,
+	preferredCurrencyGuardSchema,
 } from "../domain/mutation-schemas.js";
 import {
 	accountSchema,
@@ -46,6 +49,95 @@ const pageSizeSchema = z.number().int().min(1).max(100).optional();
 const revisionSchema = z.number().int().positive();
 const idempotencyKeySchema = z.string().min(8).max(200);
 const noArgumentsSchema = z.object({}).strict();
+
+const unsafeTerminalText = /[\p{Cc}\p{Zl}\p{Zp}]/u;
+const accountTypeCreateSchema = z.object({
+	balanceNature: accountTypeSchema.shape.balanceNature,
+	name: z
+		.string()
+		.min(1)
+		.refine((name) => !unsafeTerminalText.test(name)),
+});
+
+const accountTypeEditFields = {
+	accountTypeId: idSchema,
+	balanceNature: accountTypeCreateSchema.shape.balanceNature.optional(),
+	color: z.string().optional(),
+	icon: z.string().optional(),
+	name: accountTypeCreateSchema.shape.name.optional(),
+} as const;
+const accountTypeEditViewSchema = accountTypeSchema.pick({
+	balanceNature: true,
+	color: true,
+	icon: true,
+	id: true,
+	isArchived: true,
+	name: true,
+});
+
+const categoryTypeColorSchema = z
+	.string()
+	.length(7)
+	.regex(/^#[\da-f]{6}$/iu);
+const categoryTypeCreateFields = {
+	color: categoryTypeColorSchema.optional(),
+	name: z.string().min(1),
+};
+const categoryTypePreviewSchema = z.object({
+	color: categoryTypeColorSchema,
+	name: z
+		.string()
+		.min(1)
+		.max(100)
+		.regex(/^[^\p{Cc}\p{Zl}\p{Zp}]+$/u),
+});
+
+const categoryCreateFields = {
+	categoryTypeId: idSchema.optional(),
+	cycleId: idSchema,
+	icon: z.string().min(1).optional(),
+	name: z.string().min(1),
+	plannedAmount: z.number().finite().nonnegative().optional(),
+};
+
+const categoryCreatePreviewSchema = categorySchema
+	.pick({
+		categoryType: true,
+		cycleId: true,
+		icon: true,
+		name: true,
+		plannedAmount: true,
+	})
+	.extend({
+		cycleName: z.string(),
+		preferredCurrency: z.string().min(1).optional(),
+	});
+
+const categoryEditFields = {
+	categoryId: idSchema,
+	categoryTypeId: categoryCreateFields.categoryTypeId.nullable(),
+	icon: categoryCreateFields.icon,
+	name: categoryCreateFields.name.optional(),
+	plannedAmount: categoryCreateFields.plannedAmount.nullable(),
+};
+const editSnapshotSchema = z.string().regex(/^[a-f0-9]{64}$/u);
+// The backend normalizes IDs so all invalid or inaccessible targets are not found.
+export const preferredCurrencySchema = z.enum([
+	"USD",
+	"EUR",
+	"GBP",
+	"INR",
+	"CAD",
+	"AUD",
+	"JPY",
+	"AED",
+]);
+const currencyResultSchema = z.object({
+	changed: z.boolean(),
+	currency: preferredCurrencySchema,
+});
+const tagRenameFields = { name: z.string(), tagId: z.string() };
+const tagWriteSchema = z.object({ id: idSchema, name: z.string() });
 
 const contextInputSchema = z
 	.object({
@@ -76,6 +168,7 @@ const expenseCreateInputSchema = z
 		amount: z.number().finite().positive(),
 		categoryId: idSchema.nullable().optional(),
 		date: localDateSchema,
+		newTagNames: z.array(z.string()).max(20).optional(),
 		spentOn: z.string().optional(),
 		tagIds: z.array(idSchema).optional(),
 	})
@@ -87,6 +180,7 @@ const expenseUpdateFields = {
 	categoryId: idSchema.nullable().optional(),
 	date: localDateSchema.optional(),
 	expectedRevision: revisionSchema.optional(),
+	newTagNames: z.array(z.string()).max(20).optional(),
 	spentOn: z.string().nullable().optional(),
 	tagIds: z.array(idSchema).optional(),
 } as const;
@@ -187,6 +281,11 @@ const commitFields = {
 	idempotencyKey: idempotencyKeySchema,
 } as const;
 
+const financialCommitFields = {
+	...commitFields,
+	expectedPreferredCurrency: preferredCurrencyGuardSchema.optional(),
+} as const;
+
 export const operationDefinitions = {
 	"accounts.adjustBalance": {
 		commit: true,
@@ -195,7 +294,7 @@ export const operationDefinitions = {
 			.object({
 				...balanceAdjustmentInputSchema.shape,
 				expectedRevision: revisionSchema,
-				...commitFields,
+				...financialCommitFields,
 			})
 			.strict(),
 		mode: "mutation",
@@ -227,7 +326,12 @@ export const operationDefinitions = {
 		commit: true,
 		functionName: "cli/v1/accounts:create",
 		inputSchema: z
-			.object({ ...accountCreateInputSchema.shape, ...commitFields })
+			.object({
+				...accountCreateInputSchema.shape,
+				...financialCommitFields,
+				expectedBalanceNature: accountTypeSchema.shape.balanceNature.optional(),
+				expectedCurrencyMode: accountCurrencyModeSchema.optional(),
+			})
 			.strict(),
 		mode: "mutation",
 		outputSchema: accountCreateResultSchema,
@@ -353,7 +457,7 @@ export const operationDefinitions = {
 				...transferInputSchema.shape,
 				expectedFromRevision: revisionSchema,
 				expectedToRevision: revisionSchema,
-				...commitFields,
+				...financialCommitFields,
 			})
 			.strict(),
 		mode: "mutation",
@@ -373,11 +477,111 @@ export const operationDefinitions = {
 		mode: "mutation",
 		outputSchema: accountSchema,
 	},
+	"accountTypes.create": {
+		commit: true,
+		functionName: "cli/v1/accountTypes:create",
+		inputSchema: accountTypeCreateSchema.extend(commitFields).strict(),
+		mode: "mutation",
+		outputSchema: accountTypeCreateSchema.extend({ id: idSchema }),
+	},
+	"accountTypes.edit": {
+		commit: true,
+		functionName: "cli/v1/accountTypes:edit",
+		inputSchema: z
+			.object({
+				...accountTypeEditFields,
+				...commitFields,
+				expectedEditSnapshot: editSnapshotSchema,
+			})
+			.strict(),
+		mode: "mutation",
+		outputSchema: accountTypeSchema,
+	},
 	"accountTypes.list": {
 		functionName: "cli/v1/accountTypes:list",
 		inputSchema: z.object({ includeArchived: z.boolean().optional() }).strict(),
 		mode: "query",
 		outputSchema: accountTypeSchema.array(),
+	},
+	"accountTypes.previewCreate": {
+		functionName: "cli/v1/accountTypes:previewCreate",
+		inputSchema: accountTypeCreateSchema.strict(),
+		mode: "query",
+		outputSchema: accountTypeCreateSchema,
+	},
+	"accountTypes.previewEdit": {
+		functionName: "cli/v1/accountTypes:previewEdit",
+		inputSchema: z.object(accountTypeEditFields).strict(),
+		mode: "query",
+		outputSchema: z.object({
+			after: accountTypeEditViewSchema,
+			before: accountTypeEditViewSchema,
+			editSnapshot: editSnapshotSchema,
+		}),
+	},
+	"categories.create": {
+		commit: true,
+		functionName: "cli/v1/resources:createCategory",
+		inputSchema: z
+			.object({
+				...categoryCreateFields,
+				...commitFields,
+				expectedPreferredCurrency: preferredCurrencyGuardSchema.optional(),
+			})
+			.strict(),
+		mode: "mutation",
+		outputSchema: categorySchema,
+	},
+	"categories.edit": {
+		commit: true,
+		functionName: "cli/v1/resources:editCategory",
+		inputSchema: z
+			.object({
+				...categoryEditFields,
+				...commitFields,
+				expectedEditSnapshot: editSnapshotSchema,
+			})
+			.strict(),
+		mode: "mutation",
+		outputSchema: categorySchema,
+	},
+	"categories.previewCreate": {
+		functionName: "cli/v1/resources:previewCategoryCreate",
+		inputSchema: z.object(categoryCreateFields).strict(),
+		mode: "query",
+		outputSchema: categoryCreatePreviewSchema,
+	},
+	"categories.previewEdit": {
+		functionName: "cli/v1/resources:previewCategoryEdit",
+		inputSchema: z.object(categoryEditFields).strict(),
+		mode: "query",
+		outputSchema: z.object({
+			after: categorySchema,
+			before: categorySchema.extend({
+				plannedAmount: z.union([
+					categorySchema.shape.plannedAmount,
+					z.enum(["NaN", "Infinity", "-Infinity"]),
+				]),
+			}),
+			cycleName: z.string(),
+			editSnapshot: editSnapshotSchema,
+			preferredCurrency: z.string().min(1).optional(),
+		}),
+	},
+	"categoryTypes.create": {
+		commit: true,
+		functionName: "cli/v1/resources:createCategoryType",
+		inputSchema: z
+			.object({ ...categoryTypeCreateFields, ...commitFields })
+			.strict(),
+		mode: "mutation",
+		outputSchema: categoryTypePreviewSchema.extend({ id: idSchema }),
+	},
+	"categoryTypes.previewCreate": {
+		functionName: "cli/v1/resources:previewCategoryTypeCreate",
+		inputSchema: z.object(categoryTypeCreateFields).strict(),
+		mode: "query",
+		outputSchema: categoryTypePreviewSchema,
 	},
 	"context.get": {
 		functionName: "cli/v1/context:get",
@@ -456,7 +660,7 @@ export const operationDefinitions = {
 		commit: true,
 		functionName: "cli/v1/expenses:create",
 		inputSchema: z
-			.object({ ...expenseCreateInputSchema.shape, ...commitFields })
+			.object({ ...expenseCreateInputSchema.shape, ...financialCommitFields })
 			.strict(),
 		mode: "mutation",
 		outputSchema: expenseCreateResultSchema,
@@ -465,7 +669,9 @@ export const operationDefinitions = {
 		functionName: "cli/v1/expenses:get",
 		inputSchema: z.object({ expenseId: idSchema }).strict(),
 		mode: "query",
-		outputSchema: expenseSchema,
+		outputSchema: expenseSchema.extend({
+			preferredCurrency: z.string().min(1).optional(),
+		}),
 	},
 	"expenses.list": {
 		functionName: "cli/v1/expenses:list",
@@ -499,11 +705,17 @@ export const operationDefinitions = {
 				confirmationToken: idSchema,
 				expectedRevision: revisionSchema,
 				expenseId: idSchema,
-				...commitFields,
+				...financialCommitFields,
 			})
 			.strict(),
 		mode: "mutation",
 		outputSchema: expenseDeleteResultSchema,
+	},
+	"expenses.saveStatus": {
+		functionName: "cli/v1/expenses:saveStatus",
+		inputSchema: z.object({ idempotencyKey: idempotencyKeySchema }).strict(),
+		mode: "query",
+		outputSchema: expenseSaveStatusSchema,
 	},
 	"expenses.update": {
 		commit: true,
@@ -513,7 +725,7 @@ export const operationDefinitions = {
 				expenseId: idSchema,
 				...expenseUpdateFields,
 				expectedRevision: revisionSchema,
-				...commitFields,
+				...financialCommitFields,
 			})
 			.strict(),
 		mode: "mutation",
@@ -550,6 +762,64 @@ export const operationDefinitions = {
 		inputSchema: noArgumentsSchema,
 		mode: "query",
 		outputSchema: tagSchema.array(),
+	},
+	"settings.previewCurrency": {
+		functionName: "cli/v1/settings:previewCurrency",
+		inputSchema: z.object({ currency: preferredCurrencySchema }).strict(),
+		mode: "query",
+		outputSchema: currencyResultSchema.extend({
+			beforeCurrency: preferredCurrencySchema.nullable(),
+			beforeStatus: z.enum(["set", "unset", "unsupported"]),
+			editSnapshot: editSnapshotSchema,
+		}),
+	},
+	"settings.setCurrency": {
+		commit: true,
+		functionName: "cli/v1/settings:setCurrency",
+		inputSchema: z
+			.object({
+				...commitFields,
+				currency: preferredCurrencySchema,
+				expectedEditSnapshot: editSnapshotSchema,
+			})
+			.strict(),
+		mode: "mutation",
+		outputSchema: currencyResultSchema,
+	},
+	"tags.create": {
+		commit: true,
+		functionName: "cli/v1/resources:createTag",
+		inputSchema: z.object({ name: z.string(), ...commitFields }).strict(),
+		mode: "mutation",
+		outputSchema: tagWriteSchema,
+	},
+	"tags.previewCreate": {
+		functionName: "cli/v1/resources:previewTagCreate",
+		inputSchema: z.object({ name: z.string() }).strict(),
+		mode: "query",
+		outputSchema: z.object({ name: z.string() }),
+	},
+	"tags.previewRename": {
+		functionName: "cli/v1/resources:previewTagRename",
+		inputSchema: z.object(tagRenameFields).strict(),
+		mode: "query",
+		outputSchema: tagWriteSchema.extend({
+			beforeName: z.string(),
+			editSnapshot: editSnapshotSchema,
+		}),
+	},
+	"tags.rename": {
+		commit: true,
+		functionName: "cli/v1/resources:renameTag",
+		inputSchema: z
+			.object({
+				...tagRenameFields,
+				...commitFields,
+				expectedEditSnapshot: editSnapshotSchema,
+			})
+			.strict(),
+		mode: "mutation",
+		outputSchema: tagWriteSchema,
 	},
 } as const;
 
@@ -608,24 +878,85 @@ interface RuntimeOperationDefinition {
 	outputSchema: z.ZodType<unknown>;
 }
 
+const uncertainMutationAdvice = (name: OperationName, key?: string): string => {
+	if (!key) {
+		return "repeat the preview command";
+	}
+	if (name === "expenses.create" || name === "expenses.update") {
+		return "check with spendly expenses save-status <key> before starting a new save";
+	}
+	if (name === "accounts.create") {
+		return "check with spendly accounts list before retrying";
+	}
+	if (name === "accountTypes.edit") {
+		return "check the account type before replaying the exact edit with the original snapshot and idempotency key";
+	}
+	if (name === "categories.edit") {
+		return "check the category before replaying the exact edit with the original snapshot and idempotency key";
+	}
+	if (name === "settings.setCurrency") {
+		return "check spendly auth status before replaying with the original snapshot and idempotency key";
+	}
+	if (name === "tags.rename") {
+		return "check spendly tags list before replaying the exact rename with the original snapshot and idempotency key";
+	}
+	return "repeat the same command with the same idempotency key";
+};
+
+const currencyCodePattern = /^[A-Z]{3}$/u;
+
 const toUncertainMutationError = (
 	error: CliError,
-	idempotencyKey: string | undefined
-): CliError =>
-	new CliError(
+	name: OperationName,
+	input: Readonly<Record<string, unknown>>
+): CliError => {
+	const idempotencyKey =
+		typeof input.idempotencyKey === "string" ? input.idempotencyKey : undefined;
+	const { expectedPreferredCurrency } = input;
+	const safeCurrency =
+		typeof expectedPreferredCurrency === "string" &&
+		currencyCodePattern.test(expectedPreferredCurrency)
+			? expectedPreferredCurrency
+			: undefined;
+	const mode = accountCurrencyModeSchema.safeParse(
+		input.expectedCurrencyMode
+	).data;
+	const balanceNature = accountTypeSchema.shape.balanceNature.safeParse(
+		input.expectedBalanceNature
+	).data;
+	const replayFlags = [
+		...(safeCurrency ? [`--if-preferred-currency ${safeCurrency}`] : []),
+		...(mode ? [`--if-account-currency-mode ${mode}`] : []),
+		...(balanceNature ? [`--if-balance-nature ${balanceNature}`] : []),
+	];
+	const guarded = expectedPreferredCurrency !== undefined || mode !== undefined;
+	const advice =
+		guarded &&
+		name !== "accounts.create" &&
+		name !== "expenses.create" &&
+		name !== "expenses.update"
+			? "check current Spendly state before any retry"
+			: uncertainMutationAdvice(name, idempotencyKey);
+	const replayAdvice =
+		replayFlags.length > 0 || name === "accounts.create"
+			? `. Replay only with the original inputs and key${replayFlags.length > 0 ? `, including ${replayFlags.join(" ")}` : ""}`
+			: "";
+	return new CliError(
 		"NETWORK_ERROR",
-		idempotencyKey
-			? "The mutation outcome is uncertain; repeat the same command with the same idempotency key"
-			: "The mutation outcome is uncertain; repeat the preview command",
+		`The mutation outcome is uncertain; ${advice}${replayAdvice}`,
 		{
 			cause: error,
 			details: {
 				...(idempotencyKey ? { idempotencyKey } : {}),
+				...(balanceNature ? { expectedBalanceNature: balanceNature } : {}),
+				...(safeCurrency ? { expectedPreferredCurrency: safeCurrency } : {}),
+				...(mode ? { expectedCurrencyMode: mode } : {}),
 				outcome: "unknown",
 			},
 			retryable: true,
 		}
 	);
+};
 
 const parseOperationInput = (
 	definition: RuntimeOperationDefinition,
@@ -707,12 +1038,7 @@ export const createSpendlyOperations = (
 				error instanceof CliError &&
 				error.code === "NETWORK_ERROR"
 			) {
-				throw toUncertainMutationError(
-					error,
-					typeof parsedInput.idempotencyKey === "string"
-						? parsedInput.idempotencyKey
-						: undefined
-				);
+				throw toUncertainMutationError(error, name, parsedInput);
 			}
 			throw error;
 		}

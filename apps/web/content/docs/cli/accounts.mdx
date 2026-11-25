@@ -13,7 +13,7 @@ and see how much money remains.
 
 - **Required:** install the CLI and sign in using [Quick start](/docs/cli).
 - **Required to add an account:** choose a name, an opening balance, and an
-  active account type. Account types are managed in Spendly Web.
+  active account type. List existing types or [create a custom one](#create-an-account-type).
 - **Automatic:** new accounts use your Spendly currency. When you omit a date,
   the CLI uses today's date in your computer's timezone.
 - **Default account:** if you have no default, saving a new account makes it the
@@ -37,6 +37,64 @@ spendly account-types list
 ```
 
 Use your own names and amounts. Checking below must be a type from your list.
+
+<details className="docs-disclosure">
+<summary id="create-an-account-type">Create an account type</summary>
+
+If no existing type fits, check `spendly account-types add --help` to see
+whether your installed CLI supports creation. If not, use
+[Spendly Web](/data/account-types). Otherwise, preview the new type:
+
+```bash
+spendly account-types add --name "Mortgage" --balance-nature liability --dry-run
+```
+
+Choose `asset` for money available or `liability` for money owed. The choice
+does not change or restrict the sign of any balance. To set an icon or color
+after creation, see [Edit an account type](#edit-an-account-type).
+
+To save, rerun without `--dry-run` and confirm in a terminal. For a scripted
+save, pass `--non-interactive --json --idempotency-key` with a stable key for
+this save. Use the returned ID (`data.id` in JSON) as `--account-type-id` with
+`accounts add`. These are separate saves: a saved type remains available if you
+cancel account creation or it fails.
+
+Names are compared ignoring surrounding whitespace and capitalization. If a
+name is taken, run `spendly account-types list --include-archived`. Reuse the ID
+only if the existing type is active and fits; otherwise choose another name.
+
+If the save outcome is unknown, check current state first. To replay within the
+30-day retry window, use the same inputs and original key with
+`--non-interactive` (keep `--agent` if used). Don't use a new key to retry.
+
+</details>
+
+## Edit an account type
+
+Run `spendly account-types edit --help` to check support in your installed CLI.
+Find the stable type ID with `spendly account-types list --include-archived`,
+then preview the fields you want to change:
+
+```bash
+spendly account-types edit TYPE_ID --name "Mortgage reserve" --color "#14B8A6" --dry-run
+```
+
+Use `--icon` with an icon key such as `wallet` or `vault`, and `--color` with
+a six-digit hex value. Omitted fields stay unchanged. Use
+[Spendly Web](/data/account-types) to clear styling. Names must be unique
+ignoring whitespace at the ends and capitalization, even among archived types.
+
+`--balance-nature asset|liability` can change the classification only if no
+account, including an archived account, uses the type. Editing a type does not
+change account assignments, balances, or ledger history. Saving the same values
+after normalization leaves the type and its edit previews unchanged.
+
+To save in a terminal, rerun without `--dry-run`, review the before/after, and
+confirm. In scripts, capture `data.editSnapshot` from a JSON dry run, then
+rerun with the same fields, `--non-interactive --json --if-edit-snapshot` and
+`--idempotency-key`. If the edit conflicts, review a fresh preview. If the
+save outcome is unknown, check current state first. Replay within 30 days only
+with the original inputs, snapshot, idempotency key, and `--agent` if used.
 
 ## Try adding an account
 
@@ -63,7 +121,8 @@ spendly accounts add --name "Daily checking" \
 
 ## Check and save
 
-1. Check the preview's name, account type, currency, opening balance, and date.
+1. Check the preview's name, account type and its `asset` or `liability`
+   classification, currency, opening balance, and date.
 2. To save, run the guided command again without `--dry-run`:
 
    ```bash
@@ -78,6 +137,22 @@ spendly accounts add --name "Daily checking" \
    ```bash
    spendly accounts get "Daily checking"
    ```
+
+A guided save checks that the account type's classification still matches the
+preview. For a reviewed non-interactive save, preview with
+`--dry-run --json --non-interactive`, an explicit `--date`, and a stable
+`--account-type-id`. After reviewing, rerun with the same inputs but without
+`--dry-run`. Pass the reviewed `data.accountType.balanceNature` (`asset` or
+`liability`) as `--if-balance-nature`,
+`data.currencyMode` as `--if-account-currency-mode`, and `data.preferredCurrency`
+as `--if-preferred-currency`, plus a stable `--idempotency-key`. If a guard
+conflicts, review a fresh preview before saving. Without the balance nature
+guard, a direct save uses the type's current classification.
+
+If the save outcome is unknown, check `spendly accounts list` first. Replay
+within 30 days only with `--non-interactive`, the exact original inputs
+(including the opening date and any guards), the original key, and `--agent`
+if used. Do not use a new key or run a new guided save to retry.
 
 The tasks below are alternatives, not steps to run in order. If you rename an
 account, use its new name in later commands.
@@ -238,8 +313,9 @@ Review every selected account before confirming.
 
 - **An account name is not found or is ambiguous:** list accounts again. Use
   the exact name or the account ID, or choose it with `--interactive`.
-- **No account type is available:** check `spendly account-types list` and manage
-  active types in Spendly Web before trying to add the account again.
+- **No account type is available:** check `spendly account-types list`, then
+  [create an account type](#create-an-account-type) or manage existing types in
+  Spendly Web before trying to add the account again.
 - **An account changed after you read it:** read it again and rerun the preview
   before saving. Do not force an outdated change through.
 - **You do not know whether a change saved:** inspect the account and its

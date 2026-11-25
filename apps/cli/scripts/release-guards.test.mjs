@@ -92,7 +92,8 @@ describe("publication artifact guards", () => {
 				"publish",
 				argument.replace("$TARBALL", fixture.environment.TARBALL),
 				"--dry-run",
-				// Test local path resolution even after this version is published.
+				// Check local path resolution without consulting the registry.
+				"--offline",
 				"--force",
 				"--ignore-scripts",
 				"--provenance=false",
@@ -114,7 +115,7 @@ describe("publication artifact guards", () => {
 			version: fixture.environment.RELEASE_VERSION,
 		});
 		expect(readFileSync(fixture.tarball)).toEqual(before);
-	});
+	}, 15_000);
 	it("uses the same local tarball argument for bootstrap and staging", () => {
 		const workflow = readFileSync(
 			join(packageDirectory, "../../.github/workflows/cli-publish.yml"),

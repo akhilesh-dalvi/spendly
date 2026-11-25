@@ -105,9 +105,62 @@ export const registerReadCommands = (
 			await runCycleCurrent(options, command, runtime);
 		});
 
-	program
+	const categories = program
 		.command("categories")
-		.description("Read expense categories")
+		.description("List, add, and edit expense categories");
+	categories
+		.command("add")
+		.description("Add one category to an existing cycle")
+		.requiredOption("--cycle-id <id>", "stable ID of the target cycle")
+		.requiredOption("--name <name>", "name of the new category")
+		.option("--category-type-id <id>", "stable ID of an existing category type")
+		.option("--icon <icon>", "literal category icon")
+		.option(
+			"--planned-amount <amount>",
+			"optional nonnegative budget, up to two decimal places"
+		)
+		.option(
+			"--if-preferred-currency <currency>",
+			"require the preferred currency from a reviewed budget preview"
+		)
+		.option("--idempotency-key <key>", "stable key for this intended commit")
+		.option("--dry-run", "validate and preview without saving")
+		.action(async (options, command: Command) => {
+			const { runCategoryAdd } = await import("./category-actions.js");
+			await runCategoryAdd(options, command, runtime);
+		});
+	categories
+		.command("edit")
+		.argument("<category-id>", "stable ID of the existing category")
+		.description("Edit one category without moving its expenses")
+		.option("--name <name>", "new category name")
+		.option("--icon <icon>", "new literal category icon")
+		.option("--category-type-id <id>", "stable ID of an existing category type")
+		.addOption(
+			new Option("--clear-category-type", "remove the category type").conflicts(
+				"categoryTypeId"
+			)
+		)
+		.option(
+			"--planned-amount <amount>",
+			"new nonnegative budget, up to two decimal places"
+		)
+		.addOption(
+			new Option("--clear-planned-amount", "remove the budget").conflicts(
+				"plannedAmount"
+			)
+		)
+		.option(
+			"--if-edit-snapshot <snapshot>",
+			"snapshot from the identical dry-run patch"
+		)
+		.option("--idempotency-key <key>", "stable key for this intended commit")
+		.option("--dry-run", "validate and preview without saving")
+		.action(async (categoryId: string, options, command: Command) => {
+			const { runCategoryEdit } = await import("./category-actions.js");
+			await runCategoryEdit(categoryId, options, command, runtime);
+		});
+	categories
 		.command("list")
 		.description("List categories in one cycle")
 		.option("--cycle-id <id>", "stable cycle ID")
@@ -120,13 +173,49 @@ export const registerReadCommands = (
 		});
 
 	program
+		.command("category-types")
+		.description("Create reusable category types")
+		.command("add")
+		.description("Create a reusable category type without assigning it")
+		.requiredOption("--name <name>", "name of the new category type")
+		.option("--color <hex>", "color as #RRGGBB (default: #3b82f6)")
+		.option("--idempotency-key <key>", "stable key for this intended commit")
+		.option("--dry-run", "validate and preview without saving")
+		.action(async (options, command: Command) => {
+			const { runCategoryTypeAdd } = await import("./category-type-actions.js");
+			await runCategoryTypeAdd(options, command, runtime);
+		});
+
+	const tags = program
 		.command("tags")
-		.description("Read expense tags")
+		.description("List, create, and rename expense tags");
+	tags
 		.command("list")
 		.description("List tags")
 		.action(async (_options, command: Command) => {
 			const { runTagList } = await import("./read-actions.js");
 			await runTagList(command, runtime);
+		});
+	tags
+		.command("add")
+		.description("Create a reusable tag without assigning it to an expense")
+		.requiredOption("--name <name>", "name of the new tag")
+		.option("--idempotency-key <key>", "stable key for this intended commit")
+		.option("--dry-run", "validate and preview without saving")
+		.action(async (options, command: Command) => {
+			const { runTagAdd } = await import("./tag-actions.js");
+			await runTagAdd(options, command, runtime);
+		});
+	tags
+		.command("rename <tag-id>")
+		.description("Rename a tag without changing its expense links")
+		.requiredOption("--name <name>", "new name for the tag")
+		.option("--if-edit-snapshot <snapshot>", "reviewed snapshot from --dry-run")
+		.option("--idempotency-key <key>", "stable key for this intended commit")
+		.option("--dry-run", "validate and preview without saving")
+		.action(async (tagId: string, options, command: Command) => {
+			const { runTagRename } = await import("./tag-actions.js");
+			await runTagRename(tagId, options, command, runtime);
 		});
 
 	program
@@ -184,11 +273,52 @@ export const registerReadCommands = (
 		});
 	registerAccountMutationCommands(accounts, runtime);
 
-	program
+	const accountTypes = program
 		.command("account-types")
-		.description("Read account types")
+		.description("Browse, create, or edit account types");
+	accountTypes
+		.command("add")
+		.description("Create a standalone account type without creating an account")
+		.requiredOption("--name <name>", "name of the new account type")
+		.requiredOption(
+			"--balance-nature <nature>",
+			"asset (money available) or liability (money owed)"
+		)
+		.option("--idempotency-key <key>", "stable key for this intended commit")
+		.option("--dry-run", "validate and preview without saving")
+		.action(async (options, command: Command) => {
+			const { runAccountTypeAdd } = await import("./account-type-actions.js");
+			await runAccountTypeAdd(options, command, runtime);
+		});
+	accountTypes
+		.command("edit")
+		.description(
+			"Edit a standalone account type without changing its assigned accounts"
+		)
+		.argument("<id>", "stable account type ID from account-types list")
+		.option("--name <name>", "new name")
+		.option(
+			"--icon <key>",
+			"supported account type icon key, such as wallet or vault"
+		)
+		.option("--color <hex>", "six-digit hex color, such as #14B8A6")
+		.option(
+			"--balance-nature <nature>",
+			"asset or liability; only changes on unused types"
+		)
+		.option(
+			"--if-edit-snapshot <snapshot>",
+			"snapshot from a reviewed dry run (required for scripts)"
+		)
+		.option("--idempotency-key <key>", "stable key for this intended commit")
+		.option("--dry-run", "validate and preview without saving")
+		.action(async (id: string, options, command: Command) => {
+			const { runAccountTypeEdit } = await import("./account-type-actions.js");
+			await runAccountTypeEdit(id, options, command, runtime);
+		});
+	accountTypes
 		.command("list")
-		.description("List read-only account types")
+		.description("List account types")
 		.option("--include-archived", "include archived account types")
 		.action(
 			async (options: { includeArchived?: boolean }, command: Command) => {

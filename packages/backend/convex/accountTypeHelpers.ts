@@ -116,8 +116,81 @@ export const normalizeAccountTypeColor = (
 	return color.toUpperCase();
 };
 
+export const assertAccountTypeNameAvailable = async (
+	ctx: QueryCtx,
+	args: {
+		excludeAccountTypeId?: Id<"account_types">;
+		normalizedName: string;
+		userId: Id<"users">;
+	}
+): Promise<void> => {
+	const matchingTypes = await ctx.db
+		.query("account_types")
+		.withIndex("by_userId_normalizedName", (q) =>
+			q.eq("userId", args.userId).eq("normalizedName", args.normalizedName)
+		)
+		.take(2);
+	if (matchingTypes.some((type) => type._id !== args.excludeAccountTypeId)) {
+		throw new ConvexError("ACCOUNT_TYPE_NAME_TAKEN");
+	}
+};
+
+interface AccountTypeUpdate {
+	balanceNature?: Doc<"account_types">["balanceNature"];
+	color?: string | null;
+	icon?: string | null;
+	name?: string;
+}
+
+export const prepareAccountTypeUpdate = async (
+	ctx: QueryCtx,
+	accountType: Doc<"account_types">,
+	input: AccountTypeUpdate
+) => {
+	const updates: Partial<
+		Pick<
+			Doc<"account_types">,
+			"balanceNature" | "color" | "icon" | "name" | "normalizedName"
+		>
+	> = {};
+
+	if (input.name !== undefined) {
+		const { name, normalizedName } = normalizeAccountTypeName(input.name);
+		await assertAccountTypeNameAvailable(ctx, {
+			excludeAccountTypeId: accountType._id,
+			normalizedName,
+			userId: accountType.userId,
+		});
+		updates.name = name;
+		updates.normalizedName = normalizedName;
+	}
+	if (input.icon !== undefined) {
+		updates.icon = normalizeAccountTypeIcon(input.icon);
+	}
+	if (input.color !== undefined) {
+		updates.color = normalizeAccountTypeColor(input.color);
+	}
+	if (
+		input.balanceNature !== undefined &&
+		input.balanceNature !== accountType.balanceNature
+	) {
+		// Archived accounts still reference the type and must also block a change.
+		const reference = await ctx.db
+			.query("accounts")
+			.withIndex("by_accountTypeId", (q) =>
+				q.eq("accountTypeId", accountType._id)
+			)
+			.first();
+		if (reference) {
+			throw new ConvexError("ACCOUNT_TYPE_BALANCE_NATURE_IN_USE");
+		}
+		updates.balanceNature = input.balanceNature;
+	}
+	return updates;
+};
+
 export const assertAccountTypeCapacity = async (
-	ctx: MutationCtx,
+	ctx: QueryCtx,
 	userId: Id<"users">,
 	additionalCount = 1
 ): Promise<void> => {
@@ -140,6 +213,52 @@ export const getNextAccountTypeOrder = async (
 		.order("desc")
 		.first();
 	return (lastAccountType?.order ?? -1) + 1;
+};
+
+export const getAccountTypeAfterWrite = async (
+	ctx: MutationCtx,
+	accountTypeId: Id<"account_types">
+): Promise<Doc<"account_types">> => {
+	const accountType = await ctx.db.get(accountTypeId);
+	if (!accountType) {
+		throw new Error("Account type was not found after write");
+	}
+	return accountType;
+};
+
+export const prepareAccountTypeCreate = async (
+	ctx: QueryCtx,
+	userId: Id<"users">,
+	input: string
+): Promise<NormalizedAccountTypeName> => {
+	const name = normalizeAccountTypeName(input);
+	await assertAccountTypeNameAvailable(ctx, {
+		normalizedName: name.normalizedName,
+		userId,
+	});
+	await assertAccountTypeCapacity(ctx, userId);
+	return name;
+};
+
+export const createAccountType = async (
+	ctx: MutationCtx,
+	userId: Id<"users">,
+	input: Pick<Doc<"account_types">, "balanceNature" | "color" | "icon" | "name">
+): Promise<Doc<"account_types">> => {
+	const name = await prepareAccountTypeCreate(ctx, userId, input.name);
+	const now = Date.now();
+	const accountTypeId = await ctx.db.insert("account_types", {
+		...name,
+		balanceNature: input.balanceNature,
+		color: normalizeAccountTypeColor(input.color),
+		createdAt: now,
+		icon: normalizeAccountTypeIcon(input.icon),
+		isArchived: false,
+		order: await getNextAccountTypeOrder(ctx, userId),
+		updatedAt: now,
+		userId,
+	});
+	return await getAccountTypeAfterWrite(ctx, accountTypeId);
 };
 
 export const seedDefaultAccountTypes = async (

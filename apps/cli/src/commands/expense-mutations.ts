@@ -1,4 +1,5 @@
 import { type Command, Option } from "commander";
+import { parsePreferredCurrencyGuard } from "../domain/mutation-input.js";
 import type { CliRuntime } from "../runtime.js";
 
 const collectOption = (value: string, previous: string[]): string[] => [
@@ -43,6 +44,11 @@ export const registerExpenseMutationCommands = (
 		.option("--tag-id <id>", "stable tag ID; repeatable", collectOption, [])
 		.option("--tag <name>", "exact tag name; repeatable", collectOption, [])
 		.option("--idempotency-key <key>", "stable key for this intended commit")
+		.option(
+			"--if-preferred-currency <code>",
+			"expected preferred currency",
+			parsePreferredCurrencyGuard
+		)
 		.option("--dry-run", "validate and preview without writing")
 		.action(async (options, command: Command) => {
 			const { runExpenseAdd } = await import("./expense-mutation-actions.js");
@@ -102,6 +108,11 @@ export const registerExpenseMutationCommands = (
 		.option("--clear-tags", "remove all tags")
 		.option("--if-revision <revision>", "expected current expense revision")
 		.option("--idempotency-key <key>", "stable key for this intended commit")
+		.option(
+			"--if-preferred-currency <code>",
+			"expected preferred currency",
+			parsePreferredCurrencyGuard
+		)
 		.option("--dry-run", "validate and preview without writing")
 		.action(
 			async (expenseId: string | undefined, options, command: Command) => {
@@ -113,12 +124,28 @@ export const registerExpenseMutationCommands = (
 		);
 
 	expenses
+		.command("save-status")
+		.description("Check whether an expense add or edit was recorded")
+		.argument("<key>", "idempotency key from the save attempt")
+		.action(async (key: string, _options, command: Command) => {
+			const { runExpenseSaveStatus } = await import(
+				"./expense-mutation-actions.js"
+			);
+			await runExpenseSaveStatus(key, command, runtime);
+		});
+
+	expenses
 		.command("delete")
 		.description("Permanently delete an expense using a confirmation preview")
 		.argument("[expense-id]", "stable expense ID")
 		.option("--confirmation-token <token>", "token returned by --dry-run")
 		.option("--if-revision <revision>", "expected current expense revision")
 		.option("--idempotency-key <key>", "stable key for this intended deletion")
+		.option(
+			"--if-preferred-currency <code>",
+			"expected preferred currency",
+			parsePreferredCurrencyGuard
+		)
 		.option("--dry-run", "return the deletion confirmation without deleting")
 		.action(
 			async (expenseId: string | undefined, options, command: Command) => {

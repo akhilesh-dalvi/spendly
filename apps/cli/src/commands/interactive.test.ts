@@ -44,7 +44,7 @@ interface BackendCall {
 interface ScriptedAnswers {
 	confirms?: Record<string, boolean>;
 	dates?: Record<string, string>;
-	multiselects?: Record<string, string[]>;
+	multiselects?: Record<string, string[] | string[][]>;
 	selects?: Record<string, string | string[]>;
 	texts?: Record<string, string>;
 }
@@ -66,6 +66,7 @@ const createScriptedPrompter = (
 	selectOptions: Map<string, Array<{ label: string; value: string }>>
 ): InteractivePrompter => {
 	const selectIndexes = new Map<string, number>();
+	const multiselectIndexes = new Map<string, number>();
 	return {
 		confirm: async ({ message }) => {
 			messages.push(message);
@@ -79,9 +80,19 @@ const createScriptedPrompter = (
 			options: MultiSelectPromptOptions<Value>
 		) => {
 			messages.push(options.message);
-			return await Promise.resolve(
-				requireAnswer(answers.multiselects, options.message) as Value[]
-			);
+			const scripted = requireAnswer(answers.multiselects, options.message);
+			if (typeof scripted[0] === "string" || scripted.length === 0) {
+				return await Promise.resolve(scripted as Value[]);
+			}
+			const index = multiselectIndexes.get(options.message) ?? 0;
+			multiselectIndexes.set(options.message, index + 1);
+			const answer = scripted[index];
+			if (!Array.isArray(answer)) {
+				throw new Error(
+					`Missing scripted multiselect response: ${options.message}`
+				);
+			}
+			return await Promise.resolve(answer as Value[]);
 		},
 		select: async <Value extends string>(
 			options: SelectPromptOptions<Value>
@@ -154,7 +165,10 @@ const createTestRuntime = (
 		"cli/v1/context:get": contextFixture,
 		"cli/v1/expenses:get": (expensePageFixture.items as unknown[])[0],
 		"cli/v1/expenses:list": expensePageFixture,
-		"cli/v1/expenses:previewCreate": expenseMutationsFixture.createProposal,
+		"cli/v1/expenses:previewCreate": {
+			...(expenseMutationsFixture.createProposal as object),
+			preferredCurrency: "GBP",
+		},
 		"cli/v1/expenses:previewUpdate": expenseMutationsFixture.updatePreview,
 		"cli/v1/resources:getCurrentCycle": (
 			resourcesFixture.cycles as unknown[]
@@ -166,14 +180,25 @@ const createTestRuntime = (
 		...queryOverrides,
 	};
 	const mutationResponses: Record<string, unknown> = {
+		"cli/v1/accounts:adjustBalance":
+			accountMutationsFixture.balanceAdjustmentResult,
 		"cli/v1/accounts:archiveBatch": archivedAccounts,
+		"cli/v1/accounts:create": accountMutationsFixture.accountCreateResult,
 		"cli/v1/accounts:previewArchiveBatch": archiveBatchPreview,
-		"cli/v1/accounts:previewBalanceAdjustment":
-			accountMutationsFixture.balanceAdjustmentPreview,
-		"cli/v1/accounts:previewCreate":
-			accountMutationsFixture.accountCreateProposal,
+		"cli/v1/accounts:previewBalanceAdjustment": {
+			...(accountMutationsFixture.balanceAdjustmentPreview as object),
+			preferredCurrency: "GBP",
+		},
+		"cli/v1/accounts:previewCreate": {
+			...(accountMutationsFixture.accountCreateProposal as object),
+			currencyMode: "fixed",
+			preferredCurrency: "INR",
+		},
 		"cli/v1/accounts:previewReactivateBatch": reactivateBatchPreview,
-		"cli/v1/accounts:previewTransfer": accountMutationsFixture.transferPreview,
+		"cli/v1/accounts:previewTransfer": {
+			...(accountMutationsFixture.transferPreview as object),
+			preferredCurrency: "GBP",
+		},
 		"cli/v1/accounts:transfer": accountMutationsFixture.transferResult,
 		"cli/v1/expenses:create": expenseMutationsFixture.createResult,
 		"cli/v1/expenses:update": {
@@ -534,6 +559,7 @@ describe("Phase 8.8 guided interactive inputs", () => {
 				accountId: "account-wallet",
 				amount: 250,
 				categoryId: "category-food",
+				expectedPreferredCurrency: "GBP",
 				idempotencyKey: "generated-interactive-key",
 				tagIds: ["tag-essential"],
 			},
@@ -545,6 +571,198 @@ describe("Phase 8.8 guided interactive inputs", () => {
 		expect(testRuntime.getStderr()).toContain("Account: Daily Wallet");
 		expect(testRuntime.getStderr()).toContain("Tags: Essential");
 		expect(testRuntime.getStderr()).not.toContain("Tag IDs:");
+	});
+
+	it.each(["--dry-run", "cancel", "confirm"])(
+		"stages a first tag in guided add: %s",
+		async (mode) => {
+			const testRuntime = createTestRuntime(
+				{
+					confirms: { "Add this expense?": mode === "confirm" },
+					multiselects: {
+						"Choose tags": [
+							["__spendly_add_tag__"],
+							["__spendly_pending_tag_0__"],
+						],
+					},
+					texts: { "New tag name (blank to go back)": "  Pilot  " },
+				},
+				{
+					"cli/v1/expenses:previewCreate": {
+						...(expenseMutationsFixture.createProposal as object),
+						newTagNames: ["Pilot"],
+						tagIds: [],
+					},
+					"cli/v1/resources:listTags": [],
+				}
+			);
+			const args = [
+				"expenses",
+				"add",
+				"--interactive",
+				"--amount",
+				"250",
+				"--date",
+				"2026-09-02",
+				"--spent-on",
+				"Lunch",
+				"--category-id",
+				"category-food",
+				"--without-account",
+			];
+			if (mode === "--dry-run") {
+				args.push(mode);
+			}
+			expect(await runCli(args, testRuntime.runtime)).toBe(
+				CLI_EXIT_CODE.success
+			);
+			expect(
+				testRuntime.calls.find(
+					(call) => call.name === "cli/v1/expenses:previewCreate"
+				)?.args
+			).toMatchObject({ newTagNames: ["Pilot"] });
+			const writes = testRuntime.calls.filter(
+				(call) => call.kind === "mutation"
+			);
+			if (mode === "confirm") {
+				expect(writes).toEqual([
+					expect.objectContaining({
+						args: expect.objectContaining({ newTagNames: ["Pilot"] }),
+						name: "cli/v1/expenses:create",
+					}),
+				]);
+				expect(testRuntime.getStderr()).toContain(
+					"Save reference: generated-interactive-key"
+				);
+			} else {
+				expect(writes).toEqual([]);
+				expect(testRuntime.getStderr()).not.toContain("Save reference");
+			}
+			expect(testRuntime.getStderr() + testRuntime.getStdout()).toContain(
+				"Pilot (will be created)"
+			);
+		}
+	);
+
+	it("uses an existing matching tag only after explicit selection", async () => {
+		const testRuntime = createTestRuntime({
+			multiselects: {
+				"Choose tags": [["__spendly_add_tag__"], ["tag-essential"]],
+			},
+			selects: {
+				"This tag name already exists. Choose an existing tag or go back":
+					"tag-essential",
+			},
+			texts: { "New tag name (blank to go back)": " essential " },
+		});
+		expect(
+			await runCli(
+				[
+					"expenses",
+					"add",
+					"--interactive",
+					"--dry-run",
+					"--amount",
+					"250",
+					"--date",
+					"2026-09-02",
+					"--spent-on",
+					"Lunch",
+					"--category-id",
+					"category-food",
+					"--without-account",
+				],
+				testRuntime.runtime
+			)
+		).toBe(CLI_EXIT_CODE.success);
+		const preview = testRuntime.calls.find(
+			(call) => call.name === "cli/v1/expenses:previewCreate"
+		);
+		expect(preview?.args).toMatchObject({ tagIds: ["tag-essential"] });
+		expect(preview?.args).not.toHaveProperty("newTagNames");
+	});
+
+	it("keeps a planned tag when revising a guided edit and recovers a lost response by key", async () => {
+		const testRuntime = createTestRuntime(
+			{
+				multiselects: {
+					"New tags": [
+						["tag-essential", "__spendly_add_tag__"],
+						["tag-essential", "__spendly_pending_tag_0__"],
+						["tag-essential", "__spendly_pending_tag_0__"],
+					],
+					"What would you like to change?": [["tags"], ["tags"]],
+				},
+				selects: { "Save these expense changes?": ["edit", "confirm"] },
+				texts: { "New tag name (blank to go back)": "Private draft tag" },
+			},
+			{
+				"cli/v1/expenses:previewUpdate": {
+					...(expenseMutationsFixture.updatePreview as object),
+					newTagNames: ["Private draft tag"],
+				},
+			}
+		);
+		let committed = false;
+		const originalQuery = testRuntime.runtime.backendQuery;
+		const backendQuery: BackendQuery = async <Result>(name, args) => {
+			if (name === "cli/v1/expenses:saveStatus") {
+				expect(args).toEqual({ idempotencyKey: "generated-interactive-key" });
+				expect(committed).toBe(true);
+				return {
+					expenseId: "expense-lunch",
+					operation: "edit",
+					revision: 3,
+					status: "saved",
+				} as Result;
+			}
+			if (!originalQuery) {
+				throw new Error("Test backend query required");
+			}
+			return await originalQuery<Result>(name, args);
+		};
+		const backendMutation: BackendMutation = (name, args) => {
+			expect(name).toBe("cli/v1/expenses:update");
+			expect(args).toMatchObject({
+				idempotencyKey: "generated-interactive-key",
+				newTagNames: ["Private draft tag"],
+				tagIds: ["tag-essential"],
+			});
+			expect(testRuntime.getStderr()).toContain(
+				"Save reference: generated-interactive-key"
+			);
+			expect(committed).toBe(false);
+			committed = true;
+			return Promise.reject(new TypeError("fetch failed"));
+		};
+		const runtime = { ...testRuntime.runtime, backendMutation, backendQuery };
+		expect(await runCli(["expenses", "edit", "expense-lunch"], runtime)).toBe(
+			CLI_EXIT_CODE.temporary
+		);
+		expect(testRuntime.getStderr()).toContain("save-status <key>");
+		const previews = testRuntime.calls.filter(
+			(call) => call.name === "cli/v1/expenses:previewUpdate"
+		);
+		expect(previews).toHaveLength(2);
+		expect(previews[0]?.args).toEqual(previews[1]?.args);
+
+		let statusOutput = "";
+		const statusExit = await runCli(
+			["expenses", "save-status", "generated-interactive-key", "--json"],
+			{
+				...runtime,
+				stdout: {
+					write: (value) => {
+						statusOutput += value;
+					},
+				},
+			}
+		);
+		expect(statusExit, statusOutput).toBe(CLI_EXIT_CODE.success);
+		expect(JSON.parse(statusOutput)).toMatchObject({
+			data: { expenseId: "expense-lunch", revision: 3, status: "saved" },
+		});
+		expect(statusOutput).not.toContain("Private draft tag");
 	});
 
 	it("cancels a previewed expense without committing", async () => {
@@ -756,14 +974,25 @@ describe("Phase 8.8 guided interactive inputs", () => {
 		expect(testRuntime.getStderr()).not.toContain("RESOURCE_NOT_FOUND");
 	});
 
-	it("edits selected fields after reviewing a guided expense edit", async () => {
-		const testRuntime = createTestRuntime({
-			multiselects: { "What would you like to change?": ["category"] },
-			selects: {
-				"New category for 2026-09-02": "clear",
-				"Save these expense changes?": ["edit", "confirm"],
+	it("binds the final preview currency after editing a guided expense", async () => {
+		const testRuntime = createTestRuntime(
+			{
+				multiselects: { "What would you like to change?": ["category"] },
+				selects: {
+					"New category for 2026-09-02": "clear",
+					"Save these expense changes?": ["edit", "confirm"],
+				},
 			},
-		});
+			{},
+			{
+				"cli/v1/expenses:previewUpdate": ["GBP", "EUR"].map(
+					(preferredCurrency) => ({
+						...(expenseMutationsFixture.updatePreview as object),
+						preferredCurrency,
+					})
+				),
+			}
+		);
 
 		const exitCode = await runCli(
 			["expenses", "edit", "expense-lunch", "--amount", "300", "--interactive"],
@@ -777,10 +1006,63 @@ describe("Phase 8.8 guided interactive inputs", () => {
 			)
 		).toHaveLength(2);
 		expect(testRuntime.calls.at(-1)).toMatchObject({
-			args: { categoryId: null, expenseId: "expense-lunch" },
+			args: {
+				categoryId: null,
+				expectedPreferredCurrency: "EUR",
+				expenseId: "expense-lunch",
+			},
 			kind: "mutation",
 			name: "cli/v1/expenses:update",
 		});
+	});
+
+	it("does not replace an explicit currency guard after revising a guided edit", async () => {
+		const testRuntime = createTestRuntime(
+			{
+				multiselects: { "What would you like to change?": ["category"] },
+				selects: {
+					"New category for 2026-09-02": "clear",
+					"Save these expense changes?": "edit",
+				},
+			},
+			{},
+			{
+				"cli/v1/expenses:previewUpdate": ["GBP", "EUR"].map(
+					(preferredCurrency) => ({
+						...(expenseMutationsFixture.updatePreview as object),
+						preferredCurrency,
+					})
+				),
+			}
+		);
+
+		const exitCode = await runCli(
+			[
+				"expenses",
+				"edit",
+				"expense-lunch",
+				"--amount",
+				"300",
+				"--interactive",
+				"--if-preferred-currency",
+				"GBP",
+			],
+			testRuntime.runtime
+		);
+
+		expect(exitCode).toBe(CLI_EXIT_CODE.conflict);
+		expect(testRuntime.getStderr()).toContain("rerun the preview");
+		expect(
+			testRuntime.messages.filter(
+				(message) => message === "Save these expense changes?"
+			)
+		).toHaveLength(1);
+		expect(testRuntime.calls.at(-1)?.name).toBe(
+			"cli/v1/expenses:previewUpdate"
+		);
+		expect(testRuntime.calls.some((call) => call.kind === "mutation")).toBe(
+			false
+		);
 	});
 
 	it("uses stable account IDs for a guided transfer", async () => {
@@ -810,6 +1092,7 @@ describe("Phase 8.8 guided interactive inputs", () => {
 		]);
 		expect(testRuntime.calls.at(-1)?.args).toMatchObject({
 			expectedFromRevision: 3,
+			expectedPreferredCurrency: "GBP",
 			expectedToRevision: 2,
 			fromAccountId: "account-wallet",
 			idempotencyKey: "generated-interactive-key",
@@ -823,8 +1106,9 @@ describe("Phase 8.8 guided interactive inputs", () => {
 		]);
 	});
 
-	it("shows account currency before guided monetary input", async () => {
+	it("shows account currency before guided monetary input and binds the preview's currency and balance nature", async () => {
 		const testRuntime = createTestRuntime({
+			confirms: { "Add this account?": true },
 			dates: { "Opening balance date": "2026-09-04" },
 			selects: { "Choose an account type": "account-type-wallet" },
 			texts: {
@@ -834,7 +1118,7 @@ describe("Phase 8.8 guided interactive inputs", () => {
 		});
 
 		const exitCode = await runCli(
-			["accounts", "add", "--interactive", "--dry-run"],
+			["accounts", "add", "--interactive"],
 			testRuntime.runtime
 		);
 
@@ -844,14 +1128,24 @@ describe("Phase 8.8 guided interactive inputs", () => {
 			"Starting balance (INR)",
 			"Opening balance date",
 			"Choose an account type",
+			"Add this account?",
 		]);
-		expect(testRuntime.calls.map((call) => call.name)).toContain(
+		expect(testRuntime.calls.at(-2)?.name).toBe(
 			"cli/v1/accounts:previewCreate"
 		);
+		expect(testRuntime.calls.at(-1)).toMatchObject({
+			args: {
+				expectedBalanceNature: "asset",
+				expectedCurrencyMode: "fixed",
+				expectedPreferredCurrency: "INR",
+			},
+			name: "cli/v1/accounts:create",
+		});
 	});
 
 	it("selects an account before asking for its desired balance", async () => {
 		const testRuntime = createTestRuntime({
+			confirms: { "Apply this balance adjustment?": true },
 			dates: { "Adjustment date": "2026-09-04" },
 			selects: { "Choose an account to reconcile": "account-wallet" },
 			texts: {
@@ -861,17 +1155,25 @@ describe("Phase 8.8 guided interactive inputs", () => {
 		});
 
 		const exitCode = await runCli(
-			["accounts", "adjust-balance", "--interactive", "--dry-run"],
+			["accounts", "adjust-balance", "--interactive"],
 			testRuntime.runtime
 		);
 
 		expect(exitCode).toBe(CLI_EXIT_CODE.success);
-		expect(testRuntime.messages.slice(0, 4)).toEqual([
+		expect(testRuntime.messages).toEqual([
 			"Choose an account to reconcile",
 			"Desired absolute balance (INR; current INR 1,250.00)",
 			"Adjustment date",
 			"Adjustment note",
+			"Apply this balance adjustment?",
 		]);
+		expect(testRuntime.calls.at(-2)?.name).toBe(
+			"cli/v1/accounts:previewBalanceAdjustment"
+		);
+		expect(testRuntime.calls.at(-1)).toMatchObject({
+			args: { expectedPreferredCurrency: "GBP" },
+			name: "cli/v1/accounts:adjustBalance",
+		});
 	});
 
 	it("archives multiple guided accounts with one preview and commit", async () => {

@@ -1,0 +1,65 @@
+---
+title: Preferred currency
+description: Change the shared Spendly currency from your terminal without converting amounts.
+---
+
+Read your saved preference with `spendly auth status`. Check
+`spendly settings set-currency --help` before using this command. If your
+installed CLI does not offer it, update the CLI or use Settings in Spendly Web.
+Both surfaces use the same preference. Supported codes: USD, EUR, GBP, INR,
+CAD, AUD, JPY, and AED.
+
+Preview the change without saving:
+
+```bash
+spendly settings set-currency EUR --dry-run
+```
+
+Check the old and new codes. When you are ready to save, run the guided command
+and confirm its fresh preview. An already-saved match makes no change.
+
+```bash
+spendly settings set-currency EUR --interactive
+```
+
+**This does not convert money.** Existing expense and budget displays can use
+the new label. Accounts with a saved currency keep it; accounts that inherit the
+preference can change labels and balance groups, including on past ledger
+entries. That can also change which accounts can transfer to each other. New
+ordinary accounts use the new default. Stored amounts and ledger entries do
+not change.
+
+## Scripts and agents
+
+```bash
+spendly settings set-currency EUR --non-interactive --json --dry-run
+```
+
+After review, use the preview's `data.editSnapshot` and a unique save key.
+Use `--agent` on both commands when an AI agent operates the CLI.
+
+```bash
+spendly settings set-currency EUR --non-interactive --json \
+  --if-edit-snapshot "$REVIEWED_SNAPSHOT" --idempotency-key "$SAVE_KEY"
+```
+
+Verify the current preference with `spendly auth status`. On
+`PREFERRED_CURRENCY_CONFLICT`, stop and review a fresh preview. If the outcome
+is uncertain, check the current preference first. Within 30 days, an explicitly
+authorized recovery can replay the exact save with the same snapshot, key,
+and `--agent` flag if originally used. A replay returns the original result,
+not necessarily the current preference.
+
+### Guard a separately reviewed financial save
+
+Use the JSON dry run's `data.preferredCurrency` as
+`--if-preferred-currency <code>` for account creation, balance adjustments,
+transfers, expense add/edit/delete, and category creation with a planned amount.
+The preferred currency can differ from the transaction currency. Keep the
+command's other safety flags too. For account creation, see
+[Accounts](/docs/cli/accounts) for currency-mode and balance-nature guards.
+
+Check the installed command's help before relying on these flags. If a needed
+guard or preview value is missing, update the CLI or complete the action in
+Spendly Web instead of making an unguarded save. On conflict, stop and review
+a fresh preview.

@@ -1,12 +1,45 @@
 import { randomUUID } from "node:crypto";
 import { CliError } from "../errors.js";
 import type { CliRuntime } from "../runtime.js";
+import { preferredCurrencyGuardSchema } from "./mutation-schemas.js";
 
 const DECIMAL_PATTERN = /^\d+(?:\.\d+)?$/u;
 const SIGNED_DECIMAL_PATTERN = /^-?\d+(?:\.\d+)?$/u;
 const POSITIVE_INTEGER_PATTERN = /^\d+$/u;
 const MINIMUM_IDEMPOTENCY_KEY_LENGTH = 8;
 const MAXIMUM_IDEMPOTENCY_KEY_LENGTH = 200;
+
+export const parsePreferredCurrencyGuard = (value: string): string => {
+	const parsed = preferredCurrencyGuardSchema.safeParse(value);
+	if (!parsed.success) {
+		throw new CliError(
+			"INVALID_INPUT",
+			"--if-preferred-currency cannot be empty"
+		);
+	}
+	return parsed.data;
+};
+
+export const preferredCurrencyCommitFields = (
+	provided: string | undefined,
+	previewCurrency?: string
+): { expectedPreferredCurrency?: string } => {
+	if (
+		provided !== undefined &&
+		previewCurrency !== undefined &&
+		provided !== previewCurrency
+	) {
+		throw new CliError(
+			"PREFERRED_CURRENCY_CONFLICT",
+			"The preferred currency differs from the expected value; rerun the preview and review it before committing"
+		);
+	}
+	// An older backend may omit the guard. Do not substitute the transaction currency.
+	const expectedPreferredCurrency = provided ?? previewCurrency;
+	return expectedPreferredCurrency === undefined
+		? {}
+		: { expectedPreferredCurrency };
+};
 
 export const parseAmount = (value: string): number => {
 	if (!DECIMAL_PATTERN.test(value)) {
@@ -66,7 +99,10 @@ export const validateMutationText = (
 	return value;
 };
 
-const validateIdempotencyKey = (value: string): string => {
+export const validateIdempotencyKey = (
+	value: string,
+	label = "--idempotency-key"
+): string => {
 	const key = value.trim();
 	if (
 		key.length < MINIMUM_IDEMPOTENCY_KEY_LENGTH ||
@@ -74,7 +110,7 @@ const validateIdempotencyKey = (value: string): string => {
 	) {
 		throw new CliError(
 			"INVALID_INPUT",
-			`--idempotency-key must contain ${MINIMUM_IDEMPOTENCY_KEY_LENGTH} to ${MAXIMUM_IDEMPOTENCY_KEY_LENGTH} characters`
+			`${label} must contain ${MINIMUM_IDEMPOTENCY_KEY_LENGTH} to ${MAXIMUM_IDEMPOTENCY_KEY_LENGTH} characters`
 		);
 	}
 	return key;

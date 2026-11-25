@@ -52,10 +52,14 @@ export const writeTerminalError = (options: {
 			"Read the account again, review a new preview, and then retry.",
 		ACCOUNT_SETUP_REQUIRED:
 			"Finish Spendly account setup in the Web app, then run this command again.",
+		ACCOUNT_TYPE_EDIT_CONFLICT:
+			"Review a fresh account type edit preview; do not reuse the stale snapshot.",
 		AUTHENTICATION_REQUIRED: "spendly auth login",
 		AUTHORIZATION_EXPIRED: "spendly auth login",
 		CATEGORY_CYCLE_MISMATCH:
 			"Choose a category from the expense date's cycle, or clear the category.",
+		CATEGORY_EDIT_CONFLICT:
+			"Review a fresh category edit preview; do not retry with the stale snapshot.",
 		CREDENTIALS_INVALID: "spendly auth login",
 		CYCLE_COPY_CONFLICT:
 			"Review a fresh category-copy preview before committing; do not retry with the stale snapshot.",
@@ -81,10 +85,14 @@ export const writeTerminalError = (options: {
 			"Check current Spendly state before retrying; never repeat a write blindly.",
 		NON_INTERACTIVE_INPUT_REQUIRED:
 			"Provide the required stable IDs and safety flags, or use --interactive in a TTY.",
+		PREFERRED_CURRENCY_CONFLICT:
+			"Review a fresh preview before saving; do not reuse the stale currency precondition.",
 		RESOURCE_NOT_FOUND:
 			"List the relevant resources or use --interactive to choose one.",
 		REVISION_CONFLICT:
 			"Read the current resource, review a new preview, and then retry.",
+		TAG_RENAME_CONFLICT:
+			"Review a fresh tag rename preview; do not reuse the stale snapshot.",
 		TRANSFER_CURRENCY_MISMATCH:
 			"Choose source and destination accounts with the same currency.",
 		TRANSFER_SAME_ACCOUNT: "Choose two different accounts.",

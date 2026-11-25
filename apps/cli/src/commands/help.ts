@@ -6,6 +6,14 @@ interface CommandExamples {
 }
 
 const examples: Readonly<Record<string, CommandExamples>> = {
+	"account-types add": {
+		flags:
+			'spendly account-types add --name "Mortgage" --balance-nature liability --dry-run',
+	},
+	"account-types edit": {
+		flags:
+			'spendly account-types edit TYPE_ID --name "Mortgage reserve" --color "#14B8A6" --dry-run',
+	},
 	"account-types list": {
 		flags: "spendly account-types list --include-archived",
 		guided: "spendly account-types list --interactive",
@@ -59,9 +67,21 @@ const examples: Readonly<Record<string, CommandExamples>> = {
 	},
 	"auth logout": { flags: "spendly auth logout" },
 	"auth status": { flags: "spendly auth status" },
+	"categories add": {
+		flags:
+			'spendly categories add --cycle-id cycle_demo --name "Bike repairs" --planned-amount 75.00 --dry-run',
+	},
+	"categories edit": {
+		flags:
+			'spendly categories edit category_demo --name "Bike repairs" --clear-planned-amount --dry-run',
+	},
 	"categories list": {
 		flags: "spendly categories list --cycle-id cycle_demo",
 		guided: "spendly categories list --interactive",
+	},
+	"category-types add": {
+		flags:
+			'spendly category-types add --name "Travel" --color "#14b8a6" --dry-run',
 	},
 	"cycles add": {
 		flags:
@@ -105,9 +125,16 @@ const examples: Readonly<Record<string, CommandExamples>> = {
 		flags: "spendly expenses list --from 2026-09-01 --limit 25",
 		guided: "spendly expenses list --interactive",
 	},
+	"expenses save-status": {
+		flags: "spendly expenses save-status SAVE_REFERENCE",
+	},
 	summary: {
 		flags: "spendly summary --date 2026-09-14",
 		guided: "spendly summary --interactive",
+	},
+	"tags add": {
+		flags: 'spendly tags add --name "Work" --dry-run',
+		guided: 'spendly tags add --name "Work" --interactive',
 	},
 	"tags list": { flags: "spendly tags list" },
 };
@@ -117,6 +144,7 @@ const rootHelpGroups: Readonly<Record<string, string>> = {
 	accounts: "Accounts",
 	auth: "Authentication",
 	categories: "Planning data",
+	"category-types": "Planning data",
 	completion: "Shell setup",
 	context: "Quick start",
 	cycles: "Planning data",

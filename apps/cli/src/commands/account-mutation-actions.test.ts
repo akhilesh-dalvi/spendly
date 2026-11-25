@@ -123,7 +123,14 @@ const createTestRuntime = (
 
 describe("Phase 6 account mutation commands", () => {
 	it("previews account creation with an explicit type and signed balance", async () => {
-		const testRuntime = createTestRuntime();
+		const testRuntime = createTestRuntime({
+			mutationOverrides: {
+				"cli/v1/accounts:previewCreate": {
+					...(fixture.accountCreateProposal as object),
+					preferredCurrency: "INR",
+				},
+			},
+		});
 		const exitCode = await runCli(
 			[
 				"accounts",
@@ -157,8 +164,82 @@ describe("Phase 6 account mutation commands", () => {
 			},
 		]);
 		expect(JSON.parse(testRuntime.getStdout())).toMatchObject({
-			data: { currentBalance: -100 },
+			data: { currentBalance: -100, preferredCurrency: "INR" },
 			meta: { dateSource: "explicit", dryRun: true },
+		});
+	});
+
+	it("saves a reviewed non-interactive account with an explicit balance nature and no fresh preview", async () => {
+		const testRuntime = createTestRuntime();
+		const exitCode = await runCli(
+			[
+				"accounts",
+				"add",
+				"--name",
+				"Travel Cash",
+				"--account-type-id",
+				"account-type-wallet",
+				"--starting-balance",
+				"-100",
+				"--date",
+				"2026-09-04",
+				"--if-balance-nature",
+				"asset",
+				"--idempotency-key",
+				"create-travel-cash",
+				"--json",
+				"--non-interactive",
+			],
+			testRuntime.runtime
+		);
+
+		expect(exitCode).toBe(CLI_EXIT_CODE.success);
+		expect(testRuntime.calls).toEqual([
+			{
+				args: {
+					accountTypeId: "account-type-wallet",
+					date: "2026-09-04",
+					expectedBalanceNature: "asset",
+					idempotencyKey: "create-travel-cash",
+					name: "Travel Cash",
+					startingBalance: -100,
+				},
+				kind: "mutation",
+				name: "cli/v1/accounts:create",
+			},
+		]);
+	});
+
+	it("rejects a dry-run balance nature guard that disagrees with the current preview", async () => {
+		const testRuntime = createTestRuntime();
+		const exitCode = await runCli(
+			[
+				"accounts",
+				"add",
+				"--name",
+				"Travel Cash",
+				"--account-type-id",
+				"account-type-wallet",
+				"--starting-balance",
+				"-100",
+				"--if-balance-nature",
+				"liability",
+				"--dry-run",
+				"--json",
+				"--non-interactive",
+			],
+			testRuntime.runtime
+		);
+
+		expect(exitCode).toBe(CLI_EXIT_CODE.conflict);
+		expect(testRuntime.calls.map((call) => call.name)).toEqual([
+			"cli/v1/accounts:previewCreate",
+		]);
+		expect(JSON.parse(testRuntime.getStdout())).toMatchObject({
+			error: {
+				code: "ACCOUNT_TYPE_BALANCE_NATURE_CONFLICT",
+				retryable: false,
+			},
 		});
 	});
 
@@ -336,6 +417,8 @@ describe("Phase 6 account mutation commands", () => {
 				"3",
 				"--idempotency-key",
 				"adjustment-key",
+				"--if-preferred-currency",
+				" gbp ",
 				"--json",
 				"--non-interactive",
 			],
@@ -343,6 +426,10 @@ describe("Phase 6 account mutation commands", () => {
 		);
 
 		expect(exitCode).toBe(CLI_EXIT_CODE.success);
+		expect(testRuntime.calls.at(-1)).toMatchObject({
+			args: { expectedPreferredCurrency: "GBP" },
+			name: "cli/v1/accounts:adjustBalance",
+		});
 		expect(JSON.parse(testRuntime.getStdout())).toMatchObject({
 			data: { transaction: { id: "transaction-adjustment" } },
 		});
@@ -403,6 +490,8 @@ describe("Phase 6 account mutation commands", () => {
 				"2",
 				"--idempotency-key",
 				"transfer-key",
+				"--if-preferred-currency",
+				"EUR",
 				"--agent",
 				"--json",
 				"--non-interactive",
@@ -412,7 +501,11 @@ describe("Phase 6 account mutation commands", () => {
 
 		expect(exitCode).toBe(CLI_EXIT_CODE.success);
 		expect(testRuntime.calls.at(-1)).toMatchObject({
-			args: { agent: true, idempotencyKey: "transfer-key" },
+			args: {
+				agent: true,
+				expectedPreferredCurrency: "EUR",
+				idempotencyKey: "transfer-key",
+			},
 			name: "cli/v1/accounts:transfer",
 		});
 		expect(JSON.parse(testRuntime.getStdout())).toMatchObject({

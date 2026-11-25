@@ -28,8 +28,10 @@ const COMMAND_GROUPS = new Set([
 	"accounts",
 	"auth",
 	"categories",
+	"category-types",
 	"cycles",
 	"expenses",
+	"settings",
 	"tags",
 ]);
 const REQUIRED_PAGES = [
@@ -39,6 +41,7 @@ const REQUIRED_PAGES = [
 	"cycles",
 	"categories",
 	"tags",
+	"settings",
 	"expenses",
 	"troubleshooting",
 ];
@@ -54,6 +57,7 @@ const REQUIRED_COMMAND_PATHS = [
 	"expenses add",
 	"expenses edit",
 	"expenses delete",
+	"expenses save-status",
 	"accounts list",
 	"accounts get",
 	"accounts transactions",
@@ -71,8 +75,16 @@ const REQUIRED_COMMAND_PATHS = [
 	"cycles edit",
 	"cycles delete",
 	"categories list",
+	"categories add",
+	"categories edit",
+	"category-types add",
 	"tags list",
+	"tags add",
+	"tags rename",
 	"account-types list",
+	"account-types add",
+	"account-types edit",
+	"settings set-currency",
 ];
 const LEAKAGE_PATTERNS = [
 	{ label: "authorization header", pattern: /authorization:\s*bearer\s+/iu },
@@ -246,7 +258,7 @@ let checkedJsonExamples = 0;
 let checkedJsonErrorExamples = 0;
 let checkedJsonSuccessExamples = 0;
 const documentationContent = [];
-const documentedCommandPaths = new Set();
+const exampleCommandPaths = new Set();
 
 for (const file of mdxFiles) {
 	const displayPath = relative(repositoryDirectory, file);
@@ -286,8 +298,8 @@ for (const file of mdxFiles) {
 		const tokens = tokenize(command);
 		const commandPath = getCommandPath(tokens, displayPath);
 		assertCommandPathExists(commandPath, displayPath);
-		if (commandPath.length > 0) {
-			documentedCommandPaths.add(commandPath.join(" "));
+		if (commandPath.length > 0 && !tokens.includes("--help")) {
+			exampleCommandPaths.add(commandPath.join(" "));
 		}
 		const help = getHelp(commandPath);
 		for (const option of tokens.filter((token) => token.startsWith("--"))) {
@@ -315,7 +327,7 @@ for (const file of mdxFiles) {
 assert(checkedCommands > 0, "CLI docs must contain checked Spendly commands");
 for (const commandPath of REQUIRED_COMMAND_PATHS) {
 	assert(
-		documentedCommandPaths.has(commandPath),
+		exampleCommandPaths.has(commandPath),
 		`CLI docs do not exercise command ${commandPath}`
 	);
 }
@@ -340,5 +352,5 @@ for (const { label, pattern } of REQUIRED_CONTRACT_PATTERNS) {
 }
 
 process.stdout.write(
-	`Validated ${mdxFiles.length} CLI docs pages, ${documentedCommandPaths.size} command paths, ${checkedCommands} examples, ${checkedJsonExamples} JSON examples, links, and leakage boundaries.\n`
+	`Validated ${mdxFiles.length} CLI docs pages, ${exampleCommandPaths.size} command paths, ${checkedCommands} examples, ${checkedJsonExamples} JSON examples, links, and leakage boundaries.\n`
 );

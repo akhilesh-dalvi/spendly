@@ -4,8 +4,17 @@ export type CliDomainErrorCode =
 	| "ACCOUNT_ARCHIVED"
 	| "ACCOUNT_REVISION_CONFLICT"
 	| "ACCOUNT_SETUP_REQUIRED"
+	| "ACCOUNT_TYPE_BALANCE_NATURE_CONFLICT"
+	| "ACCOUNT_TYPE_BALANCE_NATURE_IN_USE"
+	| "ACCOUNT_TYPE_EDIT_CONFLICT"
+	| "ACCOUNT_TYPE_LIMIT_REACHED"
+	| "ACCOUNT_TYPE_NAME_CONFLICT"
 	| "AUTHENTICATION_REQUIRED"
 	| "CATEGORY_CYCLE_MISMATCH"
+	| "CATEGORY_EDIT_CONFLICT"
+	| "CATEGORY_PLAN_REPAIR_REQUIRED"
+	| "CATEGORY_TYPE_LIMIT_REACHED"
+	| "CATEGORY_TYPE_NAME_CONFLICT"
 	| "CYCLE_COPY_CONFLICT"
 	| "CYCLE_OVERLAP"
 	| "CYCLE_HAS_EXPENSES"
@@ -15,9 +24,15 @@ export type CliDomainErrorCode =
 	| "EXPENSE_REVISION_CONFLICT"
 	| "IDEMPOTENCY_CONFLICT"
 	| "INTERNAL_ERROR"
+	| "INVALID_ACCOUNT_TYPE_COLOR"
+	| "INVALID_ACCOUNT_TYPE_ICON"
 	| "INVALID_INPUT"
+	| "PREFERRED_CURRENCY_CONFLICT"
 	| "RESOURCE_LIMIT_EXCEEDED"
 	| "RESOURCE_NOT_FOUND"
+	| "TAG_NAME_CONFLICT"
+	| "TAG_RENAME_CONFLICT"
+	| "TAG_RENAME_NO_CHANGE"
 	| "TRANSFER_CURRENCY_MISMATCH"
 	| "TRANSFER_SAME_ACCOUNT";
 
@@ -25,8 +40,25 @@ const ERROR_MESSAGES: Record<CliDomainErrorCode, string> = {
 	ACCOUNT_ARCHIVED: "The account is archived",
 	ACCOUNT_REVISION_CONFLICT: "The account changed after it was read",
 	ACCOUNT_SETUP_REQUIRED: "Open Spendly Web once to finish account setup",
+	ACCOUNT_TYPE_BALANCE_NATURE_CONFLICT:
+		"The account type's balance nature no longer matches the reviewed request; review a fresh preview",
+	ACCOUNT_TYPE_BALANCE_NATURE_IN_USE:
+		"Balance nature cannot change while any account, including an archived account, uses this type",
+	ACCOUNT_TYPE_EDIT_CONFLICT:
+		"The account type edit no longer matches the reviewed preview; review a fresh preview",
+	ACCOUNT_TYPE_LIMIT_REACHED:
+		"The account type limit has been reached; it includes archived types",
+	ACCOUNT_TYPE_NAME_CONFLICT:
+		"An account type with that name already exists; run spendly account-types list --include-archived or choose another name",
 	AUTHENTICATION_REQUIRED: "Authentication is required",
 	CATEGORY_CYCLE_MISMATCH: "The category does not belong to the expense cycle",
+	CATEGORY_EDIT_CONFLICT:
+		"The category edit no longer matches the reviewed preview; review a fresh preview",
+	CATEGORY_PLAN_REPAIR_REQUIRED:
+		"The saved category plan is invalid; use --clear-planned-amount or supply a valid --planned-amount",
+	CATEGORY_TYPE_LIMIT_REACHED: "The category type limit has been reached",
+	CATEGORY_TYPE_NAME_CONFLICT:
+		"A category type with that name already exists; use the existing type ID or choose another name",
 	CYCLE_COPY_CONFLICT:
 		"The category copy changed after preview; review a fresh preview",
 	CYCLE_HAS_EXPENSES: "The cycle has linked expenses and cannot be deleted",
@@ -38,10 +70,20 @@ const ERROR_MESSAGES: Record<CliDomainErrorCode, string> = {
 	IDEMPOTENCY_CONFLICT:
 		"The idempotency key was already used for another request",
 	INTERNAL_ERROR: "The backend request failed unexpectedly",
+	INVALID_ACCOUNT_TYPE_COLOR:
+		"Use a six-digit hex color (for example #14B8A6); clearing is not supported",
+	INVALID_ACCOUNT_TYPE_ICON:
+		"Use a supported account type icon key; clearing is not supported",
 	INVALID_INPUT: "The request input is invalid",
-	RESOURCE_LIMIT_EXCEEDED:
-		"The requested summary is too large to calculate safely",
+	PREFERRED_CURRENCY_CONFLICT:
+		"The preferred currency no longer matches the reviewed request; review a fresh preview",
+	RESOURCE_LIMIT_EXCEEDED: "The request exceeds the supported resource limit",
 	RESOURCE_NOT_FOUND: "The requested resource was not found",
+	TAG_NAME_CONFLICT:
+		"A tag with that name already exists; run spendly tags list or choose the existing tag in the expense tag picker",
+	TAG_RENAME_CONFLICT:
+		"The tag no longer matches the reviewed preview; review a fresh preview",
+	TAG_RENAME_NO_CHANGE: "The tag already has that exact name",
 	TRANSFER_CURRENCY_MISMATCH:
 		"Transfers require accounts with the same currency",
 	TRANSFER_SAME_ACCOUNT: "Transfer accounts must be different",
@@ -54,9 +96,19 @@ const DOMAIN_CODE_MAP: Record<string, CliDomainErrorCode> = {
 	ACCOUNT_REVISION_CONFLICT: "ACCOUNT_REVISION_CONFLICT",
 	ACCOUNT_SETUP_REQUIRED: "ACCOUNT_SETUP_REQUIRED",
 	ACCOUNT_TYPE_ARCHIVED: "INVALID_INPUT",
+	ACCOUNT_TYPE_BALANCE_NATURE_CONFLICT: "ACCOUNT_TYPE_BALANCE_NATURE_CONFLICT",
+	ACCOUNT_TYPE_BALANCE_NATURE_IN_USE: "ACCOUNT_TYPE_BALANCE_NATURE_IN_USE",
+	ACCOUNT_TYPE_EDIT_CONFLICT: "ACCOUNT_TYPE_EDIT_CONFLICT",
+	ACCOUNT_TYPE_LIMIT_REACHED: "ACCOUNT_TYPE_LIMIT_REACHED",
+	ACCOUNT_TYPE_NAME_REQUIRED: "INVALID_INPUT",
+	ACCOUNT_TYPE_NAME_TAKEN: "ACCOUNT_TYPE_NAME_CONFLICT",
 	ACCOUNT_TYPE_NOT_FOUND: "RESOURCE_NOT_FOUND",
 	AUTHENTICATION_REQUIRED: "AUTHENTICATION_REQUIRED",
 	CATEGORY_CYCLE_MISMATCH: "CATEGORY_CYCLE_MISMATCH",
+	CATEGORY_EDIT_CONFLICT: "CATEGORY_EDIT_CONFLICT",
+	CATEGORY_PLAN_REPAIR_REQUIRED: "CATEGORY_PLAN_REPAIR_REQUIRED",
+	CATEGORY_TYPE_LIMIT_REACHED: "CATEGORY_TYPE_LIMIT_REACHED",
+	CATEGORY_TYPE_NAME_CONFLICT: "CATEGORY_TYPE_NAME_CONFLICT",
 	CYCLE_COPY_CONFLICT: "CYCLE_COPY_CONFLICT",
 	CYCLE_HAS_EXPENSES: "CYCLE_HAS_EXPENSES",
 	CYCLE_OVERLAP: "CYCLE_OVERLAP",
@@ -67,6 +119,8 @@ const DOMAIN_CODE_MAP: Record<string, CliDomainErrorCode> = {
 	EXPENSE_NOT_FOUND: "RESOURCE_NOT_FOUND",
 	EXPENSE_REVISION_CONFLICT: "EXPENSE_REVISION_CONFLICT",
 	IDEMPOTENCY_CONFLICT: "IDEMPOTENCY_CONFLICT",
+	INVALID_ACCOUNT_TYPE_COLOR: "INVALID_ACCOUNT_TYPE_COLOR",
+	INVALID_ACCOUNT_TYPE_ICON: "INVALID_ACCOUNT_TYPE_ICON",
 	INVALID_BALANCE: "INVALID_INPUT",
 	INVALID_DATE: "INVALID_INPUT",
 	INVALID_DATE_RANGE: "INVALID_INPUT",
@@ -78,10 +132,15 @@ const DOMAIN_CODE_MAP: Record<string, CliDomainErrorCode> = {
 	INVALID_LIMIT: "INVALID_INPUT",
 	INVALID_STARTING_BALANCE: "INVALID_INPUT",
 	INVALID_TAG_FILTERS: "INVALID_INPUT",
+	INVALID_TAG_NAME: "INVALID_INPUT",
 	INVALID_TRANSFER_AMOUNT: "INVALID_INPUT",
 	NOT_FOUND: "RESOURCE_NOT_FOUND",
+	PREFERRED_CURRENCY_CONFLICT: "PREFERRED_CURRENCY_CONFLICT",
 	RESOURCE_LIMIT_EXCEEDED: "RESOURCE_LIMIT_EXCEEDED",
+	TAG_NAME_CONFLICT: "TAG_NAME_CONFLICT",
 	TAG_NOT_FOUND: "RESOURCE_NOT_FOUND",
+	TAG_RENAME_CONFLICT: "TAG_RENAME_CONFLICT",
+	TAG_RENAME_NO_CHANGE: "TAG_RENAME_NO_CHANGE",
 	TRANSFER_CURRENCY_MISMATCH: "TRANSFER_CURRENCY_MISMATCH",
 	TRANSFER_SAME_ACCOUNT: "TRANSFER_SAME_ACCOUNT",
 	UNAUTHENTICATED: "AUTHENTICATION_REQUIRED",

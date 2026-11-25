@@ -3,6 +3,12 @@ import { expenseSchema } from "./read-schemas.js";
 
 const idSchema = z.string().min(1);
 
+export const preferredCurrencyGuardSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.toUpperCase();
+
 const accountBalanceEffectSchema = z.object({
 	accountId: idSchema,
 	accountName: z.string(),
@@ -22,6 +28,8 @@ export const expenseProposalSchema = z.object({
 	currency: z.string().min(1),
 	cycleId: idSchema.nullable(),
 	date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
+	newTagNames: z.array(z.string()).optional(),
+	preferredCurrency: z.string().min(1).optional(),
 	revision: z.number().int().positive(),
 	spentOn: z.string().nullable(),
 	tagIds: z.array(idSchema),
@@ -40,13 +48,26 @@ export const expenseUpdatePreviewSchema = z.object({
 	accountEffects: z.array(accountBalanceEffectSchema),
 	after: expenseSchema,
 	before: expenseSchema,
+	newTagNames: z.array(z.string()).optional(),
+	preferredCurrency: z.string().min(1).optional(),
 });
+
+export const expenseSaveStatusSchema = z.discriminatedUnion("status", [
+	z.object({ status: z.literal("not_recorded") }),
+	z.object({
+		expenseId: idSchema,
+		operation: z.enum(["add", "edit"]),
+		revision: z.number().int().positive(),
+		status: z.literal("saved"),
+	}),
+]);
 
 export const expenseDeletePreviewSchema = z.object({
 	accountEffects: z.array(accountBalanceEffectSchema),
 	confirmationToken: idSchema,
 	expense: expenseSchema,
 	expiresAt: z.iso.datetime({ offset: true }),
+	preferredCurrency: z.string().min(1).optional(),
 	revision: z.number().int().positive(),
 });
 

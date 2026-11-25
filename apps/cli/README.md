@@ -41,7 +41,9 @@ disable prompts and reject missing required inputs. Neither can be combined
 with `--interactive`, which also conflicts with `--non-interactive`.
 
 Use returned IDs, preview with `--dry-run`, and commit with an idempotency key.
-Edits require revisions; deletions also require a short-lived preview token.
+Account-type and category edits, tag renames, and currency changes use
+`data.editSnapshot` with `--if-edit-snapshot`. Use command help to find other
+required guards, such as revisions or short-lived deletion tokens.
 For separately reviewed cycle copies, preserve `data.copySnapshot` with
 `--if-copy-snapshot`. On conflicts, approve a fresh preview; never blindly retry.
 

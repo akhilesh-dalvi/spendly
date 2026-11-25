@@ -8,7 +8,7 @@ Based on [Spendly web features and actions](spendly-web-action-inventory.md), wi
 
 **Cycle-copy parity follow-up:** Local Web cycle creation now supports explicit zero-category copying while retaining the selected source. Mocked form/navigation/dialog regressions and `convex-test` public Web API tests distinguish omitted selection (all) from `[]` (none). Browser review is limited to unsaved form states; no live cycle was created, no backend sync was needed, and no production build is claimed. The cycle-copy notes below supersede the original inventory limitations.
 
-**Overall:** Web (129/151) · CLI (81/151). Counts show supported feature rows out of rows available on at least one surface; table headers show section counts. The 17 rows in Unsupported on both are excluded from overall counts. Rows include product actions and surface-specific controls, so these counts are a checklist, not a weighted feature-parity score.
+**Overall:** Web (129/151) · CLI (88/151). Counts show supported feature rows out of rows available on at least one surface; table headers show section counts. The 17 rows in Unsupported on both are excluded from overall counts. Rows include product actions and surface-specific controls, so these counts are a checklist, not a weighted feature-parity score.
 
 **Implementation priorities:** **P1** = first (core entry/editing, assignment correctness, and essential CLI creation); **P2** = next (reporting, lifecycle management, workflow improvements, and broader feature coverage); **P3** = last (polish, advanced/destructive operations, integrations, and monetization). Within each priority, implement Web gaps before CLI gaps: **P1 Web → P1 CLI → P2 Web → P2 CLI → P3 Web → P3 CLI**. Existing features use **—**; **N/A** means an intentionally surface-specific control, not a proposed implementation gap. Availability counts reflect the source-level ✅/❌ markers, including N/A rows, not deployment state.
 
@@ -20,10 +20,10 @@ Counts include only missing features assigned P1–P3, including Unsupported on 
 
 | Priority | Web | CLI | Total |
 | --- | ---: | ---: | ---: |
-| P1 | 0 | 9 | 9 |
+| P1 | 0 | 2 | 2 |
 | P2 | 9 | 41 | 50 |
 | P3 | 12 | 15 | 27 |
-| **Total** | **21** | **65** | **86** |
+| **Total** | **21** | **58** | **79** |
 
 A feature missing on both surfaces counts once per surface; Total counts implementation gaps, not unique features.
 
@@ -45,7 +45,7 @@ A feature missing on both surfaces counts once per surface; Total counts impleme
 
 ## Expenses
 
-| Feature | Web (27/30) | CLI (21/30) | Web priority | CLI priority |
+| Feature | Web (27/30) | CLI (22/30) | Web priority | CLI priority |
 | --- | :---: | :---: | :---: | :---: |
 | List expenses and view an individual expense | ✅ | ✅ | — | — |
 | Filter by cycle, category, or Uncategorized | ✅ | ✅ | — | — |
@@ -72,7 +72,7 @@ A feature missing on both surfaces counts once per surface; Total counts impleme
 | Create an expense without a cycle for its date | ❌ | ✅ | P2 | — |
 | Preview a normalized expense and its projected account-balance effects before saving | ❌ | ✅ | P2 | — |
 | Read whether creation used an explicit/default account or explicit/history-inferred category | ❌ | ✅ | P3 | — |
-| Create a new tag inline while entering/editing an expense | ✅ | ❌ | — | P1 |
+| Create a new tag inline while entering/editing an expense | ✅ | ✅ | — | — |
 | Keep entering expenses with retained form selections using Add another | ✅ | ❌ | — | P2 |
 | Delete an expense, refunding its account and retaining compensating ledger history | ✅ | ✅ | — | — |
 | Read non-web change/provenance information | ✅ | ❌ | — | P2 |
@@ -101,13 +101,13 @@ A feature missing on both surfaces counts once per surface; Total counts impleme
 
 ## Categories
 
-| Feature | Web (11/11) | CLI (4/11) | Web priority | CLI priority |
+| Feature | Web (11/11) | CLI (5/11) | Web priority | CLI priority |
 | --- | :---: | :---: | :---: | :---: |
 | List a cycle's categories, including names, icons, types, plans, and hidden state | ✅ | ✅ | — | — |
 | View a category's expenses | ✅ | ✅ | — | — |
 | View category spending, planned, remaining, and utilization metrics | ✅ | ✅ | — | — |
-| Create standalone categories, individually or with multiple draft rows | ✅ | ❌ | — | P1 |
-| Edit an existing category's name, icon, type, or plan | ✅ | ❌ | — | P1 |
+| Create standalone categories, individually or with multiple draft rows | ✅ | ❌ (single-category creation only) | — | P1 |
+| Edit an existing category's name, icon, type, or plan | ✅ | ✅ | — | — |
 | Fill a category plan from previous-cycle actual spending | ✅ | ❌ | — | P2 |
 | Populate new category drafts from previous-cycle suggestions | ✅ | ❌ | — | P3 |
 | Hide or restore a category | ✅ | ❌ | — | P2 |
@@ -147,13 +147,13 @@ A feature missing on both surfaces counts once per surface; Total counts impleme
 
 ## Account types
 
-| Feature | Web (9/9) | CLI (2/9) | Web priority | CLI priority |
+| Feature | Web (9/9) | CLI (4/9) | Web priority | CLI priority |
 | --- | :---: | :---: | :---: | :---: |
 | List active and archived account types | ✅ | ✅ | — | — |
 | Read account-type name, icon, color, and asset/liability nature | ✅ | ✅ | — | — |
 | View account usage counts and deletion eligibility for account types | ✅ | ❌ | — | P2 |
-| Create an account type | ✅ | ❌ | — | P1 |
-| Edit account-type name, icon, color, or eligible asset/liability nature | ✅ | ❌ | — | P1 |
+| Create an account type | ✅ | ✅ (standalone; no custom styling) | — | — |
+| Edit account-type name, icon, color, or eligible asset/liability nature | ✅ | ✅ (standalone, by type ID) | — | — |
 | Clear custom account-type icon or color | ✅ | ❌ | — | P3 |
 | Archive or reactivate an account type | ✅ | ❌ | — | P2 |
 | Delete an unused account type | ✅ | ❌ | — | P2 |
@@ -161,23 +161,23 @@ A feature missing on both surfaces counts once per surface; Total counts impleme
 
 ## Tags
 
-| Feature | Web (8/8) | CLI (2/8) | Web priority | CLI priority |
+| Feature | Web (8/8) | CLI (4/8) | Web priority | CLI priority |
 | --- | :---: | :---: | :---: | :---: |
 | List tags with names and creation dates | ✅ | ✅ | — | — |
 | View tag usage counts and In use/Unused status | ✅ | ❌ | — | P2 |
 | Search/filter/sort the tag-management list (not an expense tag selector) | ✅ | ❌ | — | P2 |
 | Paginate tags on desktop | ✅ | ❌ | — | N/A |
-| Create a tag | ✅ | ❌ | — | P1 |
-| Rename a tag | ✅ | ❌ | — | P1 |
+| Create a tag | ✅ | ✅ | — | — |
+| Rename a tag | ✅ | ✅ | — | — |
 | Delete a tag and detach it from expenses | ✅ | ❌ | — | P2 |
 | Assign or remove existing tags through expense editing | ✅ | ✅ | — | — |
 
 ## Settings
 
-| Feature | Web (3/3) | CLI (1/3) | Web priority | CLI priority |
+| Feature | Web (3/3) | CLI (2/3) | Web priority | CLI priority |
 | --- | :---: | :---: | :---: | :---: |
 | Read preferred currency | ✅ | ✅ | — | — |
-| Change preferred currency | ✅ | ❌ | — | P1 |
+| Change preferred currency | ✅ | ✅ | — | — |
 | Choose Light/Dark/System web theme | ✅ | ❌ | — | N/A |
 
 ## Onboarding
@@ -275,8 +275,8 @@ A feature missing on both surfaces counts once per surface; Total counts impleme
 - A CLI tick for viewing data may require `--json`; it does not imply a graphical dashboard. `summary` exposes category spending/plans/differences; its JSON also exposes utilization and per-type totals/categories. For any available cycle being summarized, JSON `types` includes every user category type, even unused ones, but no global usage count or type color. Colors are available on types attached to `categories list` results. There is no dedicated category-type command.
 - `summary --date` selects a cycle and/or changes the reference date for days remaining; it does **not** restrict spending to that date. Hidden categories and uncategorized spending are included. CLI summaries fail rather than truncate above 10,000 cycle expenses or 1,000 categories/types. Resource lists/context have their own caps, including 1,000 cycles/tags/accounts; ticks do not imply unlimited reads.
 - CLI expense/ledger pagination uses `--limit` (1–100, default 50) and `--cursor`; JSON arrays are in `data`, with `hasMore`, `nextCursor`, and `pageSize` in `meta`. Human output reports the loaded count, not an all-results count or expense sum. Guided lists can load more pages; non-guided output provides a continuation command. Web expense-table pagination only pages an already capped fetch, whereas Web account-ledger pagination fetches more records. CLI expense filters other than date range are applied after each backend page, so a page can contain fewer matches or even none while `hasMore` is true; guided listing skips empty intermediate pages.
-- Category copying through `cycles add` is supported, but there are no standalone CLI category mutations. Copies preserve name/type/icon/hidden state/order, not expenses. Both surfaces can clear a selected copied plan: blank its Web input, or use CLI `--clear-planned-amount`/the guided clear choice. Both surfaces now explicitly copy none from a selected source: Web deselects every checkbox; CLI uses `--without-categories` or an empty guided selection. Web initially selects all categories after each source choice, blocks creation while source categories load, retains zero/subset selection and custom plans on query refresh, and does not silently select newly appearing categories. Source switching initializes the new source afresh; navigation/dialog dismissal discards the unsaved draft. Web plan-prefill toggles now react immediately, independently of selection changes. CLI copy-none normalization retains the source and `[]` while omitting irrelevant guided plan options. Noninteractive `--without-categories` deliberately rejects conflicting `--include-planned-amounts`, `--planned-amount`, and `--clear-planned-amount` flags before any backend request; Web may leave Prefill checked with no selected categories, which still copies none. No CLI runtime changes were needed. CLI `--if-copy-snapshot` still guards the effective copied configuration and source since dry run, including a required snapshot for copy-none; unrelated source-category edits do not invalidate an empty effective copy. Web still has no preview/snapshot concurrency guard, so copied metadata is read at save time; this remains a separate surface-specific gap. Existing mocked CLI preview/commit/guided/recovery and backend snapshot tests were rerun; this is not evidence of a live CLI journey.
-- CLI expense tag options select existing tags; they do not create tags. CLI tag and account-type commands are read-only.
+- `categories add` creates one category in an existing cycle; the full parity row remains open for multi-row creation. Category copying through `cycles add` targets a new cycle. Copies preserve name/type/icon/hidden state/order, not expenses. Both surfaces can clear a selected copied plan: blank its Web input, or use CLI `--clear-planned-amount`/the guided clear choice. Both surfaces now explicitly copy none from a selected source: Web deselects every checkbox; CLI uses `--without-categories` or an empty guided selection. Web initially selects all categories after each source choice, blocks creation while source categories load, retains zero/subset selection and custom plans on query refresh, and does not silently select newly appearing categories. Source switching initializes the new source afresh; navigation/dialog dismissal discards the unsaved draft. Web plan-prefill toggles now react immediately, independently of selection changes. CLI copy-none normalization retains the source and `[]` while omitting irrelevant guided plan options. Noninteractive `--without-categories` deliberately rejects conflicting `--include-planned-amounts`, `--planned-amount`, and `--clear-planned-amount` flags before any backend request; Web may leave Prefill checked with no selected categories, which still copies none. No CLI runtime changes were needed. CLI `--if-copy-snapshot` still guards the effective copied configuration and source since dry run, including a required snapshot for copy-none; unrelated source-category edits do not invalidate an empty effective copy. Web still has no preview/snapshot concurrency guard, so copied metadata is read at save time; this remains a separate surface-specific gap. Existing mocked CLI preview/commit/guided/recovery and backend snapshot tests were rerun; this is not evidence of a live CLI journey.
+- CLI expense tag options select existing tags; they do not create tags. `tags add` creates an unassigned tag and rejects case-insensitive name conflicts; Web still reuses exact names. `tags rename` updates an existing tag by ID with a reviewed preview and keeps its expense links; deletion remains Web-only. `account-types add` creates a type by name and asset/liability nature without creating an account; `account-types edit` updates an existing type with a reviewed preview. Clearing its style and lifecycle management remain Web-only.
 - CLI read schemas expose no action-source/provenance fields. Recording CLI/agent origin on writes is not the same as reading that origin back. Expense creation previews/results do expose `accountSource` (explicit/default/none), `categorySource` (explicit/history/none), and projected/applied account effects; those explain assignment choices, not who made the change.
 - CLI guided selectors really do support local, case-insensitive substring search, not just exact-name flags. Expense account/category selectors enable it above 10 choices (including special choices); tags and shared account/cycle/expense selectors above 8 resources. Search matches labels, not hints: for example, the expense chooser searches date/description, not the account/amount hint. It searches one loaded 50-expense page at a time and offers Load more or Enter an expense ID. Static accessible prompts use numbers, not search. Web comparison search also matches cycle dates; CLI cycle-selector search matches the name only.
 - Web filter pills/Clear all and table search/sort are distinct from CLI controls. Guided expense listing has a Change filters choice while more pages remain, but it reuses prior options rather than providing a general clear-all/reset. A new CLI invocation can supply a different filter set. Exact-name flags are separate from interactive search; `--non-interactive` selectors require stable IDs.
@@ -287,8 +287,9 @@ A feature missing on both surfaces counts once per surface; Total counts impleme
 - Expense follow-up sources: Web `apps/web/src/components/expense-form.tsx`, `expense-form.test.tsx`, and `apps/web/src/app/(app)/expenses/expenses-pages.test.tsx`; CLI `apps/cli/src/commands/expense-mutations.ts`, `expense-mutation-actions.ts`, and `expense-mutation-actions.test.ts`; shared backend `packages/backend/convex/domain/expenseOperations.ts`, Web `expenses.ts`/`expenses.test.ts`, and CLI `cli/v1/expenses.ts`/`validators.ts`. CLI source was reviewed and the existing mocked CLI mutation tests were rerun; no live financial writes were used to establish parity.
 - Canceling a CLI confirmation applies to guided interactive flows; it does not undo an already committed command. Onboarding row order is saved from the draft, not managed with a general-purpose drag/reorder control.
 - CLI sign-in uses browser-based authentication and requires an initialized Spendly user; if absent, it asks the user to open Web once. `auth login --no-browser` prints a same-machine authorization URL, not a device-code/headless login, and cannot combine with `--json`. Login rejects `--non-interactive`. `auth status` verifies/refreshes the stored session, not just local file presence. Logout removes local credentials and reports whether remote revocation was confirmed; it is not a Web-session logout.
-- CLI has no onboarding wizard/path/currency mutation, but can create ordinary cycles/accounts. `context` reads optional account-setup status; `accounts add` marks that account step completed without completing the whole Web wizard. Web onboarding-only category clearing/order/removal capabilities should not be inferred for ordinary category editors.
+- CLI has no onboarding wizard or setup-path mutation, but can create ordinary cycles/accounts. `settings set-currency` changes the shared preference without converting money or rewriting financial records. `context` reads optional account-setup status; `accounts add` marks that account step completed without completing the whole Web wizard. Web onboarding-only category clearing/order/removal capabilities should not be inferred for ordinary category editors.
 - `--json` emits one versioned success/error document; it is not a dedicated export workflow or arbitrary field/CSV formatter. `--agent` marks committed writes but does not imply JSON. Agent, JSON, and non-interactive modes never prompt; `--interactive` conflicts with them. `--accessible` (or `ACCESSIBLE=1`, or `TERM=dumb`) selects static prompts; `--no-color`/`NO_COLOR`, `--no-retry`, and `--debug` control terminal output/read retries/diagnostics. Plaintext credential fallback requires explicit `--allow-file-storage`; it does not force bypassing a working keychain.
+- Inline tag creation is guided-only in the CLI. CLI tags save with the expense, unlike Web’s immediate tag creation. The CLI can check a recent expense add/edit by its save reference after an interrupted write.
 - CLI delete dry runs do not delete financial records, but mint confirmation tokens. Non-interactive expense/cycle deletion requires the token, revision, and idempotency key; supported edits require revision preconditions in that mode. Running multiple commands and post-processing results does not count as built-in comparison, bulk editing, or reporting support. Completion scripts offer static words, not live account/category completion. Development-only auth canaries are excluded from this user-facing matrix.
 - Web source: [full action inventory](spendly-web-action-inventory.md), including its limitations and review coverage.
 - CLI sources: `apps/cli/src/commands/` registrations and `*-actions.ts`, especially `read-actions.ts` and `interactive-support.ts`; `apps/cli/src/input/prompts.ts`, `accessible-prompts.ts`, `apps/cli/src/cli.ts`, `options.ts`, `domain/read-schemas.ts`, and `output/`.

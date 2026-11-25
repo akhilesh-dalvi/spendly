@@ -26,9 +26,12 @@ spendly --agent --json --non-interactive accounts add \
   --dry-run
 ```
 
-Creation needs a name, active account type, and starting balance. It uses the
-context currency and records an opening ledger entry. Remove `--dry-run` and
-add `--idempotency-key "$KEY"` to save.
+Saving creates an opening ledger entry. For account creation, balance
+adjustment, and transfer, remove `--dry-run`, keep the original inputs, and add
+`--idempotency-key "$KEY"` and `--if-preferred-currency` from the approved
+preview's `data.preferredCurrency`. For creation, also pass `data.currencyMode`
+as `--if-account-currency-mode` and `data.accountType.balanceNature` as
+`--if-balance-nature`.
 
 `accounts edit "$ACCOUNT_ID"` changes the name with `--name` or type with
 `--account-type-id`. It accepts `--if-revision "$REVISION"`, `--dry-run`, and
@@ -55,8 +58,8 @@ spendly --agent --json --non-interactive accounts adjust-balance "$ACCOUNT_ID" \
 
 `--balance` is the desired final balance. The CLI calculates the adjustment;
 for example, setting 100 to 125 records +25. A zero adjustment is a no-op.
-Negative balances are supported and appear in preview warnings. Remove
-`--dry-run` and add `--idempotency-key "$KEY"` to save.
+Negative balances are supported and appear in preview warnings. Keep the
+revision and preferred-currency guards when saving.
 
 ## Transfer funds
 
@@ -74,8 +77,8 @@ spendly --agent --json --non-interactive accounts transfer \
   --dry-run
 ```
 
-The preview shows both resulting balances. Remove `--dry-run` and add
-`--idempotency-key "$KEY"` to save. Transfers affect account balances without
+The preview shows both resulting balances. Keep both revisions and the
+preferred-currency guard when saving. Transfers affect account balances without
 changing expense-cycle spending. Completed transfers have no edit or delete
 command. Surface a `NEGATIVE_SOURCE_BALANCE` preview warning and do not decide
 for the user whether to proceed. A separate reverse transfer is a new write and

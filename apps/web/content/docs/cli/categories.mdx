@@ -1,11 +1,12 @@
 ---
 title: Categories
-description: Find existing categories and use them to organize expenses.
+description: Find, add, or edit categories for an expense cycle and use them to organize expenses.
 ---
 
 Categories group expenses within a cycle, such as Food or Transport. A cycle is
-the date range you use to track spending. You can find and use categories in the
-CLI; create and manage the categories themselves in Spendly Web.
+the date range you use to track spending. The CLI lists a cycle’s categories and
+can add or edit one category at a time and create reusable category types.
+Use Spendly Web to add multiple categories in one form.
 
 For example, put Lunch in Food so you can review your food spending later.
 
@@ -14,7 +15,7 @@ For example, put Lunch in Food so you can review your food spending later.
 - **Required:** Install the CLI and sign in using the [Quick start](/docs/cli).
 - **Required to use Food:** Have a cycle containing the expense's date and a
   visible Food category in that cycle. Check existing categories before creating
-  one in Spendly Web.
+  one.
 - **Optional:** Leave an expense uncategorized if no category fits. You do not
   need to create a category just to record an expense.
 - **Automatic:** A new expense uses today's local date unless you choose another
@@ -42,7 +43,7 @@ spendly categories list --cycle-id CYCLE_ID
 
 If Lunch is dated today, `spendly cycles current` also finds its cycle. If no
 cycle covers the date, follow [Cycles](/docs/cli/cycles) first. The category list
-shows names, planned amounts, and IDs. If Food is missing, [create it in Spendly Web](#add-a-category), or use another
+shows names, planned amounts, and IDs. If Food is missing, [add a category](#add-a-category), or use another
 category that fits. A new empty cycle does
 not create Food automatically.
 
@@ -102,19 +103,97 @@ category.
 <details className="docs-disclosure">
 <summary id="add-a-category">Add a category</summary>
 
-The CLI does not create categories. In the same signed-in account:
+Check `spendly categories add --help` to see whether your installed version
+supports creation. If not, open the matching cycle in [Spendly Web](/cycles) and
+choose **Add Category**.
 
-1. Open [Cycles in Spendly Web](/cycles) and select the cycle whose ID you found.
-2. Choose **Add Category**, enter **Food**, then choose **Add Category** to save.
-   Type, icon, and planned amount (your budget) are optional.
-3. Back in your terminal, verify it:
+Preview the new category in the cycle covering Lunch's saved date. Replace
+`CYCLE_ID` with that cycle's returned ID:
 
 ```bash
-spendly categories list --cycle-id CYCLE_ID
+spendly categories add --cycle-id CYCLE_ID --name "Food" --dry-run
 ```
 
-Choose the cycle covering Lunch's saved date. Do not create Food in a different
-cycle just because it has the same name.
+`--planned-amount 125.50` is an optional budget, not an expense. Omit it for no
+budget, or pass `0` for a zero budget. A numeric budget preview shows your
+preferred currency (`data.preferredCurrency` in JSON). You can also pass a
+literal `--icon` and an existing `--category-type-id`. To find a type ID,
+inspect `data.types` in `spendly summary --cycle-id CYCLE_ID --json`, or
+[create a type](#create-a-category-type) and use the ID it returns.
+
+After review, rerun without `--dry-run`. In a terminal, confirm the preview;
+the save checks that the reviewed budget currency still matches. Without
+prompts, supply `--idempotency-key` for this intended save. For a separately
+reviewed budget, pass the previewed currency with `--if-preferred-currency`.
+If the currency has changed, review a fresh preview before saving. No currency
+guard is needed when you omit the budget.
+
+The command returns the category ID. Verify it with
+`spendly categories list --cycle-id CYCLE_ID`. If the save outcome is unknown,
+check current state before any authorized replay. Use the identical inputs with
+the original key and `--non-interactive` (keep `--agent` if used). If the
+original save used a currency guard, including one from a terminal preview,
+pass that same currency with `--if-preferred-currency`, not the current
+preference. Keys are retained for
+30 days; don't replay an expired key or generate a new key for a replay.
+Category names can repeat, so use the returned ID to identify the saved category.
+
+</details>
+
+<details className="docs-disclosure">
+<summary id="create-a-category-type">Create a category type</summary>
+
+A type groups categories across cycles. Check `spendly category-types add --help`
+to see whether your installed CLI supports this command. If not, use
+[Spendly Web](/data/types). Otherwise, preview a new type:
+
+```bash
+spendly category-types add --name "Travel" --color "#14b8a6" --dry-run
+```
+
+Omit `--color` to use the default blue. To save, rerun without `--dry-run` and
+confirm in a terminal, or pass `--idempotency-key` for a scripted save. Use the
+returned ID (`data.id` in JSON) as `--category-type-id` with `categories add` or
+`categories edit`. These are separate saves: if you cancel the category command
+or it fails, the type remains available for later.
+
+If the exact name already exists, use its existing ID or choose another name.
+If the save outcome is unknown, check current state first. For an authorized
+replay within the 30-day retention window, use the same inputs and the original
+key with `--non-interactive` (keep `--agent` if used).
+
+</details>
+
+<details className="docs-disclosure">
+<summary id="edit-a-category">Edit a category</summary>
+
+Find the stable category ID with `spendly categories list --cycle-id CYCLE_ID`.
+Use `spendly categories edit --help` to check whether your installed CLI supports
+editing. Preview an edit before saving:
+
+```bash
+spendly categories edit CATEGORY_ID --name "Bike repairs" --planned-amount 0 --dry-run
+```
+
+Omitted fields stay unchanged. Use `--clear-planned-amount` for no plan, not
+`0`. The preview shows your preferred currency for numeric budgets. When
+setting a budget, the edit snapshot includes that currency; changing it
+requires a fresh review. Clearing or leaving the budget unchanged does not
+depend on the currency. Use `--category-type-id TYPE_ID` to assign an existing
+type or `--clear-category-type` to remove it. To change the icon, use `--icon`.
+Existing expenses stay linked; plan and type changes affect cycle summaries,
+not recorded spending or account balances. If a saved plan is invalid, include an
+explicit clear or replacement in the edit. If the CLI list cannot display the
+category, use its ID from the category details URL in Spendly Web.
+
+In a terminal, rerun with the same edit flags but without `--dry-run`, then
+review and confirm the preview. Without prompts, get `data.editSnapshot` from
+the JSON dry run and pass it as `--if-edit-snapshot` with the same edit flags
+and a fresh `--idempotency-key`. If the preview no longer matches, review a
+fresh one before saving. If the outcome is unknown, check the category first.
+For an authorized replay, keep the original edit flags, snapshot, and key and
+use `--non-interactive` (keep `--agent` if used). Do not replay after the
+30-day key retention period.
 
 </details>
 
@@ -147,7 +226,8 @@ spendly expenses edit EXPENSE_ID --clear-category --dry-run
 ```
 
 Repeat without `--dry-run` to save immediately. Verify with
-`spendly expenses get EXPENSE_ID`. Manage the category itself in Spendly Web.
+`spendly expenses get EXPENSE_ID`. To change the category itself, use the
+[category edit command](#edit-a-category) instead.
 
 </details>
 
@@ -175,8 +255,8 @@ Repeat without `--dry-run` to save immediately. Verify with
 <summary>Common problems and fixes</summary>
 
 - **Food is missing:** It may be hidden or belong to another cycle. Check the
-  expense's date and list that cycle's categories. Manage categories in Spendly
-  Web if needed.
+  expense's date and list that cycle's categories. Add a missing category in
+  that cycle or manage hidden categories in Spendly Web.
 - **No cycle contains the date:** Check the date. If it is correct, use
   [Cycles](/docs/cli/cycles) to set up the date range you need.
 - **A name is ambiguous:** More than one category matches. Use the intended
@@ -202,7 +282,7 @@ categories with `spendly categories list --cycle-id CYCLE_ID`, then use
 `--category-id CATEGORY_ID` when adding, editing, or filtering expenses. Replace
 both placeholders with returned IDs.
 
-Non-interactive edits require `--if-revision REVISION`, including previews.
+Non-interactive **expense** edits require `--if-revision REVISION`, including previews.
 Read the expense with `expenses get` to obtain its current revision (the version
 number used to detect changes). Non-interactive saves also require
 `--idempotency-key KEY`: use a fresh key for each intended change. After an

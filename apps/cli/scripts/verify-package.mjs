@@ -242,6 +242,143 @@ try {
 		"Production help exposed development-only commands"
 	);
 
+	const categoryEditHelp = run(binaryPath, ["categories", "edit", "--help"], {
+		cwd: verificationDirectory,
+	});
+	assert(
+		categoryEditHelp.includes("--if-edit-snapshot") &&
+			categoryEditHelp.includes("--clear-category-type") &&
+			categoryEditHelp.includes("--clear-planned-amount"),
+		"Installed binary did not expose categories edit help"
+	);
+
+	const categoryTypeAddHelp = run(
+		binaryPath,
+		["category-types", "add", "--help"],
+		{ cwd: verificationDirectory }
+	);
+	assert(
+		categoryTypeAddHelp.includes("--color") &&
+			categoryTypeAddHelp.includes("--dry-run") &&
+			categoryTypeAddHelp.includes("--idempotency-key"),
+		"Installed binary did not expose category-types add help"
+	);
+
+	const accountTypeAddHelp = run(
+		binaryPath,
+		["account-types", "add", "--help"],
+		{ cwd: verificationDirectory }
+	);
+	assert(
+		accountTypeAddHelp.includes("--balance-nature") &&
+			accountTypeAddHelp.includes("--dry-run") &&
+			accountTypeAddHelp.includes("--idempotency-key"),
+		"Installed binary did not expose account-types add help"
+	);
+
+	const accountTypeEditHelp = run(
+		binaryPath,
+		["account-types", "edit", "--help"],
+		{ cwd: verificationDirectory }
+	);
+	assert(
+		accountTypeEditHelp.includes("--icon") &&
+			accountTypeEditHelp.includes("--color") &&
+			accountTypeEditHelp.includes("--balance-nature") &&
+			accountTypeEditHelp.includes("--if-edit-snapshot") &&
+			accountTypeEditHelp.includes("--idempotency-key") &&
+			accountTypeEditHelp.includes("--dry-run"),
+		"Installed binary did not expose account-types edit help"
+	);
+
+	const tagAddHelp = run(binaryPath, ["tags", "add", "--help"], {
+		cwd: verificationDirectory,
+	});
+	assert(
+		tagAddHelp.includes("--name") &&
+			tagAddHelp.includes("--dry-run") &&
+			tagAddHelp.includes("--idempotency-key"),
+		"Installed binary did not expose tags add help"
+	);
+
+	const tagRenameHelp = run(binaryPath, ["tags", "rename", "--help"], {
+		cwd: verificationDirectory,
+	});
+	assert(
+		tagRenameHelp.includes("<tag-id>") &&
+			tagRenameHelp.includes("--name") &&
+			tagRenameHelp.includes("--if-edit-snapshot") &&
+			tagRenameHelp.includes("--idempotency-key") &&
+			tagRenameHelp.includes("--dry-run"),
+		"Installed binary did not expose tags rename help"
+	);
+
+	const helpChecks = [
+		{
+			argument: "<code>",
+			options: ["--dry-run", "--if-edit-snapshot", "--idempotency-key"],
+			path: ["settings", "set-currency"],
+		},
+		{ argument: "<key>", options: [], path: ["expenses", "save-status"] },
+		{
+			options: [
+				"--if-preferred-currency",
+				"--if-account-currency-mode",
+				"--if-balance-nature",
+			],
+			path: ["accounts", "add"],
+		},
+		{
+			options: ["--if-preferred-currency", "--if-revision"],
+			path: ["accounts", "adjust-balance"],
+		},
+		{
+			options: [
+				"--if-preferred-currency",
+				"--if-from-revision",
+				"--if-to-revision",
+			],
+			path: ["accounts", "transfer"],
+		},
+		{
+			options: ["--cycle-id", "--if-preferred-currency", "--dry-run"],
+			path: ["categories", "add"],
+		},
+		{ options: ["--if-preferred-currency"], path: ["expenses", "add"] },
+		{
+			options: ["--if-preferred-currency", "--if-revision"],
+			path: ["expenses", "edit"],
+		},
+		{
+			options: [
+				"--if-preferred-currency",
+				"--if-revision",
+				"--confirmation-token",
+			],
+			path: ["expenses", "delete"],
+		},
+	];
+	for (const { path, argument, options } of helpChecks) {
+		const command = path.join(" ");
+		const commandHelp = run(binaryPath, [...path, "--help"], {
+			cwd: verificationDirectory,
+		});
+		const lines = commandHelp.split(/\r?\n/u);
+		const usage = lines.find((line) =>
+			line.startsWith(`Usage: spendly ${command} `)
+		);
+		assert(
+			usage && (!argument || usage.includes(argument)),
+			`Installed binary did not expose ${command} usage`
+		);
+		for (const option of options) {
+			assert(
+				lines.some((line) => line.startsWith(`  ${option} `)),
+				`Installed binary did not expose ${option} in ${command} help`
+			);
+		}
+	}
+
 	const invalidCommand = spawnSync(binaryPath, ["--json", "unknown"], {
 		cwd: verificationDirectory,
 		encoding: "utf8",

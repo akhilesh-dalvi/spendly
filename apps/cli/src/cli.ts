@@ -5,6 +5,7 @@ import { registerCompletionCommand } from "./commands/completion.js";
 import { addCommandExamples } from "./commands/help.js";
 import { getPrompter } from "./commands/interactive-support.js";
 import { registerReadCommands } from "./commands/read.js";
+import { registerSettingsCommands } from "./commands/settings.js";
 import {
 	CLI_EXIT_CODE,
 	CliError,
@@ -173,7 +174,7 @@ const launcherActions: Readonly<
 		},
 		{ hint: "Browse expense tags", label: "List tags", value: "tags list" },
 		{
-			hint: "Browse read-only account types",
+			hint: "Browse active and archived account types",
 			label: "List account types",
 			value: "account-types list",
 		},
@@ -314,6 +315,7 @@ const createProgram = (
 
 	registerReadCommands(program, runtime);
 	registerAuthCommands(program, runtime);
+	registerSettingsCommands(program, runtime);
 	registerCompletionCommand(program, runtime);
 	addCommandExamples(program);
 	return program;

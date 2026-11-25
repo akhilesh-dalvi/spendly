@@ -39,8 +39,9 @@ or stays unassigned. Tags stay empty unless supplied. `--no-account` explicitly
 leaves an expense unassigned. The preview reports `categorySource` and
 `accountSource` so the resolved defaults are visible.
 
-To save the previewed expense, remove `--dry-run` and add
-`--idempotency-key "$KEY"`.
+To commit an approved preview, keep the original inputs and add
+`--idempotency-key "$KEY"` and `--if-preferred-currency` from the preview's
+`data.preferredCurrency`. Remove `--dry-run`.
 
 ## Edit an expense
 
@@ -58,11 +59,12 @@ Omitted fields stay unchanged. `--clear-category`, `--clear-account`,
 `--clear-spent-on`, and `--clear-tags` remove existing values. Clearing an
 account reverses its old balance effect. Moving an expense between accounts
 reverses the old account effect before applying the new one.
-Save by removing `--dry-run` and adding `--idempotency-key "$KEY"`.
+Keep the revision and preferred-currency guards when saving.
 
 ## Delete an expense
 
-Deletion is permanent. Its preview returns a confirmation token and revision:
+Deletion is permanent. Its preview returns a confirmation token, revision,
+and preferred currency:
 
 ```bash
 spendly --agent --json --non-interactive expenses delete "$EXPENSE_ID" --dry-run
@@ -74,6 +76,7 @@ Use those values to apply the deletion:
 spendly --agent --json --non-interactive expenses delete "$EXPENSE_ID" \
   --confirmation-token "$CONFIRMATION_TOKEN" \
   --if-revision "$REVISION" \
+  --if-preferred-currency "$PREFERRED_CURRENCY" \
   --idempotency-key "$KEY"
 ```
 
