@@ -1,6 +1,6 @@
 // biome-ignore-all lint/style/useFilenamingConvention: Convex module filenames use camelCase.
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { api } from "../../_generated/api";
 import { forEachSequential } from "../../lib/async";
 import schema from "../../schema";
@@ -217,7 +217,143 @@ const editFixture = async () => {
 	return { ...fixture, accountTypeId: type._id, type };
 };
 
+describe("guarded CLI account creation", () => {
+	it("rejects a changed balance nature without creating an account or opening entry", async () => {
+		const { accountTypeId, owner, test } = await editFixture();
+		const { accounts } = api.cli.v1;
+		const input = {
+			accountTypeId,
+			date: "2026-09-04",
+			name: "Holiday reserve",
+			startingBalance: 100,
+		};
+		const preview = await owner.mutation(accounts.previewCreate, input);
+		expect(preview.accountType.balanceNature).toBe("asset");
+		const typeEdit = { accountTypeId, balanceNature: "liability" } as const;
+		const { editSnapshot } = await owner.query(previewEdit, typeEdit);
+		await owner.mutation(edit, {
+			...typeEdit,
+			expectedEditSnapshot: editSnapshot,
+			idempotencyKey: "change-unused-type-nature",
+		});
+
+		const request = {
+			...input,
+			expectedBalanceNature: preview.accountType.balanceNature,
+			expectedCurrencyMode: preview.currencyMode,
+			expectedPreferredCurrency: preview.preferredCurrency,
+			idempotencyKey: "create-reviewed-reserve",
+		};
+		await expect(
+			owner.mutation(accounts.create, request)
+		).rejects.toMatchObject({
+			data: {
+				code: "ACCOUNT_TYPE_BALANCE_NATURE_CONFLICT",
+				details: {},
+				retryable: false,
+			},
+		});
+		expect(await owner.query(accounts.list, {})).toEqual([]);
+		expect(
+			await test.run(
+				async (ctx) => await ctx.db.query("account_transactions").collect()
+			)
+		).toEqual([]);
+
+		const fresh = await owner.mutation(accounts.previewCreate, input);
+		expect(fresh.accountType.balanceNature).toBe("liability");
+		const reviewed = {
+			...request,
+			expectedBalanceNature: fresh.accountType.balanceNature,
+		};
+		const saved = await owner.mutation(accounts.create, reviewed);
+		expect(saved.accountType.balanceNature).toBe("liability");
+		const legacy = {
+			...input,
+			idempotencyKey: "create-legacy-reserve",
+			name: "Legacy reserve",
+		};
+		const legacySaved = await owner.mutation(accounts.create, legacy);
+		expect(legacySaved.accountType.balanceNature).toBe("liability");
+
+		await owner.mutation(api.accountTypes.archive, {
+			accountTypeId,
+			isArchived: true,
+		});
+		expect(await owner.mutation(accounts.create, reviewed)).toEqual(saved);
+		expect(await owner.mutation(accounts.create, legacy)).toEqual(legacySaved);
+		await expect(
+			owner.mutation(accounts.create, request)
+		).rejects.toMatchObject({
+			data: { code: "IDEMPOTENCY_CONFLICT" },
+		});
+		await expect(
+			owner.mutation(accounts.create, {
+				...reviewed,
+				expectedBalanceNature: undefined,
+			})
+		).rejects.toMatchObject({
+			data: { code: "IDEMPOTENCY_CONFLICT" },
+		});
+		expect(await owner.query(accounts.list, {})).toHaveLength(2);
+		expect(
+			(await owner.query(accounts.listTransactions, { accountId: saved.id }))
+				.items
+		).toEqual([saved.openingTransaction]);
+	});
+});
+
 describe("guarded CLI account type edit", () => {
+	it("keeps an outstanding preview valid on a normalized no-op and replays its original result", async () => {
+		vi.useFakeTimers({ toFake: ["Date"] });
+		try {
+			vi.setSystemTime(new Date("2026-09-04T12:00:00Z"));
+			const { accountTypeId, owner, type } = await editFixture();
+			const realChange = { accountTypeId, name: "Travel wallet" };
+			const outstanding = await owner.query(previewEdit, realChange);
+			const input = {
+				accountTypeId,
+				balanceNature: "asset",
+				color: "  #1199aa  ",
+				icon: "  WALLET  ",
+				name: "  Travel cash  ",
+			} as const;
+			const noop = await owner.query(previewEdit, input);
+			expect(noop.after).toEqual(noop.before);
+			vi.setSystemTime(new Date("2026-09-04T12:01:00Z"));
+			const request = {
+				...input,
+				expectedEditSnapshot: noop.editSnapshot,
+				idempotencyKey: "type-normalized-noop",
+			};
+			await expect(
+				owner.mutation(edit, {
+					...request,
+					expectedEditSnapshot: outstanding.editSnapshot,
+				})
+			).rejects.toMatchObject({
+				data: { code: "ACCOUNT_TYPE_EDIT_CONFLICT" },
+			});
+			const saved = await owner.mutation(edit, request);
+			expect(saved.updatedAt).toBe("2026-09-04T12:00:00.000Z");
+			expect(
+				await owner.query(api.accountTypes.get, { accountTypeId })
+			).toEqual(type);
+			const changed = await owner.mutation(edit, {
+				...realChange,
+				expectedEditSnapshot: outstanding.editSnapshot,
+				idempotencyKey: "type-outstanding-preview",
+			});
+			expect(changed.name).toBe("Travel wallet");
+			expect(await owner.mutation(edit, request)).toEqual(saved);
+			expect(
+				await owner.query(api.cli.v1.accountTypes.list, {})
+			).toContainEqual(changed);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("previews and updates an unused archived type by ID while preserving omitted styling and state", async () => {
 		const { accountTypeId, owner, test } = await editFixture();
 		await owner.mutation(api.accountTypes.archive, {

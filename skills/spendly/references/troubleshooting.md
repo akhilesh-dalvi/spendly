@@ -5,7 +5,7 @@ Use the JSON `error.code` and details to find the relevant next step.
 | Situation                       | Next step                                                                                                                          |
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `spendly` is not found          | `command -v spendly` checks availability; installation is covered in Spendly's CLI docs.                                           |
-| Login required or expired       | Run `spendly --agent --json --non-interactive auth login` for browser sign-in on the same computer, then rerun status and context. |
+| Login required or expired       | Ask the user to run `spendly auth login` and finish in the browser on the same computer, then rerun status and context. |
 | `ACCOUNT_SETUP_REQUIRED`        | Open Spendly Web once while signed in, then rerun `spendly context`.                                                               |
 | `KEYCHAIN_UNAVAILABLE`          | Restore access to the OS credential store. The CLI also has an opt-in plaintext fallback described by `spendly --help`.            |
 | Multiple matching names         | List the candidates and use the intended record's ID; ask which one if unclear.                                                    |
@@ -19,14 +19,15 @@ Use the JSON `error.code` and details to find the relevant next step.
 ## Connection lost while saving
 
 A timeout may occur after a write has saved. For an expense add or edit, check
-`spendly --json --non-interactive expenses save-status SAVE_REFERENCE` using the
-original idempotency key. `saved` confirms the write; `not_recorded` does not prove
-it failed. If status is unavailable or inconclusive, read the affected record or
-account history. Do not retry a write automatically. If the user
-explicitly asks to recover the same intended write and the result is still
-uncertain, repeat the identical command with its original idempotency key; this
-lets the CLI replay an existing result without duplicating the write. If that
-retry also has no result, stop and report the outcome as unknown.
+installed `expenses save-status --help`. Use
+`spendly --agent --json --non-interactive expenses save-status "$SAVE_REFERENCE"`
+with the original save reference (the idempotency key). `saved` confirms the
+write, not the current expense revision; `not_recorded` does not prove failure.
+If status is unavailable or inconclusive, read the affected record or account
+history. Replay only when the user explicitly authorizes recovery and the
+original key is still within its retention window. Keep the exact original
+inputs, guards, key, and agent mode. Otherwise, or if the replay is inconclusive,
+report the outcome as unknown.
 
 Read commands have bounded retries; `--no-retry` disables them. Write commands
 have no automatic retries. `--debug` adds redacted diagnostics on stderr.

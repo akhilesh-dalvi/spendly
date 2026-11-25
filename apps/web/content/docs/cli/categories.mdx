@@ -115,19 +115,28 @@ spendly categories add --cycle-id CYCLE_ID --name "Food" --dry-run
 ```
 
 `--planned-amount 125.50` is an optional budget, not an expense. Omit it for no
-budget, or pass `0` for a zero budget. You can also pass a literal `--icon` and
-an existing `--category-type-id`. To find a type ID, inspect `data.types` in
-`spendly summary --cycle-id CYCLE_ID --json`, or [create a type](#create-a-category-type)
-and use the ID it returns.
+budget, or pass `0` for a zero budget. A numeric budget preview shows your
+preferred currency (`data.preferredCurrency` in JSON). You can also pass a
+literal `--icon` and an existing `--category-type-id`. To find a type ID,
+inspect `data.types` in `spendly summary --cycle-id CYCLE_ID --json`, or
+[create a type](#create-a-category-type) and use the ID it returns.
 
 After review, rerun without `--dry-run`. In a terminal, confirm the preview;
-without prompts, supply `--idempotency-key` for this intended save. The command
-returns the category ID. Verify it with `spendly categories list --cycle-id CYCLE_ID`.
-If the save outcome is unknown, check current state before any authorized replay:
-repeat the identical inputs with the original key and `--non-interactive` (keep
-`--agent` if used). Keys are retained for 30 days; don't replay an expired key
-or generate a new key for a replay. Category names can repeat, so use the
-returned ID to identify the saved category.
+the save checks that the reviewed budget currency still matches. Without
+prompts, supply `--idempotency-key` for this intended save. For a separately
+reviewed budget, pass the previewed currency with `--if-preferred-currency`.
+If the currency has changed, review a fresh preview before saving. No currency
+guard is needed when you omit the budget.
+
+The command returns the category ID. Verify it with
+`spendly categories list --cycle-id CYCLE_ID`. If the save outcome is unknown,
+check current state before any authorized replay. Use the identical inputs with
+the original key and `--non-interactive` (keep `--agent` if used). If the
+original save used a currency guard, including one from a terminal preview,
+pass that same currency with `--if-preferred-currency`, not the current
+preference. Keys are retained for
+30 days; don't replay an expired key or generate a new key for a replay.
+Category names can repeat, so use the returned ID to identify the saved category.
 
 </details>
 
@@ -167,8 +176,11 @@ spendly categories edit CATEGORY_ID --name "Bike repairs" --planned-amount 0 --d
 ```
 
 Omitted fields stay unchanged. Use `--clear-planned-amount` for no plan, not
-`0`. Use `--category-type-id TYPE_ID` to assign an existing type or
-`--clear-category-type` to remove it. To change the icon, use `--icon`.
+`0`. The preview shows your preferred currency for numeric budgets. When
+setting a budget, the edit snapshot includes that currency; changing it
+requires a fresh review. Clearing or leaving the budget unchanged does not
+depend on the currency. Use `--category-type-id TYPE_ID` to assign an existing
+type or `--clear-category-type` to remove it. To change the icon, use `--icon`.
 Existing expenses stay linked; plan and type changes affect cycle summaries,
 not recorded spending or account balances. If a saved plan is invalid, include an
 explicit clear or replacement in the edit. If the CLI list cannot display the

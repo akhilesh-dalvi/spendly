@@ -11,6 +11,7 @@ const proposal = {
 	icon: null,
 	name: "Bike repairs",
 	plannedAmount: 0,
+	preferredCurrency: "EUR",
 };
 
 const category = {
@@ -54,6 +55,14 @@ const createRuntime = (prompter?: InteractivePrompter) => {
 	};
 	return { mutation, query, runtime, stdout: () => stdout };
 };
+
+const approvedPrompter = () => ({
+	confirm: vi.fn<InteractivePrompter["confirm"]>().mockResolvedValue(true),
+	date: vi.fn(),
+	multiselect: vi.fn(),
+	select: vi.fn(),
+	text: vi.fn(),
+});
 
 const args = [
 	"categories",
@@ -147,22 +156,14 @@ it("reports a lost reply as unknown and tells the caller to reuse the original k
 		error: {
 			code: "NETWORK_ERROR",
 			details: { idempotencyKey: "category-key-001", outcome: "unknown" },
-			message: expect.stringContaining(
-				"repeat the same command with the same idempotency key"
-			),
+			message: expect.stringContaining("Check the cycle's category list first"),
 		},
 		schemaVersion: 1,
 	});
 });
 
 it("shows the generated key after an uncertain terminal save so the user can replay it", async () => {
-	const { runtime, query, mutation } = createRuntime({
-		confirm: vi.fn().mockResolvedValue(true),
-		date: vi.fn(),
-		multiselect: vi.fn(),
-		select: vi.fn(),
-		text: vi.fn(),
-	});
+	const { runtime, query, mutation } = createRuntime(approvedPrompter());
 	query.mockResolvedValueOnce({ ...proposal, plannedAmount: null });
 	mutation.mockRejectedValueOnce(new CliError("NETWORK_ERROR", "lost reply"));
 	expect(await runCli(args, runtime)).toBe(7);
@@ -174,6 +175,7 @@ it("shows the generated key after an uncertain terminal save so the user can rep
 	);
 
 	const [save] = mutation.mock.calls;
+	expect(save[1]).not.toHaveProperty("expectedPreferredCurrency");
 	mutation.mockResolvedValueOnce({ ...category, plannedAmount: null });
 	expect(
 		await runCli(
@@ -188,6 +190,108 @@ it("shows the generated key after an uncertain terminal save so the user can rep
 	).toBe(0);
 	expect(mutation.mock.calls).toEqual([save, save]);
 	expect(query).toHaveBeenCalledTimes(1);
+});
+
+it.each([undefined, "supplied-category-key"])(
+	"reviews a numeric budget in its currency and preserves the guard when replaying with key %s",
+	async (providedKey) => {
+		const { runtime, query, mutation } = createRuntime(approvedPrompter());
+		const planArgs = [...args, "--planned-amount", "0"];
+		const key = providedKey ?? "generated-category-key";
+		query.mockResolvedValueOnce(proposal);
+		mutation.mockRejectedValueOnce(new CliError("NETWORK_ERROR", "lost reply"));
+		expect(
+			await runCli(
+				[
+					...planArgs,
+					...(providedKey ? ["--idempotency-key", providedKey] : []),
+				],
+				runtime
+			)
+		).toBe(7);
+		expect(runtime.stderr.write).toHaveBeenCalledWith(
+			expect.stringContaining("Planned amount: 0 EUR")
+		);
+		expect(runtime.stderr.write).toHaveBeenCalledWith(
+			expect.stringContaining("--if-preferred-currency EUR")
+		);
+		mutation.mockResolvedValueOnce(category);
+		expect(
+			await runCli(
+				[
+					...planArgs,
+					"--non-interactive",
+					"--idempotency-key",
+					key,
+					"--if-preferred-currency",
+					"EUR",
+				],
+				runtime
+			)
+		).toBe(0);
+		const save = [
+			"cli/v1/resources:createCategory",
+			{
+				cycleId: proposal.cycleId,
+				expectedPreferredCurrency: "EUR",
+				idempotencyKey: key,
+				name: proposal.name,
+				plannedAmount: 0,
+			},
+		];
+		expect(mutation.mock.calls).toEqual([save, save]);
+		expect(query).toHaveBeenCalledTimes(1);
+	}
+);
+
+it("returns a failed currency guard from a separately reviewed save without retrying", async () => {
+	const { runtime, query, mutation, stdout } = createRuntime();
+	mutation.mockRejectedValueOnce(
+		new CliError("PREFERRED_CURRENCY_CONFLICT", "Review a fresh preview")
+	);
+	expect(
+		await runCli(
+			[
+				...args,
+				"--planned-amount",
+				"0",
+				"--if-preferred-currency",
+				" eur ",
+				"--idempotency-key",
+				"category-key-001",
+				"--json",
+			],
+			runtime
+		)
+	).toBe(5);
+	expect(query).not.toHaveBeenCalled();
+	expect(mutation).toHaveBeenCalledExactlyOnceWith(
+		"cli/v1/resources:createCategory",
+		{
+			cycleId: proposal.cycleId,
+			expectedPreferredCurrency: "EUR",
+			idempotencyKey: "category-key-001",
+			name: proposal.name,
+			plannedAmount: 0,
+		}
+	);
+	expect(JSON.parse(stdout())).toMatchObject({
+		error: { code: "PREFERRED_CURRENCY_CONFLICT", retryable: false },
+	});
+});
+
+it("does not ask to save if the guided preview differs from an explicit expected currency", async () => {
+	const prompter = approvedPrompter();
+	const { runtime, query, mutation } = createRuntime(prompter);
+	query.mockResolvedValueOnce(proposal);
+	expect(
+		await runCli(
+			[...args, "--planned-amount", "0", "--if-preferred-currency", "USD"],
+			runtime
+		)
+	).toBe(5);
+	expect(prompter.confirm).not.toHaveBeenCalled();
+	expect(mutation).not.toHaveBeenCalled();
 });
 
 it("does not save when the terminal user declines the preview", async () => {
@@ -339,6 +443,7 @@ describe("categories edit", () => {
 		},
 		cycleName: proposal.cycleName,
 		editSnapshot,
+		preferredCurrency: "EUR",
 	};
 	const editFlags = [
 		"--name",
@@ -360,14 +465,6 @@ describe("categories edit", () => {
 		"--idempotency-key",
 		"category-edit-001",
 	];
-	const approvedPrompter = () => ({
-		confirm: vi.fn<InteractivePrompter["confirm"]>().mockResolvedValue(true),
-		date: vi.fn(),
-		multiselect: vi.fn(),
-		select: vi.fn(),
-		text: vi.fn(),
-	});
-
 	it("previews from the stable ID and sends only the requested patch", async () => {
 		const { runtime, query, mutation, stdout } = createRuntime();
 		query.mockResolvedValueOnce(editPreview);
@@ -458,7 +555,10 @@ describe("categories edit", () => {
 				expect.stringContaining("Type: None")
 			);
 			expect(runtime.stderr.write).toHaveBeenCalledWith(
-				expect.stringContaining("Planned amount: 0")
+				expect.stringContaining("Planned amount: 0 EUR")
+			);
+			expect(runtime.stderr.write).toHaveBeenCalledWith(
+				expect.stringContaining("Planned amount: 75 EUR")
 			);
 			expect(prompter.confirm).toHaveBeenCalledWith({
 				initialValue: false,
@@ -583,6 +683,10 @@ it.each([
 	{ code: "NON_INTERACTIVE_INPUT_REQUIRED", extra: [] },
 	{ code: "INVALID_INPUT", extra: ["--planned-amount", "-1", "--dry-run"] },
 	{ code: "INVALID_INPUT", extra: ["--planned-amount", "1.001", "--dry-run"] },
+	{
+		code: "INVALID_INPUT",
+		extra: ["--if-preferred-currency", " ", "--dry-run"],
+	},
 	{
 		code: "INVALID_INPUT",
 		extra: ["--planned-amount", "90071992547409.91", "--dry-run"],

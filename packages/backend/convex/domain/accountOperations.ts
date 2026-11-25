@@ -46,7 +46,7 @@ const normalizeOptionalNote = (
 };
 
 export interface PreparedAccountCreate {
-	accountTypeId: Id<"account_types">;
+	accountType: Doc<"account_types">;
 	currency?: string;
 	date: string;
 	name: string;
@@ -67,9 +67,13 @@ export const prepareAccountCreate = async (
 	}
 ): Promise<PreparedAccountCreate> => {
 	assertFiniteAmount(options.startingBalance, "INVALID_STARTING_BALANCE");
-	await validateActiveAccountType(ctx, options.accountTypeId, options.user._id);
+	const accountType = await validateActiveAccountType(
+		ctx,
+		options.accountTypeId,
+		options.user._id
+	);
 	return {
-		accountTypeId: options.accountTypeId,
+		accountType,
 		currency:
 			options.persistCurrency === false
 				? undefined
@@ -94,7 +98,7 @@ export const commitAccountCreate = async (
 }> => {
 	const now = options.now ?? Date.now();
 	const accountId = await ctx.db.insert("accounts", {
-		accountTypeId: options.prepared.accountTypeId,
+		accountTypeId: options.prepared.accountType._id,
 		createdAt: now,
 		createdSource: options.source,
 		currency: options.prepared.currency,

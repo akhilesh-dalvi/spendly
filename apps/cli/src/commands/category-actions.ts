@@ -1,6 +1,10 @@
 import type { Command } from "commander";
 import type { OperationOutput } from "../core/operations.js";
-import { resolveIdempotencyKey } from "../domain/mutation-input.js";
+import {
+	parsePreferredCurrencyGuard,
+	preferredCurrencyCommitFields,
+	resolveIdempotencyKey,
+} from "../domain/mutation-input.js";
 import { CliError } from "../errors.js";
 import { resolveGlobalOptions } from "../options.js";
 import type { CliRuntime } from "../runtime.js";
@@ -13,6 +17,7 @@ interface CategoryAddOptions {
 	dryRun?: boolean;
 	icon?: string;
 	idempotencyKey?: string;
+	ifPreferredCurrency?: string;
 	name: string;
 	plannedAmount?: string;
 }
@@ -44,6 +49,7 @@ type RenderedCategory = Pick<
 	cycleName?: string;
 	id?: string;
 	plannedAmount: OperationOutput<"categories.previewEdit">["before"]["plannedAmount"];
+	preferredCurrency?: string;
 };
 
 const renderCategory = (
@@ -57,10 +63,14 @@ const renderCategory = (
 	const type = category.categoryType
 		? `${terminalText(category.categoryType.name)} (${category.categoryType.id})`
 		: "None";
-	const plan =
-		typeof category.plannedAmount === "string"
-			? `Invalid (${category.plannedAmount})`
-			: (category.plannedAmount ?? "None");
+	let plan = "None";
+	if (typeof category.plannedAmount === "string") {
+		plan = `Invalid (${category.plannedAmount})`;
+	} else if (typeof category.plannedAmount === "number") {
+		plan = category.preferredCurrency
+			? `${category.plannedAmount} ${terminalText(category.preferredCurrency)}`
+			: String(category.plannedAmount);
+	}
 	return [
 		`Name: ${terminalText(category.name)}`,
 		`Cycle: ${cycle}`,
@@ -71,6 +81,38 @@ const renderCategory = (
 		...(category.categoryType || showUnset ? [`Type: ${type}`] : []),
 		...(category.id === undefined ? [] : [`ID: ${category.id}`]),
 	].join("\n");
+};
+
+const throwCategoryCreateError = (
+	error: unknown,
+	input: {
+		addCurrencyFlag: boolean;
+		generatedKey?: string;
+	}
+): never => {
+	if (
+		!(error instanceof CliError) ||
+		error.code !== "NETWORK_ERROR" ||
+		error.details.outcome !== "unknown"
+	) {
+		throw error;
+	}
+	const keyFlag = input.generatedKey
+		? ` --idempotency-key ${input.generatedKey}`
+		: " and the original --idempotency-key";
+	let currencyFlag = "";
+	if (input.addCurrencyFlag) {
+		const { expectedPreferredCurrency } = error.details;
+		currencyFlag =
+			typeof expectedPreferredCurrency === "string"
+				? ` --if-preferred-currency ${expectedPreferredCurrency}`
+				: " and --if-preferred-currency from the original preview";
+	}
+	throw new CliError(
+		error.code,
+		`The category save outcome is uncertain. Check the cycle's category list first. If replaying, keep the original inputs and use --non-interactive${keyFlag}${currencyFlag}.`,
+		{ cause: error, details: error.details, retryable: error.retryable }
+	);
 };
 
 export const runCategoryAdd = async (
@@ -89,6 +131,10 @@ export const runCategoryAdd = async (
 			? {}
 			: { plannedAmount: parsePlannedAmount(options.plannedAmount) }),
 	};
+	const expectedCurrency =
+		options.ifPreferredCurrency === undefined
+			? undefined
+			: parsePreferredCurrencyGuard(options.ifPreferredCurrency);
 	const globalOptions = resolveGlobalOptions(command, runtime.environment);
 	const prompter = await getPrompter(globalOptions, runtime);
 	const dryRun = options.dryRun === true;
@@ -100,10 +146,17 @@ export const runCategoryAdd = async (
 	});
 
 	await withBackend(command, runtime, async (context) => {
+		let currencyGuard = preferredCurrencyCommitFields(expectedCurrency);
 		if (dryRun || prompter) {
 			const proposal = await context.operations.invoke(
 				"categories.previewCreate",
 				input
+			);
+			currencyGuard = preferredCurrencyCommitFields(
+				expectedCurrency,
+				input.plannedAmount === undefined
+					? undefined
+					: proposal.preferredCurrency
 			);
 			const human = renderCategory(proposal);
 			if (dryRun) {
@@ -127,22 +180,20 @@ export const runCategoryAdd = async (
 			throw new CliError("INTERNAL_ERROR", "Missing key for category creation");
 		}
 		const category = await context.operations
-			.invoke("categories.create", { ...input, idempotencyKey })
-			.catch((error: unknown) => {
-				if (
-					options.idempotencyKey === undefined &&
-					error instanceof CliError &&
-					error.code === "NETWORK_ERROR" &&
-					error.details.outcome === "unknown"
-				) {
-					throw new CliError(
-						error.code,
-						`The category save outcome is uncertain. If retrying, use the same inputs with --non-interactive --idempotency-key ${idempotencyKey}`,
-						{ cause: error, details: error.details, retryable: error.retryable }
-					);
-				}
-				throw error;
-			});
+			.invoke("categories.create", {
+				...input,
+				...currencyGuard,
+				idempotencyKey,
+			})
+			.catch((error: unknown) =>
+				throwCategoryCreateError(error, {
+					addCurrencyFlag:
+						expectedCurrency === undefined &&
+						currencyGuard.expectedPreferredCurrency !== undefined,
+					generatedKey:
+						options.idempotencyKey === undefined ? idempotencyKey : undefined,
+				})
+			);
 		writeMutationSuccess({
 			context,
 			data: category,
@@ -154,7 +205,7 @@ export const runCategoryAdd = async (
 };
 
 interface CategoryEditOptions
-	extends Partial<Omit<CategoryAddOptions, "cycleId">> {
+	extends Partial<Omit<CategoryAddOptions, "cycleId" | "ifPreferredCurrency">> {
 	clearCategoryType?: boolean;
 	clearPlannedAmount?: boolean;
 	ifEditSnapshot?: string;
@@ -196,9 +247,23 @@ const renderCategoryEdit = (
 ): string =>
 	[
 		"Before",
-		renderCategory({ ...preview.before, cycleName: preview.cycleName }, true),
+		renderCategory(
+			{
+				...preview.before,
+				cycleName: preview.cycleName,
+				preferredCurrency: preview.preferredCurrency,
+			},
+			true
+		),
 		"After",
-		renderCategory({ ...preview.after, cycleName: preview.cycleName }, true),
+		renderCategory(
+			{
+				...preview.after,
+				cycleName: preview.cycleName,
+				preferredCurrency: preview.preferredCurrency,
+			},
+			true
+		),
 		"Existing expenses will remain linked to this category.",
 		`Edit snapshot: ${preview.editSnapshot}`,
 	].join("\n");

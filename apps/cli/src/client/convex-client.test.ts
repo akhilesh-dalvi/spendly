@@ -134,6 +134,21 @@ describe("Convex read client", () => {
 		}
 	);
 
+	it("preserves the backend account balance nature conflict", () => {
+		const error = new ConvexError({
+			code: "ACCOUNT_TYPE_BALANCE_NATURE_CONFLICT",
+			details: {},
+			message: "Review a fresh account preview",
+			retryable: false,
+		});
+
+		expect(toBackendCliError(error)).toMatchObject({
+			code: "ACCOUNT_TYPE_BALANCE_NATURE_CONFLICT",
+			exitCode: 5,
+			retryable: false,
+		});
+	});
+
 	it("preserves stable backend error codes and details", () => {
 		const error = new ConvexError({
 			code: "RESOURCE_NOT_FOUND",

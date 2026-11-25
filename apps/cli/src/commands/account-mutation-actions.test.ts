@@ -169,6 +169,80 @@ describe("Phase 6 account mutation commands", () => {
 		});
 	});
 
+	it("saves a reviewed non-interactive account with an explicit balance nature and no fresh preview", async () => {
+		const testRuntime = createTestRuntime();
+		const exitCode = await runCli(
+			[
+				"accounts",
+				"add",
+				"--name",
+				"Travel Cash",
+				"--account-type-id",
+				"account-type-wallet",
+				"--starting-balance",
+				"-100",
+				"--date",
+				"2026-09-04",
+				"--if-balance-nature",
+				"asset",
+				"--idempotency-key",
+				"create-travel-cash",
+				"--json",
+				"--non-interactive",
+			],
+			testRuntime.runtime
+		);
+
+		expect(exitCode).toBe(CLI_EXIT_CODE.success);
+		expect(testRuntime.calls).toEqual([
+			{
+				args: {
+					accountTypeId: "account-type-wallet",
+					date: "2026-09-04",
+					expectedBalanceNature: "asset",
+					idempotencyKey: "create-travel-cash",
+					name: "Travel Cash",
+					startingBalance: -100,
+				},
+				kind: "mutation",
+				name: "cli/v1/accounts:create",
+			},
+		]);
+	});
+
+	it("rejects a dry-run balance nature guard that disagrees with the current preview", async () => {
+		const testRuntime = createTestRuntime();
+		const exitCode = await runCli(
+			[
+				"accounts",
+				"add",
+				"--name",
+				"Travel Cash",
+				"--account-type-id",
+				"account-type-wallet",
+				"--starting-balance",
+				"-100",
+				"--if-balance-nature",
+				"liability",
+				"--dry-run",
+				"--json",
+				"--non-interactive",
+			],
+			testRuntime.runtime
+		);
+
+		expect(exitCode).toBe(CLI_EXIT_CODE.conflict);
+		expect(testRuntime.calls.map((call) => call.name)).toEqual([
+			"cli/v1/accounts:previewCreate",
+		]);
+		expect(JSON.parse(testRuntime.getStdout())).toMatchObject({
+			error: {
+				code: "ACCOUNT_TYPE_BALANCE_NATURE_CONFLICT",
+				retryable: false,
+			},
+		});
+	});
+
 	it("resolves an exact account type without exposing the opening ledger ID", async () => {
 		const testRuntime = createTestRuntime();
 		const exitCode = await runCli(

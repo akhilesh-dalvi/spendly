@@ -176,9 +176,10 @@ machine-mode options first so the execution mode is obvious.
 Bare `spendly` opens the guided menu only when both stdin and prompt output
 (stderr) are TTYs; otherwise it prints help and exits. Agents and scripts should
 always use explicit commands with
-`--non-interactive`. `--agent` and `--json`
-never prompt, including in a terminal: missing required inputs report an error
-instead of waiting for input. Human guided mode is available explicitly with
+`--non-interactive` for data commands. If sign-in is required, have the user run
+`spendly auth login` on the same computer and finish in the browser.
+`--agent` and `--json` never prompt for data input, including in a terminal:
+missing required inputs report an error. Human guided mode is available with
 `spendly --interactive`, which requires a terminal and cannot be combined with
 `--agent`, `--json`, or `--non-interactive`.
 
@@ -265,10 +266,17 @@ recognized rather than applied twice.
 - A `--dry-run` resolves inputs and reports the proposed change and any balance
   effects without applying it. Deletion previews create backend confirmation
   records; they do not delete the target.
-- Commit the same normalized inputs with a fresh, opaque `--idempotency-key` and
-  the current revision or revisions required by the command. Non-interactive
-  commits require an explicit key. Supply revisions using the flags shown in
-  that command's help, such as `--if-revision` for an expense edit.
+- Commit the same normalized inputs with a fresh, opaque `--idempotency-key`
+  and the guards shown in the installed command's help. Use current revisions
+  where required, such as `--if-revision` for an expense edit.
+- Account-type and category edits, tag renames, and preferred-currency changes
+  use the approved preview's `data.editSnapshot` with `--if-edit-snapshot`.
+  See [Accounts](/docs/cli/accounts), [Categories](/docs/cli/categories),
+  [Tags](/docs/cli/tags), and [Preferred currency](/docs/cli/settings) for
+  the respective preview, save, and recovery steps.
+- Keep the [preferred-currency guard](/docs/cli/settings) and any other
+  financial guards from the approved preview. If a needed flag is missing,
+  update the CLI instead of saving without that guard.
 - Expense deletion requires a single-use token bound to that expense and
   revision, valid for five minutes. Supply the preview's token with
   `--confirmation-token` and its revision with `--if-revision`. Deletion is
@@ -277,13 +285,14 @@ recognized rather than applied twice.
   preview and pass it with `--if-copy-snapshot` using identical source, selection,
   and plan inputs. On `CYCLE_COPY_CONFLICT`, stop and obtain approval for a fresh
   preview before a new commit. See [Cycles](/docs/cli/cycles).
-- For standalone tag renames, use the tag ID and the `data.editSnapshot` from
-  the approved preview. See [Tags](/docs/cli/tags) for commit and recovery steps.
-- A stale revision, unknown selector, or ambiguous selector performs no write.
-- Write commands are never retried automatically. After an uncertain result,
-  inspect current state first. Only an explicitly requested recovery may repeat
-  the identical command with its original idempotency key; stop if the result
-  is still unknown.
+- A stale revision, conflicting snapshot, or unresolved selector performs no
+  write. Review a fresh preview before a new commit.
+- Write commands are never retried automatically. For an uncertain expense add
+  or edit, use `expenses save-status` with the original save reference or
+  idempotency key if the installed CLI supports it. An unrecorded result is not
+  proof of failure. Inspect current state before any recovery. Only an
+  explicitly authorized recovery may replay the identical command with its
+  original idempotency key; stop if the result is still unknown.
 
 ### Trusted-computer and privacy boundary
 

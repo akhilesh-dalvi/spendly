@@ -242,15 +242,6 @@ try {
 		"Production help exposed development-only commands"
 	);
 
-	const categoryAddHelp = run(binaryPath, ["categories", "add", "--help"], {
-		cwd: verificationDirectory,
-	});
-	assert(
-		categoryAddHelp.includes("--cycle-id") &&
-			categoryAddHelp.includes("--dry-run"),
-		"Installed binary did not expose categories add help"
-	);
-
 	const categoryEditHelp = run(binaryPath, ["categories", "edit", "--help"], {
 		cwd: verificationDirectory,
 	});
@@ -321,6 +312,72 @@ try {
 			tagRenameHelp.includes("--dry-run"),
 		"Installed binary did not expose tags rename help"
 	);
+
+	const helpChecks = [
+		{
+			argument: "<code>",
+			options: ["--dry-run", "--if-edit-snapshot", "--idempotency-key"],
+			path: ["settings", "set-currency"],
+		},
+		{ argument: "<key>", options: [], path: ["expenses", "save-status"] },
+		{
+			options: [
+				"--if-preferred-currency",
+				"--if-account-currency-mode",
+				"--if-balance-nature",
+			],
+			path: ["accounts", "add"],
+		},
+		{
+			options: ["--if-preferred-currency", "--if-revision"],
+			path: ["accounts", "adjust-balance"],
+		},
+		{
+			options: [
+				"--if-preferred-currency",
+				"--if-from-revision",
+				"--if-to-revision",
+			],
+			path: ["accounts", "transfer"],
+		},
+		{
+			options: ["--cycle-id", "--if-preferred-currency", "--dry-run"],
+			path: ["categories", "add"],
+		},
+		{ options: ["--if-preferred-currency"], path: ["expenses", "add"] },
+		{
+			options: ["--if-preferred-currency", "--if-revision"],
+			path: ["expenses", "edit"],
+		},
+		{
+			options: [
+				"--if-preferred-currency",
+				"--if-revision",
+				"--confirmation-token",
+			],
+			path: ["expenses", "delete"],
+		},
+	];
+	for (const { path, argument, options } of helpChecks) {
+		const command = path.join(" ");
+		const commandHelp = run(binaryPath, [...path, "--help"], {
+			cwd: verificationDirectory,
+		});
+		const lines = commandHelp.split(/\r?\n/u);
+		const usage = lines.find((line) =>
+			line.startsWith(`Usage: spendly ${command} `)
+		);
+		assert(
+			usage && (!argument || usage.includes(argument)),
+			`Installed binary did not expose ${command} usage`
+		);
+		for (const option of options) {
+			assert(
+				lines.some((line) => line.startsWith(`  ${option} `)),
+				`Installed binary did not expose ${option} in ${command} help`
+			);
+		}
+	}
 
 	const invalidCommand = spawnSync(binaryPath, ["--json", "unknown"], {
 		cwd: verificationDirectory,

@@ -108,7 +108,10 @@ const categoryCreatePreviewSchema = categorySchema
 		name: true,
 		plannedAmount: true,
 	})
-	.extend({ cycleName: z.string() });
+	.extend({
+		cycleName: z.string(),
+		preferredCurrency: z.string().min(1).optional(),
+	});
 
 const categoryEditFields = {
 	categoryId: idSchema,
@@ -326,6 +329,7 @@ export const operationDefinitions = {
 			.object({
 				...accountCreateInputSchema.shape,
 				...financialCommitFields,
+				expectedBalanceNature: accountTypeSchema.shape.balanceNature.optional(),
 				expectedCurrencyMode: accountCurrencyModeSchema.optional(),
 			})
 			.strict(),
@@ -519,7 +523,11 @@ export const operationDefinitions = {
 		commit: true,
 		functionName: "cli/v1/resources:createCategory",
 		inputSchema: z
-			.object({ ...categoryCreateFields, ...commitFields })
+			.object({
+				...categoryCreateFields,
+				...commitFields,
+				expectedPreferredCurrency: preferredCurrencyGuardSchema.optional(),
+			})
 			.strict(),
 		mode: "mutation",
 		outputSchema: categorySchema,
@@ -557,6 +565,7 @@ export const operationDefinitions = {
 			}),
 			cycleName: z.string(),
 			editSnapshot: editSnapshotSchema,
+			preferredCurrency: z.string().min(1).optional(),
 		}),
 	},
 	"categoryTypes.create": {
@@ -876,6 +885,9 @@ const uncertainMutationAdvice = (name: OperationName, key?: string): string => {
 	if (name === "expenses.create" || name === "expenses.update") {
 		return "check with spendly expenses save-status <key> before starting a new save";
 	}
+	if (name === "accounts.create") {
+		return "check with spendly accounts list before retrying";
+	}
 	if (name === "accountTypes.edit") {
 		return "check the account type before replaying the exact edit with the original snapshot and idempotency key";
 	}
@@ -909,18 +921,25 @@ const toUncertainMutationError = (
 	const mode = accountCurrencyModeSchema.safeParse(
 		input.expectedCurrencyMode
 	).data;
+	const balanceNature = accountTypeSchema.shape.balanceNature.safeParse(
+		input.expectedBalanceNature
+	).data;
 	const replayFlags = [
 		...(safeCurrency ? [`--if-preferred-currency ${safeCurrency}`] : []),
 		...(mode ? [`--if-account-currency-mode ${mode}`] : []),
+		...(balanceNature ? [`--if-balance-nature ${balanceNature}`] : []),
 	];
 	const guarded = expectedPreferredCurrency !== undefined || mode !== undefined;
 	const advice =
-		guarded && name !== "expenses.create" && name !== "expenses.update"
+		guarded &&
+		name !== "accounts.create" &&
+		name !== "expenses.create" &&
+		name !== "expenses.update"
 			? "check current Spendly state before any retry"
 			: uncertainMutationAdvice(name, idempotencyKey);
 	const replayAdvice =
-		replayFlags.length > 0
-			? `. Replay only with the original inputs and key, including ${replayFlags.join(" ")}`
+		replayFlags.length > 0 || name === "accounts.create"
+			? `. Replay only with the original inputs and key${replayFlags.length > 0 ? `, including ${replayFlags.join(" ")}` : ""}`
 			: "";
 	return new CliError(
 		"NETWORK_ERROR",
@@ -929,6 +948,7 @@ const toUncertainMutationError = (
 			cause: error,
 			details: {
 				...(idempotencyKey ? { idempotencyKey } : {}),
+				...(balanceNature ? { expectedBalanceNature: balanceNature } : {}),
 				...(safeCurrency ? { expectedPreferredCurrency: safeCurrency } : {}),
 				...(mode ? { expectedCurrencyMode: mode } : {}),
 				outcome: "unknown",

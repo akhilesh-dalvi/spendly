@@ -237,7 +237,7 @@ describe("Spendly operations", () => {
 		});
 	});
 
-	it("preserves both account creation currency guards for uncertain-save recovery", async () => {
+	it("preserves all account creation guards for uncertain-save recovery", async () => {
 		const operations = createSpendlyOperations({
 			mutation: () => Promise.reject(new CliError("NETWORK_ERROR", "offline")),
 			query: vi.fn(),
@@ -246,6 +246,7 @@ describe("Spendly operations", () => {
 			operations.invoke("accounts.create", {
 				accountTypeId: "account_type_1",
 				date: "2026-09-16",
+				expectedBalanceNature: "liability",
 				expectedCurrencyMode: "inherited",
 				expectedPreferredCurrency: "USD",
 				idempotencyKey: "create-wallet-key",
@@ -255,13 +256,14 @@ describe("Spendly operations", () => {
 		).rejects.toMatchObject({
 			code: "NETWORK_ERROR",
 			details: {
+				expectedBalanceNature: "liability",
 				expectedCurrencyMode: "inherited",
 				expectedPreferredCurrency: "USD",
 				idempotencyKey: "create-wallet-key",
 				outcome: "unknown",
 			},
 			message: expect.stringContaining(
-				"--if-preferred-currency USD --if-account-currency-mode inherited"
+				"check with spendly accounts list before retrying. Replay only with the original inputs and key, including --if-preferred-currency USD --if-account-currency-mode inherited --if-balance-nature liability"
 			),
 		});
 	});

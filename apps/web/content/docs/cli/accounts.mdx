@@ -86,7 +86,8 @@ ignoring whitespace at the ends and capitalization, even among archived types.
 
 `--balance-nature asset|liability` can change the classification only if no
 account, including an archived account, uses the type. Editing a type does not
-change account assignments, balances, or ledger history.
+change account assignments, balances, or ledger history. Saving the same values
+after normalization leaves the type and its edit previews unchanged.
 
 To save in a terminal, rerun without `--dry-run`, review the before/after, and
 confirm. In scripts, capture `data.editSnapshot` from a JSON dry run, then
@@ -120,7 +121,8 @@ spendly accounts add --name "Daily checking" \
 
 ## Check and save
 
-1. Check the preview's name, account type, currency, opening balance, and date.
+1. Check the preview's name, account type and its `asset` or `liability`
+   classification, currency, opening balance, and date.
 2. To save, run the guided command again without `--dry-run`:
 
    ```bash
@@ -135,6 +137,22 @@ spendly accounts add --name "Daily checking" \
    ```bash
    spendly accounts get "Daily checking"
    ```
+
+A guided save checks that the account type's classification still matches the
+preview. For a reviewed non-interactive save, preview with
+`--dry-run --json --non-interactive`, an explicit `--date`, and a stable
+`--account-type-id`. After reviewing, rerun with the same inputs but without
+`--dry-run`. Pass the reviewed `data.accountType.balanceNature` (`asset` or
+`liability`) as `--if-balance-nature`,
+`data.currencyMode` as `--if-account-currency-mode`, and `data.preferredCurrency`
+as `--if-preferred-currency`, plus a stable `--idempotency-key`. If a guard
+conflicts, review a fresh preview before saving. Without the balance nature
+guard, a direct save uses the type's current classification.
+
+If the save outcome is unknown, check `spendly accounts list` first. Replay
+within 30 days only with `--non-interactive`, the exact original inputs
+(including the opening date and any guards), the original key, and `--agent`
+if used. Do not use a new key or run a new guided save to retry.
 
 The tasks below are alternatives, not steps to run in order. If you rename an
 account, use its new name in later commands.

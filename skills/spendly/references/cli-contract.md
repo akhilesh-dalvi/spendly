@@ -43,8 +43,9 @@ without adding up expense pages.
 ## Preview and save
 
 `--dry-run` returns the resolved values and balance effects without saving.
-To save, remove `--dry-run` and supply `--idempotency-key "$KEY"`.
-Generate a key for each new write, for example:
+To commit the approved preview, remove `--dry-run`, supply
+`--idempotency-key "$KEY"`, and carry over the guards required by installed
+help and the applicable workflow. Generate a key for each new write:
 
 ```bash
 KEY=$(uuidgen)
@@ -52,9 +53,10 @@ KEY=$(uuidgen)
 
 The key identifies that write so repeating identical input with the same key
 can return its result without applying it twice. A different write uses a new
-key. Edit, lifecycle, and balance commands also take `--if-revision` from the
-current record; transfers take both account revisions. These values let the CLI
-detect changes made since the record was read.
+key. Revisions guard the record version read before the preview; transfers take
+both account revisions. An edit snapshot instead guards the reviewed fields.
+Use the command's help to distinguish them and preserve any separately reviewed
+financial guards as well.
 
 ### Cycle-copy guard
 

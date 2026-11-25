@@ -178,6 +178,13 @@ const prepareEdit = async (
 		name: name === undefined ? undefined : validateAccountTypeNameText(name),
 	});
 	const before = presentEditView(current);
+	const next = { ...current, ...patch };
+	const changed =
+		current.balanceNature !== next.balanceNature ||
+		current.color !== next.color ||
+		current.icon !== next.icon ||
+		current.name !== next.name ||
+		current.normalizedName !== next.normalizedName;
 	const editSnapshot = await fingerprintRequest({
 		before,
 		input,
@@ -185,8 +192,10 @@ const prepareEdit = async (
 	});
 	return {
 		accountTypeId,
-		after: presentEditView({ ...current, ...patch }),
+		after: presentEditView(next),
 		before,
+		changed,
+		current,
 		editSnapshot,
 		patch,
 	};
@@ -227,13 +236,13 @@ export const edit = mutation({
 			}
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
-					const { accountTypeId, editSnapshot, patch } = await prepareEdit(
-						ctx,
-						user._id,
-						input
-					);
+					const { accountTypeId, changed, current, editSnapshot, patch } =
+						await prepareEdit(ctx, user._id, input);
 					if (editSnapshot !== expectedEditSnapshot) {
 						throw new ConvexError("ACCOUNT_TYPE_EDIT_CONFLICT");
+					}
+					if (!changed) {
+						return presentAccountType(current);
 					}
 					await ctx.db.patch(accountTypeId, {
 						...patch,

@@ -1106,7 +1106,7 @@ describe("Phase 8.8 guided interactive inputs", () => {
 		]);
 	});
 
-	it("shows account currency before guided monetary input and binds the preview", async () => {
+	it("shows account currency before guided monetary input and binds the preview's currency and balance nature", async () => {
 		const testRuntime = createTestRuntime({
 			confirms: { "Add this account?": true },
 			dates: { "Opening balance date": "2026-09-04" },
@@ -1134,7 +1134,11 @@ describe("Phase 8.8 guided interactive inputs", () => {
 			"cli/v1/accounts:previewCreate"
 		);
 		expect(testRuntime.calls.at(-1)).toMatchObject({
-			args: { expectedCurrencyMode: "fixed", expectedPreferredCurrency: "INR" },
+			args: {
+				expectedBalanceNature: "asset",
+				expectedCurrencyMode: "fixed",
+				expectedPreferredCurrency: "INR",
+			},
 			name: "cli/v1/accounts:create",
 		});
 	});

@@ -119,6 +119,10 @@ export const registerReadCommands = (
 			"--planned-amount <amount>",
 			"optional nonnegative budget, up to two decimal places"
 		)
+		.option(
+			"--if-preferred-currency <currency>",
+			"require the preferred currency from a reviewed budget preview"
+		)
 		.option("--idempotency-key <key>", "stable key for this intended commit")
 		.option("--dry-run", "validate and preview without saving")
 		.action(async (options, command: Command) => {

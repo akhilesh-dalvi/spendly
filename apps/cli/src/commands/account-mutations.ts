@@ -34,6 +34,12 @@ export const registerAccountMutationCommands = (
 				"expected account currency mode"
 			).choices(["fixed", "inherited"])
 		)
+		.addOption(
+			new Option(
+				"--if-balance-nature <nature>",
+				"expected account type balance nature from a reviewed preview"
+			).choices(["asset", "liability"])
+		)
 		.option("--dry-run", "validate and preview without adding the account")
 		.action(async (options, command: Command) => {
 			const { runAccountAdd } = await import("./account-mutation-actions.js");

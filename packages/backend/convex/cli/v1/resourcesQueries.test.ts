@@ -394,6 +394,7 @@ describe("standalone CLI category creation", () => {
 			icon: "🔧",
 			name: "Bike repairs",
 			plannedAmount: 0,
+			preferredCurrency: "USD",
 		});
 		expect(
 			await owner.query(api.categories.list, { cycleId: cycle._id })
@@ -519,6 +520,61 @@ describe("standalone CLI category creation", () => {
 		expect(
 			await owner.query(api.categories.list, { cycleId: cycle._id })
 		).toEqual([]);
+	});
+
+	it("guards reviewed numeric creates and replays a saved request after a currency change", async () => {
+		const { cycle, owner, test, userId } = await setup();
+		const { createCategory, listCategories, previewCategoryCreate } =
+			api.cli.v1.resources;
+		const fields = { cycleId: cycle._id, name: "Bike repairs" };
+		const input = { ...fields, plannedAmount: 0 };
+		await test.run(async ({ db }) => db.patch(userId, { currency: undefined }));
+		const preview = await owner.query(previewCategoryCreate, input);
+		expect(preview.preferredCurrency).toBe("USD");
+		expect(await owner.query(previewCategoryCreate, fields)).not.toHaveProperty(
+			"preferredCurrency"
+		);
+		const request = {
+			...input,
+			expectedPreferredCurrency: preview.preferredCurrency,
+			idempotencyKey: "reviewed-category-create",
+		};
+		const readCategories = () =>
+			owner.query(listCategories, { cycleId: cycle._id });
+		await owner.mutation(api.users.updateCurrency, { currency: "EUR" });
+		await expect(owner.mutation(createCategory, request)).rejects.toMatchObject(
+			{
+				data: { code: "PREFERRED_CURRENCY_CONFLICT", retryable: false },
+			}
+		);
+		expect(await readCategories()).toEqual([]);
+
+		const freshPreview = await owner.query(previewCategoryCreate, input);
+		expect(freshPreview.preferredCurrency).toBe("EUR");
+		const reviewed = {
+			...request,
+			expectedPreferredCurrency: freshPreview.preferredCurrency,
+		};
+		await test.run(async ({ db }) => db.patch(userId, { currency: " eur " }));
+		const saved = await owner.mutation(createCategory, reviewed);
+		expect(saved).not.toHaveProperty("preferredCurrency");
+		const unguardedRequest = {
+			...input,
+			idempotencyKey: "legacy-category-create",
+		};
+		const legacy = await owner.mutation(createCategory, unguardedRequest);
+
+		await owner.mutation(api.users.updateCurrency, { currency: "JPY" });
+		expect(await owner.mutation(createCategory, reviewed)).toEqual(saved);
+		expect(await owner.mutation(createCategory, unguardedRequest)).toEqual(
+			legacy
+		);
+		await expect(owner.mutation(createCategory, request)).rejects.toMatchObject(
+			{
+				data: { code: "IDEMPOTENCY_CONFLICT" },
+			}
+		);
+		expect(await readCategories()).toEqual([saved, legacy]);
 	});
 
 	it("allows a separate create with the same name and keeps omitted plans unset", async () => {
@@ -822,6 +878,74 @@ describe("standalone CLI category editing", () => {
 			other
 		);
 	});
+
+	it("binds a numeric plan edit to the effective currency and replays the original save", async () => {
+		const { category, categoryId, owner, test, userId } = await editFixture();
+		const { editCategory, previewCategoryEdit } = api.cli.v1.resources;
+		const input = { categoryId, plannedAmount: 0 };
+		const preview = await owner.query(previewCategoryEdit, input);
+		expect(preview).toMatchObject({
+			after: { plannedAmount: 0 },
+			before: { plannedAmount: 100 },
+			preferredCurrency: "USD",
+		});
+		await test.run(async ({ db }) => db.patch(userId, { currency: " usd " }));
+		expect(await owner.query(previewCategoryEdit, input)).toEqual(preview);
+
+		const request = {
+			...input,
+			expectedEditSnapshot: preview.editSnapshot,
+			idempotencyKey: "reviewed-category-budget",
+		};
+		await owner.mutation(api.users.updateCurrency, { currency: "EUR" });
+		await expect(owner.mutation(editCategory, request)).rejects.toMatchObject({
+			data: { code: "CATEGORY_EDIT_CONFLICT", retryable: false },
+		});
+		expect(await owner.query(api.categories.get, { id: categoryId })).toEqual(
+			category
+		);
+
+		const fresh = await owner.query(previewCategoryEdit, input);
+		expect(fresh.preferredCurrency).toBe("EUR");
+		const reviewed = { ...request, expectedEditSnapshot: fresh.editSnapshot };
+		expect(await owner.mutation(editCategory, reviewed)).toEqual(fresh.after);
+
+		await owner.mutation(api.users.updateCurrency, { currency: "JPY" });
+		const changed = await owner.mutation(api.categories.update, {
+			id: categoryId,
+			plannedAmount: 200,
+		});
+		expect(await owner.mutation(editCategory, reviewed)).toEqual(fresh.after);
+		expect(await owner.query(api.categories.get, { id: categoryId })).toEqual(
+			changed
+		);
+	});
+
+	it.each([
+		{ expectedPlan: null, patch: { plannedAmount: null } },
+		{ expectedPlan: 100, patch: { name: "Renamed" } },
+	])(
+		"allows an edit leaving plan $expectedPlan after a currency change",
+		async ({ expectedPlan, patch }) => {
+			const { categoryId, owner } = await editFixture();
+			const { editCategory, previewCategoryEdit } = api.cli.v1.resources;
+			const input = { categoryId, ...patch };
+			const preview = await owner.query(previewCategoryEdit, input);
+			expect(preview.preferredCurrency).toBe("USD");
+			await owner.mutation(api.users.updateCurrency, { currency: "EUR" });
+			expect(await owner.query(previewCategoryEdit, input)).toMatchObject({
+				editSnapshot: preview.editSnapshot,
+				preferredCurrency: "EUR",
+			});
+			expect(
+				await owner.mutation(editCategory, {
+					...input,
+					expectedEditSnapshot: preview.editSnapshot,
+					idempotencyKey: "edit-without-budget",
+				})
+			).toMatchObject({ plannedAmount: expectedPlan });
+		}
+	);
 
 	it("replays the original result after intervening edits without writing again", async () => {
 		const { categoryId, owner } = await editFixture();

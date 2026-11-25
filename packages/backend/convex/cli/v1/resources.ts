@@ -20,6 +20,10 @@ import {
 } from "../../helpers";
 import { withCliErrors } from "./errors";
 import {
+	assertExpectedPreferredCurrency,
+	getEffectivePreferredCurrency,
+} from "./financialCurrency";
+import {
 	categorySummaryValidator,
 	cycleSummaryValidator,
 	tagSummaryValidator,
@@ -150,6 +154,7 @@ const categoryCreatePreviewValidator = v.object({
 	icon: categorySummaryValidator.fields.icon,
 	name: categorySummaryValidator.fields.name,
 	plannedAmount: categorySummaryValidator.fields.plannedAmount,
+	preferredCurrency: v.optional(v.string()),
 });
 
 const unsafeTerminalText = /[\p{Cc}\p{Zl}\p{Zp}]/u;
@@ -334,6 +339,10 @@ export const previewCategoryCreate = query({
 				icon: prepared.icon ?? null,
 				name: prepared.name,
 				plannedAmount: prepared.plannedAmount ?? null,
+				preferredCurrency:
+					prepared.plannedAmount === undefined
+						? undefined
+						: getEffectivePreferredCurrency(user.currency),
 			};
 		}),
 	returns: categoryCreatePreviewValidator,
@@ -343,14 +352,19 @@ export const createCategory = mutation({
 	args: {
 		...categoryCreateInput.fields,
 		agent: v.optional(v.boolean()),
+		expectedPreferredCurrency: v.optional(v.string()),
 		idempotencyKey: v.string(),
 	},
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
-			const { idempotencyKey, ...input } = args;
+			const { expectedPreferredCurrency, idempotencyKey, ...input } = args;
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
+					assertExpectedPreferredCurrency(
+						user.currency,
+						expectedPreferredCurrency
+					);
 					const prepared = await prepareCategoryCreate(ctx, user._id, input);
 					const category = {
 						categoryTypeId: prepared.type?._id,
@@ -368,7 +382,7 @@ export const createCategory = mutation({
 				},
 				key: idempotencyKey,
 				operation: "categories.create",
-				request: input,
+				request: { ...input, expectedPreferredCurrency },
 				userId: user._id,
 			});
 		}),
@@ -441,9 +455,10 @@ const resolveCategoryEditPatch = async (
 
 const prepareCategoryEdit = async (
 	ctx: QueryCtx,
-	userId: Id<"users">,
+	user: Doc<"users">,
 	input: Infer<typeof categoryEditInput>
 ) => {
+	const userId = user._id;
 	const categoryId = ctx.db.normalizeId("categories", input.categoryId);
 	if (!categoryId) {
 		throw new ConvexError("NOT_FOUND");
@@ -468,6 +483,13 @@ const prepareCategoryEdit = async (
 		edited,
 		newType?.userId === userId ? newType : null
 	);
+	const preferredCurrency =
+		typeof before.plannedAmount === "number" ||
+		typeof after.plannedAmount === "number"
+			? getEffectivePreferredCurrency(user.currency)
+			: undefined;
+	// Bind the effective currency only when writing a numeric budget. A clear
+	// or an unrelated edit can still apply after a preference change.
 	// Compare actual stored values so changes from any writer, including Web,
 	// invalidate a stale preview without requiring a category revision migration.
 	const editSnapshot = await fingerprintRequest({
@@ -482,6 +504,8 @@ const prepareCategoryEdit = async (
 		},
 		cycleName: cycle.name,
 		input,
+		preferredCurrency:
+			typeof input.plannedAmount === "number" ? preferredCurrency : undefined,
 	});
 	return {
 		after,
@@ -490,6 +514,7 @@ const prepareCategoryEdit = async (
 		cycleName: cycle.name,
 		editSnapshot,
 		patch,
+		preferredCurrency,
 	};
 };
 
@@ -498,9 +523,9 @@ export const previewCategoryEdit = query({
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
-			const { after, before, cycleName, editSnapshot } =
-				await prepareCategoryEdit(ctx, user._id, args);
-			return { after, before, cycleName, editSnapshot };
+			const { after, before, cycleName, editSnapshot, preferredCurrency } =
+				await prepareCategoryEdit(ctx, user, args);
+			return { after, before, cycleName, editSnapshot, preferredCurrency };
 		}),
 	returns: v.object({
 		after: categorySummaryValidator,
@@ -510,6 +535,7 @@ export const previewCategoryEdit = query({
 		}),
 		cycleName: v.string(),
 		editSnapshot: v.string(),
+		preferredCurrency: v.optional(v.string()),
 	}),
 });
 
@@ -530,7 +556,7 @@ export const editCategory = mutation({
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
 					const { after, categoryId, editSnapshot, patch } =
-						await prepareCategoryEdit(ctx, user._id, input);
+						await prepareCategoryEdit(ctx, user, input);
 					if (editSnapshot !== expectedEditSnapshot) {
 						throw new ConvexError("CATEGORY_EDIT_CONFLICT");
 					}

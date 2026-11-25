@@ -71,6 +71,7 @@ interface AccountAddOptions {
 	dryRun?: boolean;
 	idempotencyKey?: string;
 	ifAccountCurrencyMode?: AccountCreateProposal["currencyMode"];
+	ifBalanceNature?: AccountCreateProposal["accountType"]["balanceNature"];
 	ifPreferredCurrency?: string;
 	name?: string;
 	startingBalance?: string;
@@ -204,11 +205,11 @@ const throwRevisionGuidance = (
 	throw error;
 };
 
-const accountCreateCurrencyGuard = (
+const accountCreateGuards = (
 	options: AccountAddOptions,
 	preview?: AccountCreateProposal
 ) => {
-	const { ifAccountCurrencyMode } = options;
+	const { ifAccountCurrencyMode, ifBalanceNature } = options;
 	if (
 		ifAccountCurrencyMode &&
 		preview?.currencyMode &&
@@ -219,12 +220,25 @@ const accountCreateCurrencyGuard = (
 			"The account currency mode changed; review a fresh preview"
 		);
 	}
+	if (
+		ifBalanceNature &&
+		preview &&
+		ifBalanceNature !== preview.accountType.balanceNature
+	) {
+		throw new CliError(
+			"ACCOUNT_TYPE_BALANCE_NATURE_CONFLICT",
+			"The account type's balance nature no longer matches the reviewed request; review a fresh preview"
+		);
+	}
+	const expectedBalanceNature =
+		ifBalanceNature ?? preview?.accountType.balanceNature;
 	const expectedCurrencyMode = ifAccountCurrencyMode ?? preview?.currencyMode;
 	return {
 		...preferredCurrencyCommitFields(
 			options.ifPreferredCurrency,
 			preview?.preferredCurrency
 		),
+		...(expectedBalanceNature ? { expectedBalanceNature } : {}),
 		...(expectedCurrencyMode ? { expectedCurrencyMode } : {}),
 	};
 };
@@ -326,7 +340,7 @@ export const runAccountAdd = async (
 			name,
 			startingBalance,
 		};
-		let currencyGuard = accountCreateCurrencyGuard(options);
+		let guards = accountCreateGuards(options);
 		if (dryRun || prompter) {
 			const proposal = await mutationParsed({
 				args: input,
@@ -334,7 +348,7 @@ export const runAccountAdd = async (
 				name: "accounts.previewCreate",
 				schema: accountCreateProposalSchema,
 			});
-			currencyGuard = accountCreateCurrencyGuard(options, proposal);
+			guards = accountCreateGuards(options, proposal);
 			if (dryRun) {
 				writeMutationSuccess({
 					context,
@@ -353,7 +367,7 @@ export const runAccountAdd = async (
 			});
 		}
 		const result = await commitParsed({
-			args: { ...input, ...currencyGuard, idempotencyKey },
+			args: { ...input, ...guards, idempotencyKey },
 			context,
 			idempotencyKey,
 			name: "accounts.create",

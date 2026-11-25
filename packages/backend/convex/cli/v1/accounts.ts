@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "../../_generated/server";
-import { resolveAccountTypeMetadata } from "../../accountTypeHelpers";
+import { accountTypeBalanceNatureValidator } from "../../accountTypeValidators";
 import {
 	commitAccountArchive,
 	commitAccountCreate,
@@ -150,18 +150,14 @@ export const previewCreate = mutation({
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
 			const prepared = await prepareAccountCreate(ctx, { ...args, user });
-			const type = await resolveAccountTypeMetadata(
-				ctx,
-				prepared.accountTypeId,
-				user._id
-			);
+			const type = prepared.accountType;
 			return {
 				accountType: {
-					balanceNature: type.accountTypeBalanceNature,
-					color: type.accountTypeColor,
-					icon: type.accountTypeIcon,
-					id: prepared.accountTypeId,
-					name: type.accountTypeName,
+					balanceNature: type.balanceNature,
+					color: type.color ?? null,
+					icon: type.icon ?? null,
+					id: type._id,
+					name: type.name,
 				},
 				currency: prepared.currency ?? "USD",
 				currencyMode: accountCurrencyMode(prepared.currency),
@@ -181,6 +177,7 @@ export const create = mutation({
 		accountTypeId: v.id("account_types"),
 		agent: v.optional(v.boolean()),
 		date: v.string(),
+		expectedBalanceNature: v.optional(accountTypeBalanceNatureValidator),
 		expectedCurrencyMode: v.optional(accountCurrencyModeValidator),
 		expectedPreferredCurrency: v.optional(v.string()),
 		idempotencyKey: v.string(),
@@ -192,6 +189,7 @@ export const create = mutation({
 			const user = await getCurrentUser(ctx);
 			const {
 				agent,
+				expectedBalanceNature,
 				expectedCurrencyMode,
 				expectedPreferredCurrency,
 				idempotencyKey,
@@ -211,6 +209,12 @@ export const create = mutation({
 					) {
 						throw new ConvexError("PREFERRED_CURRENCY_CONFLICT");
 					}
+					if (
+						expectedBalanceNature !== undefined &&
+						expectedBalanceNature !== prepared.accountType.balanceNature
+					) {
+						throw new ConvexError("ACCOUNT_TYPE_BALANCE_NATURE_CONFLICT");
+					}
 					const { account, openingTransaction } = await commitAccountCreate(
 						ctx,
 						{
@@ -229,6 +233,7 @@ export const create = mutation({
 				operation: "accounts.create",
 				request: {
 					...input,
+					expectedBalanceNature,
 					expectedCurrencyMode,
 					expectedPreferredCurrency,
 					source,
