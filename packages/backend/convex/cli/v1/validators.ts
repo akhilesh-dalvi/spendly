@@ -93,12 +93,19 @@ export const accountTransactionValidator = v.object({
 	),
 });
 
+export const accountCurrencyModeValidator = v.union(
+	v.literal("fixed"),
+	v.literal("inherited")
+);
+
 export const accountCreateProposalValidator = v.object({
 	accountType: accountTypeMetadataValidator,
 	currency: v.string(),
+	currencyMode: accountCurrencyModeValidator,
 	currentBalance: v.number(),
 	date: v.string(),
 	name: v.string(),
+	preferredCurrency: v.string(),
 	revision: v.number(),
 	startingBalance: v.number(),
 });
@@ -108,17 +115,22 @@ export const accountCreateResultValidator = v.object({
 	openingTransaction: accountTransactionValidator,
 });
 
-export const balanceAdjustmentPreviewValidator = v.object({
+const balanceAdjustmentFields = {
 	account: accountSummaryValidator,
 	adjustment: v.number(),
 	currency: v.string(),
 	date: v.string(),
 	resultingBalance: v.number(),
 	warnings: v.array(v.string()),
+};
+
+export const balanceAdjustmentPreviewValidator = v.object({
+	...balanceAdjustmentFields,
+	preferredCurrency: v.string(),
 });
 
 export const balanceAdjustmentResultValidator = v.object({
-	...balanceAdjustmentPreviewValidator.fields,
+	...balanceAdjustmentFields,
 	transaction: v.union(accountTransactionValidator, v.null()),
 });
 
@@ -129,6 +141,7 @@ export const transferPreviewValidator = v.object({
 	fromAccount: accountSummaryValidator,
 	fromBalanceAfter: v.number(),
 	note: v.union(v.string(), v.null()),
+	preferredCurrency: v.string(),
 	toAccount: accountSummaryValidator,
 	toBalanceAfter: v.number(),
 	warnings: v.array(v.string()),
@@ -223,6 +236,7 @@ export const expenseProposalValidator = v.object({
 	cycleId: v.union(v.id("expense_cycles"), v.null()),
 	date: v.string(),
 	newTagNames: v.optional(v.array(v.string())),
+	preferredCurrency: v.string(),
 	revision: v.number(),
 	spentOn: v.union(v.string(), v.null()),
 	tagIds: v.array(v.id("tags")),

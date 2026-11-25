@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import type { BackendCommandContext } from "../client/convex-client.js";
 import {
+	type AccountCreateProposal,
 	accountCreateProposalSchema,
 	accountCreateResultSchema,
 	accountUpdatePreviewArraySchema,
@@ -15,6 +16,7 @@ import {
 	parseAmount,
 	parseBalance,
 	parseRevision,
+	preferredCurrencyCommitFields,
 	resolveIdempotencyKey,
 	validateMutationText,
 } from "../domain/mutation-input.js";
@@ -68,6 +70,8 @@ interface AccountAddOptions {
 	date?: string;
 	dryRun?: boolean;
 	idempotencyKey?: string;
+	ifAccountCurrencyMode?: AccountCreateProposal["currencyMode"];
+	ifPreferredCurrency?: string;
 	name?: string;
 	startingBalance?: string;
 }
@@ -90,6 +94,7 @@ interface AccountLifecycleOptions {
 interface BalanceAdjustmentOptions extends AccountLifecycleOptions {
 	balance?: string;
 	date?: string;
+	ifPreferredCurrency?: string;
 	note?: string;
 }
 
@@ -101,6 +106,7 @@ interface TransferOptions {
 	fromAccountId?: string;
 	idempotencyKey?: string;
 	ifFromRevision?: string;
+	ifPreferredCurrency?: string;
 	ifToRevision?: string;
 	note?: string;
 	toAccount?: string;
@@ -196,6 +202,31 @@ const throwRevisionGuidance = (
 		);
 	}
 	throw error;
+};
+
+const accountCreateCurrencyGuard = (
+	options: AccountAddOptions,
+	preview?: AccountCreateProposal
+) => {
+	const { ifAccountCurrencyMode } = options;
+	if (
+		ifAccountCurrencyMode &&
+		preview?.currencyMode &&
+		ifAccountCurrencyMode !== preview.currencyMode
+	) {
+		throw new CliError(
+			"PREFERRED_CURRENCY_CONFLICT",
+			"The account currency mode changed; review a fresh preview"
+		);
+	}
+	const expectedCurrencyMode = ifAccountCurrencyMode ?? preview?.currencyMode;
+	return {
+		...preferredCurrencyCommitFields(
+			options.ifPreferredCurrency,
+			preview?.preferredCurrency
+		),
+		...(expectedCurrencyMode ? { expectedCurrencyMode } : {}),
+	};
 };
 
 export const runAccountAdd = async (
@@ -295,6 +326,7 @@ export const runAccountAdd = async (
 			name,
 			startingBalance,
 		};
+		let currencyGuard = accountCreateCurrencyGuard(options);
 		if (dryRun || prompter) {
 			const proposal = await mutationParsed({
 				args: input,
@@ -302,6 +334,7 @@ export const runAccountAdd = async (
 				name: "accounts.previewCreate",
 				schema: accountCreateProposalSchema,
 			});
+			currencyGuard = accountCreateCurrencyGuard(options, proposal);
 			if (dryRun) {
 				writeMutationSuccess({
 					context,
@@ -320,7 +353,7 @@ export const runAccountAdd = async (
 			});
 		}
 		const result = await commitParsed({
-			args: { ...input, idempotencyKey },
+			args: { ...input, ...currencyGuard, idempotencyKey },
 			context,
 			idempotencyKey,
 			name: "accounts.create",
@@ -891,6 +924,9 @@ export const runBalanceAdjustment = async (
 			newBalance,
 			...(note === undefined ? {} : { note }),
 		};
+		let currencyGuard = preferredCurrencyCommitFields(
+			options.ifPreferredCurrency
+		);
 		try {
 			if (dryRun || prompter) {
 				const preview = await mutationParsed({
@@ -899,6 +935,10 @@ export const runBalanceAdjustment = async (
 					name: "accounts.previewBalanceAdjustment",
 					schema: balanceAdjustmentPreviewSchema,
 				});
+				currencyGuard = preferredCurrencyCommitFields(
+					options.ifPreferredCurrency,
+					preview.preferredCurrency
+				);
 				if (dryRun) {
 					writeMutationSuccess({
 						context,
@@ -917,7 +957,7 @@ export const runBalanceAdjustment = async (
 				});
 			}
 			const result = await commitParsed({
-				args: { ...input, idempotencyKey },
+				args: { ...input, ...currencyGuard, idempotencyKey },
 				context,
 				idempotencyKey,
 				name: "accounts.adjustBalance",
@@ -1088,6 +1128,9 @@ export const runAccountTransfer = async (
 			...(note === undefined ? {} : { note }),
 			toAccountId: toAccount.id,
 		};
+		let currencyGuard = preferredCurrencyCommitFields(
+			options.ifPreferredCurrency
+		);
 		try {
 			if (dryRun || prompter) {
 				const preview = await mutationParsed({
@@ -1096,6 +1139,10 @@ export const runAccountTransfer = async (
 					name: "accounts.previewTransfer",
 					schema: transferPreviewSchema,
 				});
+				currencyGuard = preferredCurrencyCommitFields(
+					options.ifPreferredCurrency,
+					preview.preferredCurrency
+				);
 				if (dryRun) {
 					writeMutationSuccess({
 						context,
@@ -1119,7 +1166,7 @@ export const runAccountTransfer = async (
 				});
 			}
 			const result = await commitParsed({
-				args: { ...input, idempotencyKey },
+				args: { ...input, ...currencyGuard, idempotencyKey },
 				context,
 				idempotencyKey,
 				name: "accounts.transfer",

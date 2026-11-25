@@ -1,0 +1,46 @@
+---
+title: Preferred currency
+description: Change the shared Spendly currency from your terminal without converting amounts.
+---
+
+Read your saved preference with `spendly auth status`. Run
+`spendly settings set-currency --help` to check whether your installed CLI can
+change it. Supported codes: USD, EUR, GBP, INR, CAD, AUD, JPY, and AED.
+
+```bash
+spendly settings set-currency EUR --dry-run
+spendly settings set-currency EUR --interactive
+```
+
+Check the old and new codes before confirming. Web Settings uses the same
+preference. An already-saved match makes no change.
+
+**This does not convert money.** Existing expense and budget displays can use
+the new label. Accounts with a saved currency keep it; accounts that inherit the
+preference can change labels and balance groups, including on past ledger
+entries. That can also change which accounts can transfer to each other. New
+ordinary accounts use the new default. Stored amounts and ledger entries do
+not change.
+
+## Scripts and agents
+
+```bash
+spendly settings set-currency EUR --non-interactive --json --dry-run
+spendly settings set-currency EUR --non-interactive --json \
+  --if-edit-snapshot "$REVIEWED_SNAPSHOT" --idempotency-key "$SAVE_KEY"
+```
+
+Copy `data.editSnapshot` from the approved preview. Choose a unique save key
+and keep it with the request. If the preference no longer matches the preview,
+stop and review a fresh one. If the save outcome is uncertain, check
+`spendly auth status`. Within 30 days, you can replay the exact request with the
+same snapshot, key, and `--agent` flag if originally used. A replay returns the
+original result, not necessarily the current currency.
+
+When saving a separately reviewed account creation, balance adjustment,
+transfer, or expense add/edit/delete, pass the JSON dry run's
+`data.preferredCurrency` as `--if-preferred-currency <code>`, alongside the
+command's other safety flags. For `accounts add`, also pass `data.currencyMode`
+as `--if-account-currency-mode <mode>` to distinguish fixed from inheriting
+accounts. The preferred currency can differ from the transaction currency. Guided saves carry it automatically. On conflict,
+review a new preview instead of discarding the guard.

@@ -6,6 +6,7 @@ import { parseDate, resolveCommandDate } from "../domain/dates.js";
 import {
 	parseAmount,
 	parseRevision,
+	preferredCurrencyCommitFields,
 	resolveIdempotencyKey,
 	validateIdempotencyKey,
 	validateMutationText,
@@ -80,6 +81,7 @@ interface ExpenseAddOptions {
 	date?: string;
 	dryRun?: boolean;
 	idempotencyKey?: string;
+	ifPreferredCurrency?: string;
 	spentOn?: string;
 	tag?: string[];
 	tagId?: string[];
@@ -99,6 +101,7 @@ interface ExpenseEditOptions {
 	date?: string;
 	dryRun?: boolean;
 	idempotencyKey?: string;
+	ifPreferredCurrency?: string;
 	ifRevision?: string;
 	inlineTags?: ExpenseTagDraft;
 	spentOn?: string;
@@ -110,6 +113,7 @@ interface ExpenseDeleteOptions {
 	confirmationToken?: string;
 	dryRun?: boolean;
 	idempotencyKey?: string;
+	ifPreferredCurrency?: string;
 	ifRevision?: string;
 }
 
@@ -466,12 +470,19 @@ export const runExpenseAdd = async (
 			spentOn,
 		});
 
+		let currencyGuard = preferredCurrencyCommitFields(
+			options.ifPreferredCurrency
+		);
 		if (dryRun || prompter) {
 			const proposal = await queryParsed(
 				context,
 				"expenses.previewCreate",
 				input,
 				expenseProposalSchema
+			);
+			currencyGuard = preferredCurrencyCommitFields(
+				options.ifPreferredCurrency,
+				proposal.preferredCurrency
 			);
 			const presentation = context.globalOptions.json
 				? undefined
@@ -501,7 +512,7 @@ export const runExpenseAdd = async (
 			runtime,
 		});
 		const result = await commitParsed({
-			args: { ...input, idempotencyKey },
+			args: { ...input, ...currencyGuard, idempotencyKey },
 			context,
 			idempotencyKey,
 			name: "expenses.create",
@@ -872,6 +883,9 @@ export const runExpenseEdit = async (
 		let editOptions = options;
 		let expectedRevision = providedRevision;
 		let input: Record<string, unknown> = {};
+		let currencyGuard = preferredCurrencyCommitFields(
+			options.ifPreferredCurrency
+		);
 		let revising = false;
 		for await (const resolved of repeatAsync(() =>
 			resolveExpenseEditRequest({
@@ -894,6 +908,10 @@ export const runExpenseEdit = async (
 				"expenses.previewUpdate",
 				input,
 				expenseUpdatePreviewSchema
+			);
+			currencyGuard = preferredCurrencyCommitFields(
+				options.ifPreferredCurrency,
+				preview.preferredCurrency
 			);
 			if (dryRun) {
 				writeMutationSuccess({
@@ -927,7 +945,7 @@ export const runExpenseEdit = async (
 		});
 		try {
 			const result = await commitParsed({
-				args: { ...input, idempotencyKey },
+				args: { ...input, ...currencyGuard, idempotencyKey },
 				context,
 				idempotencyKey,
 				name: "expenses.update",
@@ -968,18 +986,17 @@ const resolveHumanDeleteConfirmation = async (options: {
 	confirmationToken: string;
 	expectedRevision: number;
 	message: string;
+	preferredCurrency?: string;
 }> => {
 	if (options.confirmationToken && options.expectedRevision) {
-		const expense = await queryParsed(
-			options.context,
-			"expenses.get",
-			{ expenseId: options.expenseId },
-			expenseSchema
-		);
+		const expense = await options.context.operations.invoke("expenses.get", {
+			expenseId: options.expenseId,
+		});
 		return {
 			confirmationToken: options.confirmationToken,
 			expectedRevision: options.expectedRevision,
 			message: `${renderExpense(expense)}\nPermanently delete this expense?`,
+			preferredCurrency: expense.preferredCurrency,
 		};
 	}
 	const preview = await mutationParsed({
@@ -992,6 +1009,7 @@ const resolveHumanDeleteConfirmation = async (options: {
 		confirmationToken: preview.confirmationToken,
 		expectedRevision: preview.revision,
 		message: `${renderExpenseDeletePreview(preview)}\nPermanently delete this expense?`,
+		preferredCurrency: preview.preferredCurrency,
 	};
 };
 
@@ -1041,6 +1059,10 @@ export const runExpenseDelete = async (
 				name: "expenses.previewDelete",
 				schema: expenseDeletePreviewSchema,
 			});
+			preferredCurrencyCommitFields(
+				options.ifPreferredCurrency,
+				preview.preferredCurrency
+			);
 			writeMutationSuccess({
 				context,
 				data: preview,
@@ -1072,6 +1094,9 @@ export const runExpenseDelete = async (
 
 		let { confirmationToken } = options;
 		let expectedRevision = providedRevision;
+		let currencyGuard = preferredCurrencyCommitFields(
+			options.ifPreferredCurrency
+		);
 		if (!globalOptions.nonInteractive) {
 			const confirmation = await resolveHumanDeleteConfirmation({
 				confirmationToken,
@@ -1080,6 +1105,10 @@ export const runExpenseDelete = async (
 				expenseId: resolvedExpenseId,
 			});
 			({ confirmationToken, expectedRevision } = confirmation);
+			currencyGuard = preferredCurrencyCommitFields(
+				options.ifPreferredCurrency,
+				confirmation.preferredCurrency
+			);
 			const confirmed = runtime.confirm
 				? await runtime.confirm(confirmation.message)
 				: await (await getPrompter(globalOptions, runtime, true)).confirm({
@@ -1100,6 +1129,7 @@ export const runExpenseDelete = async (
 		const result = await commitParsed({
 			args: {
 				confirmationToken,
+				...currencyGuard,
 				expectedRevision,
 				expenseId: resolvedExpenseId,
 				idempotencyKey,

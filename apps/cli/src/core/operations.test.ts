@@ -48,6 +48,19 @@ describe("Spendly operations", () => {
 		});
 	});
 
+	it("exposes the optional currency guard only on financial commit inputs", () => {
+		const preview = getOperationJsonSchemas("accounts.previewTransfer");
+		const commit = getOperationJsonSchemas("accounts.transfer");
+
+		expect(preview.input.properties).not.toHaveProperty(
+			"expectedPreferredCurrency"
+		);
+		expect(preview.output.properties).toHaveProperty("preferredCurrency");
+		expect(preview.output.required).not.toContain("preferredCurrency");
+		expect(commit.input.properties).toHaveProperty("expectedPreferredCurrency");
+		expect(commit.input.required).not.toContain("expectedPreferredCurrency");
+	});
+
 	it("maps symbolic reads to the authenticated gateway and validates results", async () => {
 		const query = vi.fn(async () => await Promise.resolve([account]));
 		const operations = createSpendlyOperations({
@@ -221,6 +234,35 @@ describe("Spendly operations", () => {
 				idempotencyKey: "archive-account-1",
 				outcome: "unknown",
 			},
+		});
+	});
+
+	it("preserves both account creation currency guards for uncertain-save recovery", async () => {
+		const operations = createSpendlyOperations({
+			mutation: () => Promise.reject(new CliError("NETWORK_ERROR", "offline")),
+			query: vi.fn(),
+		});
+		await expect(
+			operations.invoke("accounts.create", {
+				accountTypeId: "account_type_1",
+				date: "2026-09-16",
+				expectedCurrencyMode: "inherited",
+				expectedPreferredCurrency: "USD",
+				idempotencyKey: "create-wallet-key",
+				name: "Wallet",
+				startingBalance: 500,
+			})
+		).rejects.toMatchObject({
+			code: "NETWORK_ERROR",
+			details: {
+				expectedCurrencyMode: "inherited",
+				expectedPreferredCurrency: "USD",
+				idempotencyKey: "create-wallet-key",
+				outcome: "unknown",
+			},
+			message: expect.stringContaining(
+				"--if-preferred-currency USD --if-account-currency-mode inherited"
+			),
 		});
 	});
 

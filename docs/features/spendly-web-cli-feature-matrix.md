@@ -8,7 +8,7 @@ Based on [Spendly web features and actions](spendly-web-action-inventory.md), wi
 
 **Cycle-copy parity follow-up:** Local Web cycle creation now supports explicit zero-category copying while retaining the selected source. Mocked form/navigation/dialog regressions and `convex-test` public Web API tests distinguish omitted selection (all) from `[]` (none). Browser review is limited to unsaved form states; no live cycle was created, no backend sync was needed, and no production build is claimed. The cycle-copy notes below supersede the original inventory limitations.
 
-**Overall:** Web (129/151) · CLI (87/151). Counts show supported feature rows out of rows available on at least one surface; table headers show section counts. The 17 rows in Unsupported on both are excluded from overall counts. Rows include product actions and surface-specific controls, so these counts are a checklist, not a weighted feature-parity score.
+**Overall:** Web (129/151) · CLI (88/151). Counts show supported feature rows out of rows available on at least one surface; table headers show section counts. The 17 rows in Unsupported on both are excluded from overall counts. Rows include product actions and surface-specific controls, so these counts are a checklist, not a weighted feature-parity score.
 
 **Implementation priorities:** **P1** = first (core entry/editing, assignment correctness, and essential CLI creation); **P2** = next (reporting, lifecycle management, workflow improvements, and broader feature coverage); **P3** = last (polish, advanced/destructive operations, integrations, and monetization). Within each priority, implement Web gaps before CLI gaps: **P1 Web → P1 CLI → P2 Web → P2 CLI → P3 Web → P3 CLI**. Existing features use **—**; **N/A** means an intentionally surface-specific control, not a proposed implementation gap. Availability counts reflect the source-level ✅/❌ markers, including N/A rows, not deployment state.
 
@@ -20,10 +20,10 @@ Counts include only missing features assigned P1–P3, including Unsupported on 
 
 | Priority | Web | CLI | Total |
 | --- | ---: | ---: | ---: |
-| P1 | 0 | 3 | 3 |
+| P1 | 0 | 2 | 2 |
 | P2 | 9 | 41 | 50 |
 | P3 | 12 | 15 | 27 |
-| **Total** | **21** | **59** | **80** |
+| **Total** | **21** | **58** | **79** |
 
 A feature missing on both surfaces counts once per surface; Total counts implementation gaps, not unique features.
 
@@ -174,10 +174,10 @@ A feature missing on both surfaces counts once per surface; Total counts impleme
 
 ## Settings
 
-| Feature | Web (3/3) | CLI (1/3) | Web priority | CLI priority |
+| Feature | Web (3/3) | CLI (2/3) | Web priority | CLI priority |
 | --- | :---: | :---: | :---: | :---: |
 | Read preferred currency | ✅ | ✅ | — | — |
-| Change preferred currency | ✅ | ❌ | — | P1 |
+| Change preferred currency | ✅ | ✅ | — | — |
 | Choose Light/Dark/System web theme | ✅ | ❌ | — | N/A |
 
 ## Onboarding
@@ -287,7 +287,7 @@ A feature missing on both surfaces counts once per surface; Total counts impleme
 - Expense follow-up sources: Web `apps/web/src/components/expense-form.tsx`, `expense-form.test.tsx`, and `apps/web/src/app/(app)/expenses/expenses-pages.test.tsx`; CLI `apps/cli/src/commands/expense-mutations.ts`, `expense-mutation-actions.ts`, and `expense-mutation-actions.test.ts`; shared backend `packages/backend/convex/domain/expenseOperations.ts`, Web `expenses.ts`/`expenses.test.ts`, and CLI `cli/v1/expenses.ts`/`validators.ts`. CLI source was reviewed and the existing mocked CLI mutation tests were rerun; no live financial writes were used to establish parity.
 - Canceling a CLI confirmation applies to guided interactive flows; it does not undo an already committed command. Onboarding row order is saved from the draft, not managed with a general-purpose drag/reorder control.
 - CLI sign-in uses browser-based authentication and requires an initialized Spendly user; if absent, it asks the user to open Web once. `auth login --no-browser` prints a same-machine authorization URL, not a device-code/headless login, and cannot combine with `--json`. Login rejects `--non-interactive`. `auth status` verifies/refreshes the stored session, not just local file presence. Logout removes local credentials and reports whether remote revocation was confirmed; it is not a Web-session logout.
-- CLI has no onboarding wizard/path/currency mutation, but can create ordinary cycles/accounts. `context` reads optional account-setup status; `accounts add` marks that account step completed without completing the whole Web wizard. Web onboarding-only category clearing/order/removal capabilities should not be inferred for ordinary category editors.
+- CLI has no onboarding wizard or setup-path mutation, but can create ordinary cycles/accounts. `settings set-currency` changes the shared preference without converting money or rewriting financial records. `context` reads optional account-setup status; `accounts add` marks that account step completed without completing the whole Web wizard. Web onboarding-only category clearing/order/removal capabilities should not be inferred for ordinary category editors.
 - `--json` emits one versioned success/error document; it is not a dedicated export workflow or arbitrary field/CSV formatter. `--agent` marks committed writes but does not imply JSON. Agent, JSON, and non-interactive modes never prompt; `--interactive` conflicts with them. `--accessible` (or `ACCESSIBLE=1`, or `TERM=dumb`) selects static prompts; `--no-color`/`NO_COLOR`, `--no-retry`, and `--debug` control terminal output/read retries/diagnostics. Plaintext credential fallback requires explicit `--allow-file-storage`; it does not force bypassing a working keychain.
 - Inline tag creation is guided-only in the CLI. CLI tags save with the expense, unlike Web’s immediate tag creation. The CLI can check a recent expense add/edit by its save reference after an interrupted write.
 - CLI delete dry runs do not delete financial records, but mint confirmation tokens. Non-interactive expense/cycle deletion requires the token, revision, and idempotency key; supported edits require revision preconditions in that mode. Running multiple commands and post-processing results does not count as built-in comparison, bulk editing, or reporting support. Completion scripts offer static words, not live account/category completion. Development-only auth canaries are excluded from this user-facing matrix.

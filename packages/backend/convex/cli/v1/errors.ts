@@ -26,6 +26,7 @@ export type CliDomainErrorCode =
 	| "INVALID_ACCOUNT_TYPE_COLOR"
 	| "INVALID_ACCOUNT_TYPE_ICON"
 	| "INVALID_INPUT"
+	| "PREFERRED_CURRENCY_CONFLICT"
 	| "RESOURCE_LIMIT_EXCEEDED"
 	| "RESOURCE_NOT_FOUND"
 	| "TAG_NAME_CONFLICT"
@@ -71,6 +72,8 @@ const ERROR_MESSAGES: Record<CliDomainErrorCode, string> = {
 	INVALID_ACCOUNT_TYPE_ICON:
 		"Use a supported account type icon key; clearing is not supported",
 	INVALID_INPUT: "The request input is invalid",
+	PREFERRED_CURRENCY_CONFLICT:
+		"The preferred currency no longer matches the reviewed request; review a fresh preview",
 	RESOURCE_LIMIT_EXCEEDED: "The request exceeds the supported resource limit",
 	RESOURCE_NOT_FOUND: "The requested resource was not found",
 	TAG_NAME_CONFLICT:
@@ -128,6 +131,7 @@ const DOMAIN_CODE_MAP: Record<string, CliDomainErrorCode> = {
 	INVALID_TAG_NAME: "INVALID_INPUT",
 	INVALID_TRANSFER_AMOUNT: "INVALID_INPUT",
 	NOT_FOUND: "RESOURCE_NOT_FOUND",
+	PREFERRED_CURRENCY_CONFLICT: "PREFERRED_CURRENCY_CONFLICT",
 	RESOURCE_LIMIT_EXCEEDED: "RESOURCE_LIMIT_EXCEEDED",
 	TAG_NAME_CONFLICT: "TAG_NAME_CONFLICT",
 	TAG_NOT_FOUND: "RESOURCE_NOT_FOUND",

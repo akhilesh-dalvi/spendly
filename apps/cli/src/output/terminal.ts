@@ -85,6 +85,8 @@ export const writeTerminalError = (options: {
 			"Check current Spendly state before retrying; never repeat a write blindly.",
 		NON_INTERACTIVE_INPUT_REQUIRED:
 			"Provide the required stable IDs and safety flags, or use --interactive in a TTY.",
+		PREFERRED_CURRENCY_CONFLICT:
+			"Review a fresh preview before saving; do not reuse the stale currency precondition.",
 		RESOURCE_NOT_FOUND:
 			"List the relevant resources or use --interactive to choose one.",
 		REVISION_CONFLICT:

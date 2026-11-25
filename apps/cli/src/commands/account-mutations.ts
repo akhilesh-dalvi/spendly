@@ -1,4 +1,5 @@
 import { type Command, Option } from "commander";
+import { parsePreferredCurrencyGuard } from "../domain/mutation-input.js";
 import type { CliRuntime } from "../runtime.js";
 
 export const registerAccountMutationCommands = (
@@ -22,6 +23,17 @@ export const registerAccountMutationCommands = (
 		)
 		.option("--date <date>", "opening ledger date in YYYY-MM-DD")
 		.option("--idempotency-key <key>", "stable key for this intended commit")
+		.option(
+			"--if-preferred-currency <code>",
+			"expected preferred currency",
+			parsePreferredCurrencyGuard
+		)
+		.addOption(
+			new Option(
+				"--if-account-currency-mode <mode>",
+				"expected account currency mode"
+			).choices(["fixed", "inherited"])
+		)
 		.option("--dry-run", "validate and preview without adding the account")
 		.action(async (options, command: Command) => {
 			const { runAccountAdd } = await import("./account-mutation-actions.js");
@@ -82,6 +94,11 @@ export const registerAccountMutationCommands = (
 		.option("--note <note>", "ledger note")
 		.option("--if-revision <revision>", "expected current account revision")
 		.option("--idempotency-key <key>", "stable key for this intended commit")
+		.option(
+			"--if-preferred-currency <code>",
+			"expected preferred currency",
+			parsePreferredCurrencyGuard
+		)
 		.option("--dry-run", "validate and preview without changing the balance")
 		.action(async (account: string | undefined, options, command: Command) => {
 			const { runBalanceAdjustment } = await import(
@@ -123,6 +140,11 @@ export const registerAccountMutationCommands = (
 		.option("--if-from-revision <revision>", "expected source revision")
 		.option("--if-to-revision <revision>", "expected destination revision")
 		.option("--idempotency-key <key>", "stable key for this intended commit")
+		.option(
+			"--if-preferred-currency <code>",
+			"expected preferred currency",
+			parsePreferredCurrencyGuard
+		)
 		.option("--dry-run", "validate and preview without transferring funds")
 		.action(async (options, command: Command) => {
 			const { runAccountTransfer } = await import(

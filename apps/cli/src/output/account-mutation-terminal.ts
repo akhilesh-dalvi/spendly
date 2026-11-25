@@ -103,6 +103,11 @@ export const renderAccountAddProposal = (
 		`Name: ${proposal.name}`,
 		`Type: ${proposal.accountType.name} (${proposal.accountType.balanceNature})`,
 		`Opening balance: ${formatMoney(proposal.startingBalance, proposal.currency)}`,
+		...(proposal.currencyMode
+			? [
+					`Account currency: ${proposal.currencyMode === "fixed" ? "fixed at creation" : "inherits the preference"}`,
+				]
+			: []),
 		"An opening balance creates the account's first ledger entry.",
 		`Opening date: ${proposal.date}`,
 		`Revision: ${proposal.revision}`,

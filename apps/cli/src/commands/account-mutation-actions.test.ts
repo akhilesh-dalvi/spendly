@@ -123,7 +123,14 @@ const createTestRuntime = (
 
 describe("Phase 6 account mutation commands", () => {
 	it("previews account creation with an explicit type and signed balance", async () => {
-		const testRuntime = createTestRuntime();
+		const testRuntime = createTestRuntime({
+			mutationOverrides: {
+				"cli/v1/accounts:previewCreate": {
+					...(fixture.accountCreateProposal as object),
+					preferredCurrency: "INR",
+				},
+			},
+		});
 		const exitCode = await runCli(
 			[
 				"accounts",
@@ -157,7 +164,7 @@ describe("Phase 6 account mutation commands", () => {
 			},
 		]);
 		expect(JSON.parse(testRuntime.getStdout())).toMatchObject({
-			data: { currentBalance: -100 },
+			data: { currentBalance: -100, preferredCurrency: "INR" },
 			meta: { dateSource: "explicit", dryRun: true },
 		});
 	});
@@ -336,6 +343,8 @@ describe("Phase 6 account mutation commands", () => {
 				"3",
 				"--idempotency-key",
 				"adjustment-key",
+				"--if-preferred-currency",
+				" gbp ",
 				"--json",
 				"--non-interactive",
 			],
@@ -343,6 +352,10 @@ describe("Phase 6 account mutation commands", () => {
 		);
 
 		expect(exitCode).toBe(CLI_EXIT_CODE.success);
+		expect(testRuntime.calls.at(-1)).toMatchObject({
+			args: { expectedPreferredCurrency: "GBP" },
+			name: "cli/v1/accounts:adjustBalance",
+		});
 		expect(JSON.parse(testRuntime.getStdout())).toMatchObject({
 			data: { transaction: { id: "transaction-adjustment" } },
 		});
@@ -403,6 +416,8 @@ describe("Phase 6 account mutation commands", () => {
 				"2",
 				"--idempotency-key",
 				"transfer-key",
+				"--if-preferred-currency",
+				"EUR",
 				"--agent",
 				"--json",
 				"--non-interactive",
@@ -412,7 +427,11 @@ describe("Phase 6 account mutation commands", () => {
 
 		expect(exitCode).toBe(CLI_EXIT_CODE.success);
 		expect(testRuntime.calls.at(-1)).toMatchObject({
-			args: { agent: true, idempotencyKey: "transfer-key" },
+			args: {
+				agent: true,
+				expectedPreferredCurrency: "EUR",
+				idempotencyKey: "transfer-key",
+			},
 			name: "cli/v1/accounts:transfer",
 		});
 		expect(JSON.parse(testRuntime.getStdout())).toMatchObject({

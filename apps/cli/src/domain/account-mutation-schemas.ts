@@ -8,12 +8,16 @@ import {
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u);
 const warningSchema = z.enum(["NEGATIVE_BALANCE", "NEGATIVE_SOURCE_BALANCE"]);
 
+export const accountCurrencyModeSchema = z.enum(["fixed", "inherited"]);
+
 export const accountCreateProposalSchema = z.object({
 	accountType: accountTypeMetadataSchema,
 	currency: z.string().min(1),
+	currencyMode: accountCurrencyModeSchema.optional(),
 	currentBalance: z.number().finite(),
 	date: dateSchema,
 	name: z.string(),
+	preferredCurrency: z.string().min(1).optional(),
 	revision: z.number().int().positive(),
 	startingBalance: z.number().finite(),
 });
@@ -31,19 +35,24 @@ export const accountUpdatePreviewArraySchema = z.array(
 	accountUpdatePreviewSchema
 );
 
-export const balanceAdjustmentPreviewSchema = z.object({
+const balanceAdjustmentFields = {
 	account: accountSchema,
 	adjustment: z.number().finite(),
 	currency: z.string().min(1),
 	date: dateSchema,
 	resultingBalance: z.number().finite(),
 	warnings: z.array(warningSchema),
+};
+
+export const balanceAdjustmentPreviewSchema = z.object({
+	...balanceAdjustmentFields,
+	preferredCurrency: z.string().min(1).optional(),
 });
 
-export const balanceAdjustmentResultSchema =
-	balanceAdjustmentPreviewSchema.extend({
-		transaction: transactionSchema.nullable(),
-	});
+export const balanceAdjustmentResultSchema = z.object({
+	...balanceAdjustmentFields,
+	transaction: transactionSchema.nullable(),
+});
 
 export const transferPreviewSchema = z.object({
 	amount: z.number().finite(),
@@ -52,6 +61,7 @@ export const transferPreviewSchema = z.object({
 	fromAccount: accountSchema,
 	fromBalanceAfter: z.number().finite(),
 	note: z.string().nullable(),
+	preferredCurrency: z.string().min(1).optional(),
 	toAccount: accountSchema,
 	toBalanceAfter: z.number().finite(),
 	warnings: z.array(warningSchema),

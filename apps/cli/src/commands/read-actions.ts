@@ -330,7 +330,7 @@ export const runExpenseGet = async (
 		);
 		writeReadSuccess({
 			context,
-			data: expense,
+			data: expenseSchema.parse(expense),
 			human: renderExpense(expense, resolveHumanRenderOptions(runtime.stdout)),
 			runtime,
 		});

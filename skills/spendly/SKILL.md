@@ -92,6 +92,13 @@ copying, capture `data.copySnapshot` and commit with `--if-copy-snapshot` using
 identical source, selection, and plan inputs; follow [Cycles](references/cycle-workflows.md)
 for snapshot guards and uncertain-write replay. Stop on `CYCLE_COPY_CONFLICT`
 (exit 5) and obtain fresh preview approval before a new commit.
+For a preferred-currency change, check installed `settings set-currency --help`
+and follow [Preferred currency](https://spendly.akhileshdalvi.com/docs/cli/settings).
+For separately reviewed account creation, balance adjustments, transfers, and
+expense saves or deletes, pass the preview's `data.preferredCurrency` as
+`--if-preferred-currency` when supported. For account creation, also pass
+`data.currencyMode` as `--if-account-currency-mode` when available. On `PREFERRED_CURRENCY_CONFLICT`,
+stop and obtain approval for a fresh preview.
 Several requested changes can be handled as separate commands.
 
 Apply only writes the user requested. Stop on ambiguity, a stale revision, an

@@ -86,6 +86,87 @@ test("CLI expense can be edited in Web and read by a fresh CLI process", {
 	await expect(page.getByLabel("Amount", { exact: true })).toHaveValue("25");
 });
 
+test("a CLI currency change reaches Web and rejects a stale balance preview", async ({
+	page,
+	user,
+}) => {
+	const seed = await seedUser(user);
+	await user.loginCli();
+	const accountArgs = { accountId: seed.accountId };
+	const accountsBefore = await user.query(api.accounts.list, {});
+	const ledgerBefore = await user.query(
+		api.accounts.listTransactions,
+		accountArgs
+	);
+	const adjust = [
+		"accounts",
+		"adjust-balance",
+		seed.accountId,
+		"--balance",
+		"920",
+		"--date",
+		seed.date,
+	];
+	const balancePreview = await user.runCli([...adjust, "--dry-run"]);
+	expect(balancePreview.exitCode).toBe(0);
+	const reviewedBalance = success
+		.extend({
+			data: z.object({
+				account: z.object({ revision: z.number() }),
+				preferredCurrency: z.literal("USD"),
+			}),
+		})
+		.parse(JSON.parse(balancePreview.stdout)).data;
+
+	const settings = ["settings", "set-currency", "EUR"];
+	const preview = await user.runCli([...settings, "--dry-run"]);
+	expect(preview.exitCode).toBe(0);
+	const { editSnapshot } = success
+		.extend({
+			data: z.object({
+				beforeCurrency: z.literal("USD"),
+				editSnapshot: z.string(),
+			}),
+		})
+		.parse(JSON.parse(preview.stdout)).data;
+	expect(await user.query(api.users.get, {})).toMatchObject({
+		currency: "USD",
+	});
+	const saved = await user.runCli([
+		...settings,
+		"--if-edit-snapshot",
+		editSnapshot,
+		"--idempotency-key",
+		randomUUID(),
+	]);
+	expect(saved.exitCode).toBe(0);
+	expect(JSON.parse(saved.stdout)).toMatchObject({
+		data: { changed: true, currency: "EUR" },
+	});
+	await page.goto("/settings");
+	await expect(
+		page.getByRole("combobox").filter({ hasText: "Euro (EUR)" })
+	).toBeVisible();
+
+	const stale = await user.runCli([
+		...adjust,
+		"--if-revision",
+		String(reviewedBalance.account.revision),
+		"--if-preferred-currency",
+		reviewedBalance.preferredCurrency,
+		"--idempotency-key",
+		randomUUID(),
+	]);
+	expect(stale.exitCode).toBe(5);
+	expect(JSON.parse(stale.stdout)).toMatchObject({
+		error: { code: "PREFERRED_CURRENCY_CONFLICT" },
+	});
+	expect(await user.query(api.accounts.list, {})).toEqual(accountsBefore);
+	expect(await user.query(api.accounts.listTransactions, accountArgs)).toEqual(
+		ledgerBefore
+	);
+});
+
 test("a tag created by the CLI appears unused in Web", async ({
 	page,
 	user,

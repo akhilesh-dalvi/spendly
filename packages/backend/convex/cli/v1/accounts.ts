@@ -21,10 +21,15 @@ import { INITIAL_REVISION } from "../../domain/revisions";
 import { getCurrentUser, validateAccountOwnership } from "../../helpers";
 import { forEachSequential } from "../../lib/async";
 import { withCliErrors } from "./errors";
+import {
+	assertExpectedPreferredCurrency,
+	getEffectivePreferredCurrency,
+} from "./financialCurrency";
 import { presentAccount, presentTransaction } from "./presenters";
 import {
 	accountCreateProposalValidator,
 	accountCreateResultValidator,
+	accountCurrencyModeValidator,
 	accountSummaryValidator,
 	accountTransactionValidator,
 	balanceAdjustmentPreviewValidator,
@@ -129,6 +134,11 @@ export const listTransactions = query({
 	}),
 });
 
+const accountCurrencyMode = (
+	currency: string | undefined
+): typeof accountCurrencyModeValidator.type =>
+	currency === undefined ? "inherited" : "fixed";
+
 export const previewCreate = mutation({
 	args: {
 		accountTypeId: v.id("account_types"),
@@ -154,9 +164,11 @@ export const previewCreate = mutation({
 					name: type.accountTypeName,
 				},
 				currency: prepared.currency ?? "USD",
+				currencyMode: accountCurrencyMode(prepared.currency),
 				currentBalance: prepared.startingBalance,
 				date: prepared.date,
 				name: prepared.name,
+				preferredCurrency: getEffectivePreferredCurrency(user.currency),
 				revision: INITIAL_REVISION,
 				startingBalance: prepared.startingBalance,
 			};
@@ -169,6 +181,8 @@ export const create = mutation({
 		accountTypeId: v.id("account_types"),
 		agent: v.optional(v.boolean()),
 		date: v.string(),
+		expectedCurrencyMode: v.optional(accountCurrencyModeValidator),
+		expectedPreferredCurrency: v.optional(v.string()),
 		idempotencyKey: v.string(),
 		name: v.string(),
 		startingBalance: v.number(),
@@ -176,11 +190,27 @@ export const create = mutation({
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
-			const { agent, idempotencyKey, ...input } = args;
+			const {
+				agent,
+				expectedCurrencyMode,
+				expectedPreferredCurrency,
+				idempotencyKey,
+				...input
+			} = args;
 			const source = resolveCliActionSource(agent);
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
+					assertExpectedPreferredCurrency(
+						user.currency,
+						expectedPreferredCurrency
+					);
 					const prepared = await prepareAccountCreate(ctx, { ...input, user });
+					if (
+						expectedCurrencyMode !== undefined &&
+						expectedCurrencyMode !== accountCurrencyMode(prepared.currency)
+					) {
+						throw new ConvexError("PREFERRED_CURRENCY_CONFLICT");
+					}
 					const { account, openingTransaction } = await commitAccountCreate(
 						ctx,
 						{
@@ -197,7 +227,12 @@ export const create = mutation({
 				},
 				key: idempotencyKey,
 				operation: "accounts.create",
-				request: { ...input, source },
+				request: {
+					...input,
+					expectedCurrencyMode,
+					expectedPreferredCurrency,
+					source,
+				},
 				userId: user._id,
 			});
 		}),
@@ -614,6 +649,7 @@ export const previewBalanceAdjustment = mutation({
 				adjustment: prepared.adjustment,
 				currency: prepared.currency,
 				date: prepared.date,
+				preferredCurrency: getEffectivePreferredCurrency(user.currency),
 				resultingBalance: prepared.resultingBalance,
 				warnings: prepared.warnings,
 			};
@@ -625,16 +661,22 @@ export const adjustBalance = mutation({
 	args: {
 		...adjustmentArgs,
 		agent: v.optional(v.boolean()),
+		expectedPreferredCurrency: v.optional(v.string()),
 		expectedRevision: v.number(),
 		idempotencyKey: v.string(),
 	},
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
-			const { agent, idempotencyKey, ...input } = args;
+			const { agent, expectedPreferredCurrency, idempotencyKey, ...input } =
+				args;
 			const source = resolveCliActionSource(agent);
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
+					assertExpectedPreferredCurrency(
+						user.currency,
+						expectedPreferredCurrency
+					);
 					const prepared = await prepareBalanceAdjustment(ctx, {
 						...input,
 						user,
@@ -656,7 +698,7 @@ export const adjustBalance = mutation({
 				},
 				key: idempotencyKey,
 				operation: "accounts.adjustBalance",
-				request: { ...input, source },
+				request: { ...input, expectedPreferredCurrency, source },
 				userId: user._id,
 			});
 		}),
@@ -686,6 +728,7 @@ export const previewTransfer = mutation({
 				fromAccount: await presentAccount(ctx, prepared.fromAccount, user),
 				fromBalanceAfter: prepared.fromAccount.currentBalance - prepared.amount,
 				note: prepared.note ?? null,
+				preferredCurrency: getEffectivePreferredCurrency(user.currency),
 				toAccount: await presentAccount(ctx, prepared.toAccount, user),
 				toBalanceAfter: prepared.toAccount.currentBalance + prepared.amount,
 				warnings: prepared.warnings,
@@ -699,16 +742,22 @@ export const transfer = mutation({
 		...transferArgs,
 		agent: v.optional(v.boolean()),
 		expectedFromRevision: v.number(),
+		expectedPreferredCurrency: v.optional(v.string()),
 		expectedToRevision: v.number(),
 		idempotencyKey: v.string(),
 	},
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
-			const { agent, idempotencyKey, ...input } = args;
+			const { agent, expectedPreferredCurrency, idempotencyKey, ...input } =
+				args;
 			const source = resolveCliActionSource(agent);
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
+					assertExpectedPreferredCurrency(
+						user.currency,
+						expectedPreferredCurrency
+					);
 					const prepared = await prepareTransfer(ctx, { ...input, user });
 					const result = await commitTransfer(ctx, prepared, source);
 					return {
@@ -726,7 +775,7 @@ export const transfer = mutation({
 				},
 				key: idempotencyKey,
 				operation: "accounts.transfer",
-				request: { ...input, source },
+				request: { ...input, expectedPreferredCurrency, source },
 				userId: user._id,
 			});
 		}),

@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
 	accountCreateProposalSchema,
 	accountCreateResultSchema,
+	accountCurrencyModeSchema,
 	accountUpdatePreviewArraySchema,
 	accountUpdatePreviewSchema,
 	balanceAdjustmentPreviewSchema,
@@ -25,6 +26,7 @@ import {
 	expenseProposalSchema,
 	expenseSaveStatusSchema,
 	expenseUpdatePreviewSchema,
+	preferredCurrencyGuardSchema,
 } from "../domain/mutation-schemas.js";
 import {
 	accountSchema,
@@ -117,6 +119,20 @@ const categoryEditFields = {
 };
 const editSnapshotSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 // The backend normalizes IDs so all invalid or inaccessible targets are not found.
+export const preferredCurrencySchema = z.enum([
+	"USD",
+	"EUR",
+	"GBP",
+	"INR",
+	"CAD",
+	"AUD",
+	"JPY",
+	"AED",
+]);
+const currencyResultSchema = z.object({
+	changed: z.boolean(),
+	currency: preferredCurrencySchema,
+});
 const tagRenameFields = { name: z.string(), tagId: z.string() };
 const tagWriteSchema = z.object({ id: idSchema, name: z.string() });
 
@@ -262,6 +278,11 @@ const commitFields = {
 	idempotencyKey: idempotencyKeySchema,
 } as const;
 
+const financialCommitFields = {
+	...commitFields,
+	expectedPreferredCurrency: preferredCurrencyGuardSchema.optional(),
+} as const;
+
 export const operationDefinitions = {
 	"accounts.adjustBalance": {
 		commit: true,
@@ -270,7 +291,7 @@ export const operationDefinitions = {
 			.object({
 				...balanceAdjustmentInputSchema.shape,
 				expectedRevision: revisionSchema,
-				...commitFields,
+				...financialCommitFields,
 			})
 			.strict(),
 		mode: "mutation",
@@ -302,7 +323,11 @@ export const operationDefinitions = {
 		commit: true,
 		functionName: "cli/v1/accounts:create",
 		inputSchema: z
-			.object({ ...accountCreateInputSchema.shape, ...commitFields })
+			.object({
+				...accountCreateInputSchema.shape,
+				...financialCommitFields,
+				expectedCurrencyMode: accountCurrencyModeSchema.optional(),
+			})
 			.strict(),
 		mode: "mutation",
 		outputSchema: accountCreateResultSchema,
@@ -428,7 +453,7 @@ export const operationDefinitions = {
 				...transferInputSchema.shape,
 				expectedFromRevision: revisionSchema,
 				expectedToRevision: revisionSchema,
-				...commitFields,
+				...financialCommitFields,
 			})
 			.strict(),
 		mode: "mutation",
@@ -626,7 +651,7 @@ export const operationDefinitions = {
 		commit: true,
 		functionName: "cli/v1/expenses:create",
 		inputSchema: z
-			.object({ ...expenseCreateInputSchema.shape, ...commitFields })
+			.object({ ...expenseCreateInputSchema.shape, ...financialCommitFields })
 			.strict(),
 		mode: "mutation",
 		outputSchema: expenseCreateResultSchema,
@@ -635,7 +660,9 @@ export const operationDefinitions = {
 		functionName: "cli/v1/expenses:get",
 		inputSchema: z.object({ expenseId: idSchema }).strict(),
 		mode: "query",
-		outputSchema: expenseSchema,
+		outputSchema: expenseSchema.extend({
+			preferredCurrency: z.string().min(1).optional(),
+		}),
 	},
 	"expenses.list": {
 		functionName: "cli/v1/expenses:list",
@@ -669,7 +696,7 @@ export const operationDefinitions = {
 				confirmationToken: idSchema,
 				expectedRevision: revisionSchema,
 				expenseId: idSchema,
-				...commitFields,
+				...financialCommitFields,
 			})
 			.strict(),
 		mode: "mutation",
@@ -689,7 +716,7 @@ export const operationDefinitions = {
 				expenseId: idSchema,
 				...expenseUpdateFields,
 				expectedRevision: revisionSchema,
-				...commitFields,
+				...financialCommitFields,
 			})
 			.strict(),
 		mode: "mutation",
@@ -726,6 +753,29 @@ export const operationDefinitions = {
 		inputSchema: noArgumentsSchema,
 		mode: "query",
 		outputSchema: tagSchema.array(),
+	},
+	"settings.previewCurrency": {
+		functionName: "cli/v1/settings:previewCurrency",
+		inputSchema: z.object({ currency: preferredCurrencySchema }).strict(),
+		mode: "query",
+		outputSchema: currencyResultSchema.extend({
+			beforeCurrency: preferredCurrencySchema.nullable(),
+			beforeStatus: z.enum(["set", "unset", "unsupported"]),
+			editSnapshot: editSnapshotSchema,
+		}),
+	},
+	"settings.setCurrency": {
+		commit: true,
+		functionName: "cli/v1/settings:setCurrency",
+		inputSchema: z
+			.object({
+				...commitFields,
+				currency: preferredCurrencySchema,
+				expectedEditSnapshot: editSnapshotSchema,
+			})
+			.strict(),
+		mode: "mutation",
+		outputSchema: currencyResultSchema,
 	},
 	"tags.create": {
 		commit: true,
@@ -832,29 +882,61 @@ const uncertainMutationAdvice = (name: OperationName, key?: string): string => {
 	if (name === "categories.edit") {
 		return "check the category before replaying the exact edit with the original snapshot and idempotency key";
 	}
+	if (name === "settings.setCurrency") {
+		return "check spendly auth status before replaying with the original snapshot and idempotency key";
+	}
 	if (name === "tags.rename") {
 		return "check spendly tags list before replaying the exact rename with the original snapshot and idempotency key";
 	}
 	return "repeat the same command with the same idempotency key";
 };
 
+const currencyCodePattern = /^[A-Z]{3}$/u;
+
 const toUncertainMutationError = (
 	error: CliError,
 	name: OperationName,
-	idempotencyKey: string | undefined
-): CliError =>
-	new CliError(
+	input: Readonly<Record<string, unknown>>
+): CliError => {
+	const idempotencyKey =
+		typeof input.idempotencyKey === "string" ? input.idempotencyKey : undefined;
+	const { expectedPreferredCurrency } = input;
+	const safeCurrency =
+		typeof expectedPreferredCurrency === "string" &&
+		currencyCodePattern.test(expectedPreferredCurrency)
+			? expectedPreferredCurrency
+			: undefined;
+	const mode = accountCurrencyModeSchema.safeParse(
+		input.expectedCurrencyMode
+	).data;
+	const replayFlags = [
+		...(safeCurrency ? [`--if-preferred-currency ${safeCurrency}`] : []),
+		...(mode ? [`--if-account-currency-mode ${mode}`] : []),
+	];
+	const guarded = expectedPreferredCurrency !== undefined || mode !== undefined;
+	const advice =
+		guarded && name !== "expenses.create" && name !== "expenses.update"
+			? "check current Spendly state before any retry"
+			: uncertainMutationAdvice(name, idempotencyKey);
+	const replayAdvice =
+		replayFlags.length > 0
+			? `. Replay only with the original inputs and key, including ${replayFlags.join(" ")}`
+			: "";
+	return new CliError(
 		"NETWORK_ERROR",
-		`The mutation outcome is uncertain; ${uncertainMutationAdvice(name, idempotencyKey)}`,
+		`The mutation outcome is uncertain; ${advice}${replayAdvice}`,
 		{
 			cause: error,
 			details: {
 				...(idempotencyKey ? { idempotencyKey } : {}),
+				...(safeCurrency ? { expectedPreferredCurrency: safeCurrency } : {}),
+				...(mode ? { expectedCurrencyMode: mode } : {}),
 				outcome: "unknown",
 			},
 			retryable: true,
 		}
 	);
+};
 
 const parseOperationInput = (
 	definition: RuntimeOperationDefinition,
@@ -936,13 +1018,7 @@ export const createSpendlyOperations = (
 				error instanceof CliError &&
 				error.code === "NETWORK_ERROR"
 			) {
-				throw toUncertainMutationError(
-					error,
-					name,
-					typeof parsedInput.idempotencyKey === "string"
-						? parsedInput.idempotencyKey
-						: undefined
-				);
+				throw toUncertainMutationError(error, name, parsedInput);
 			}
 			throw error;
 		}

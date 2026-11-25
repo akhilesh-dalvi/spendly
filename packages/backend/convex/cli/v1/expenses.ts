@@ -27,6 +27,10 @@ import {
 import { forEachSequential } from "../../lib/async";
 import { withCliErrors } from "./errors";
 import {
+	assertExpectedPreferredCurrency,
+	getEffectivePreferredCurrency,
+} from "./financialCurrency";
+import {
 	presentAccount,
 	presentExpense,
 	presentExpenseProposal,
@@ -192,9 +196,15 @@ export const get = query({
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
 			const expense = await requireOwnedExpense(ctx, args.expenseId, user._id);
-			return await presentExpense(ctx, expense, user);
+			return {
+				...(await presentExpense(ctx, expense, user)),
+				preferredCurrency: getEffectivePreferredCurrency(user.currency),
+			};
 		}),
-	returns: expenseSummaryValidator,
+	returns: v.object({
+		...expenseSummaryValidator.fields,
+		preferredCurrency: v.string(),
+	}),
 });
 
 export const list = query({
@@ -343,6 +353,7 @@ export const previewCreate = query({
 				...presentExpenseProposal(prepared),
 				accountEffects,
 				...(newTagNames.length > 0 ? { newTagNames } : {}),
+				preferredCurrency: getEffectivePreferredCurrency(user.currency),
 			};
 		}),
 	returns: expenseProposalValidator,
@@ -352,15 +363,21 @@ export const create = mutation({
 	args: {
 		...expenseCreateInputValidator,
 		agent: v.optional(v.boolean()),
+		expectedPreferredCurrency: v.optional(v.string()),
 		idempotencyKey: v.string(),
 	},
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
-			const { agent, idempotencyKey, ...input } = args;
+			const { agent, expectedPreferredCurrency, idempotencyKey, ...input } =
+				args;
 			const source = resolveCliActionSource(agent);
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
+					assertExpectedPreferredCurrency(
+						user.currency,
+						expectedPreferredCurrency
+					);
 					const prepared = await prepareExpenseCreate(ctx, { input, user });
 					const accountEffects = await presentAccountEffects(
 						ctx,
@@ -389,7 +406,7 @@ export const create = mutation({
 				},
 				key: idempotencyKey,
 				operation: "expenses.create",
-				request: { ...input, source },
+				request: { ...input, expectedPreferredCurrency, source },
 				userId: user._id,
 			});
 		}),
@@ -424,6 +441,7 @@ export const previewUpdate = query({
 				after: await presentExpense(ctx, prepared.after, user),
 				before: await presentExpense(ctx, prepared.before, user),
 				...(newTagNames.length > 0 ? { newTagNames } : {}),
+				preferredCurrency: getEffectivePreferredCurrency(user.currency),
 			};
 		}),
 	returns: v.object({
@@ -431,6 +449,7 @@ export const previewUpdate = query({
 		after: expenseSummaryValidator,
 		before: expenseSummaryValidator,
 		newTagNames: v.optional(v.array(v.string())),
+		preferredCurrency: v.string(),
 	}),
 });
 
@@ -438,6 +457,7 @@ export const update = mutation({
 	args: {
 		...expenseUpdateInputValidator,
 		agent: v.optional(v.boolean()),
+		expectedPreferredCurrency: v.optional(v.string()),
 		expectedRevision: v.number(),
 		expenseId: v.id("expenses"),
 		idempotencyKey: v.string(),
@@ -445,10 +465,20 @@ export const update = mutation({
 	handler: async (ctx, args) =>
 		await withCliErrors(async () => {
 			const user = await getCurrentUser(ctx);
-			const { agent, expenseId, idempotencyKey, ...input } = args;
+			const {
+				agent,
+				expectedPreferredCurrency,
+				expenseId,
+				idempotencyKey,
+				...input
+			} = args;
 			const source = resolveCliActionSource(agent);
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
+					assertExpectedPreferredCurrency(
+						user.currency,
+						expectedPreferredCurrency
+					);
 					const prepared = await prepareExpenseUpdate(ctx, {
 						expenseId,
 						input,
@@ -475,7 +505,7 @@ export const update = mutation({
 				},
 				key: idempotencyKey,
 				operation: "expenses.update",
-				request: { expenseId, ...input, source },
+				request: { expenseId, ...input, expectedPreferredCurrency, source },
 				userId: user._id,
 			});
 		}),
@@ -513,6 +543,7 @@ export const previewDelete = mutation({
 				confirmationToken,
 				expense: await presentExpense(ctx, expense, user),
 				expiresAt: new Date(expiresAt).toISOString(),
+				preferredCurrency: getEffectivePreferredCurrency(user.currency),
 				revision,
 			};
 		}),
@@ -521,6 +552,7 @@ export const previewDelete = mutation({
 		confirmationToken: v.id("cli_deletion_confirmations"),
 		expense: expenseSummaryValidator,
 		expiresAt: v.string(),
+		preferredCurrency: v.string(),
 		revision: v.number(),
 	}),
 });
@@ -529,6 +561,7 @@ export const remove = mutation({
 	args: {
 		agent: v.optional(v.boolean()),
 		confirmationToken: v.id("cli_deletion_confirmations"),
+		expectedPreferredCurrency: v.optional(v.string()),
 		expectedRevision: v.number(),
 		expenseId: v.id("expenses"),
 		idempotencyKey: v.string(),
@@ -539,6 +572,10 @@ export const remove = mutation({
 			const source = resolveCliActionSource(args.agent);
 			return await executeIdempotentMutation(ctx, {
 				execute: async () => {
+					assertExpectedPreferredCurrency(
+						user.currency,
+						args.expectedPreferredCurrency
+					);
 					const confirmation = await ctx.db.get(args.confirmationToken);
 					if (
 						!confirmation ||
@@ -588,6 +625,7 @@ export const remove = mutation({
 				operation: "expenses.delete",
 				request: {
 					confirmationToken: args.confirmationToken,
+					expectedPreferredCurrency: args.expectedPreferredCurrency,
 					expectedRevision: args.expectedRevision,
 					expenseId: args.expenseId,
 					source,

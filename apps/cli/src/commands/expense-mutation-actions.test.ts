@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { runCli } from "../cli.js";
 import type { RuntimeConfig } from "../config.js";
+import { expensePageSchema } from "../domain/read-schemas.js";
 import { CLI_EXIT_CODE } from "../errors.js";
 import type { BackendMutation, BackendQuery, CliRuntime } from "../runtime.js";
 
@@ -255,6 +256,8 @@ describe("Phase 5 expense mutation commands", () => {
 				"account-wallet",
 				"--idempotency-key",
 				"agent-expense-key",
+				"--if-preferred-currency",
+				" gbp ",
 				"--agent",
 				"--json",
 				"--non-interactive",
@@ -266,6 +269,7 @@ describe("Phase 5 expense mutation commands", () => {
 		expect(testRuntime.calls.at(-1)).toMatchObject({
 			args: {
 				agent: true,
+				expectedPreferredCurrency: "GBP",
 				idempotencyKey: "agent-expense-key",
 			},
 			kind: "mutation",
@@ -439,8 +443,15 @@ describe("Phase 5 expense mutation commands", () => {
 		});
 	});
 
-	it("returns a deletion capability without deleting during dry run", async () => {
-		const testRuntime = createTestRuntime();
+	it("returns a deletion capability and currency guard without deleting during dry run", async () => {
+		const testRuntime = createTestRuntime({
+			mutationOverrides: {
+				"cli/v1/expenses:previewDelete": {
+					...(mutationsFixture.deletePreview as object),
+					preferredCurrency: "GBP",
+				},
+			},
+		});
 
 		const exitCode = await runCli(
 			[
@@ -465,46 +476,139 @@ describe("Phase 5 expense mutation commands", () => {
 		expect(JSON.parse(testRuntime.getStdout())).toMatchObject({
 			data: {
 				confirmationToken: "confirmation-lunch",
+				preferredCurrency: "GBP",
 				revision: 2,
 			},
 			meta: { dryRun: true },
 		});
 	});
 
-	it("commits only a fully confirmed non-interactive deletion", async () => {
-		const testRuntime = createTestRuntime();
+	it.each([undefined, "EUR"])(
+		"commits a separately reviewed non-interactive deletion (currency guard %s)",
+		async (preferredCurrency) => {
+			const testRuntime = createTestRuntime();
 
-		const exitCode = await runCli(
-			[
-				"expenses",
-				"delete",
-				"expense-lunch",
-				"--confirmation-token",
-				"confirmation-lunch",
-				"--if-revision",
-				"2",
-				"--idempotency-key",
-				"delete-lunch-key",
-				"--json",
-				"--non-interactive",
-			],
-			testRuntime.runtime
-		);
+			const exitCode = await runCli(
+				[
+					"expenses",
+					"delete",
+					"expense-lunch",
+					"--confirmation-token",
+					"confirmation-lunch",
+					"--if-revision",
+					"2",
+					"--idempotency-key",
+					"delete-lunch-key",
+					...(preferredCurrency
+						? ["--if-preferred-currency", preferredCurrency]
+						: []),
+					"--json",
+					"--non-interactive",
+				],
+				testRuntime.runtime
+			);
 
-		expect(exitCode).toBe(CLI_EXIT_CODE.success);
-		expect(testRuntime.calls).toEqual([
-			{
+			expect(exitCode).toBe(CLI_EXIT_CODE.success);
+			expect(testRuntime.calls).toEqual([
+				{
+					args: {
+						confirmationToken: "confirmation-lunch",
+						...(preferredCurrency
+							? { expectedPreferredCurrency: preferredCurrency }
+							: {}),
+						expectedRevision: 2,
+						expenseId: "expense-lunch",
+						idempotencyKey: "delete-lunch-key",
+					},
+					kind: "mutation",
+					name: "cli/v1/expenses:remove",
+				},
+			]);
+		}
+	);
+
+	it.each([undefined, "GBP"])(
+		"binds the guided delete currency preview when supported (%s)",
+		async (preferredCurrency) => {
+			const testRuntime = createTestRuntime({
+				confirm: async () => await Promise.resolve(true),
+				mutationOverrides: {
+					"cli/v1/expenses:previewDelete": {
+						...(mutationsFixture.deletePreview as object),
+						...(preferredCurrency ? { preferredCurrency } : {}),
+					},
+				},
+			});
+
+			const exitCode = await runCli(
+				["expenses", "delete", "expense-lunch"],
+				testRuntime.runtime
+			);
+
+			expect(exitCode).toBe(CLI_EXIT_CODE.success);
+			expect(testRuntime.calls.map((call) => call.name)).toEqual([
+				"cli/v1/expenses:previewDelete",
+				"cli/v1/expenses:remove",
+			]);
+			expect(testRuntime.calls.at(-1)?.args).toEqual({
+				confirmationToken: "confirmation-lunch",
+				...(preferredCurrency
+					? { expectedPreferredCurrency: preferredCurrency }
+					: {}),
+				expectedRevision: 2,
+				expenseId: "expense-lunch",
+				idempotencyKey: "generated-expense-key",
+			});
+		}
+	);
+
+	it.each([undefined, "USD"])(
+		"binds the presented currency for a human delete with a supplied token (guard %s)",
+		async (guard) => {
+			const confirm = vi.fn().mockResolvedValue(true);
+			const testRuntime = createTestRuntime({
+				confirm,
+				queryOverrides: {
+					"cli/v1/expenses:get": {
+						...expensePageSchema.parse(expensePageFixture).items[0],
+						currency: "EUR",
+						preferredCurrency: "EUR",
+					},
+				},
+			});
+			const exitCode = await runCli(
+				[
+					"expenses",
+					"delete",
+					"expense-lunch",
+					"--confirmation-token",
+					"confirmation-lunch",
+					"--if-revision",
+					"2",
+					...(guard ? ["--if-preferred-currency", guard] : []),
+				],
+				testRuntime.runtime
+			);
+
+			if (guard) {
+				expect(exitCode).toBe(CLI_EXIT_CODE.conflict);
+				expect(confirm).not.toHaveBeenCalled();
+				expect(testRuntime.calls.map((call) => call.name)).toEqual([
+					"cli/v1/expenses:get",
+				]);
+				return;
+			}
+			expect(exitCode).toBe(CLI_EXIT_CODE.success);
+			expect(confirm).toHaveBeenCalledWith(expect.stringContaining("EUR"));
+			expect(testRuntime.calls.at(-1)).toMatchObject({
 				args: {
 					confirmationToken: "confirmation-lunch",
-					expectedRevision: 2,
-					expenseId: "expense-lunch",
-					idempotencyKey: "delete-lunch-key",
+					expectedPreferredCurrency: "EUR",
 				},
-				kind: "mutation",
 				name: "cli/v1/expenses:remove",
-			},
-		]);
-	});
+			});
+		}
+	);
 
 	it("stops a human delete when confirmation is declined", async () => {
 		const testRuntime = createTestRuntime({
@@ -582,6 +686,20 @@ describe("Phase 5 expense mutation commands", () => {
 				retryable: true,
 			},
 		});
+	});
+
+	it("rejects an empty preferred currency guard before accessing the backend", async () => {
+		const testRuntime = createTestRuntime();
+		const exitCode = await runCli(
+			["expenses", "add", "--amount", "5", "--if-preferred-currency", "  "],
+			testRuntime.runtime
+		);
+
+		expect(exitCode).toBe(CLI_EXIT_CODE.invalidInput);
+		expect(testRuntime.calls).toEqual([]);
+		expect(testRuntime.getStderr()).toContain(
+			"--if-preferred-currency cannot be empty"
+		);
 	});
 
 	it("rejects scientific notation before accessing the backend", async () => {
