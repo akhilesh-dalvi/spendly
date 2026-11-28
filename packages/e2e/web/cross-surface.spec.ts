@@ -94,6 +94,7 @@ test("a CLI currency change reaches Web and rejects a stale balance preview", as
 	await user.loginCli();
 	const accountArgs = { accountId: seed.accountId };
 	const accountsBefore = await user.query(api.accounts.list, {});
+	const { revision } = await user.query(api.cli.v1.accounts.get, accountArgs);
 	const ledgerBefore = await user.query(
 		api.accounts.listTransactions,
 		accountArgs
@@ -106,6 +107,8 @@ test("a CLI currency change reaches Web and rejects a stale balance preview", as
 		"920",
 		"--date",
 		seed.date,
+		"--if-revision",
+		String(revision),
 	];
 	const balancePreview = await user.runCli([...adjust, "--dry-run"]);
 	expect(balancePreview.exitCode).toBe(0);
@@ -148,10 +151,9 @@ test("a CLI currency change reaches Web and rejects a stale balance preview", as
 		page.getByRole("combobox").filter({ hasText: "Euro (EUR)" })
 	).toBeVisible();
 
+	expect(reviewedBalance.account.revision).toBe(revision);
 	const stale = await user.runCli([
 		...adjust,
-		"--if-revision",
-		String(reviewedBalance.account.revision),
 		"--if-preferred-currency",
 		reviewedBalance.preferredCurrency,
 		"--idempotency-key",
@@ -496,8 +498,8 @@ test("CLI transfer appears in Web balances and history without creating an expen
 		page.getByRole("heading", { exact: true, name: "No expenses found" })
 	).toBeVisible();
 	await expect(
-		page.getByText("Total spent", { exact: true }).locator("..")
-	).toHaveText("Total spent$0.00");
+		page.getByText("Loaded total", { exact: true }).locator("..")
+	).toHaveText("Loaded total$0.00");
 });
 
 test("Web default-account change is used by fresh CLI processes unless --without-account overrides it", async ({
@@ -609,8 +611,8 @@ test("Web default-account change is used by fresh CLI processes unless --without
 	).toBeVisible();
 	await page.goto("/expenses");
 	await expect(
-		page.getByText("Total spent", { exact: true }).locator("..")
-	).toHaveText("Total spent$30.00");
+		page.getByText("Loaded total", { exact: true }).locator("..")
+	).toHaveText("Loaded total$30.00");
 	await expect(
 		page
 			.getByRole("row")
@@ -623,5 +625,5 @@ test("Web default-account change is used by fresh CLI processes unless --without
 	await page.goto(`/expenses/${withoutAccount.id}`);
 	await expect(
 		page.getByRole("combobox", { exact: true, name: "Account (optional)" })
-	).toHaveText("No account selected");
+	).toHaveText("Unassigned");
 });
