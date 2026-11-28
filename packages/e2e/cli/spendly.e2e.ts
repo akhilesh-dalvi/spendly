@@ -166,6 +166,10 @@ const parse = <Output>(schema: z.ZodType<Output>, value: unknown): Output => {
 	return result.data;
 };
 
+// Convex exposes preference metadata that the stable CLI JSON omits.
+const readExpense = async (user: E2EUser, expenseId: Id<"expenses">) =>
+	parse(expense, await user.query(api.cli.v1.expenses.get, { expenseId }));
+
 const document = (stdout: string): unknown => {
 	try {
 		// JSON.parse rejects empty output, banners and multiple JSON documents.
@@ -371,9 +375,9 @@ describe("live CLI subprocess contract", () => {
 				{ id: metadata.personalId, name: "E2E Personal" },
 			],
 		});
-		expect(
-			await user.query(api.cli.v1.expenses.get, { expenseId: created.id })
-		).toEqual(parse(expense, created));
+		expect(await readExpense(user, created.id)).toEqual(
+			parse(expense, created)
+		);
 		expect(
 			(await success(user, ["expenses", "get", created.id], expense)).data
 		).toEqual(parse(expense, created));
@@ -422,9 +426,9 @@ describe("live CLI subprocess contract", () => {
 			tags: [{ id: metadata.personalId, name: "E2E Personal" }],
 		});
 		expect(edited.data.accountEffects).toEqual([walletEffect(seed, 975, 960)]);
-		expect(
-			await user.query(api.cli.v1.expenses.get, { expenseId: created.id })
-		).toEqual(parse(expense, edited.data));
+		expect(await readExpense(user, created.id)).toEqual(
+			parse(expense, edited.data)
+		);
 		expect(
 			(await success(user, ["expenses", "get", created.id], expense)).data
 		).toEqual(parse(expense, edited.data));
@@ -466,9 +470,7 @@ describe("live CLI subprocess contract", () => {
 		);
 		const read = await success(user, ["expenses", "get", created.id], expense);
 		expect(read.data).toEqual(parse(expense, cleared.data));
-		expect(
-			await user.query(api.cli.v1.expenses.get, { expenseId: created.id })
-		).toEqual(read.data);
+		expect(await readExpense(user, created.id)).toEqual(read.data);
 		expect(
 			(
 				await success(
@@ -570,9 +572,9 @@ describe("live CLI subprocess contract", () => {
 			moved.data
 		);
 		expect(await readExpenseFinancialState(user, seed)).toEqual(afterMove);
-		expect(
-			await user.query(api.cli.v1.expenses.get, { expenseId: created.id })
-		).toEqual(parse(expense, moved.data));
+		expect(await readExpense(user, created.id)).toEqual(
+			parse(expense, moved.data)
+		);
 
 		const clearArgs = [
 			"expenses",
@@ -707,9 +709,9 @@ describe("live CLI subprocess contract", () => {
 			},
 			exitCode: CLI_EXIT_CODE.conflict,
 		});
-		expect(
-			await user.query(api.cli.v1.expenses.get, { expenseId: created.id })
-		).toEqual(parse(expense, created));
+		expect(await readExpense(user, created.id)).toEqual(
+			parse(expense, created)
+		);
 		expect(await readExpenseFinancialState(user, seed)).toEqual(before);
 		const resetArgs = [
 			"expenses",
@@ -734,9 +736,9 @@ describe("live CLI subprocess contract", () => {
 		expect((await success(user, resetArgs, expenseResult)).data).toEqual(
 			reset.data
 		);
-		expect(
-			await user.query(api.cli.v1.expenses.get, { expenseId: created.id })
-		).toEqual(parse(expense, reset.data));
+		expect(await readExpense(user, created.id)).toEqual(
+			parse(expense, reset.data)
+		);
 		expect(
 			(
 				await success(
@@ -781,9 +783,9 @@ describe("live CLI subprocess contract", () => {
 		expect(
 			(await success(user, ["expenses", "get", created.id], expense)).data
 		).toEqual(parse(expense, reselected.data));
-		expect(
-			await user.query(api.cli.v1.expenses.get, { expenseId: created.id })
-		).toEqual(parse(expense, reselected.data));
+		expect(await readExpense(user, created.id)).toEqual(
+			parse(expense, reselected.data)
+		);
 		expect(await readExpenseFinancialState(user, seed)).toEqual(before);
 	});
 
@@ -854,9 +856,9 @@ describe("live CLI subprocess contract", () => {
 		expect(preview.data.accountEffects).toEqual([
 			walletEffect(seed, 975, 1000),
 		]);
-		expect(
-			await user.query(api.cli.v1.expenses.get, { expenseId: created.id })
-		).toEqual(parse(expense, created));
+		expect(await readExpense(user, created.id)).toEqual(
+			parse(expense, created)
+		);
 		expect(
 			await user.query(api.accounts.get, { accountId: seed.accountId })
 		).toMatchObject({ currentBalance: 975 });
@@ -899,9 +901,9 @@ describe("live CLI subprocess contract", () => {
 			walletEffect(seed, 975, 1000),
 		]);
 		expect(Number.isFinite(Date.parse(preview.data.expiresAt))).toBe(true);
-		expect(
-			await user.query(api.cli.v1.expenses.get, { expenseId: created.id })
-		).toEqual(parse(expense, created));
+		expect(await readExpense(user, created.id)).toEqual(
+			parse(expense, created)
+		);
 		expect(
 			await user.query(api.accounts.get, { accountId: seed.accountId })
 		).toMatchObject({ currentBalance: 975 });
@@ -1033,9 +1035,7 @@ describe("live CLI subprocess contract", () => {
 			},
 			exitCode: CLI_EXIT_CODE.conflict,
 		});
-		expect(
-			await user.query(api.cli.v1.expenses.get, { expenseId: created.id })
-		).toEqual(editedExpense);
+		expect(await readExpense(user, created.id)).toEqual(editedExpense);
 		const current = await user.query(api.cli.v1.accounts.get, {
 			accountId: seed.accountId,
 		});
@@ -1076,9 +1076,7 @@ describe("live CLI subprocess contract", () => {
 			},
 			exitCode: CLI_EXIT_CODE.conflict,
 		});
-		expect(
-			await user.query(api.cli.v1.expenses.get, { expenseId: created.id })
-		).toEqual({
+		expect(await readExpense(user, created.id)).toEqual({
 			...editedExpense,
 			// Account metadata is joined at read time; only the intended rename changes.
 			account: { ...editedExpense.account, name: "Synthetic renamed wallet" },
@@ -1660,13 +1658,9 @@ describe("live CLI subprocess contract", () => {
 		const get = await success(
 			user,
 			["expenses", "get", defaulted.data.id],
-			expense
+			expense.strict()
 		);
-		expect(get.data).toEqual(
-			await user.query(api.cli.v1.expenses.get, {
-				expenseId: defaulted.data.id,
-			})
-		);
+		expect(get.data).toEqual(await readExpense(user, defaulted.data.id));
 		const summary = await success(
 			user,
 			["summary", "--cycle-id", seed.cycleId, "--date", seed.date],
@@ -1782,9 +1776,9 @@ describe("live CLI subprocess contract", () => {
 			expect(
 				(await success(other, ["expenses", "list"], expense.array())).data
 			).toEqual([]);
-			expect(
-				await user.query(api.cli.v1.expenses.get, { expenseId: created.id })
-			).toEqual(parse(expense, created));
+			expect(await readExpense(user, created.id)).toEqual(
+				parse(expense, created)
+			);
 			expect(
 				await user.query(api.accounts.get, { accountId: seed.accountId })
 			).toMatchObject({ currentBalance: 975 });

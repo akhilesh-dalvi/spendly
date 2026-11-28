@@ -111,10 +111,10 @@ test("expense filters intersect cycle, category, account and tag and recover fro
 }) => {
 	await seedReports(user);
 	await page.goto("/expenses");
-	const total = page.getByText("Total spent", { exact: true }).locator("..");
-	const count = page.getByText("Count", { exact: true }).locator("..");
-	await expect(total).toHaveText("Total spent$105.00");
-	await expect(count).toHaveText("Count4");
+	const total = page.getByText("Loaded total", { exact: true }).locator("..");
+	const count = page.getByText("Loaded count", { exact: true }).locator("..");
+	await expect(total).toHaveText("Loaded total$105.00");
+	await expect(count).toHaveText("Loaded count4");
 	await page.getByRole("combobox").filter({ hasText: "All cycles" }).click();
 	await page.getByRole("option", { exact: true, name: "E2E tracking" }).click();
 	await page
@@ -122,13 +122,13 @@ test("expense filters intersect cycle, category, account and tag and recover fro
 		.filter({ hasText: "All categories" })
 		.click();
 	await page.getByRole("option", { name: FOOD_OPTION }).click();
-	await expect(total).toHaveText("Total spent$40.00");
-	await expect(count).toHaveText("Count2");
+	await expect(total).toHaveText("Loaded total$40.00");
+	await expect(count).toHaveText("Loaded count2");
 	await page.getByRole("combobox").filter({ hasText: "All accounts" }).click();
 	await page.getByRole("option", { name: WALLET_OPTION }).click();
 	await page.getByRole("button", { exact: true, name: "Report work" }).click();
-	await expect(count).toHaveText("Count1");
-	await expect(total).toHaveText("Total spent$25.00");
+	await expect(count).toHaveText("Loaded count1");
+	await expect(total).toHaveText("Loaded total$25.00");
 	await expect(
 		page.getByRole("row").filter({ hasText: "Report lunch" })
 	).toHaveCount(1);
@@ -158,11 +158,11 @@ test("expense filters intersect cycle, category, account and tag and recover fro
 	await expect(
 		page.getByRole("heading", { exact: true, name: "No expenses found" })
 	).toBeVisible();
-	await expect(total).toHaveText("Total spent$0.00");
-	await expect(count).toHaveText("Count0");
+	await expect(total).toHaveText("Loaded total$0.00");
+	await expect(count).toHaveText("Loaded count0");
 	await page.getByRole("button", { exact: true, name: "Clear all" }).click();
-	await expect(count).toHaveText("Count4");
-	await expect(total).toHaveText("Total spent$105.00");
+	await expect(count).toHaveText("Loaded count4");
+	await expect(total).toHaveText("Loaded total$105.00");
 
 	await page.getByRole("combobox").filter({ hasText: "All cycles" }).click();
 	await page.getByRole("option", { exact: true, name: "E2E tracking" }).click();
@@ -173,8 +173,8 @@ test("expense filters intersect cycle, category, account and tag and recover fro
 	await page
 		.getByRole("option", { exact: true, name: "Uncategorized" })
 		.click();
-	await expect(count).toHaveText("Count1");
-	await expect(total).toHaveText("Total spent$5.00");
+	await expect(count).toHaveText("Loaded count1");
+	await expect(total).toHaveText("Loaded total$5.00");
 	await expect(
 		page.getByRole("row").filter({ hasText: "Report uncategorized" })
 	).toHaveCount(1);

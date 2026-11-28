@@ -13,7 +13,7 @@ import { type E2EUser, seedUser } from "../src/users";
 const WALLET_OPTION = /^E2E Wallet\b/u;
 const EXPENSES_URL = /\/expenses$/u;
 const SAVINGS_OPTION = /^E2E Savings\b/u;
-const NO_ACCOUNT_OPTION = /^No account selected/u;
+const UNASSIGNED_OPTION = /^Unassigned\b/u;
 
 const categoryPicker = (page: Page) =>
 	page.getByRole("combobox", { exact: true, name: "Category" });
@@ -297,7 +297,7 @@ test("switches and clears a committed expense account without duplicate balance 
 	await page.reload();
 	await expect(accountPicker).toHaveText("E2E Savings");
 	await accountPicker.click();
-	await page.getByRole("option", { name: NO_ACCOUNT_OPTION }).click();
+	await page.getByRole("option", { name: UNASSIGNED_OPTION }).click();
 	await page.getByRole("button", { exact: true, name: "Save Changes" }).click();
 	await expect(page).toHaveURL(EXPENSES_URL);
 	const cleared = await readExpenseFinancialState(user, seed);
@@ -324,7 +324,7 @@ test("switches and clears a committed expense account without duplicate balance 
 	// A second real save of the cleared value must not append another refund.
 	await page.goto(`/expenses/${expense._id}`);
 	await page.reload();
-	await expect(accountPicker).toHaveText("No account selected");
+	await expect(accountPicker).toHaveText("Unassigned");
 	await page.getByRole("button", { exact: true, name: "Save Changes" }).click();
 	await expect(page).toHaveURL(EXPENSES_URL);
 	await page.reload();
@@ -413,7 +413,7 @@ test("creates, reads, replaces and removes populated expense categories and tags
 	).toHaveText("Add tags...");
 });
 
-test("changes the date across an exclusive cycle boundary, resets the category and reselects from the new cycle", async ({
+test("changes the date across an exclusive cycle boundary, clears the previous category and reselects in the new cycle", async ({
 	page,
 	user,
 }) => {
@@ -452,9 +452,14 @@ test("changes the date across an exclusive cycle boundary, resets the category a
 	await expect(
 		page.getByText("Will be added to", { exact: false })
 	).toContainText(nextCycle.name);
+	await expect(categoryPicker(page)).toContainText(
+		"Previous category (unavailable)"
+	);
+	const save = page.getByRole("button", { exact: true, name: "Save Changes" });
+	await expect(save).toBeDisabled();
+	await page.getByRole("button", { name: "Remove previous category" }).click();
 	await expect(categoryPicker(page)).toContainText("Uncategorized");
-	// Save before reselecting: a visual empty label must not mask a stale old-cycle ID.
-	await page.getByRole("button", { exact: true, name: "Save Changes" }).click();
+	await save.click();
 	await expect(page).toHaveURL(EXPENSES_URL);
 	const moved = await user.query(api.expenses.get, { expenseId: expense._id });
 	expect(moved).toMatchObject({

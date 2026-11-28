@@ -52,8 +52,8 @@ test("currency and theme persist after reload on a narrow keyboard path @compati
 	await expect(page.locator("html")).toHaveClass(DARK_CLASS);
 	await page.goto("/expenses");
 	await expect(
-		page.getByText("Total spent", { exact: true }).locator("..")
-	).toHaveText("Total spent€10.00");
+		page.getByText("Loaded total", { exact: true }).locator("..")
+	).toHaveText("Loaded total€10.00");
 	await expect(
 		page
 			.getByRole("row")
